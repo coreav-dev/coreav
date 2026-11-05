@@ -439,7 +439,22 @@ pub fn probe<S: Source>(
         limits,
     )?;
     let movie = &probed.movie;
-    let mut report = Report::default();
+    let mut report = Report {
+        iso_clean_aperture: movie.tracks.iter().any(|track| {
+            std::iter::once(&track.description)
+                .chain(&track.later_descriptions)
+                .any(|description| {
+                    !description.visual_children_complete
+                        || description
+                            .entry_boxes
+                            .iter()
+                            .any(|entry| entry.kind.0 == *b"clap")
+                })
+        }),
+        ..Report::default()
+    };
+    let mut aac_qualified = true;
+    let mut summary_complete = !movie.has_fragments();
     // The iTunes gapless tag gives the AAC priming of a file without an
     // edit list, which `ffprobe` skips as the edit list's (ISO/IEC 14496-12
     // 8.6.6 does it for files with one).
@@ -454,6 +469,7 @@ pub fn probe<S: Source>(
     // Tags, dispositions, extradata sizes, chapters and protected entries,
     // as `ffprobe` reads them from the boxes (`iso_meta`).
     let meta = super::iso_meta::read(movie, &mut *source, limits)?;
+    report.iso_names_supported = Some(meta.names_supported);
     for (i, original) in movie.tracks.iter().enumerate() {
         // A protected entry is described by the format it wraps, as
         // `ffprobe` reports it.
@@ -463,6 +479,37 @@ pub fn probe<S: Source>(
             .and_then(Option::as_ref)
             .map(|p| unprotected(original, p));
         let track = unwrapped.as_ref().unwrap_or(original);
+        summary_complete &= track.descriptions == 1
+            && !track.external_data
+            && unwrapped.is_none()
+            && !matches!(
+                &track.description.fourcc.0,
+                b"avc3" | b"hev1" | b"MAC3" | b"MAC6"
+            )
+            && track.description.codec != Codec::Av1
+            && !track
+                .description
+                .entry_boxes
+                .iter()
+                .any(|config| config.kind.0 == *b"clap")
+            && (track.description.codec != Codec::Pcm
+                || meta.pcm_layouts.get(i).copied().flatten().is_some());
+        if track.description.codec == Codec::Aac {
+            aac_qualified &= matches!(
+                track.description.profile,
+                Some(coreav_isobmff::Profile::Aac {
+                    object_type: 2,
+                    sbr: false,
+                    ps: false,
+                })
+            ) && track
+                .description
+                .codec_config
+                .as_ref()
+                .filter(|config| config.kind.0 == *b"esds")
+                .and_then(|config| esds_config(&config.data))
+                .is_some_and(coreav_isobmff::aac_has_explicit_no_sbr);
+        }
         let mut head = head(movie, track, &mut *source, limits).map_err(Failure::library)?;
         let skip = if track.kind != TrackKind::Audio {
             0
@@ -482,13 +529,56 @@ pub fn probe<S: Source>(
             if movie.timescale > 0 {
                 let ticks = u128::from(empty) * u128::from(track.timescale);
                 let den = u128::from(movie.timescale);
-                head.start = i64::try_from((ticks + den / 2) / den).ok();
+                let start = i64::try_from((ticks + den / 2) / den).ok();
+                summary_complete &=
+                    track.kind != TrackKind::Video || (head.start.is_some() && head.start == start);
+                head.start = start;
             }
         }
         priming.push(skip);
         shifts.push(dts_shift(movie, track, &mut *source, limits));
         steps.push(head.steps.first().copied());
         let info = video_info(track, &head, &mut *source);
+        if track.kind == TrackKind::Video {
+            let mut intervals = head.decode_times.windows(2).map(|pair| {
+                pair.first()
+                    .zip(pair.get(1))
+                    .and_then(|(a, b)| b.checked_sub(*a))
+            });
+            let first = intervals.next().flatten();
+            summary_complete &= (head.decode_times.len() < 2
+                || first.is_some_and(|first| first > 0))
+                && intervals.all(|interval| interval.is_some() && interval == first);
+            if track.description.codec == Codec::H264 {
+                let entry = track
+                    .description
+                    .width
+                    .zip(track.description.height)
+                    .map(|(w, h)| (u32::from(w), u32::from(h)));
+                summary_complete &= info
+                    .as_ref()
+                    .is_some_and(|v| v.coded_size.is_some() && v.coded_size == entry);
+            }
+        }
+        let aspect = match track.description.codec {
+            Codec::Av1 => super::SummaryAspect::Complete {
+                codec: Some((1, 1)),
+            },
+            Codec::Vp9 => super::SummaryAspect::Complete { codec: None },
+            _ if matches!(
+                codec_name(movie, track).as_deref(),
+                Some("h264" | "hevc" | "mpeg1video" | "mpeg2video" | "mpeg4")
+            ) =>
+            {
+                info.as_ref()
+                    .and_then(|v| v.sar)
+                    .map_or(super::SummaryAspect::Unverified, |codec| {
+                        super::SummaryAspect::Complete { codec: Some(codec) }
+                    })
+            }
+            _ => super::SummaryAspect::Unverified,
+        };
+        report.summary_aspects.push(aspect);
         let mut audio_header = Vec::new();
         if matches!(&track.description.fourcc.0, b"ac-3" | b"ec-3") {
             if let Some((offset, size)) = head.first {
@@ -503,6 +593,21 @@ pub fn probe<S: Source>(
             .push((1, i64::from(track.timescale.max(1))));
         let frame_bit_rate = eac3_frame_bit_rate(track, &audio_header);
         let mut stream = stream(movie, track, &head, info, frame_bit_rate);
+        if track.kind == TrackKind::Video {
+            let get =
+                |key| {
+                    stream.entries.iter().find(|(k, _)| *k == key).and_then(
+                        |(_, value)| match value {
+                            Value::Str(value) => Some(value.as_str()),
+                            _ => None,
+                        },
+                    )
+                };
+            let real = get("r_frame_rate");
+            summary_complete &= real.is_some()
+                && real == get("avg_frame_rate")
+                && !matches!(real, Some("0/0" | "1/0"));
+        }
         super::metadata::downmix(&mut stream.entries, &audio_header);
         // The samples the first packet's side data skips; with one media
         // edit, counted from the first sample listed, not the first stored.
@@ -591,7 +696,47 @@ pub fn probe<S: Source>(
             (st.kind, *ts, get("start_pts"), get("duration_ts"))
         })
         .collect();
-    report.format = format(movie, &probed, name, &spans);
+    let (start, duration) = span(&spans);
+    report.format = format(
+        movie,
+        &probed,
+        name,
+        (start, duration),
+        meta.stream_group_count,
+    );
+    let output_timing = output_span(&spans);
+    report.iso_format_output = Some(format_timing(probed.size, output_timing));
+    summary_complete &= (start, duration) == output_timing
+        && duration
+            == movie
+                .ffprobe_format_duration_micros()
+                .and_then(|value| i64::try_from(value).ok());
+    report.summary = if report.iso_clean_aperture {
+        super::SummaryEvidence::Unsupported(
+            "ISO clean-aperture metadata or visual layout is unqualified",
+        )
+    } else if !aac_qualified {
+        super::SummaryEvidence::Unsupported(
+            "AAC decoder extensions are not explicitly ruled out by the configuration",
+        )
+    } else if !summary_complete {
+        super::SummaryEvidence::Unsupported(
+            "ISO decoder properties or timing do not have a qualified summary model",
+        )
+    } else if !meta.summary_complete {
+        super::SummaryEvidence::Unsupported("some ISO metadata cannot be summarized natively")
+    } else if movie
+        .tracks
+        .iter()
+        .any(|t| !t.warnings.is_empty() || hdr_boxes(&t.description.entry_boxes).is_none())
+        || !movie.dropped.is_empty()
+    {
+        super::SummaryEvidence::Unsupported(
+            "a damaged or unsupported ISO stream cannot be summarized natively",
+        )
+    } else {
+        super::SummaryEvidence::Complete { start, duration }
+    };
     let ends: Vec<Listed> = report
         .streams
         .iter()
@@ -858,7 +1003,11 @@ fn ac3_config(d: &coreav_isobmff::SampleDescription) -> Option<Ac3Config> {
             plain
         },
         bit_rate: bit_rate.filter(|r| *r > 0),
-        service,
+        service: if service == 7 && acmod > 1 {
+            8
+        } else {
+            service
+        },
     })
 }
 
@@ -1022,7 +1171,14 @@ fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<V
     };
     match d.codec {
         Codec::H264 => {
-            let mut info = record(b"avcC").and_then(|r| video::avc(r, full_range))?;
+            let codec_range = d
+                .parameter_set_color
+                .and_then(|c| c.full_range)
+                .unwrap_or(full_range);
+            let mut info = record(b"avcC").and_then(|r| video::avc(r, codec_range))?;
+            if track.sample_count == 0 && track.fragment_samples == 0 {
+                info.pix_fmt = None;
+            }
             if info.has_b_frames.is_none() {
                 info.has_b_frames = Some(head.reorder);
             }
@@ -1302,7 +1458,10 @@ fn stream(
         e.push(("has_b_frames", has_b_frames.map_or(Value::Na, int)));
         // The container's ratio (`pasp`), else the one the stream signals.
         let header = header_aspect(track.presentation_size, &matrix, w, h);
-        let (sar, dar) = match (d.pixel_aspect.or(info.sar).or(header), w, h) {
+        let aspect = d.pixel_aspect.or(info.sar).or(header).or_else(|| {
+            (d.codec == Codec::Av1 && d.parameter_set_size.is_some()).then_some((1, 1))
+        });
+        let (sar, dar) = match (aspect, w, h) {
             (Some((hs, vs)), Some(w), Some(h)) => (
                 ratio(u64::from(hs), u64::from(vs)),
                 compat::bounded_ratio(
@@ -1494,17 +1653,7 @@ fn stream(
         "duration",
         duration_ts.map_or(Value::Na, |v| time(v, 1, timescale)),
     ));
-    // The track's own duration: a data track's filled span does not count.
-    // In a fragmented movie with a segment index, `ffprobe` counts the
-    // bytes of the first fragment only (found on the development set: the
-    // index lets it stop reading there), over the whole duration.
-    let first_only = movie.has_fragments() && !movie.segment_indexes.is_empty();
-    let bytes = if first_only {
-        track.first_fragment_bytes
-    } else {
-        track.sample_bytes
-    };
-    // Video and audio over their whole media, edits aside: the shorter of
+    // Streams over their whole media, edits aside: the shorter of
     // the media header's duration and the samples'. Read from `ffprobe`'s
     // output on the development set: 8 of 8 edited video streams whose
     // rate differed otherwise, and all 176 audio streams of regular
@@ -1512,28 +1661,40 @@ fn stream(
     // or none, whatever average `esds` or `btrt` declares; with several
     // edits too (fixtures whose declared averages were patched). QuickTime
     // sound of one-byte samples has the codec's rate above.
-    let span = if video || audio {
+    let span = {
         let samples = i64::try_from(track.sample_duration).ok().filter(|d| *d > 0);
         let header = i64::try_from(track.mdhd_duration).ok().filter(|d| *d > 0);
         match (samples, header) {
             (Some(s), Some(h)) if !movie.has_fragments() => Some(s.min(h)),
-            (s, h) => s.or(h),
+            (s, h) if video || audio => s.or(h),
+            (_, h) => h,
         }
-    } else {
-        None
     };
     let bit_rate = coded_rate.or_else(|| {
-        // A fragmented movie's video and audio bytes are over the stream's
-        // duration as it is printed, its start included (the development
-        // set: 18 of the 19 fragmented movies with audio agree, 10 before);
-        // a subtitle or data track keeps its own span, not the longest
-        // track's it is printed with.
-        let own = duration_ts
-            .filter(|d| movie.has_fragments() && (video || audio) && *d > 0)
-            .or(span)
-            .or_else(|| media_duration(movie, track))?;
-        let ticks = u128::try_from(own).ok().filter(|t| *t > 0)?;
-        let bits = u128::from(bytes?)
+        let (bytes, ticks) = if movie.has_fragments() {
+            if movie.segment_indexes.is_empty() {
+                (track.sample_bytes?, track.sample_duration)
+            } else {
+                let first = if track.sample_count > 0 {
+                    track.sample_table_totals()
+                } else {
+                    track.first_fragment_totals
+                }?;
+                (first.bytes, first.duration)
+            }
+        } else {
+            let own = if video || audio {
+                span.or_else(|| media_duration(movie, track))
+            } else {
+                span
+            }?;
+            (track.sample_bytes?, u64::try_from(own).ok()?)
+        };
+        let ticks = u128::from(ticks);
+        if ticks == 0 {
+            return None;
+        }
+        let bits = u128::from(bytes)
             .checked_mul(8)?
             .checked_mul(u128::from(track.timescale))?;
         // The rate of a fragmented movie is rounded to the nearest (the
@@ -1637,6 +1798,9 @@ fn stream(
             ],
         });
     }
+    if video {
+        side_data.extend(hdr_boxes(&d.entry_boxes).unwrap_or_default());
+    }
     // The ambient viewing environment after the display matrix, as
     // `ffprobe` lists them.
     if let Some((lux, x, y)) = d.ambient.filter(|_| video) {
@@ -1671,6 +1835,86 @@ fn stream(
         tags,
         side_data,
     }
+}
+
+fn hdr_boxes(entry_boxes: &[coreav_isobmff::CodecConfig]) -> Option<Vec<SideData>> {
+    let mut out = Vec::new();
+    let boxes = |kind| entry_boxes.iter().filter(move |box_| box_.kind.0 == kind);
+    if boxes(*b"mdcv").count() > 1 || boxes(*b"clli").count() > 1 {
+        return None;
+    }
+    for box_ in boxes(*b"mdcv").chain(boxes(*b"clli")) {
+        match &box_.kind.0 {
+            b"mdcv" => {
+                let (coordinates, luminance) = box_.data.split_at_checked(16)?;
+                let [max0, max1, max2, max3, min0, min1, min2, min3] = luminance else {
+                    return None;
+                };
+                let values: Vec<u16> = coordinates
+                    .chunks_exact(2)
+                    .filter_map(|v| {
+                        let [a, b] = v else { return None };
+                        Some(u16::from_be_bytes([*a, *b]))
+                    })
+                    .collect();
+                let [gx, gy, bx, by, rx, ry, wx, wy] = values.as_slice() else {
+                    return None;
+                };
+                let mut entries = vec![("side_data_type", s("Mastering display metadata"))];
+                for (key, value) in [
+                    ("red_x", rx),
+                    ("red_y", ry),
+                    ("green_x", gx),
+                    ("green_y", gy),
+                    ("blue_x", bx),
+                    ("blue_y", by),
+                    ("white_point_x", wx),
+                    ("white_point_y", wy),
+                ] {
+                    entries.push((key, s(format!("{value}/50000"))));
+                }
+                entries.push((
+                    "min_luminance",
+                    s(format!(
+                        "{}/10000",
+                        u32::from_be_bytes([*min0, *min1, *min2, *min3])
+                    )),
+                ));
+                entries.push((
+                    "max_luminance",
+                    s(format!(
+                        "{}/10000",
+                        u32::from_be_bytes([*max0, *max1, *max2, *max3])
+                    )),
+                ));
+                out.push(SideData {
+                    typ: "mastering_display_metadata",
+                    entries,
+                });
+            }
+            b"clli" => {
+                let [max0, max1, average0, average1] = box_.data.as_slice() else {
+                    return None;
+                };
+                out.push(SideData {
+                    typ: "content_light_level_metadata",
+                    entries: vec![
+                        ("side_data_type", s("Content light level metadata")),
+                        (
+                            "max_content",
+                            Value::Int(i64::from(u16::from_be_bytes([*max0, *max1]))),
+                        ),
+                        (
+                            "max_average",
+                            Value::Int(i64::from(u16::from_be_bytes([*average0, *average1]))),
+                        ),
+                    ],
+                });
+            }
+            _ => {}
+        }
+    }
+    Some(out)
 }
 
 /// A track's own duration in its ticks, as `ffprobe` reads it: without
@@ -2018,25 +2262,61 @@ fn extradata_size(track: &Track) -> Option<usize> {
 }
 
 /// The format's start and duration in microseconds, as `ffprobe` counts
-/// them from the streams: each stream's start and duration rounded to
-/// microseconds on their own, then the earliest start and the latest end,
-/// of the audio and video streams when there are any, else of every
-/// stream.
+/// them from the streams: every known start contributes. The latest ancillary
+/// end extends the audio/video end only when it is less than one second later.
+/// Each start and duration is rounded to microseconds before taking the bounds.
+fn output_span(
+    streams: &[(StreamKind, i64, Option<i64>, Option<i64>)],
+) -> (Option<i64>, Option<i64>) {
+    let mut first: Option<i64> = None;
+    let mut av_end: Option<i64> = None;
+    let mut other_end: Option<i64> = None;
+    for (kind, timescale, start, duration) in streams {
+        let Some(start) = start.and_then(|s| us(s, *timescale)) else {
+            continue;
+        };
+        first = Some(first.map_or(start, |f| f.min(start)));
+        if let Some(end) = duration
+            .and_then(|d| us(d, *timescale))
+            .and_then(|d| start.checked_add(d))
+        {
+            let last = if matches!(kind, StreamKind::Video | StreamKind::Audio) {
+                &mut av_end
+            } else {
+                &mut other_end
+            };
+            *last = Some(last.map_or(end, |l| l.max(end)));
+        }
+    }
+    let last = match (av_end, other_end) {
+        (Some(av), Some(other)) if i128::from(other) < i128::from(av) + 1_000_000 => {
+            Some(av.max(other))
+        }
+        (av, other) => av.or(other),
+    };
+    let duration = first
+        .zip(last)
+        .and_then(|(f, l)| l.checked_sub(f))
+        .filter(|d| *d >= 0);
+    (first, duration)
+}
+
+fn us(ticks: i64, timescale: i64) -> Option<i64> {
+    let v = i128::from(ticks).checked_mul(1_000_000)?;
+    let den = i128::from(timescale);
+    let half = den / 2;
+    let q = if v >= 0 {
+        (v + half) / den
+    } else {
+        (v - half) / den
+    };
+    i64::try_from(q).ok()
+}
+
 fn span(streams: &[(StreamKind, i64, Option<i64>, Option<i64>)]) -> (Option<i64>, Option<i64>) {
     let av = streams
         .iter()
         .any(|(k, ..)| matches!(k, StreamKind::Video | StreamKind::Audio));
-    let us = |ticks: i64, timescale: i64| -> Option<i64> {
-        let v = i128::from(ticks).checked_mul(1_000_000)?;
-        let den = i128::from(timescale);
-        let half = den / 2;
-        let q = if v >= 0 {
-            (v + half) / den
-        } else {
-            (v - half) / den
-        };
-        i64::try_from(q).ok()
-    };
     let mut first: Option<i64> = None;
     let mut last: Option<i64> = None;
     for (kind, timescale, start, duration) in streams {
@@ -2047,8 +2327,6 @@ fn span(streams: &[(StreamKind, i64, Option<i64>, Option<i64>)]) -> (Option<i64>
         if !other {
             first = Some(first.map_or(start, |f| f.min(start)));
         }
-        // A subtitle stream's end counts (`text_shifted.mp4`), a data
-        // stream's does not (GoPro's `gpmd` a millisecond past the video).
         let ends = !other || *kind == StreamKind::Subtitle;
         if let Some(end) = duration
             .and_then(|d| us(d, *timescale))
@@ -2069,9 +2347,14 @@ fn format(
     movie: &Movie,
     probed: &crate::probe::Probed,
     name: &str,
-    streams: &[(StreamKind, i64, Option<i64>, Option<i64>)],
+    (start, micros): (Option<i64>, Option<i64>),
+    stream_group_count: Option<usize>,
 ) -> Entries {
-    let (start, micros) = span(streams);
+    let super::FormatTiming {
+        start,
+        duration,
+        bit_rate,
+    } = format_timing(probed.size, (start, micros));
     vec![
         ("filename", s(name)),
         (
@@ -2079,26 +2362,28 @@ fn format(
             int(movie.tracks.len().saturating_add(movie.dropped.len())),
         ),
         ("nb_programs", Value::Int(0)),
-        ("nb_stream_groups", Value::Int(0)),
+        (
+            "nb_stream_groups",
+            stream_group_count.map_or(Value::Na, int),
+        ),
         ("format_name", s(FORMAT_NAME)),
         ("format_long_name", s(FORMAT_LONG_NAME)),
-        (
-            "start_time",
-            start.map_or(Value::Na, |us| time(us, 1, 1_000_000)),
-        ),
-        (
-            "duration",
-            micros.map_or(Value::Na, |us| time(us, 1, 1_000_000)),
-        ),
+        ("start_time", start),
+        ("duration", duration),
         ("size", Value::Unit(int_u64(probed.size), Unit::Byte)),
-        (
-            "bit_rate",
-            micros
-                .and_then(|us| compat::format_bit_rate(probed.size, us))
-                .map_or(Value::Na, |b| Value::Unit(int_u64(b), Unit::BitRate)),
-        ),
+        ("bit_rate", bit_rate),
         ("probe_score", Value::Int(100)),
     ]
+}
+
+fn format_timing(size: u64, (start, micros): (Option<i64>, Option<i64>)) -> super::FormatTiming {
+    super::FormatTiming {
+        start: start.map_or(Value::Na, |us| time(us, 1, 1_000_000)),
+        duration: micros.map_or(Value::Na, |us| time(us, 1, 1_000_000)),
+        bit_rate: micros
+            .and_then(|us| compat::format_bit_rate(size, us))
+            .map_or(Value::Na, |b| Value::Unit(int_u64(b), Unit::BitRate)),
+    }
 }
 
 fn int_u64(v: u64) -> i64 {
@@ -3846,6 +4131,143 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[allow(clippy::indexing_slicing)]
+    fn hdr_summary_fields_are_bounded_and_have_canonical_order() {
+        use coreav_isobmff::{CodecConfig, FourCc};
+        let mut mastering = Vec::new();
+        for value in [13250u16, 34500, 7500, 3000, 34000, 16000, 15635, 16450] {
+            mastering.extend_from_slice(&value.to_be_bytes());
+        }
+        mastering.extend_from_slice(&10_000_000u32.to_be_bytes());
+        mastering.extend_from_slice(&1u32.to_be_bytes());
+        let mut boxes = vec![
+            CodecConfig {
+                kind: FourCc(*b"clli"),
+                data: vec![3, 232, 1, 144],
+            },
+            CodecConfig {
+                kind: FourCc(*b"mdcv"),
+                data: mastering,
+            },
+        ];
+        let result = hdr_boxes(&boxes).unwrap_or_default();
+        assert_eq!(
+            result.iter().map(|side| side.typ).collect::<Vec<_>>(),
+            vec!["mastering_display_metadata", "content_light_level_metadata"]
+        );
+        assert!(
+            result
+                .first()
+                .is_some_and(|side| side.entries.contains(&("red_x", s("34000/50000"))))
+        );
+        assert!(
+            result
+                .first()
+                .is_some_and(|side| side.entries.contains(&("min_luminance", s("1/10000"))))
+        );
+        boxes[0].data.pop();
+        assert!(hdr_boxes(&boxes).is_none());
+        boxes[0].data.push(144);
+        boxes.push(boxes[0].clone());
+        assert!(hdr_boxes(&boxes).is_none());
+    }
+
+    #[test]
+    fn format_span_uses_all_starts_and_the_ancillary_end_cutoff() {
+        for kind in [StreamKind::Data, StreamKind::Subtitle] {
+            for (start, duration, expected) in [
+                (0, 2500, 2_500_000),
+                (0, 2999, 2_999_000),
+                (0, 3000, 2_000_000),
+                (0, 4000, 2_000_000),
+                (500, 2000, 2_500_000),
+                (500, 4000, 2_500_000),
+                (500, 3499, 3_499_000),
+                (500, 3500, 2_500_000),
+            ] {
+                assert_eq!(
+                    output_span(&[
+                        (StreamKind::Video, 1000, Some(start), Some(2000)),
+                        (kind, 1000, Some(0), Some(duration)),
+                    ]),
+                    (Some(0), Some(expected)),
+                    "{kind:?} {start} {duration}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn format_span_rejects_the_whole_ancillary_end_group() {
+        for (near, far) in [
+            (StreamKind::Data, StreamKind::Data),
+            (StreamKind::Data, StreamKind::Subtitle),
+            (StreamKind::Subtitle, StreamKind::Data),
+        ] {
+            let mut tracks = [
+                (StreamKind::Video, 1000, Some(0), Some(2000)),
+                (near, 1000, Some(0), Some(2900)),
+                (far, 1000, Some(0), Some(3800)),
+            ];
+            assert_eq!(output_span(&tracks), (Some(0), Some(2_000_000)));
+            tracks.reverse();
+            assert_eq!(output_span(&tracks), (Some(0), Some(2_000_000)));
+        }
+    }
+
+    #[test]
+    fn format_span_preserves_unknowns_and_secondary_only_bounds() {
+        assert_eq!(output_span(&[]), (None, None));
+        assert_eq!(
+            output_span(&[(StreamKind::Data, 1000, None, None)]),
+            (None, None)
+        );
+        assert_eq!(
+            output_span(&[
+                (StreamKind::Data, 1000, Some(500), Some(2500)),
+                (StreamKind::Subtitle, 1000, Some(1000), Some(4000)),
+            ]),
+            (Some(500_000), Some(4_500_000))
+        );
+        assert_eq!(
+            output_span(&[
+                (StreamKind::Video, 1000, Some(0), Some(2000)),
+                (StreamKind::Data, 1000, Some(0), None),
+                (StreamKind::Subtitle, 1000, None, Some(4000)),
+            ]),
+            (Some(0), Some(2_000_000))
+        );
+    }
+
+    #[test]
+    fn format_span_keeps_tick_rounding_and_a_wide_cutoff() {
+        assert_eq!(
+            output_span(&[
+                (StreamKind::Video, 30000, Some(0), Some(60000)),
+                (StreamKind::Data, 12800, Some(0), Some(38387)),
+            ]),
+            (Some(0), Some(2_998_984))
+        );
+        assert_eq!(
+            output_span(&[
+                (
+                    StreamKind::Video,
+                    1_000_000,
+                    Some(i64::MAX - 500_000),
+                    Some(250_000)
+                ),
+                (
+                    StreamKind::Data,
+                    1_000_000,
+                    Some(i64::MAX - 500_000),
+                    Some(499_999)
+                ),
+            ]),
+            (Some(i64::MAX - 500_000), Some(499_999))
+        );
+    }
 
     #[cfg(feature = "transcode")]
     #[allow(clippy::unwrap_used, clippy::indexing_slicing)]

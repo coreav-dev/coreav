@@ -470,6 +470,51 @@ impl coreav_mpegts::Source for FailingAt<'_> {
     }
 }
 
+#[test]
+fn borrowing_buffered_packets_neither_reads_nor_consumes() {
+    let mut mux = audio_stream();
+    mux.pes(
+        0x101,
+        0xC0,
+        90_000,
+        &[adts(100), adts(120), adts(140)].concat(),
+        true,
+    );
+    let ts = probe(
+        SliceSource::new(&mux.out),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    let expected = ts
+        .packets(SliceSource::new(&mux.out), &Limits::default())
+        .listing_as_ffprobe()
+        .map(Result::unwrap)
+        .collect::<Vec<_>>();
+    let source = FailingAt {
+        data: SliceSource::new(&mux.out),
+        reads: 0,
+        fail_at: usize::MAX,
+    };
+    let mut packets = ts.packets(source, &Limits::default()).listing_as_ffprobe();
+    assert_eq!(packets.buffered_packets().count(), 0);
+    let first = packets.next().unwrap().unwrap();
+    let reads = packets.source_mut().reads;
+    packets.source_mut().fail_at = reads + 1;
+    let buffered = packets.buffered_packets().cloned().collect::<Vec<_>>();
+    assert!(!buffered.is_empty());
+    assert_eq!(packets.source_mut().reads, reads);
+    assert_eq!(
+        packets.buffered_packets().cloned().collect::<Vec<_>>(),
+        buffered
+    );
+    packets.source_mut().fail_at = usize::MAX;
+    let actual = std::iter::once(first)
+        .chain(packets.map(Result::unwrap))
+        .collect::<Vec<_>>();
+    assert_eq!(actual, expected);
+}
+
 /// A read that fails is not a tail the reader cannot use: wherever
 /// the failure falls, including the tail read for the durations, the probe
 /// fails with it.

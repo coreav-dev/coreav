@@ -19,6 +19,12 @@ path = "src/main.rs"
 # npm package, docs/design/npm-cli.md).
 required-features = ["cli"]
 
+[[test]]
+name = "image_capture"
+path = "tests/image_capture.rs"
+harness = false
+required-features = ["input-capture"]
+
 [features]
 default = ["cli", "net"]
 # The command-line parser. The library (probing a `Source` and the JSON
@@ -52,13 +58,13 @@ thumbnail-summary = ["dep:coreav-thumbnail"]
 transcode = ["thumbnail", "dep:coreav-transcode", "coreav-transcode/svt-av1"]
 svt-av1 = ["transcode"]
 svt-av1-native = ["svt-av1", "coreav-transcode/svt-av1-native", "dep:coreav-backend-svt-av1", "coreav-backend-svt-av1/native"]
-input-capture = ["transcode", "coreav-transcode/input-capture"]
+input-capture = ["transcode", "coreav-transcode/input-capture", "dep:sha2"]
 # dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
 # the system's libdav1d.
-dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d"]
+dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d", "dep:coreav-backend-dav1d"]
 # libvpx for VP8 and VP9 in `coreav thumbnail` and `coreav transcode`, in the same
 # sandboxed worker; links the system's libvpx.
-libvpx = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/libvpx"]
+libvpx = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/libvpx", "dep:coreav-backend-libvpx"]
 # libopus for `coreav transcode --audio opus` and `coreav ffmpeg -c:a
 # libopus`: the command runs itself as the Opus encoder, a sandboxed process
 # of its own (docs/design/transcode.md, "Opus audio"); links the system's
@@ -95,6 +101,8 @@ coreav-transcode = { path = "../coreav-transcode", optional = true }
 coreav-backend-svt-av1 = { path = "../coreav-backend-svt-av1", optional = true }
 coreav-backend-h264 = { path = "../coreav-backend-h264", optional = true }
 coreav-backend-vp9 = { path = "../coreav-backend-vp9", optional = true }
+coreav-backend-dav1d = { path = "../coreav-backend-dav1d", optional = true, features = ["dav1d"] }
+coreav-backend-libvpx = { path = "../coreav-backend-libvpx", optional = true, features = ["libvpx"] }
 coreav-worker = { path = "../coreav-worker", optional = true }
 clap = { workspace = true, optional = true }
 coreav-range = { path = "../coreav-range", optional = true }
@@ -103,11 +111,13 @@ rustls-native-certs = { version = "0.8", optional = true }
 ureq = { version = "=3.4.2", default-features = false, features = ["rustls-no-provider"], optional = true }
 url = { version = "2", optional = true }
 serde_json = { workspace = true }
+sha2 = { version = "0.10", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "fs"] }
 
 [dev-dependencies]
+sha2 = "0.10"
 # Compresses movie boxes for the compressed-movie (`cmov`) regressions.
 miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
 

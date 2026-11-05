@@ -22,6 +22,7 @@ import h264_parity_bars as bars
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / 'scripts/h264_pgo_registration.json'
+EVALUATION = ROOT / 'scripts/h264_pgo_evaluation.json'
 ARMS = ('base', 'pgo', 'ffmpeg')
 COVERAGE = {'training', 'decoder-rounds', 'encoder-sets', 'other-draws'}
 
@@ -123,8 +124,10 @@ def reserved_evidence(root, plan, receipt):
 def build_evidence(root, revision):
     from h264_pgo_build import training_roster, TOOLCHAIN, LLVM, TARGET
     build = json.loads((root / 'build.json').read_text())
+    acquisition = json.loads((ROOT / 'scripts/h264_pgo_acquisition.json').read_text())
+    lock = acquisition['artifact_lock_sha256'] if revision == acquisition['artifact_revision'] else digest(ROOT / 'Cargo.lock')
     require(build['schema'] == 1 and build['source']['commit'] == revision and
-            build['source']['lock_sha256'] == digest(ROOT / 'Cargo.lock') and build['independent_match'] is True and
+            build['source']['lock_sha256'] == lock and build['independent_match'] is True and
             build['recipe_sha256'] == digest(ROOT / 'scripts/h264_pgo_build.py'), 'build provenance changed')
     require(build['pgo']['sha256'] == build['independent']['sha256'] == digest(root / 'pgo') == digest(root / 'independent')
             and build['base']['sha256'] == digest(root / 'base') and
@@ -208,7 +211,39 @@ def resolution(width, height):
                  if width <= w and height <= h), '4k')
 
 
-def selection(rows, candidates, decisions, registry, plan):
+def evaluation_cohort(root, plan, allocation_sha256):
+    cohort = json.loads(EVALUATION.read_text())
+    if allocation_sha256 != cohort['allocation_sha256']:
+        return None
+    require(set(cohort) == {'schema', 'plan_sha256', 'allocation_sha256', 'acquisition_sha256',
+                            'snapshot', 'counts', 'inputs'} and cohort['schema'] == 1 and
+            cohort['plan_sha256'] == digest(PLAN), 'evaluation registration changed')
+    require(digest(root / 'allocation-contract.json') == allocation_sha256 and
+            digest(root / 'acquisition-receipt.json') == cohort['acquisition_sha256'],
+            'evaluation allocation or acquisition receipt changed')
+    require(set(cohort['snapshot']) == {'operator/amended-state.json', 'collection.json', 'roster.json',
+                                       'acquisition-report.json'} and
+            all(digest(root / name) == sha for name, sha in cohort['snapshot'].items()),
+            'registered evaluation snapshot changed')
+    fields = {'label', 'class', 'source_sha256', 'sha256', 'width', 'height', 'source_frames', 'frames'}
+    require(len(cohort['inputs']) == 57 and all(set(row) == fields for row in cohort['inputs']) and
+            set(cohort['counts']) == set(bars.CLASSES) and
+            all(type(n) is int and 0 < n <= plan['count_per_class'] for n in cohort['counts'].values()) and
+            cohort['counts'] == {c: sum(r['class'] == c for r in cohort['inputs']) for c in bars.CLASSES},
+            'registered evaluation counts differ')
+    rows = json.loads((root / 'roster.json').read_text())
+    require([{k: row[k] for k in fields} for row in rows] == cohort['inputs'],
+            'roster differs from registered evaluation inputs or order')
+    require({p.name for p in (root / 'media').glob('h*.h264')} == {r['label'] + '.h264' for r in rows},
+            'registered evaluation media roster changed')
+    require(all(digest(root / 'media' / (r['label'] + '.h264')) == r['sha256'] for r in rows),
+            'registered evaluation media changed')
+    return cohort
+
+
+def selection(rows, candidates, decisions, registry, plan, *, expected_counts=None):
+    from h264_pgo_acquire import failure_counts
+    failure_counts(decisions, plan)
     used = exclusions(registry)
     require(len(decisions) <= len(candidates), 'collection extends population')
     counts = {c: 0 for c in bars.CLASSES}
@@ -216,6 +251,8 @@ def selection(rows, candidates, decisions, registry, plan):
     for candidate, decision in zip(candidates, decisions):
         require(source_identity(decision['identity']) == candidate['identity'], 'collection is not an ordered population prefix')
         require(not all(n == plan['count_per_class'] for n in counts.values()), 'collection continued after quotas filled')
+        if decision['capture_status'] == 'failed':
+            continue
         metadata = decision['metadata']
         require(set(metadata) == {'codec_name', 'pix_fmt', 'field_order', 'profile', 'width', 'height', 'frames'} and
                 decision['capture_status'] == 'ok', 'collection lacks a complete metadata capture')
@@ -244,7 +281,8 @@ def selection(rows, candidates, decisions, registry, plan):
         groups.update(candidate['groups'])
         hashes.add(sha)
         counts[cls] += 1
-    require(all(n == plan['count_per_class'] for n in counts.values()) and len(chosen) == len(rows), 'collection quotas are incomplete')
+    expected_counts = expected_counts or {c: plan['count_per_class'] for c in bars.CLASSES}
+    require(counts == expected_counts and len(chosen) == len(rows), 'collection quotas are incomplete')
     for row, expected in zip(rows, chosen):
         require(all(source_identity(row[k]) == v if k == 'identity' else row[k] == v for k, v in expected.items()),
                 'roster differs from first eligible independent inputs')
@@ -336,9 +374,10 @@ def allocate(candidates, registry, plan):
         (plan['draw_seed'] + '\0' + r['identity']).encode()).hexdigest())
 
 
-def roster(rows, registry, plan):
+def roster(rows, registry, plan, *, counts=None):
     used = exclusions(registry)
-    require(len(rows) == plan['count_per_class'] * 4, 'incomplete held-out roster')
+    counts = counts or {c: plan['count_per_class'] for c in bars.CLASSES}
+    require(len(rows) == sum(counts.values()), 'incomplete held-out roster')
     require(len({r['label'] for r in rows}) == len(rows), 'duplicate label')
     require(len({r['source_sha256'] for r in rows}) == len(rows), 'duplicate source bytes')
     require(len({r['sha256'] for r in rows}) == len(rows), 'duplicate extracted bytes')
@@ -346,7 +385,7 @@ def roster(rows, registry, plan):
     groups = [g for r in rows for g in r['groups']]
     require(len(groups) == len(set(groups)), 'source group contributes more than one file')
     for cls in bars.CLASSES:
-        require(sum(r['class'] == cls for r in rows) == plan['count_per_class'], 'incomplete class')
+        require(sum(r['class'] == cls for r in rows) == counts[cls], 'incomplete class')
     for row in rows:
         require(re.fullmatch('h[0-9]{3}', row['label']) is not None, 'use neutral input labels')
         require(source_identity(row['identity']) not in used['identities'] and not set(row['groups']) & used['groups'], 'used source')
@@ -484,18 +523,21 @@ def verdict(one, eight, plan):
 
 def audit(root, plan, allocation_sha256):
     import h264_pgo_diagnostics as diagnostics
+    cohort = evaluation_cohort(root, plan, allocation_sha256)
+    counts = cohort['counts'] if cohort else None
     binding = json.loads((root / 'binding.json').read_text())
     require(set(binding) == {'plan', 'revision', 'tools', 'files', 'allocation_sha256'} and
             binding['allocation_sha256'] == allocation_sha256, 'incomplete binding schema')
     candidates = verify_allocation(root, plan, allocation_sha256, binding['revision'])
     rows = json.loads((root / 'roster.json').read_text())
     refs = json.loads((root / 'references.json').read_text())
-    classes = roster(rows, json.loads((root / 'exclusions.json').read_text()), plan)
+    classes = roster(rows, json.loads((root / 'exclusions.json').read_text()), plan, counts=counts)
     reference_evidence(refs)
     require(isinstance(binding['files'], dict) and set(binding['files']) == set(evidence_inventory(rows, refs)),
             'incomplete artifact inventory')
     require(isinstance(binding['tools'], dict) and set(binding['tools']) == {'scripts/h264_pgo_round.py', 'scripts/h264_pgo_build.py',
-                                    'scripts/h264_parity_bars.py', 'scripts/h264_pgo_diagnostics.py'},
+                                    'scripts/h264_parity_bars.py', 'scripts/h264_pgo_diagnostics.py'} |
+                                    ({'scripts/h264_pgo_evaluation.json'} if cohort else set()),
             'incomplete tool inventory')
     require(binding['plan'] == digest(PLAN), 'registration changed')
     for name, expected in binding['files'].items():
@@ -505,7 +547,7 @@ def audit(root, plan, allocation_sha256):
     reservation_receipt(root, plan)
     build_evidence(root, binding['revision'])
     selection(rows, candidates, json.loads((root / 'collection.json').read_text()),
-              json.loads((root / 'exclusions.json').read_text()), plan)
+              json.loads((root / 'exclusions.json').read_text()), plan, expected_counts=counts)
     require(all(digest(root / 'media' / (r['label'] + '.h264')) == r['sha256'] for r in rows + refs), 'input digest differs from roster')
     events = [json.loads(line) for line in (root / 'events.jsonl').read_text().splitlines()]
     require(events and events[-1] == {'kind': 'complete'}, 'incomplete or aborted run')
@@ -603,9 +645,10 @@ def audit(root, plan, allocation_sha256):
     return result
 
 
-def run(root, plan, allocation_sha256):
+def run(root, plan, allocation_sha256, acquisition_sha256=None):
     import h264_pgo_diagnostics as diagnostics
-    revision = merged()
+    import h264_pgo_acquire as acquisition
+    tooling_revision = merged()
     out = root / 'events.jsonl'
     with out.open('x', buffering=1) as log:
         def emit(row):
@@ -617,13 +660,20 @@ def run(root, plan, allocation_sha256):
                     'allocation is not reserved on its merged main')
             require(reserved_evidence(root, plan, receipt) == reserved_inputs(root, plan, receipt),
                     'standing exclusion source differs from allocation')
+            cohort = evaluation_cohort(root, plan, allocation_sha256)
+            require(cohort is not None, 'evaluation requires the registered cohort allocation')
+            acquisition.verify_receipt(root, acquisition_sha256, tooling_revision)
+            revision = json.loads((root / 'allocation-contract.json').read_text())['revision']
+            require(revision == acquisition.policy()['artifact_revision'], 'measured artifact revision changed')
             candidates = verify_allocation(root, plan, allocation_sha256, revision)
+            acquisition.audit_collection(root, candidates, plan, acquisition_sha256)
+            acquisition.bind(root, acquisition_sha256)
             instance = json.loads((root / 'instance.json').read_text())
             emit({'kind': 'host', 'phase': 'before', **host(instance)})
             rows = json.loads((root / 'roster.json').read_text())
-            roster(rows, json.loads((root / 'exclusions.json').read_text()), plan)
+            roster(rows, json.loads((root / 'exclusions.json').read_text()), plan, counts=cohort['counts'])
             selection(rows, candidates, json.loads((root / 'collection.json').read_text()),
-                      json.loads((root / 'exclusions.json').read_text()), plan)
+                      json.loads((root / 'exclusions.json').read_text()), plan, expected_counts=cohort['counts'])
             subprocess.run([sys.executable, '-I', str(ROOT / 'scripts/oracle_pin.py'), '--verify-bin', str(root)],
                            check=True, timeout=30)
             refs = json.loads((root / 'references.json').read_text())
@@ -635,7 +685,7 @@ def run(root, plan, allocation_sha256):
                 require(digest(root / 'media' / (row['label'] + '.h264')) == row['sha256'], 'input changed')
             write(root / 'binding.json', {'plan': digest(PLAN), 'revision': revision, 'allocation_sha256': allocation_sha256,
                   'tools': {str(p.relative_to(ROOT)): digest(p) for p in (Path(__file__), ROOT / 'scripts/h264_parity_bars.py',
-                             ROOT / 'scripts/h264_pgo_build.py', ROOT / 'scripts/h264_pgo_diagnostics.py')},
+                             ROOT / 'scripts/h264_pgo_build.py', ROOT / 'scripts/h264_pgo_diagnostics.py', EVALUATION)},
                   'files': {n: digest(root / n) for n in names}})
             for threads in (1, 8):
                 for comparison, arm in (('aa', 'aa'), ('null', 'null')):
@@ -693,6 +743,7 @@ def main():
     ap.add_argument('action', choices=('registry', 'allocate', 'run', 'audit'))
     ap.add_argument('directory', type=Path)
     ap.add_argument('--allocation-sha256', help='the allocation contract digest recorded before media acquisition')
+    ap.add_argument('--acquisition-sha256', help='the amendment receipt digest recorded before continuation')
     args = ap.parse_args()
     plan = json.loads(PLAN.read_text())
     root = args.directory.resolve()
@@ -731,8 +782,11 @@ def main():
             print(digest(root / 'allocation-contract.json'))
             return 0
         if args.action == 'run':
-            run(root, plan, args.allocation_sha256)
+            run(root, plan, args.allocation_sha256, args.acquisition_sha256)
+        from h264_pgo_acquire import audit_bound
+        acquisition_result = audit_bound(root, plan, args.allocation_sha256, args.acquisition_sha256)
         result = audit(root, plan, args.allocation_sha256)
+        result['acquisition'] = acquisition_result
         write(root / 'summary.json', result)
         return 0 if result['pass'] else 1
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError, bars.Refused):

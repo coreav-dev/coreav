@@ -84,8 +84,13 @@ on standard error, a temporary file renamed into place, `--force`.
   below). Before an earlier change only the simple shape was applied, its end kept to
   the end of a frame as `ffmpeg` does; the agreement runs of FLAC and MP3
   measured that rule.
-  Matroska's `CodecDelay` drops samples from the start and `DiscardPadding`
-  from the end of its frame. Timestamps do not otherwise move samples:
+  Matroska's `CodecDelay` drops samples from the stream's start.
+  On an unlaced Block, positive `DiscardPadding` drops samples from the
+  end and negative values from the beginning, after the complete packet
+  is decoded. Padded laces and padded packets requiring MP3 reframing are
+  refused rather than applying a Block's padding repeatedly or losing it.
+  See [signed Matroska padding](matroska-audio-padding.md).
+  Timestamps do not otherwise move samples:
   gaps between packets are not filled, overlaps not cut, which is what
   `ffmpeg -i IN OUT.wav` writes too.
 - **End of the file**: a demuxer error after the first packet (a truncated
@@ -204,15 +209,14 @@ video presentation times those commands give.
   `media_time` converted the same way from the first packet's timestamp;
   a media time before it (a fragment's decode time above 0) starts the
   window before the media, which still ends where the edit ends.
-- **Priming samples are never presented**: Opus's pre-skip (RFC 7845
-  4.2) is the decoder's priming, not audio, so a media edit whose window
-  starts inside it starts after it, and a track without an edit list
-  starts after it. The Opus-in-ISOBMFF mapping leaves the pre-skip to the
-  edit list (its `PreSkip` is informative), but `ffmpeg` 7.0.2 writes
-  Opus edit lists from media time 0 and drops the `dOps` pre-skip when it
-  reads them; files that skip it in the edit list decode as before.
-  Rejected: presenting them, which puts the priming (6.5 ms from libopus)
-  before the audio of every such file and delays the audio by as much.
+- **Opus startup and terminal trimming**: a supported edit list owns the
+  whole-playback window. Opus-in-ISOBMFF sections 4.3.2 and 4.4 make
+  `dOps.PreSkip` informative for this purpose; it cannot clamp that
+  window's beginning or shorten its duration. Without a supported edit,
+  the existing legacy behavior drops PreSkip, with an ignored-edit
+  warning for unsupported lists. This is not a claim that such files
+  satisfy the mapping's required edit-list structure. See
+  [Opus MP4 presentation](opus-mp4-presentation.md).
 - **Missing media is not padded**: the clock holds while the media covers
   each window. A window that starts before the first packet, or reaches
   past the last sample, writes only the samples there are, so the output
@@ -239,8 +243,8 @@ video presentation times those commands give.
   length), so a caller can drop the leading silence, or any span, without
   reading the file again. The WAV writer writes the timeline as it is,
   silence included: a WAV file has no timestamps to carry a start.
-- **Matroska** is unchanged: `CodecDelay` and `DiscardPadding` (RFC
-  9559) are its timeline; it has no edit list.
+- **Matroska** uses `CodecDelay` and signed `DiscardPadding` (RFC
+  9559) as its timeline; it has no edit list.
 - **Limits**: an empty edit's silence is output the caller did not
   send: a 2,392,423 ms leading empty edit (an `edge` corpus file) is 40
   minutes of PCM from a small file. Silence is written in chunks of at
@@ -1158,6 +1162,30 @@ Capacity preflight: `path/to/receipt.json` sha256:`<receipt-sha256>`; binding: `
 ```
 
 The required `deny` check validates those bytes, recomputes every capacity predicate and requires the current judging sources. Any changed input, executable, judging source, runtime version or resource envelope needs fresh evidence under that binding. The registration's executable identities and runtime must match the bound files and versions; review checks this against its build provenance. Historical rounds are unchanged. This change registers no new round.
+
+### Opus speed, round 4
+
+The [round-four outcome](../spikes/audio-decode-bench/opus-round4.md) is admission refusal: all 240 inputs were prepared, but the forecast for every shard exceeded its registered work allowance. No judged run started, no speed verdict exists, and the candidate is not shipped. The registration below remains unchanged.
+
+Round 3 remains failed and its entire set is spent. Round 4 tests the same fixed candidate on a fresh set, without revising the decoder or the agreement predicate. Its pre-change ceiling is the one recorded for round 3. The full-length capacity prerequisite now qualifies under the merged resource, work-count and provenance checks; it does not identify the cause of the historical worker failures or supply a speed result.
+
+Capacity preflight: `bench/audio-decode/evidence/opus-round4-retention-capacity.json` sha256:`25dedb041f8d5c309929ee1d6b288ec842b3711843daf2623a7cb5dcb9d7164e`; binding: `bench/audio-decode/evidence/opus-round4-retention-binding.json` sha256:`0b025177262378d1dead1faae85de8d5ae31e30898f59f2f09273c66940542b7`.
+
+The execution-owner changes were freshly qualified on the same spent bytes and unchanged binaries. Ten smoke operations completed; a whole-job truncation then retained 52 full operations. An exact-binding continuation completed only the eight pending operations and independently verified every retained result. Each capacity invocation kept the registered 900-second call and 3,600-second job limits. Diagnostics belong only to the current operation, so repeated failed operations cannot accumulate their captured stderr. Earlier capacity files remain historical evidence for their original source bytes, not for the changed execution owners.
+
+Planning observations: `bench/audio-decode/evidence/opus-round4-retention-allowance.json` sha256:`2e0ca54a2281571fdd15ec867cf07276e3258bcef46fd2ed86c9fca4eb32bc5e`. This separate artifact includes short-input startup, complete full-input calls, acquisition and the complete qualification lifecycle, including both full invocations. Only completed calls supply calibration clocks; the partial whole-job-truncated attempt remains in the retained provenance and its time is charged to the lifecycle. Failed per-call work cannot be resumed or supply a calibration clock. These are workload forecasts, never a speed verdict.
+
+Provenance commit: `a8285aba10b93824e1bea094a8a99b571447fa02`.
+
+The executable files, pinned shared-library archive and resolved libraries are those in that binding, without a rebuild: base `b2725e0b4fbc623278d049cb87daed484cd5df8a`, candidate `3f7ed8d3123307ea9fb18db398352828a71912b3`, Python 3.13 and NumPy 2.5.4. The judging sources must still match the binding. The [machine-readable plan](../../bench/opus-speed/round4.json) owns the settings below. The plan and tools merge before the fresh candidate list is selected or any file is fetched.
+
+1. **Set.** Draw 10 of [the corpus rules](../corpus.md#draw-10), with a target of 120 real sources and a floor of 100, excluding every earlier listing, collection and spent input. The target is fixed before listing or collection; a short draw is not filled by extending its candidate list or relaxing a rule. The historical derivation rule produces one MP4 and one Matroska/WebM input per source, with the complete source roster sorted once before assigning parameters. Each result records the observed dominant packet TOC mode, not the requested encoder mode. Derived bytes are stored and hashed once before the judged run, never reconstructed for a retry.
+2. **Identity and agreement.** Before timing an input, both builds must agree on every pre-trim raw sample bit and on the complete s16 command output, and the maintained independent oracle must pass. The three outcomes are retained for every expected input. An ordinary oracle sample disagreement is listed and untimed; it reduces the counts. An identity difference, failed binary, per-call timeout, malformed or truncated output, error diagnostic, or missing work is fatal, never a disagreement exclusion. Sanitized leaf-operation receipts retain errors without raw process output.
+3. **Bars, unchanged.** The candidate's CELT decoder-only median against libavcodec must be strictly below 1.00 overall and in each derived container. Its decoder-only median against the base is at most 1.02 for SILK and at most 1.02 for Hybrid. Its library median against libavformat/libavcodec is at most 1.00 overall and in each derived container. At least 90 timed CELT inputs are required, at least 40 in each container, and at least 20 timed inputs for each of SILK and Hybrid. A minimum not met fails the round.
+4. **Timing, unchanged.** One checked warmup and five checked rounds for the eight engines: candidate library, base library, baseline library, candidate decoder, base decoder, baseline decoder, candidate command and FFmpeg command. Each round rotates that initial order left by its index. Library and decoder calls use their internal nanoseconds; command calls use process wall time, with output validation and deletion outside that interval. Every warmup and call must report the expected complete work before a median exists. Raw identity and oracle calls are untimed. No upload or other owner runs alongside a timed call.
+5. **Host and bounds.** Four otherwise idle, duration-balanced `c4-standard-4` shards, on demand with SMT off and Intel Xeon Platinum 8581C. The runner and its children are pinned to CPU 1. All eight binaries, the archive, resolved libraries and runtime versions are checked before any CoreAV use. Per-process address space is 8 GiB, output is on a dedicated exact 4 GiB tmpfs, and per-call timeout is 900 seconds, as qualified. Each untimed capacity invocation has a 3,600-second whole-job limit; the judged controller instead bounds each complete shard to 16,200 seconds inside a five-hour VM lifetime, including setup and input acquisition. Before claiming any shard, the complete frozen roster must fit both windows under the capacity-derived forecast: three gates and six passes of eight engines, scaled by channel-samples and packets across all present TOC modes, plus startup and control costs, with twofold headroom. The VM forecast also charges setup, acquisition and a 300-second collection margin. A refusal does not permit dropping or repartitioning inputs or extending a window. A whole-shard alarm covers non-worker work too, and the independent reporter replays admission and refuses over-deadline results. These operational deadlines do not change any speed bar or excuse a per-call timeout.
+6. **Completeness and one judgment.** The complete real-source roster and four disjoint shard assignments are frozen before execution, with an outcome slot for both containers of every source. Each invocation has a create-once start record and synchronous checkpoints between inputs. No incomplete or failed shard contributes timing numbers to the round's judgment. A miss is final for this candidate on this set. Replacement is only for an independently recorded host fault, never a binary or oracle failure, a narrow miss, or a changed method. Completed or failed work cannot silently be retried under another registration.
+7. **Reported, not extra gates.** The same per-input medians, 95% bootstrap intervals (seed 206, 10,000 resamples) and share faster as round 3, including decoder-only ratios overall and by mode, CELT by frame size and bitrate, candidate/base library, and the command pair. The untimed and failed input ledger remains complete. A claim of faster needs the corresponding interval's upper bound below 1.00. The actual host, all errors and every unmet minimum accompany the result.
 
 ### Opus sets
 

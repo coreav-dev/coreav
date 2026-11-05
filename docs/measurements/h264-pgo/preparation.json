@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "status": "preparation-incomplete",
+  "date_utc": "2026-11-03",
+  "source_commit": "01a3daae9158a89bb04a98eda846d660e36408a7",
+  "plan_sha256": "45f07337c9eb520820fcce3dc903bda112e67b4548eda00b25ef309438b7c604",
+  "allocation_sha256": "9597e41c9af974922b58a1e9d00716ebdf149e89d7bd05ebcefc5bb6edeb70be",
+  "oracle_version": "n9.0.2-17-g2a571b6068-20260930",
+  "acquisition_host": {
+    "machine_type": "c4-standard-4",
+    "provisioning": "SPOT",
+    "threads_per_core": 1,
+    "timed": false
+  },
+  "required_per_class": 16,
+  "selected_per_class": {
+    "sd": 1,
+    "720p": 1,
+    "1080p": 3,
+    "4k": 0
+  },
+  "source_attempts": 8,
+  "completed_decisions": 7,
+  "oracle_captures": 18,
+  "failed_capture": {
+    "kind": "source-probe",
+    "input_ordinal_zero_based": 7,
+    "returncode": 0,
+    "stdout_bytes": 396,
+    "stderr_bytes": 25351,
+    "diagnostics": [
+      "Invalid NAL unit size",
+      "Error splitting the input into NAL units."
+    ],
+    "declared_checksums_match": true
+  },
+  "coreav_opened_allocation": false,
+  "judged_calls": 0,
+  "speed_verdict": null,
+  "parity_verdict": null
+}

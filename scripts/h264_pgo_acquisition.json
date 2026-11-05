@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "allocation_sha256": "9597e41c9af974922b58a1e9d00716ebdf149e89d7bd05ebcefc5bb6edeb70be",
+  "plan_sha256": "45f07337c9eb520820fcce3dc903bda112e67b4548eda00b25ef309438b7c604",
+  "artifact_revision": "01a3daae9158a89bb04a98eda846d660e36408a7",
+  "artifact_lock_sha256": "3eb565a5765e1664c6f16e3422590975ed3af7123fb94736f16d94a1837fbef3",
+  "source_inventory_sha256": "6cbf249f31b570fd8fb61aedc6c59d558f4f827209266d4b0fef595bd45b09b5",
+  "preparation": {
+    "state.json": "e34526f1e2e57ad4d3dcf2c5fea6e1b8411afdcb8daa757d443216282447a599",
+    "collection.json": "f6ce610c3afe3048c75ff1acdd40da236a5acad9727900179abee74f5ce98c85",
+    "roster.json": "99d1da7123a5570815299bbb505dc27d2bac610beb1b47477113ee06c007df39"
+  },
+  "replacement_limit_per_class": 16,
+  "source_attempt_bytes": 15032385536,
+  "continuation_seconds": 6600
+}

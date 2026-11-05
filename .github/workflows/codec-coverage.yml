@@ -41,19 +41,27 @@ on:
   workflow_dispatch:
     inputs:
       set:
-        description: rehearsal (40 files of corpus v1) or v1 (every real file of corpus v1)
+        description: rehearsal, v1, or fixture-only v2 with png-bmp-yuv-v1
         type: choice
-        options: [rehearsal, v1]
+        options: [rehearsal, v1, v2]
         default: rehearsal
       commit:
-        description: the full release candidate SHA registered in the round README
+        description: registered release candidate SHA, or main SHA for png-bmp-yuv-v1
         type: string
         required: true
+      registration:
+        description: legacy release registration or the separate exact image registration
+        type: choice
+        options: [legacy, png-bmp-yuv-v1]
+        default: legacy
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - .github/workflows/codec-coverage.yml
       - scripts/registered_candidate.py
+      - scripts/png_bmp_yuv_plan.py
+      - scripts/tests/test_png_bmp_yuv_plan.py
+      - docs/design/png-bmp-yuv-actions.md
       - scripts/tests/test_registered_candidate.py
       - scripts/oracle-ffmpeg.env
       - scripts/install-oracle-ffmpeg.sh
@@ -127,28 +135,44 @@ jobs:
       commit: ${{ steps.plan.outputs.commit }}
       shards: ${{ steps.plan.outputs.shards }}
       count: ${{ steps.plan.outputs.count }}
+      registration: ${{ steps.plan.outputs.registration }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: github.event_name != 'pull_request'
         with:
           persist-credentials: false
+          fetch-depth: 0
           sparse-checkout: |
             scripts/registered_candidate.py
+            scripts/png_bmp_yuv_plan.py
             docs/measurements/compat-0.1.0/README.md
           sparse-checkout-cone-mode: false
       - id: candidate
         if: github.event_name != 'pull_request'
         env:
           COMMIT: ${{ inputs.commit }}
+          REGISTRATION: ${{ inputs.registration }}
+          SET: ${{ inputs.set }}
         run: |
           set -euo pipefail
-          commit=$(python3 -I scripts/registered_candidate.py --ref "$GITHUB_REF" --commit "$COMMIT")
+          registration=${REGISTRATION:-legacy}
+          if [ "$registration" = png-bmp-yuv-v1 ]; then
+            commit=$(python3 -I scripts/png_bmp_yuv_plan.py --event "$GITHUB_EVENT_NAME" \
+              --ref "$GITHUB_REF" --set "$SET" --registration "$registration" --commit "$COMMIT")
+          elif [ "$registration" = legacy ]; then
+            commit=$(python3 -I scripts/registered_candidate.py --ref "$GITHUB_REF" --commit "$COMMIT")
+          else
+            echo '::error::unknown coverage registration'
+            exit 1
+          fi
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "registration=$registration" >> "$GITHUB_OUTPUT"
       - id: plan
         env:
           EVENT: ${{ github.event_name }}
           SET: ${{ inputs.set }}
           COMMIT: ${{ steps.candidate.outputs.commit }}
+          REGISTRATION: ${{ steps.candidate.outputs.registration }}
           SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
@@ -156,9 +180,15 @@ jobs:
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = pull_request ]; then SET=fixtures; COMMIT=$SHA; fi
+          registration=${REGISTRATION:-legacy}
+          if [ "$EVENT" = pull_request ]; then SET=fixtures; COMMIT=$SHA; registration=legacy; fi
           [ -n "$COMMIT" ] || { echo '::error::no validated measurement commit'; exit 1; }
-          if [ "$SET" != fixtures ] && ! { [ -n "$R2_ENDPOINT" ] && [ -n "$R2_ACCESS_KEY_ID" ] &&
+          if [ "$registration" = png-bmp-yuv-v1 ]; then
+            [ "$EVENT" = workflow_dispatch ] && [ "$SET" = v2 ] || { echo '::error::image acquisition requires manual v2 selection'; exit 1; }
+          else
+            case "$SET" in rehearsal|v1|fixtures) ;; *) echo '::error::legacy registration has no standalone v2 selection'; exit 1 ;; esac
+          fi
+          if [ "$SET" != fixtures ] && [ "$SET" != v2 ] && ! { [ -n "$R2_ENDPOINT" ] && [ -n "$R2_ACCESS_KEY_ID" ] &&
               [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_BUCKET" ]; }; then
             echo "::error::$SET reads the corpus store: its credentials are not set"
             exit 1
@@ -171,6 +201,7 @@ jobs:
           echo "set=$SET" >> "$GITHUB_OUTPUT"
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
           echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "registration=$registration" >> "$GITHUB_OUTPUT"
           echo "shards=$(python3 -I -c 'import json, sys; print(json.dumps(list(range(int(sys.argv[1])))))' "$count")" \
             >> "$GITHUB_OUTPUT"
 
@@ -183,6 +214,7 @@ jobs:
         with:
           ref: ${{ needs.coverage-plan.outputs.commit }}
           persist-credentials: false
+          fetch-depth: 0
       # No build cache: the binaries are built from the lock file alone, as the
       # release builds them (.github/workflows/release.yml).
       - name: Read the distribution compiler pin
@@ -208,6 +240,7 @@ jobs:
       - name: Install the C build tools
         run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm musl-tools
       - name: Build the full coreav
+        if: needs.coverage-plan.outputs.registration == 'legacy'
         env:
           COREAV_CODECS: ${{ runner.temp }}/codecs
         run: |
@@ -217,6 +250,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/dist"
           cp packages/cli/full/linux-x64/bin/coreav "$RUNNER_TEMP/dist/coreav"
       - name: Build decode-oracle against the same dav1d and libvpx
+        if: needs.coverage-plan.outputs.registration == 'legacy'
         env:
           COREAV_CODECS: ${{ runner.temp }}/codecs
         run: |
@@ -237,6 +271,7 @@ jobs:
           CODECS_GNU: ${{ runner.temp }}/codecs-gnu
         run: |
           set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dist"
           packages/cli/scripts/codecs.sh x86_64-unknown-linux-gnu "$CODECS_GNU"
           export PKG_CONFIG_PATH="$CODECS_GNU/lib/pkgconfig" OPUS_LIB_DIR="$CODECS_GNU/lib" OPUS_LIB_STATIC=true
           HARNESS=$(cargo test --locked --release -p coreav-cli --features release-full --test ffmpeg --no-run \
@@ -246,9 +281,59 @@ jobs:
               if d.get("reason") == "compiler-artifact" and d.get("executable") and d["target"]["name"] == "ffmpeg":
                   print(d["executable"])')
           cp "$HARNESS" "$RUNNER_TEMP/dist/ffmpeg-harness"
+      - name: Check the full capture feature combination without acquisition
+        if: github.event_name == 'pull_request'
+        env:
+          CODECS_GNU: ${{ runner.temp }}/codecs-gnu
+        run: |
+          set -euo pipefail
+          export PKG_CONFIG_PATH="$CODECS_GNU/lib/pkgconfig" OPUS_LIB_DIR="$CODECS_GNU/lib" OPUS_LIB_STATIC=true
+          cargo check --locked -p coreav-cli --all-targets --features release-full,input-capture
+      - name: Build the full image command and capture harness
+        if: needs.coverage-plan.outputs.registration == 'png-bmp-yuv-v1'
+        env:
+          CODECS_GNU: ${{ runner.temp }}/codecs-gnu
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dist"
+          export PKG_CONFIG_PATH="$CODECS_GNU/lib/pkgconfig" OPUS_LIB_DIR="$CODECS_GNU/lib" OPUS_LIB_STATIC=true
+          cargo build --locked --release -p coreav-cli --features release-full --bin coreav
+          cp target/release/coreav "$RUNNER_TEMP/dist/coreav"
+          cargo test --locked --release -p coreav-cli --features release-full,input-capture \
+            --test image_capture --no-run --message-format=json > "$RUNNER_TEMP/image-build.jsonl"
+          python3 -I - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import shutil
+          import subprocess
+          dist = pathlib.Path(os.environ['RUNNER_TEMP']) / 'dist'
+          records = [json.loads(line) for line in (dist.parent / 'image-build.jsonl').read_text().splitlines()]
+          programs = [row['executable'] for row in records if row.get('reason') == 'compiler-artifact'
+                      and row.get('target', {}).get('name') == 'image_capture' and row.get('executable')]
+          if len(programs) != 1:
+              raise SystemExit('expected exactly one image harness')
+          shutil.copy2(programs[0], dist / 'image-harness')
+          def sha(path):
+              with open(path, 'rb') as source:
+                  return hashlib.file_digest(source, 'sha256').hexdigest()
+          rust = subprocess.run(['rustc', '-vV'], capture_output=True, text=True, check=True, timeout=30).stdout
+          manifest = {'schema': 'coreav.image-build/1',
+                      'source_sha': subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True,
+                                                   text=True, check=True, timeout=30).stdout.strip(),
+                      'cargo_lock_sha256': sha('Cargo.lock'), 'toolchain': rust,
+                      'target': next(line.removeprefix('host: ') for line in rust.splitlines() if line.startswith('host: ')),
+                      'binaries': {name: {'sha256': sha(dist / filename),
+                                          'features': ['release-full'] + (['input-capture'] if name == 'image_harness' else [])}
+                                   for name, filename in (('coreav', 'coreav'), ('harness', 'ffmpeg-harness'),
+                                                          ('image_harness', 'image-harness'))}}
+          (dist / 'manifest-image-build.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          PY
       - name: Build x264
         run: scripts/install-x264.sh "$RUNNER_TEMP/dist"
       - name: Record the build's part of the manifest
+        if: needs.coverage-plan.outputs.registration == 'legacy'
         env:
           COMMIT: ${{ needs.coverage-plan.outputs.commit }}
         run: |
@@ -285,7 +370,7 @@ jobs:
 
   coverage-v1:
     needs: [coverage-plan, coverage-build]
-    if: needs.coverage-plan.outputs.set != 'fixtures'
+    if: needs.coverage-plan.outputs.set == 'rehearsal' || needs.coverage-plan.outputs.set == 'v1'
     runs-on: ubuntu-24.04
     timeout-minutes: 355
     strategy:
@@ -463,6 +548,7 @@ jobs:
 
   coverage-v2-v3:
     needs: [coverage-plan, coverage-build]
+    if: needs.coverage-plan.outputs.registration == 'legacy'
     runs-on: ubuntu-24.04
     timeout-minutes: 300
     steps:
@@ -539,9 +625,92 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  coverage-v2-images:
+    needs: [coverage-plan, coverage-build]
+    if: github.event_name == 'workflow_dispatch' && needs.coverage-plan.outputs.registration == 'png-bmp-yuv-v1' && needs.coverage-plan.outputs.set == 'v2'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ needs.coverage-plan.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Recheck the selected main source before media preparation
+        env:
+          COMMIT: ${{ needs.coverage-plan.outputs.commit }}
+          REGISTRATION: ${{ needs.coverage-plan.outputs.registration }}
+        run: |
+          set -euo pipefail
+          [ "$(uname -s)" = Linux ] && [ "$(uname -m)" = x86_64 ] || { echo '::error::image acquisition requires Linux x86-64'; exit 1; }
+          [ "$(git rev-parse HEAD)" = "$COMMIT" ] || { echo '::error::image checkout differs from the selected commit'; exit 1; }
+          python3 -I scripts/png_bmp_yuv_plan.py --event "$GITHUB_EVENT_NAME" --ref "$GITHUB_REF" \
+            --set v2 --registration "$REGISTRATION" --commit "$COMMIT"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: coverage-binaries
+          path: ${{ runner.temp }}/bin
+      - name: Install and verify the pinned image oracle
+        run: |
+          set -euo pipefail
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Generate and check the registered fixture inputs
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/oracle:$PATH"
+          mkdir -p "$RUNNER_TEMP/fixtures" "$RUNNER_TEMP/public"
+          scripts/gen-fixtures.sh "$RUNNER_TEMP/fixtures"
+          scripts/gen-fixtures-mkv.sh "$RUNNER_TEMP/fixtures"
+          scripts/gen-fixtures-ts.sh "$RUNNER_TEMP/fixtures"
+          python3 -I scripts/gen-v2-fixtures.py --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --out "$RUNNER_TEMP/fixtures"
+          python3 -I scripts/v2_fixture_check.py --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+            --fixtures "$RUNNER_TEMP/fixtures" --work "$RUNNER_TEMP/fixture-check" \
+            --report "$RUNNER_TEMP/public/v2-fixture-reference.json"
+          python3 -I scripts/codec_coverage_gcp.py host --job v2-images --oracle "$RUNNER_TEMP/oracle" \
+            --fixtures "$RUNNER_TEMP/fixtures" > "$RUNNER_TEMP/public/host-v2-images.json"
+      - name: Acquire the explicitly selected exact image registration
+        env:
+          REGISTRATION: ${{ needs.coverage-plan.outputs.registration }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          chmod +x "$RUNNER_TEMP/bin/coreav" "$RUNNER_TEMP/bin/ffmpeg-harness" \
+            "$RUNNER_TEMP/bin/image-harness" "$RUNNER_TEMP/bin/x264"
+          cp "$RUNNER_TEMP/bin/manifest-image-build.json" "$RUNNER_TEMP/public/"
+          python3 -I tools/compat-corpus/png_bmp_yuv.py run --registration "$REGISTRATION" \
+            --coreav "$RUNNER_TEMP/bin/coreav" --harness "$RUNNER_TEMP/bin/ffmpeg-harness" \
+            --image-harness "$RUNNER_TEMP/bin/image-harness" \
+            --build-manifest "$RUNNER_TEMP/bin/manifest-image-build.json" \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \
+            --x264 "$RUNNER_TEMP/bin/x264" --fixtures "$RUNNER_TEMP/fixtures" \
+            --work "$RUNNER_TEMP/image-work" --records "$RUNNER_TEMP/public/v2-images.jsonl" \
+            --summary "$RUNNER_TEMP/public/v2-images-summary.json" \
+            --manifest "$RUNNER_TEMP/public/v2-images-manifest.json" --jobs 4
+      - name: Retain complete image capture and process evidence
+        if: always()
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/public"
+          if [ -d "$RUNNER_TEMP/image-work" ]; then
+            tar --sparse -czf "$RUNNER_TEMP/public/v2-images-work.tgz" -C "$RUNNER_TEMP" image-work
+          fi
+          if [ -d "$RUNNER_TEMP/fixture-check" ]; then
+            tar --sparse -czf "$RUNNER_TEMP/public/v2-fixture-check.tgz" -C "$RUNNER_TEMP" fixture-check
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: coverage-v2-images
+          path: ${{ runner.temp }}/public
+          if-no-files-found: error
+          retention-days: 90
+
   coverage-report:
     needs: [coverage-plan, coverage-build, coverage-v1, coverage-v1-fixtures, coverage-v2-v3]
-    if: always() && needs.coverage-plan.result == 'success'
+    if: always() && needs.coverage-plan.result == 'success' && needs.coverage-plan.outputs.registration == 'legacy'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

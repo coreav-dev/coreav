@@ -1,0 +1,363 @@
+{
+  "schema": "coreav.png-bmp-yuv/1",
+  "set": "v2",
+  "records": 488,
+  "void": {
+    "void": false,
+    "reasons": [],
+    "fallback_ran": [],
+    "faults": [],
+    "missing": []
+  },
+  "v2": {
+    "counted": 31,
+    "of": 488,
+    "share": 0.0635,
+    "per_container": {
+      "ADTS": {
+        "commands": 3,
+        "counted": 0
+      },
+      "ASF": {
+        "commands": 5,
+        "counted": 0
+      },
+      "AVI": {
+        "commands": 25,
+        "counted": 0
+      },
+      "FLAC": {
+        "commands": 5,
+        "counted": 0
+      },
+      "FLV": {
+        "commands": 7,
+        "counted": 0
+      },
+      "GIF": {
+        "commands": 1,
+        "counted": 0
+      },
+      "HLS": {
+        "commands": 2,
+        "counted": 0
+      },
+      "MOV": {
+        "commands": 14,
+        "counted": 0
+      },
+      "MP3": {
+        "commands": 60,
+        "counted": 0
+      },
+      "MP4": {
+        "commands": 217,
+        "counted": 28
+      },
+      "MPEG-PS": {
+        "commands": 5,
+        "counted": 0
+      },
+      "MPEG-TS": {
+        "commands": 14,
+        "counted": 0
+      },
+      "Matroska/WebM": {
+        "commands": 59,
+        "counted": 0
+      },
+      "Ogg": {
+        "commands": 4,
+        "counted": 0
+      },
+      "WAV": {
+        "commands": 5,
+        "counted": 0
+      },
+      "YUV4MPEG": {
+        "commands": 4,
+        "counted": 1
+      },
+      "image": {
+        "commands": 40,
+        "counted": 0
+      },
+      "raw": {
+        "commands": 18,
+        "counted": 2
+      }
+    },
+    "misses": {
+      "no_input": 89,
+      "refused": 325,
+      "failed": 3,
+      "ffmpeg_job": 21,
+      "no_oracle": 10,
+      "oracle": 9
+    },
+    "refused_options": {
+      "an unsupported output container": 23,
+      "-framerate": 17,
+      "an unsupported input container or presentation": 16,
+      "seeking or trimming while encoding": 15,
+      "-strict": 11,
+      "-shortest": 10,
+      "a selected stream that no -c copy option covers (it would be encoded)": 10,
+      "-bsf:v": 9,
+      "-async": 7,
+      "-q:v": 7,
+      "-profile:v": 7,
+      "-b": 7,
+      "-ar": 6,
+      "-ab": 6,
+      "-loop": 6,
+      "-metadata": 6,
+      "multiple-input output other than MP4 with default metadata": 6,
+      "-probesize": 6,
+      "-qscale:v": 5,
+      "-r": 5,
+      "-id3v2_version": 5,
+      "-stream_loop": 5,
+      "-qscale": 5,
+      "no video is presented in the clip's range": 4,
+      "image and raw-video options on another output": 4,
+      "input options with several inputs": 4,
+      "-protocol_whitelist": 4,
+      "-metadata:s:v:0": 3,
+      "-re": 3,
+      "-OPTION": 3,
+      "-itsoffset": 3,
+      "-c:v VALUE": 3,
+      "-c:s mov_text": 2,
+      "-bsf:a": 2,
+      "-display_rotation": 2,
+      "a command with several outputs": 2,
+      "an unregistered decoder representation or presentation": 2,
+      "an output to a pipe": 2,
+      "-ac": 2,
+      "lossless audio output requires a decoded lossless source (currently FLAC)": 2,
+      "-qp": 2,
+      "encoding audio with aac without encoding the video with libx264": 2,
+      "-vtag": 2,
+      "a command with several inputs": 2,
+      "-c:v huffyuv": 2,
+      "AVI's default MPEG-4 Part 2 video encoder": 2,
+      "-analyzeduration": 2,
+      "encoding the files of a concat list": 2,
+      "-flags": 2,
+      "seeking or trimming into Matroska output": 2,
+      "-f mpegts": 2,
+      "-acodec VALUE": 1,
+      "-metadata:s:v": 1,
+      "the selected audio encoder in this output container": 1,
+      "-f h264": 1,
+      "-c:v libvpx-vp9": 1,
+      "an encoded output other than one MP4 file": 1,
+      "-c:a VALUE": 1,
+      "-video_size": 1,
+      "-bsf": 1,
+      "-f mov": 1,
+      "-vcodec libvpx": 1,
+      "encoder settings or filters on image and raw output": 1,
+      "-reset_timestamps": 1,
+      "-auto-alt-ref": 1,
+      "-force_key_frames": 1,
+      "-disposition:0": 1,
+      "-video_track_timescale": 1,
+      "-sseof": 1,
+      "an output frame rate that requires duplicated frames": 1,
+      "-dither_method": 1,
+      "-resampler": 1,
+      "-sample_fmt": 1,
+      "-f image2pipe": 1,
+      "-pixel_format": 1,
+      "-movflags frag_keyframe+empty_moov": 1,
+      "-disposition:s:0": 1,
+      "-allowed_extensions": 1,
+      "-avoid_negative_ts": 1,
+      "-f image2": 1,
+      "-OPTION:v": 1,
+      "-c:v wmv2": 1,
+      "-strftime": 1,
+      "-disposition:v:0": 1,
+      "-vcodec mpeg4": 1,
+      "-fflags +igndts": 1,
+      "-c:v libvpx": 1,
+      "-find_stream_info": 1,
+      "a clip written as M4A": 1,
+      "-disposition:v:1": 1,
+      "-pass": 1,
+      "-f ismv": 1,
+      "-speed": 1,
+      "-crf": 1,
+      "-x265-params": 1,
+      "encoding with several inputs": 1,
+      "-metadata:s:a": 1,
+      "-initial_offset": 1,
+      "-write_xing": 1,
+      "-map_chapters": 1,
+      "-bsf:s": 1,
+      "-aspect": 1,
+      "-metadata:s:s:1": 1,
+      "AVI source edits or nonsquare pixels": 1,
+      "-vcodec VALUE": 1,
+      "-preset": 1,
+      "-c:v ffvhuff": 1
+    },
+    "per_encoder": {
+      "x264": {
+        "commands": 100,
+        "counted": 3,
+        "misses": {
+          "refused": 86,
+          "ffmpeg_job": 10,
+          "oracle": 1
+        }
+      },
+      "libopus": {
+        "commands": 6,
+        "counted": 0,
+        "misses": {
+          "refused": 6
+        }
+      },
+      "aac": {
+        "commands": 87,
+        "counted": 0,
+        "misses": {
+          "refused": 77,
+          "ffmpeg_job": 10
+        }
+      },
+      "other encoders": {
+        "commands": 145,
+        "counted": 3,
+        "misses": {
+          "refused": 122,
+          "failed": 2,
+          "ffmpeg_job": 11,
+          "no_oracle": 2,
+          "oracle": 5
+        }
+      },
+      "copy only": {
+        "commands": 139,
+        "counted": 25,
+        "misses": {
+          "refused": 102,
+          "failed": 1,
+          "no_oracle": 8,
+          "oracle": 3
+        }
+      }
+    }
+  },
+  "registration": "png-bmp-yuv-v1",
+  "registration_sha256": "f9f8f4e76b6d9386682a01372f3caa333136774913a31d75010b2ed367f3bc26",
+  "manifest": {
+    "schema": "coreav.image-run/1",
+    "registration": "png-bmp-yuv-v1",
+    "registration_sha256": "f9f8f4e76b6d9386682a01372f3caa333136774913a31d75010b2ed367f3bc26",
+    "commandset_sha256": "077ed478f4693c5612ec3d018c9d3bbe96125a80eb635322ddf3d68dec6894c3",
+    "inputs": {
+      "basic.mp4": "f3cf8aa6050a0043ee056253266a18915ef83a876063d1aa50a0243fac19d6e2",
+      "mkv_h264_aac.mkv": "a4fd4bfabade862c9dfe71f82058718752590646558b996634b826fa272553bc",
+      "webm_vp9_opus.webm": "bebba7f04a97bfa76c8891891715b402a8bf0799b1df2e4168229bb0374c5684",
+      "ts_h264_aac.ts": "ef978cd992ee0f6d9a1527187bef346e2bd6c6211a3317261c742620f443d728",
+      "audio_aac.m4a": "0c76c6565ec5bcb836114f059fc95184737714dddc64e9745a53950a97e964df",
+      "v2_audio_aac_long.m4a": "58277880a75d6d1953f862da330382ecfd883ad1f48721f51477cea92948de45",
+      "v2_audio_mp3_long.mp3": "458427f74e7a17db0ece94b24ef6a9301b0f60cee88fe8336d622c64322075c1",
+      "v2_audio_opus_long.ogg": "a7ce357f5ed47b485f0614286a01bdd9e05ac17a96ce5cde106a8db7cc26eb9e",
+      "v2_hls_local.m3u8": "f42324b05dad0d5b561ca5067ffceb7736c951ba16c0af6b4df8ebbea041a7b9",
+      "v2_hls_segment.ts": "ef53c9ccf9664a84318f4480a565a29a5727582319c0e19eb3084a25c8b41e55",
+      "v2_mpeg_ps_video.mpg": "6313986c704041a8779f6da660859231028687d2f90325eec5b5e96ca6ec44f7",
+      "v2_multi_audio_eng.mp4": "dfe9b2d75e4c78e2a2916db6016684e11dc3b0de0a29e6ed5a972bbdf135c2e2",
+      "v2_raw_bgr24_640x480.raw": "0b150fd32588b1daca5569992ebe559c0102c837306b1af4c44d35128ec58366",
+      "v2_raw_rgb32_800x550.raw": "522fb22e22bf530428e279c81ba969cd6bd568067c609f80fb027608d3ed39ad",
+      "v2_raw_yuv420p16le_1280x720.yuv": "822e3a311bc34185394aeb709bb83310f1243089b95cdadc218eee179b1d6f78",
+      "v2_raw_yuv420p_1280x720.yuv": "b34860e0385c307a65c096dc0656048eecdf5d6896f6d8273faf330c06593cea",
+      "v2_raw_yuv420p_1920x1080.yuv": "0f41e6389208cd2597532340d4d5732c5e25ad76897908e16c7b31ee191abe9f",
+      "v2_raw_yuv420p_400x300_long.yuv": "57379dd6f7dd8a07d0d446ee7ea5ca542dbe0b4cfc74c930ae409ed2db108402",
+      "v2_still_rgb.jpg": "3919de0eab8e6f15f796ad27c744e368a36f28369f0bedd4698290388f0c4665",
+      "v2_still_rgba%03d.png": "c301cebc38cc462b44b6ebf8a3aa0e77a111ac652729b74e89a0cb7429fe75e5",
+      "v2_still_rgba.png": "c301cebc38cc462b44b6ebf8a3aa0e77a111ac652729b74e89a0cb7429fe75e5",
+      "v2_still_rgba000.png": "c301cebc38cc462b44b6ebf8a3aa0e77a111ac652729b74e89a0cb7429fe75e5",
+      "v2_subtitles.srt": "f1505b747d4b782434bf35e0b926140feee8f73170030cd7e70121dfb7ad3914",
+      "v2_subtitles_movtext.mp4": "fd7909980b63f33aa19df0ad2ca3ab4e514daaed79d2432a94bd6d9c2dbf82ad",
+      "v2_video_hevc.mp4": "ee711485572dbd2fe0cf6996034f22a723383eff2cbb713851427034fecf4069",
+      "v2_video_long.mp4": "2f06603dedfc88007e76812a2306ea40ad241a96c0c9e4291ab9603a75749c55",
+      "v2_video_only.mp4": "639365df94ae1b0724054feb4416ce45154ada7372bd6c4b8f25aa08b8e8ca35"
+    },
+    "tools": {
+      "coreav": "d1c57f1fc482c3f8eaea74494ccd09e1a20743268f9c70f5004399832e730f3e",
+      "harness": "0c1c43737860cb4a08f59b32c2a1fb886843a2ae92721f9e1b72b297589ff3f4",
+      "image_harness": "40d4cc4877c80b9fcb46ab49006114f80dc1732fb428e3afcab11d3185a0971a",
+      "ffmpeg": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d",
+      "ffprobe": "a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb",
+      "x264": "d447de3fc2dc48af362ecfe9ae894f60857cf80d74ed1edd8f8e6934de1d9db8"
+    },
+    "build": {
+      "schema": "coreav.image-build/1",
+      "source_sha": "e42fc012b13e782babc596e709c8f740840cba2d",
+      "cargo_lock_sha256": "68d7ff212d7636899de39fb2b3abd0aa5b04c7040856f4f3516da6ca3e822c59",
+      "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "target": "x86_64-unknown-linux-gnu",
+      "binaries": {
+        "coreav": {
+          "sha256": "d1c57f1fc482c3f8eaea74494ccd09e1a20743268f9c70f5004399832e730f3e",
+          "features": [
+            "release-full"
+          ]
+        },
+        "harness": {
+          "sha256": "0c1c43737860cb4a08f59b32c2a1fb886843a2ae92721f9e1b72b297589ff3f4",
+          "features": [
+            "release-full"
+          ]
+        },
+        "image_harness": {
+          "sha256": "40d4cc4877c80b9fcb46ab49006114f80dc1732fb428e3afcab11d3185a0971a",
+          "features": [
+            "release-full",
+            "input-capture"
+          ]
+        }
+      }
+    },
+    "build_manifest_sha256": "2f3621800fffc1ded2902736864e826075e069a70567fe0dbfe2c7caa1bb7235",
+    "reference_programs": {
+      "ffmpeg": {
+        "version": "ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers",
+        "sha256": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d"
+      },
+      "ffprobe": {
+        "version": "ffprobe version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2007-2026 the FFmpeg developers",
+        "sha256": "a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb"
+      }
+    },
+    "methods": {
+      "tools/compat-corpus/png_bmp_yuv.py": "ba291af627ac087c213aa0cca6253215b90c2c5a49c9060db67cab999d31e216",
+      "tools/compat-corpus/encode_breadth.py": "197740f4c64f5dfb4deee0c4cd21f7049c97871a12735bc89643c3869f9f869c",
+      "tools/compat-corpus/decoded_output.py": "d735ad2125af2c2870bad0c776b7f60f2697582548610f9fe53c5a22c049e365",
+      "tools/compat-corpus/r3.py": "0549a6b9f429e0cadd61d6d10498c971f17b901a7e89143d5d3043fa3b58d913",
+      "tools/compat-corpus/copy_check.py": "e73b39820ded04968f9c5cae7ac7a9157e1207a5b9e7351c24a6e6b007f20a75",
+      "tools/compat-corpus/release_round.py": "b5c959bbfb004b8f4cffc65d25bdaf442d5f8e2920b968b844618c0fdfb6a2fa",
+      "tools/compat-corpus/classify.py": "103bf58c02b70acb89dd85659d06fb3f33734266026691dbe218379d7f931b7f",
+      "scripts/transcode_check.py": "e3bb2edefe6590ef9e3a72ce4b993391f22282750c3bac9a342f88357c7db5d6",
+      "scripts/opus_encode_check.py": "850eca804301ad744999643504390c50e89d1650fa9c903e323699f67c87bb5f",
+      "scripts/oracle_audio.py": "cc4a68c084aab8f22201a517fb35efbc427f85590b5007e3dfc852e6dc5a98f4",
+      "scripts/oracle-audio-args.txt": "52720de7a4d973d387c1c7bffd770f40120b7315dcf307625841d04d5e000586",
+      "scripts/oracle_pin.py": "b221378b054a6e6bae92051ae4e4e4fa1add451213f28e888825fa6e43f2f909",
+      "scripts/oracle-ffmpeg.env": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
+      "docs/design/png-bmp-yuv-v1.md": "f9f8f4e76b6d9386682a01372f3caa333136774913a31d75010b2ed367f3bc26",
+      "scripts/composed_audio_selftest.py": "f7533fffb7623887a89e42a755344554b7fa927fee3c3871ca94987743be4e32",
+      "scripts/composed_audio_source.py": "f38c91960831d81340258bb31c744418b414e0b5dfe8ba2797126dd60ddb7afc",
+      "scripts/composed_audio_fixtures.py": "9e5094f930e8fa9f84c850f58a2dfff328ccaeda627e32e4d8156def47cb845c",
+      "scripts/composed_audio.py": "9f7a0243e87575b10ae8846385f3d9d7ef17ff13306ec79175e6f84d10af819f",
+      "tools/compat-corpus/v2-fixtures.json": "78583ad8ad7f70abbe8a2fdd9c0c49e37d7db602c382dc47d7bb13e349f29d76",
+      "scripts/gen-v2-fixtures.py": "86044f1d5522221da4036d7892de2c72975f9ee88369536fcedde4ae8d418f89",
+      "scripts/v2_fixture_inputs.py": "36061c3d731a64029de6021229627e0b5636a98b78d6b5702fb9b2fd7d31042d"
+    }
+  },
+  "run_identity_sha256": "1f9d652c071819751860d0957c08ceeac0ea93a32f95733bc7053a9c08afbf48"
+}

@@ -1,0 +1,4048 @@
+{
+  "complete": true,
+  "diagnostic_only": true,
+  "performance_vote": false,
+  "candidate": "117a41ae83923b59f401bab1a380f00d2c21b1ae",
+  "classes": {
+    "720p": {
+      "user": {
+        "total_gain": 4.01298492675973,
+        "scalar_gain": 4.0127526268401095,
+        "simd_increment": 1.0096545827430599,
+        "remaining_ffmpeg_ratio": 13.805820925069668
+      },
+      "wall": {
+        "total_gain": 3.9799191650119887,
+        "scalar_gain": 3.97828678935962,
+        "simd_increment": 1.0112639339162712,
+        "remaining_ffmpeg_ratio": 13.564189481839884
+      },
+      "frozen_prediction": [
+        1.5,
+        3.5
+      ],
+      "prediction_matched": false
+    },
+    "1080p": {
+      "user": {
+        "total_gain": 4.539515996040631,
+        "scalar_gain": 4.587395367322079,
+        "simd_increment": 0.9904208251530617,
+        "remaining_ffmpeg_ratio": 14.830040547801563
+      },
+      "wall": {
+        "total_gain": 4.4981396705060135,
+        "scalar_gain": 4.532878668968774,
+        "simd_increment": 0.9920871432638712,
+        "remaining_ffmpeg_ratio": 14.712159845470445
+      },
+      "frozen_prediction": [
+        1.6,
+        4.0
+      ],
+      "prediction_matched": false
+    },
+    "4K": {
+      "user": {
+        "total_gain": 2.7562869836045003,
+        "scalar_gain": 2.7249657911214396,
+        "simd_increment": 1.0106918730890913,
+        "remaining_ffmpeg_ratio": 17.6627040610851
+      },
+      "wall": {
+        "total_gain": 2.7514114226234945,
+        "scalar_gain": 2.722493520051536,
+        "simd_increment": 1.01050349357851,
+        "remaining_ffmpeg_ratio": 17.586777825705138
+      },
+      "frozen_prediction": [
+        1.5,
+        3.2
+      ],
+      "prediction_matched": true
+    }
+  },
+  "inputs": [
+    {
+      "input": 0,
+      "resolution": "720p",
+      "medians": {
+        "baseline-dist": {
+          "user": 5.074232000000052,
+          "system": 0.008003999999999678,
+          "wall": 5.079850867000005
+        },
+        "merged-safe-dist": {
+          "user": 1.965532000000053,
+          "system": 0.012008999999999936,
+          "wall": 1.9782965079999713
+        },
+        "merged-auto-dist": {
+          "user": 1.890892000000008,
+          "system": 0.008014000000000188,
+          "wall": 1.899681581999971
+        },
+        "ffmpeg-pinned": {
+          "user": 0.10208034999999996,
+          "system": 0.0018506124999999984,
+          "wall": 0.10400805228749874
+        },
+        "ffmpeg-symbols": {
+          "user": 0.10315968750000053,
+          "system": 0.0020001874999999946,
+          "wall": 0.10525079935000008
+        }
+      },
+      "paired": [
+        {
+          "user": {
+            "total_gain": 2.6889984146499564,
+            "scalar_gain": 2.5876376545459387,
+            "simd_increment": 1.0391711567212465,
+            "remaining_ffmpeg_ratio": 18.444287193636388
+          },
+          "wall": {
+            "total_gain": 2.674185066186156,
+            "scalar_gain": 2.5690165777442955,
+            "simd_increment": 1.040937255661543,
+            "remaining_ffmpeg_ratio": 18.274545539456074
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.678062825401682,
+            "scalar_gain": 2.57920338442944,
+            "simd_increment": 1.0383294475996165,
+            "remaining_ffmpeg_ratio": 18.56347475297601
+          },
+          "wall": {
+            "total_gain": 2.6740518401257383,
+            "scalar_gain": 2.565092756622953,
+            "simd_increment": 1.0424776387604144,
+            "remaining_ffmpeg_ratio": 18.276193272923482
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.682696552464283,
+            "scalar_gain": 2.5704261525104695,
+            "simd_increment": 1.0436777379673647,
+            "remaining_ffmpeg_ratio": 18.50541805339515
+          },
+          "wall": {
+            "total_gain": 2.6749062221953466,
+            "scalar_gain": 2.5687294693739386,
+            "simd_increment": 1.0413343460599165,
+            "remaining_ffmpeg_ratio": 18.259246859051533
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.6897166841553246,
+            "scalar_gain": 2.5934309523371475,
+            "simd_increment": 1.0371267766860754,
+            "remaining_ffmpeg_ratio": 18.60946531466759
+          },
+          "wall": {
+            "total_gain": 2.67427690853587,
+            "scalar_gain": 2.568600345797456,
+            "simd_increment": 1.0411416913928684,
+            "remaining_ffmpeg_ratio": 18.246160692515872
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.674483788603438,
+            "scalar_gain": 2.5729217331489984,
+            "simd_increment": 1.039473433702213,
+            "remaining_ffmpeg_ratio": 18.602684926082702
+          },
+          "wall": {
+            "total_gain": 2.6709912590429075,
+            "scalar_gain": 2.5648660448426903,
+            "simd_increment": 1.0413765133713742,
+            "remaining_ffmpeg_ratio": 18.26487238458109
+          }
+        }
+      ],
+      "profiles": {
+        "baseline-dist": {
+          "period": 15685402079,
+          "samples": 1019,
+          "leaf_only_share": 0.0,
+          "unknown_leaf_share": 0.004913567890184016,
+          "missing_caller_share": 0.0,
+          "unresolved_share": 0.0,
+          "components": {
+            "entropy_coefficients": {
+              "period": 185810774,
+              "samples": 13,
+              "estimated_user": 0.060109837836919984
+            },
+            "inverse_transform": {
+              "period": 266168329,
+              "samples": 20,
+              "estimated_user": 0.08610552956156337
+            },
+            "intra_prediction": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "interpolation": {
+              "period": 6862569960,
+              "samples": 444,
+              "estimated_user": 2.220043319124856
+            },
+            "inter_other": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "loop_filter": {
+              "period": 7859672823,
+              "samples": 509,
+              "estimated_user": 2.54260637675282
+            },
+            "reference_packing": {
+              "period": 449354728,
+              "samples": 29,
+              "estimated_user": 0.14536638134521354
+            },
+            "frame_management": {
+              "period": 46332941,
+              "samples": 3,
+              "estimated_user": 0.014988719491678031
+            },
+            "shown_picture_copy": {
+              "period": 15492524,
+              "samples": 1,
+              "estimated_user": 0.005011835887000778
+            },
+            "unresolved": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-safe-dist": {
+          "period": 6087786372,
+          "samples": 399,
+          "leaf_only_share": 0.012660000251401725,
+          "unknown_leaf_share": 0.02015129498699827,
+          "missing_caller_share": 0.017746275640829926,
+          "unresolved_share": 0.017746275640829926,
+          "components": {
+            "entropy_coefficients": {
+              "period": 215846553,
+              "samples": 14,
+              "estimated_user": 0.06968925666684143
+            },
+            "inverse_transform": {
+              "period": 375021262,
+              "samples": 28,
+              "estimated_user": 0.12108116909812679
+            },
+            "intra_prediction": {
+              "period": 28580819,
+              "samples": 2,
+              "estimated_user": 0.009227740741542156
+            },
+            "interpolation": {
+              "period": 1326545663,
+              "samples": 86,
+              "estimated_user": 0.42829491555092075
+            },
+            "inter_other": {
+              "period": 61992993,
+              "samples": 4,
+              "estimated_user": 0.020015356004886974
+            },
+            "loop_filter": {
+              "period": 3971763547,
+              "samples": 258,
+              "estimated_user": 1.2823426892848622
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 108035535,
+              "samples": 7,
+              "estimated_user": 0.034880872652872666
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-auto-dist": {
+          "period": 5866383941,
+          "samples": 384,
+          "leaf_only_share": 0.0,
+          "unknown_leaf_share": 0.021033773145602574,
+          "missing_caller_share": 0.0,
+          "unresolved_share": 0.0,
+          "components": {
+            "entropy_coefficients": {
+              "period": 163735273,
+              "samples": 11,
+              "estimated_user": 0.052776245289656416
+            },
+            "inverse_transform": {
+              "period": 247253879,
+              "samples": 18,
+              "estimated_user": 0.07969651943550995
+            },
+            "intra_prediction": {
+              "period": 12995624,
+              "samples": 2,
+              "estimated_user": 0.0041888362070654495
+            },
+            "interpolation": {
+              "period": 1357568963,
+              "samples": 88,
+              "estimated_user": 0.4375806829901123
+            },
+            "inter_other": {
+              "period": 31016939,
+              "samples": 2,
+              "estimated_user": 0.009997586658058161
+            },
+            "loop_filter": {
+              "period": 3992405839,
+              "samples": 259,
+              "estimated_user": 1.2868588789351487
+            },
+            "reference_packing": {
+              "period": 31020520,
+              "samples": 2,
+              "estimated_user": 0.009998740909863036
+            },
+            "frame_management": {
+              "period": 15473070,
+              "samples": 1,
+              "estimated_user": 0.004987383126078301
+            },
+            "shown_picture_copy": {
+              "period": 14913834,
+              "samples": 1,
+              "estimated_user": 0.004807126448515573
+            },
+            "unresolved": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            }
+          },
+          "lost_samples": 0
+        },
+        "ffmpeg-symbols": {
+          "period": 25334029817,
+          "samples": 8545,
+          "leaf_only_share": 0.6572606789870662,
+          "unknown_leaf_share": 0.01629552735913242,
+          "missing_caller_share": 0.34218557089495666,
+          "unresolved_share": 0.0326549895920966,
+          "components": {
+            "entropy_coefficients": {
+              "period": 4979761056,
+              "samples": 1681,
+              "estimated_user": 0.020065333276419323
+            },
+            "inverse_transform": {
+              "period": 152975157,
+              "samples": 52,
+              "estimated_user": 0.0006163945365449217
+            },
+            "intra_prediction": {
+              "period": 278117252,
+              "samples": 95,
+              "estimated_user": 0.001120639180986016
+            },
+            "interpolation": {
+              "period": 4117322500,
+              "samples": 1388,
+              "estimated_user": 0.01659024343536695
+            },
+            "inter_other": {
+              "period": 1871922863,
+              "samples": 631,
+              "estimated_user": 0.007542682408142441
+            },
+            "loop_filter": {
+              "period": 12887312229,
+              "samples": 4343,
+              "estimated_user": 0.05192783589497579
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 219336280,
+              "samples": 75,
+              "estimated_user": 0.0008837885007569378
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 827282480,
+              "samples": 280,
+              "estimated_user": 0.003333432766807577
+            }
+          },
+          "lost_samples": 0
+        }
+      },
+      "paired_ranges": {
+        "user": {
+          "total_gain": [
+            2.674483788603438,
+            2.6897166841553246
+          ],
+          "scalar_gain": [
+            2.5704261525104695,
+            2.5934309523371475
+          ],
+          "simd_increment": [
+            1.0371267766860754,
+            1.0436777379673647
+          ],
+          "remaining_ffmpeg_ratio": [
+            18.444287193636388,
+            18.60946531466759
+          ]
+        },
+        "wall": {
+          "total_gain": [
+            2.6709912590429075,
+            2.6749062221953466
+          ],
+          "scalar_gain": [
+            2.5648660448426903,
+            2.5690165777442955
+          ],
+          "simd_increment": [
+            1.040937255661543,
+            1.0424776387604144
+          ],
+          "remaining_ffmpeg_ratio": [
+            18.246160692515872,
+            18.276193272923482
+          ]
+        }
+      },
+      "symbol_build_drift": 1.010573411043365
+    },
+    {
+      "input": 1,
+      "resolution": "720p",
+      "medians": {
+        "baseline-dist": {
+          "user": 2.6712150000000747,
+          "system": 0.016019000000000005,
+          "wall": 2.690360891999944
+        },
+        "merged-safe-dist": {
+          "user": 0.4904639999999745,
+          "system": 0.007975000000000065,
+          "wall": 0.49945466300005137
+        },
+        "merged-auto-dist": {
+          "user": 0.4993979999999283,
+          "system": 0.008007000000000097,
+          "wall": 0.5090276809999068
+        },
+        "ffmpeg-pinned": {
+          "user": 0.0553938875,
+          "system": 0.002049774999999998,
+          "wall": 0.05745370215000065
+        },
+        "ffmpeg-symbols": {
+          "user": 0.05596820000000093,
+          "system": 0.0023494625000000102,
+          "wall": 0.058323302675000833
+        }
+      },
+      "paired": [
+        {
+          "user": {
+            "total_gain": 5.338127469259865,
+            "scalar_gain": 5.446301869250778,
+            "simd_increment": 0.9801380087648733,
+            "remaining_ffmpeg_ratio": 9.048167097163327
+          },
+          "wall": {
+            "total_gain": 5.281961595222427,
+            "scalar_gain": 5.388230807392287,
+            "simd_increment": 0.9802775315370554,
+            "remaining_ffmpeg_ratio": 8.875112601387569
+          }
+        },
+        {
+          "user": {
+            "total_gain": 5.4676008188339695,
+            "scalar_gain": 5.39227455160685,
+            "simd_increment": 1.0139692937565044,
+            "remaining_ffmpeg_ratio": 8.81866252842303
+          },
+          "wall": {
+            "total_gain": 5.285653263837821,
+            "scalar_gain": 5.38454961221557,
+            "simd_increment": 0.981633310954478,
+            "remaining_ffmpeg_ratio": 8.86350657909868
+          }
+        },
+        {
+          "user": {
+            "total_gain": 5.318849150436508,
+            "scalar_gain": 5.4934176141082025,
+            "simd_increment": 0.9682222478001004,
+            "remaining_ffmpeg_ratio": 9.07437400013063
+          },
+          "wall": {
+            "total_gain": 5.3031384224052465,
+            "scalar_gain": 5.387973232921784,
+            "simd_increment": 0.9842547824851511,
+            "remaining_ffmpeg_ratio": 8.837564982213447
+          }
+        },
+        {
+          "user": {
+            "total_gain": 5.343273301055175,
+            "scalar_gain": 5.681333327655252,
+            "simd_increment": 0.9404963576147718,
+            "remaining_ffmpeg_ratio": 9.144773058700775
+          },
+          "wall": {
+            "total_gain": 5.29349833994287,
+            "scalar_gain": 5.441176458744598,
+            "simd_increment": 0.9728591564854706,
+            "remaining_ffmpeg_ratio": 8.893756127631717
+          }
+        },
+        {
+          "user": {
+            "total_gain": 5.419205474152182,
+            "scalar_gain": 5.436062551920112,
+            "simd_increment": 0.9968990279992316,
+            "remaining_ffmpeg_ratio": 8.85063431097461
+          },
+          "wall": {
+            "total_gain": 5.285293889548684,
+            "scalar_gain": 5.386596805083122,
+            "simd_increment": 0.981193521772626,
+            "remaining_ffmpeg_ratio": 8.770764076094324
+          }
+        }
+      ],
+      "profiles": {
+        "baseline-dist": {
+          "period": 8273898006,
+          "samples": 540,
+          "leaf_only_share": 0.0,
+          "unknown_leaf_share": 0.014860528364120131,
+          "missing_caller_share": 0.0,
+          "unresolved_share": 0.0,
+          "components": {
+            "entropy_coefficients": {
+              "period": 167296198,
+              "samples": 12,
+              "estimated_user": 0.054011315249053664
+            },
+            "inverse_transform": {
+              "period": 117518968,
+              "samples": 9,
+              "estimated_user": 0.03794081458080386
+            },
+            "intra_prediction": {
+              "period": 80795933,
+              "samples": 7,
+              "estimated_user": 0.026084840302852658
+            },
+            "interpolation": {
+              "period": 6191179810,
+              "samples": 400,
+              "estimated_user": 1.9988126955609964
+            },
+            "inter_other": {
+              "period": 46546803,
+              "samples": 3,
+              "estimated_user": 0.015027562375736698
+            },
+            "loop_filter": {
+              "period": 1100270433,
+              "samples": 71,
+              "estimated_user": 0.3552205843672298
+            },
+            "reference_packing": {
+              "period": 477301926,
+              "samples": 32,
+              "estimated_user": 0.15409617852861476
+            },
+            "frame_management": {
+              "period": 46559693,
+              "samples": 3,
+              "estimated_user": 0.015031723892028658
+            },
+            "shown_picture_copy": {
+              "period": 46428242,
+              "samples": 3,
+              "estimated_user": 0.014989285142758317
+            },
+            "unresolved": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-safe-dist": {
+          "period": 1514622521,
+          "samples": 104,
+          "leaf_only_share": 0.0,
+          "unknown_leaf_share": 0.07075728540550336,
+          "missing_caller_share": 0.0,
+          "unresolved_share": 0.009985814808837113,
+          "components": {
+            "entropy_coefficients": {
+              "period": 197740542,
+              "samples": 14,
+              "estimated_user": 0.06403220330267553
+            },
+            "inverse_transform": {
+              "period": 144343953,
+              "samples": 11,
+              "estimated_user": 0.046741357389461606
+            },
+            "intra_prediction": {
+              "period": 61988360,
+              "samples": 6,
+              "estimated_user": 0.02007302715858562
+            },
+            "interpolation": {
+              "period": 476628251,
+              "samples": 31,
+              "estimated_user": 0.1543414251784071
+            },
+            "inter_other": {
+              "period": 46265851,
+              "samples": 3,
+              "estimated_user": 0.014981775346824398
+            },
+            "loop_filter": {
+              "period": 493400776,
+              "samples": 32,
+              "estimated_user": 0.15977269243314743
+            },
+            "reference_packing": {
+              "period": 15323459,
+              "samples": 1,
+              "estimated_user": 0.004962031721285629
+            },
+            "frame_management": {
+              "period": 28813961,
+              "samples": 2,
+              "estimated_user": 0.009330516595364467
+            },
+            "shown_picture_copy": {
+              "period": 34992628,
+              "samples": 3,
+              "estimated_user": 0.011331288199821443
+            },
+            "unresolved": {
+              "period": 15124740,
+              "samples": 1,
+              "estimated_user": 0.004897682674401231
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-auto-dist": {
+          "period": 1545400074,
+          "samples": 106,
+          "leaf_only_share": 0.040087277102071626,
+          "unknown_leaf_share": 0.07004861900893114,
+          "missing_caller_share": 0.06723585481075886,
+          "unresolved_share": 0.06723585481075886,
+          "components": {
+            "entropy_coefficients": {
+              "period": 187786594,
+              "samples": 16,
+              "estimated_user": 0.06068347675671105
+            },
+            "inverse_transform": {
+              "period": 90963174,
+              "samples": 7,
+              "estimated_user": 0.029394865403148333
+            },
+            "intra_prediction": {
+              "period": 40702734,
+              "samples": 3,
+              "estimated_user": 0.013153140274878156
+            },
+            "interpolation": {
+              "period": 537133768,
+              "samples": 35,
+              "estimated_user": 0.17357546048080846
+            },
+            "inter_other": {
+              "period": 61844056,
+              "samples": 4,
+              "estimated_user": 0.01998498537556273
+            },
+            "loop_filter": {
+              "period": 523063453,
+              "samples": 34,
+              "estimated_user": 0.169028620288041
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 103906295,
+              "samples": 7,
+              "estimated_user": 0.03357745142077853
+            }
+          },
+          "lost_samples": 0
+        },
+        "ffmpeg-symbols": {
+          "period": 13884123406,
+          "samples": 4809,
+          "leaf_only_share": 0.35387643737571084,
+          "unknown_leaf_share": 0.03089214064567066,
+          "missing_caller_share": 0.6735031674350418,
+          "unresolved_share": 0.059294517912757305,
+          "components": {
+            "entropy_coefficients": {
+              "period": 6624516865,
+              "samples": 2284,
+              "estimated_user": 0.02643002595346297
+            },
+            "inverse_transform": {
+              "period": 170742267,
+              "samples": 59,
+              "estimated_user": 0.0006812153459832884
+            },
+            "intra_prediction": {
+              "period": 691706109,
+              "samples": 247,
+              "estimated_user": 0.0027597198083424133
+            },
+            "interpolation": {
+              "period": 2693928186,
+              "samples": 949,
+              "estimated_user": 0.010748042962789774
+            },
+            "inter_other": {
+              "period": 1012551043,
+              "samples": 351,
+              "estimated_user": 0.004039804093048528
+            },
+            "loop_filter": {
+              "period": 1787442296,
+              "samples": 597,
+              "estimated_user": 0.007131410069041683
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 79984236,
+              "samples": 28,
+              "estimated_user": 0.000319115412705332
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 823252404,
+              "samples": 294,
+              "estimated_user": 0.003284553854626013
+            }
+          },
+          "lost_samples": 0
+        }
+      },
+      "paired_ranges": {
+        "user": {
+          "total_gain": [
+            5.318849150436508,
+            5.4676008188339695
+          ],
+          "scalar_gain": [
+            5.39227455160685,
+            5.681333327655252
+          ],
+          "simd_increment": [
+            0.9404963576147718,
+            1.0139692937565044
+          ],
+          "remaining_ffmpeg_ratio": [
+            8.81866252842303,
+            9.144773058700775
+          ]
+        },
+        "wall": {
+          "total_gain": [
+            5.281961595222427,
+            5.3031384224052465
+          ],
+          "scalar_gain": [
+            5.38454961221557,
+            5.441176458744598
+          ],
+          "simd_increment": [
+            0.9728591564854706,
+            0.9842547824851511
+          ],
+          "remaining_ffmpeg_ratio": [
+            8.770764076094324,
+            8.893756127631717
+          ]
+        }
+      },
+      "symbol_build_drift": 1.0103677955442454
+    },
+    {
+      "input": 2,
+      "resolution": "1080p",
+      "medians": {
+        "baseline-dist": {
+          "user": 6.468620000000101,
+          "system": 0.015990999999999644,
+          "wall": 6.482549382000002
+        },
+        "merged-safe-dist": {
+          "user": 1.3299880000000712,
+          "system": 0.019981999999999722,
+          "wall": 1.3485736589999533
+        },
+        "merged-auto-dist": {
+          "user": 1.3469430000000102,
+          "system": 0.015994000000000064,
+          "wall": 1.3637481929999922
+        },
+        "ffmpeg-pinned": {
+          "user": 0.08473612500000058,
+          "system": 0.0021998749999999844,
+          "wall": 0.08665357117500036
+        },
+        "ffmpeg-symbols": {
+          "user": 0.08313429999999755,
+          "system": 0.0021982750000000273,
+          "wall": 0.08535174632500002
+        }
+      },
+      "paired": [
+        {
+          "user": {
+            "total_gain": 4.805657701489928,
+            "scalar_gain": 4.865810800148607,
+            "simd_increment": 0.9876376001597017,
+            "remaining_ffmpeg_ratio": 16.215936824573845
+          },
+          "wall": {
+            "total_gain": 4.753360400411479,
+            "scalar_gain": 4.798020032800842,
+            "simd_increment": 0.9906920704615538,
+            "remaining_ffmpeg_ratio": 15.989890441112868
+          }
+        },
+        {
+          "user": {
+            "total_gain": 4.828964163351603,
+            "scalar_gain": 4.87211050243006,
+            "simd_increment": 0.9911442199316013,
+            "remaining_ffmpeg_ratio": 16.26316984256163
+          },
+          "wall": {
+            "total_gain": 4.747950457553266,
+            "scalar_gain": 4.803736342295199,
+            "simd_increment": 0.9883869803072334,
+            "remaining_ffmpeg_ratio": 16.10998766620435
+          }
+        },
+        {
+          "user": {
+            "total_gain": 4.802410412697484,
+            "scalar_gain": 4.84424336898606,
+            "simd_increment": 0.9913643982966669,
+            "remaining_ffmpeg_ratio": 15.66965066061886
+          },
+          "wall": {
+            "total_gain": 4.761662128136243,
+            "scalar_gain": 4.802747322423905,
+            "simd_increment": 0.9914454807780883,
+            "remaining_ffmpeg_ratio": 15.447661825537397
+          }
+        },
+        {
+          "user": {
+            "total_gain": 4.7960874735907675,
+            "scalar_gain": 4.857643828365093,
+            "simd_increment": 0.9873279398512338,
+            "remaining_ffmpeg_ratio": 15.897092296820725
+          },
+          "wall": {
+            "total_gain": 4.7497425765608705,
+            "scalar_gain": 4.81002989401692,
+            "simd_increment": 0.9874663320635407,
+            "remaining_ffmpeg_ratio": 15.737934103671828
+          }
+        },
+        {
+          "user": {
+            "total_gain": 4.8024452408157225,
+            "scalar_gain": 4.8806512947428855,
+            "simd_increment": 0.9839763078318253,
+            "remaining_ffmpeg_ratio": 15.628780451014281
+          },
+          "wall": {
+            "total_gain": 4.755968997078498,
+            "scalar_gain": 4.8178549752124145,
+            "simd_increment": 0.9871548690335603,
+            "remaining_ffmpeg_ratio": 15.460533720491515
+          }
+        }
+      ],
+      "profiles": {
+        "baseline-dist": {
+          "period": 19998198861,
+          "samples": 1298,
+          "leaf_only_share": 0.003999803560109223,
+          "unknown_leaf_share": 0.0077403807250799395,
+          "missing_caller_share": 0.006974910589174183,
+          "unresolved_share": 0.007750777261360287,
+          "components": {
+            "entropy_coefficients": {
+              "period": 265779209,
+              "samples": 19,
+              "estimated_user": 0.08596897744998411
+            },
+            "inverse_transform": {
+              "period": 4227637,
+              "samples": 1,
+              "estimated_user": 0.001367472012905714
+            },
+            "intra_prediction": {
+              "period": 2711918,
+              "samples": 1,
+              "estimated_user": 0.0008771973483757564
+            },
+            "interpolation": {
+              "period": 14624126269,
+              "samples": 947,
+              "estimated_user": 4.730321781661187
+            },
+            "inter_other": {
+              "period": 15518862,
+              "samples": 1,
+              "estimated_user": 0.005019733117376443
+            },
+            "loop_filter": {
+              "period": 3877577846,
+              "samples": 251,
+              "estimated_user": 1.2542418335037333
+            },
+            "reference_packing": {
+              "period": 1053255535,
+              "samples": 68,
+              "estimated_user": 0.34068617209815666
+            },
+            "frame_management": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 155001585,
+              "samples": 10,
+              "estimated_user": 0.05013683280838116
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-safe-dist": {
+          "period": 4144493589,
+          "samples": 274,
+          "leaf_only_share": 0.0,
+          "unknown_leaf_share": 0.04253988990788616,
+          "missing_caller_share": 0.0,
+          "unresolved_share": 0.0,
+          "components": {
+            "entropy_coefficients": {
+              "period": 223363612,
+              "samples": 17,
+              "estimated_user": 0.07167846136501091
+            },
+            "inverse_transform": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "intra_prediction": {
+              "period": 11175518,
+              "samples": 2,
+              "estimated_user": 0.0035862776753313964
+            },
+            "interpolation": {
+              "period": 1282267039,
+              "samples": 84,
+              "estimated_user": 0.4114856828810077
+            },
+            "inter_other": {
+              "period": 30112135,
+              "samples": 2,
+              "estimated_user": 0.00966312948599476
+            },
+            "loop_filter": {
+              "period": 2427382469,
+              "samples": 158,
+              "estimated_user": 0.7789587523428897
+            },
+            "reference_packing": {
+              "period": 77427815,
+              "samples": 5,
+              "estimated_user": 0.024846959611553525
+            },
+            "frame_management": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "shown_picture_copy": {
+              "period": 92765001,
+              "samples": 6,
+              "estimated_user": 0.029768736638283316
+            },
+            "unresolved": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-auto-dist": {
+          "period": 4179303280,
+          "samples": 276,
+          "leaf_only_share": 0.03611057678494201,
+          "unknown_leaf_share": 0.07705945140214854,
+          "missing_caller_share": 0.07646830502331958,
+          "unresolved_share": 0.07646830502331958,
+          "components": {
+            "entropy_coefficients": {
+              "period": 288983205,
+              "samples": 21,
+              "estimated_user": 0.09313607532505225
+            },
+            "inverse_transform": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "intra_prediction": {
+              "period": 9727086,
+              "samples": 1,
+              "estimated_user": 0.003134931714766127
+            },
+            "interpolation": {
+              "period": 1135100075,
+              "samples": 74,
+              "estimated_user": 0.36583013911369855
+            },
+            "inter_other": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "loop_filter": {
+              "period": 2425908676,
+              "samples": 158,
+              "estimated_user": 0.7818434056734674
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 319584238,
+              "samples": 22,
+              "estimated_user": 0.10299844817302592
+            }
+          },
+          "lost_samples": 0
+        },
+        "ffmpeg-symbols": {
+          "period": 10199365037,
+          "samples": 3476,
+          "leaf_only_share": 0.6110276121495778,
+          "unknown_leaf_share": 0.02892636648749451,
+          "missing_caller_share": 0.3877070350609905,
+          "unresolved_share": 0.0502792431822636,
+          "components": {
+            "entropy_coefficients": {
+              "period": 2180551233,
+              "samples": 745,
+              "estimated_user": 0.0181159769434766
+            },
+            "inverse_transform": {
+              "period": 9878476,
+              "samples": 4,
+              "estimated_user": 8.207018516436159e-05
+            },
+            "intra_prediction": {
+              "period": 70577414,
+              "samples": 25,
+              "estimated_user": 0.0005863557734413493
+            },
+            "interpolation": {
+              "period": 3603643728,
+              "samples": 1225,
+              "estimated_user": 0.029939001524460888
+            },
+            "inter_other": {
+              "period": 1066737864,
+              "samples": 363,
+              "estimated_user": 0.008862437284892484
+            },
+            "loop_filter": {
+              "period": 2663491960,
+              "samples": 905,
+              "estimated_user": 0.02212823904628491
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 91668007,
+              "samples": 33,
+              "estimated_user": 0.000761576007082266
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 512816355,
+              "samples": 176,
+              "estimated_user": 0.004260468235197715
+            }
+          },
+          "lost_samples": 0
+        }
+      },
+      "paired_ranges": {
+        "user": {
+          "total_gain": [
+            4.7960874735907675,
+            4.828964163351603
+          ],
+          "scalar_gain": [
+            4.84424336898606,
+            4.8806512947428855
+          ],
+          "simd_increment": [
+            0.9839763078318253,
+            0.9913643982966669
+          ],
+          "remaining_ffmpeg_ratio": [
+            15.628780451014281,
+            16.26316984256163
+          ]
+        },
+        "wall": {
+          "total_gain": [
+            4.747950457553266,
+            4.761662128136243
+          ],
+          "scalar_gain": [
+            4.798020032800842,
+            4.8178549752124145
+          ],
+          "simd_increment": [
+            0.9871548690335603,
+            0.9914454807780883
+          ],
+          "remaining_ffmpeg_ratio": [
+            15.447661825537397,
+            16.10998766620435
+          ]
+        }
+      },
+      "symbol_build_drift": 0.9810963151784081
+    },
+    {
+      "input": 3,
+      "resolution": "1080p",
+      "medians": {
+        "baseline-dist": {
+          "user": 8.427908000000002,
+          "system": 0.008001000000000147,
+          "wall": 8.437939776999997
+        },
+        "merged-safe-dist": {
+          "user": 1.9558939999999438,
+          "system": 0.02394699999999972,
+          "wall": 1.9797709939999777
+        },
+        "merged-auto-dist": {
+          "user": 1.9707090000000562,
+          "system": 0.016000000000000014,
+          "wall": 1.989052003000097
+        },
+        "ffmpeg-pinned": {
+          "user": 0.14367282499999873,
+          "system": 0.002300099999999983,
+          "wall": 0.14561790655000095
+        },
+        "ffmpeg-symbols": {
+          "user": 0.14299210000000073,
+          "system": 0.0027991749999999984,
+          "wall": 0.14535974405000046
+        }
+      },
+      "paired": [
+        {
+          "user": {
+            "total_gain": 4.280989886378265,
+            "scalar_gain": 4.336701682144838,
+            "simd_increment": 0.9871534175394284,
+            "remaining_ffmpeg_ratio": 13.7629887987824
+          },
+          "wall": {
+            "total_gain": 4.250608756410931,
+            "scalar_gain": 4.28814675051319,
+            "simd_increment": 0.9912461032034954,
+            "remaining_ffmpeg_ratio": 13.694597629832229
+          }
+        },
+        {
+          "user": {
+            "total_gain": 4.27658675126554,
+            "scalar_gain": 4.308979934495553,
+            "simd_increment": 0.9924824010038459,
+            "remaining_ffmpeg_ratio": 13.780577111039843
+          },
+          "wall": {
+            "total_gain": 4.2421916391693175,
+            "scalar_gain": 4.2601382972740165,
+            "simd_increment": 0.9957873062205088,
+            "remaining_ffmpeg_ratio": 13.686385587269065
+          }
+        },
+        {
+          "user": {
+            "total_gain": 4.285597989755788,
+            "scalar_gain": 4.314921983175551,
+            "simd_increment": 0.9932040501464218,
+            "remaining_ffmpeg_ratio": 13.690853193568211
+          },
+          "wall": {
+            "total_gain": 4.253486207388552,
+            "scalar_gain": 4.27085100666464,
+            "simd_increment": 0.9959341126044927,
+            "remaining_ffmpeg_ratio": 13.595037297225044
+          }
+        },
+        {
+          "user": {
+            "total_gain": 4.263460753459846,
+            "scalar_gain": 4.279692876922442,
+            "simd_increment": 0.9962071756246517,
+            "remaining_ffmpeg_ratio": 13.999806436448782
+          },
+          "wall": {
+            "total_gain": 4.242918940600548,
+            "scalar_gain": 4.259144865014682,
+            "simd_increment": 0.9961903328183511,
+            "remaining_ffmpeg_ratio": 13.830732909438458
+          }
+        },
+        {
+          "user": {
+            "total_gain": 4.271982427861915,
+            "scalar_gain": 4.284378561310849,
+            "simd_increment": 0.9971066670996643,
+            "remaining_ffmpeg_ratio": 13.714437646785871
+          },
+          "wall": {
+            "total_gain": 4.241143870661437,
+            "scalar_gain": 4.262020995642349,
+            "simd_increment": 0.9951015903013484,
+            "remaining_ffmpeg_ratio": 13.646802643174246
+          }
+        }
+      ],
+      "profiles": {
+        "baseline-dist": {
+          "period": 26021372357,
+          "samples": 1685,
+          "leaf_only_share": 0.0017851294452386594,
+          "unknown_leaf_share": 0.004244490816422623,
+          "missing_caller_share": 0.004157699237215523,
+          "unresolved_share": 0.004157699237215523,
+          "components": {
+            "entropy_coefficients": {
+              "period": 513536801,
+              "samples": 37,
+              "estimated_user": 0.166326389479532
+            },
+            "inverse_transform": {
+              "period": 166027725,
+              "samples": 11,
+              "estimated_user": 0.053773735395354134
+            },
+            "intra_prediction": {
+              "period": 28906647,
+              "samples": 2,
+              "estimated_user": 0.009362402495998227
+            },
+            "interpolation": {
+              "period": 15446967185,
+              "samples": 999,
+              "estimated_user": 5.003026609362432
+            },
+            "inter_other": {
+              "period": 30951857,
+              "samples": 2,
+              "estimated_user": 0.010024813435905597
+            },
+            "loop_filter": {
+              "period": 8658282788,
+              "samples": 558,
+              "estimated_user": 2.804279873256476
+            },
+            "reference_packing": {
+              "period": 1068510314,
+              "samples": 69,
+              "estimated_user": 0.3460734699113823
+            },
+            "frame_management": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 108189040,
+              "samples": 7,
+              "estimated_user": 0.03504070666292262
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-safe-dist": {
+          "period": 6077349852,
+          "samples": 398,
+          "leaf_only_share": 0.02582994986677295,
+          "unknown_leaf_share": 0.045459074716437765,
+          "missing_caller_share": 0.045459074716437765,
+          "unresolved_share": 0.045459074716437765,
+          "components": {
+            "entropy_coefficients": {
+              "period": 348888096,
+              "samples": 26,
+              "estimated_user": 0.11228383263360044
+            },
+            "inverse_transform": {
+              "period": 217996007,
+              "samples": 15,
+              "estimated_user": 0.07015839016984171
+            },
+            "intra_prediction": {
+              "period": 60620376,
+              "samples": 4,
+              "estimated_user": 0.01950966006295018
+            },
+            "interpolation": {
+              "period": 1320034817,
+              "samples": 86,
+              "estimated_user": 0.4248312572480357
+            },
+            "inter_other": {
+              "period": 45761979,
+              "samples": 3,
+              "estimated_user": 0.014727732043395192
+            },
+            "loop_filter": {
+              "period": 3807777876,
+              "samples": 246,
+              "estimated_user": 1.2254699963586908
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 276270701,
+              "samples": 18,
+              "estimated_user": 0.08891313148342977
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-auto-dist": {
+          "period": 6121157401,
+          "samples": 401,
+          "leaf_only_share": 0.00041047171889249705,
+          "unknown_leaf_share": 0.03585426180417216,
+          "missing_caller_share": 0.0,
+          "unresolved_share": 0.0,
+          "components": {
+            "entropy_coefficients": {
+              "period": 467542712,
+              "samples": 34,
+              "estimated_user": 0.15052555751503935
+            },
+            "inverse_transform": {
+              "period": 181014561,
+              "samples": 12,
+              "estimated_user": 0.05827770813988241
+            },
+            "intra_prediction": {
+              "period": 52898545,
+              "samples": 4,
+              "estimated_user": 0.017030707085130218
+            },
+            "interpolation": {
+              "period": 1353832513,
+              "samples": 88,
+              "estimated_user": 0.4358669027896466
+            },
+            "inter_other": {
+              "period": 61962525,
+              "samples": 4,
+              "estimated_user": 0.019948858962568032
+            },
+            "loop_filter": {
+              "period": 3852140333,
+              "samples": 249,
+              "estimated_user": 1.2401980746755696
+            },
+            "reference_packing": {
+              "period": 89961099,
+              "samples": 6,
+              "estimated_user": 0.028963010724121073
+            },
+            "frame_management": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "shown_picture_copy": {
+              "period": 61805113,
+              "samples": 4,
+              "estimated_user": 0.019898180108098885
+            },
+            "unresolved": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            }
+          },
+          "lost_samples": 0
+        },
+        "ffmpeg-symbols": {
+          "period": 17652410995,
+          "samples": 5920,
+          "leaf_only_share": 0.49949484546317635,
+          "unknown_leaf_share": 0.01911855389587251,
+          "missing_caller_share": 0.49846093915965956,
+          "unresolved_share": 0.03405089577680094,
+          "components": {
+            "entropy_coefficients": {
+              "period": 5970450782,
+              "samples": 2000,
+              "estimated_user": 0.048593448827832
+            },
+            "inverse_transform": {
+              "period": 138043889,
+              "samples": 46,
+              "estimated_user": 0.0011235380545033728
+            },
+            "intra_prediction": {
+              "period": 322262826,
+              "samples": 108,
+              "estimated_user": 0.0026228944373104337
+            },
+            "interpolation": {
+              "period": 4021502196,
+              "samples": 1354,
+              "estimated_user": 0.03273097263635395
+            },
+            "inter_other": {
+              "period": 1517363256,
+              "samples": 510,
+              "estimated_user": 0.012349806811231922
+            },
+            "loop_filter": {
+              "period": 4925504670,
+              "samples": 1644,
+              "estimated_user": 0.04008864118844897
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 156202969,
+              "samples": 54,
+              "estimated_user": 0.0012713346542845563
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 601080407,
+              "samples": 204,
+              "estimated_user": 0.004892188390033517
+            }
+          },
+          "lost_samples": 0
+        }
+      },
+      "paired_ranges": {
+        "user": {
+          "total_gain": [
+            4.263460753459846,
+            4.285597989755788
+          ],
+          "scalar_gain": [
+            4.279692876922442,
+            4.336701682144838
+          ],
+          "simd_increment": [
+            0.9871534175394284,
+            0.9971066670996643
+          ],
+          "remaining_ffmpeg_ratio": [
+            13.690853193568211,
+            13.999806436448782
+          ]
+        },
+        "wall": {
+          "total_gain": [
+            4.241143870661437,
+            4.253486207388552
+          ],
+          "scalar_gain": [
+            4.259144865014682,
+            4.28814675051319
+          ],
+          "simd_increment": [
+            0.9912461032034954,
+            0.9961903328183511
+          ],
+          "remaining_ffmpeg_ratio": [
+            13.595037297225044,
+            13.830732909438458
+          ]
+        }
+      },
+      "symbol_build_drift": 0.9952619780393543
+    },
+    {
+      "input": 4,
+      "resolution": "4K",
+      "medians": {
+        "baseline-dist": {
+          "user": 67.87353600000006,
+          "system": 0.08399799999999935,
+          "wall": 67.96865988800005
+        },
+        "merged-safe-dist": {
+          "user": 25.232234000000062,
+          "system": 0.06399699999999875,
+          "wall": 25.282095234000053
+        },
+        "merged-auto-dist": {
+          "user": 25.156848999999966,
+          "system": 0.07598800000000061,
+          "wall": 25.232467704999863
+        },
+        "ffmpeg-pinned": {
+          "user": 1.1483054000000266,
+          "system": 0.008802400000000076,
+          "wall": 1.1572806971999854
+        },
+        "ffmpeg-symbols": {
+          "user": 1.1568444,
+          "system": 0.008801400000000115,
+          "wall": 1.1667231154000093
+        }
+      },
+      "paired": [
+        {
+          "user": {
+            "total_gain": 2.6862499268809783,
+            "scalar_gain": 2.6817199711904847,
+            "simd_increment": 1.001689197880151,
+            "remaining_ffmpeg_ratio": 21.372900839875673
+          },
+          "wall": {
+            "total_gain": 2.681238660721687,
+            "scalar_gain": 2.679353250757132,
+            "simd_increment": 1.0007036809961591,
+            "remaining_ffmpeg_ratio": 21.238081902101793
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.7095670471940556,
+            "scalar_gain": 2.702162528081361,
+            "simd_increment": 1.0027402197446473,
+            "remaining_ffmpeg_ratio": 21.78763808867234
+          },
+          "wall": {
+            "total_gain": 2.7048949654846446,
+            "scalar_gain": 2.6980702536948513,
+            "simd_increment": 1.0025294789045789,
+            "remaining_ffmpeg_ratio": 21.665012431079493
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.693431677393299,
+            "scalar_gain": 2.691357168504901,
+            "simd_increment": 1.000770804006497,
+            "remaining_ffmpeg_ratio": 21.907803446713203
+          },
+          "wall": {
+            "total_gain": 2.689194742833433,
+            "scalar_gain": 2.688197421432251,
+            "simd_increment": 1.0003710000587125,
+            "remaining_ffmpeg_ratio": 21.803239063823714
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.697028339759755,
+            "scalar_gain": 2.670585125221578,
+            "simd_increment": 1.0099016557414486,
+            "remaining_ffmpeg_ratio": 22.155419471551205
+          },
+          "wall": {
+            "total_gain": 2.6913353713714647,
+            "scalar_gain": 2.665847952228929,
+            "simd_increment": 1.0095607174899925,
+            "remaining_ffmpeg_ratio": 22.1183915095207
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.693979127252993,
+            "scalar_gain": 2.684567050226307,
+            "simd_increment": 1.0035059943933577,
+            "remaining_ffmpeg_ratio": 21.949626881958146
+          },
+          "wall": {
+            "total_gain": 2.689194545498236,
+            "scalar_gain": 2.682770385374772,
+            "simd_increment": 1.002394599313637,
+            "remaining_ffmpeg_ratio": 21.846238319397855
+          }
+        }
+      ],
+      "profiles": {
+        "baseline-dist": {
+          "period": 209798889928,
+          "samples": 13543,
+          "leaf_only_share": 7.377776882095038e-05,
+          "unknown_leaf_share": 0.00981126546335117,
+          "missing_caller_share": 0.0,
+          "unresolved_share": 0.0,
+          "components": {
+            "entropy_coefficients": {
+              "period": 2750782424,
+              "samples": 179,
+              "estimated_user": 0.8899252514996913
+            },
+            "inverse_transform": {
+              "period": 16485946594,
+              "samples": 1065,
+              "estimated_user": 5.333486225908765
+            },
+            "intra_prediction": {
+              "period": 1560731303,
+              "samples": 104,
+              "estimated_user": 0.5049233211712988
+            },
+            "interpolation": {
+              "period": 64965923049,
+              "samples": 4203,
+              "estimated_user": 21.01758936071016
+            },
+            "inter_other": {
+              "period": 433121770,
+              "samples": 28,
+              "estimated_user": 0.1401223145583256
+            },
+            "loop_filter": {
+              "period": 118017954501,
+              "samples": 7602,
+              "estimated_user": 38.18083063365594
+            },
+            "reference_packing": {
+              "period": 4961523115,
+              "samples": 321,
+              "estimated_user": 1.6051377482328664
+            },
+            "frame_management": {
+              "period": 265957147,
+              "samples": 18,
+              "estimated_user": 0.08604169448921685
+            },
+            "shown_picture_copy": {
+              "period": 356950025,
+              "samples": 23,
+              "estimated_user": 0.115479449773795
+            },
+            "unresolved": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-safe-dist": {
+          "period": 78866788001,
+          "samples": 5103,
+          "leaf_only_share": 0.011817843564114493,
+          "unknown_leaf_share": 0.028298481788959145,
+          "missing_caller_share": 0.028298481788959145,
+          "unresolved_share": 0.02849532845145798,
+          "components": {
+            "entropy_coefficients": {
+              "period": 2700826585,
+              "samples": 177,
+              "estimated_user": 0.86408854872189
+            },
+            "inverse_transform": {
+              "period": 15920865849,
+              "samples": 1030,
+              "estimated_user": 5.093639829474024
+            },
+            "intra_prediction": {
+              "period": 903107941,
+              "samples": 61,
+              "estimated_user": 0.28893570376267025
+            },
+            "interpolation": {
+              "period": 8468432093,
+              "samples": 552,
+              "estimated_user": 2.7093465525815117
+            },
+            "inter_other": {
+              "period": 384488676,
+              "samples": 25,
+              "estimated_user": 0.12301132693598725
+            },
+            "loop_filter": {
+              "period": 48241731829,
+              "samples": 3111,
+              "estimated_user": 15.434211243129933
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 2247335028,
+              "samples": 147,
+              "estimated_user": 0.7190007953940472
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-auto-dist": {
+          "period": 78703507730,
+          "samples": 5090,
+          "leaf_only_share": 0.013234381897860043,
+          "unknown_leaf_share": 0.0320815921402389,
+          "missing_caller_share": 0.03206342475429589,
+          "unresolved_share": 0.03188448001083776,
+          "components": {
+            "entropy_coefficients": {
+              "period": 2560590629,
+              "samples": 168,
+              "estimated_user": 0.8184691338733542
+            },
+            "inverse_transform": {
+              "period": 15876641754,
+              "samples": 1026,
+              "estimated_user": 5.0748218313556555
+            },
+            "intra_prediction": {
+              "period": 1108366677,
+              "samples": 74,
+              "estimated_user": 0.35427916663608067
+            },
+            "interpolation": {
+              "period": 7970233762,
+              "samples": 519,
+              "estimated_user": 2.5476115744826875
+            },
+            "inter_other": {
+              "period": 430535509,
+              "samples": 28,
+              "estimated_user": 0.13761669716434538
+            },
+            "loop_filter": {
+              "period": 48233635401,
+              "samples": 3110,
+              "estimated_user": 15.41743586152116
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 14083579,
+              "samples": 1,
+              "estimated_user": 0.004501685890519972
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 2509420419,
+              "samples": 164,
+              "estimated_user": 0.8021130490761628
+            }
+          },
+          "lost_samples": 0
+        },
+        "ffmpeg-symbols": {
+          "period": 17906424205,
+          "samples": 5886,
+          "leaf_only_share": 0.6274984179623371,
+          "unknown_leaf_share": 0.008899851705484602,
+          "missing_caller_share": 0.3702727430722118,
+          "unresolved_share": 0.013206323512316232,
+          "components": {
+            "entropy_coefficients": {
+              "period": 3946040032,
+              "samples": 1293,
+              "estimated_user": 0.2530521462848298
+            },
+            "inverse_transform": {
+              "period": 347915487,
+              "samples": 114,
+              "estimated_user": 0.022311167650891642
+            },
+            "intra_prediction": {
+              "period": 1183825061,
+              "samples": 389,
+              "estimated_user": 0.07591648084725248
+            },
+            "interpolation": {
+              "period": 2976453667,
+              "samples": 978,
+              "estimated_user": 0.19087439119819405
+            },
+            "inter_other": {
+              "period": 660046059,
+              "samples": 217,
+              "estimated_user": 0.042327515818976216
+            },
+            "loop_filter": {
+              "period": 8507267513,
+              "samples": 2795,
+              "estimated_user": 0.545555109863583
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 48398355,
+              "samples": 20,
+              "estimated_user": 0.003103695732959337
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 236478031,
+              "samples": 80,
+              "estimated_user": 0.015164892603340047
+            }
+          },
+          "lost_samples": 0
+        }
+      },
+      "paired_ranges": {
+        "user": {
+          "total_gain": [
+            2.6862499268809783,
+            2.7095670471940556
+          ],
+          "scalar_gain": [
+            2.670585125221578,
+            2.702162528081361
+          ],
+          "simd_increment": [
+            1.000770804006497,
+            1.0099016557414486
+          ],
+          "remaining_ffmpeg_ratio": [
+            21.372900839875673,
+            22.155419471551205
+          ]
+        },
+        "wall": {
+          "total_gain": [
+            2.681238660721687,
+            2.7048949654846446
+          ],
+          "scalar_gain": [
+            2.665847952228929,
+            2.6980702536948513
+          ],
+          "simd_increment": [
+            1.0003710000587125,
+            1.0095607174899925
+          ],
+          "remaining_ffmpeg_ratio": [
+            21.238081902101793,
+            22.1183915095207
+          ]
+        }
+      },
+      "symbol_build_drift": 1.0074361750802296
+    },
+    {
+      "input": 5,
+      "resolution": "4K",
+      "medians": {
+        "baseline-dist": {
+          "user": 60.49530099999993,
+          "system": 0.06399500000000025,
+          "wall": 60.56213942800014
+        },
+        "merged-safe-dist": {
+          "user": 21.88346700000011,
+          "system": 0.04799700000000051,
+          "wall": 21.92519523200008
+        },
+        "merged-auto-dist": {
+          "user": 21.46287899999993,
+          "system": 0.05999599999999994,
+          "wall": 21.524571557999934
+        },
+        "ffmpeg-pinned": {
+          "user": 1.5958783999999469,
+          "system": 0.010401799999999994,
+          "wall": 1.6072857086000112
+        },
+        "ffmpeg-symbols": {
+          "user": 1.6199071999999888,
+          "system": 0.008002399999999809,
+          "wall": 1.630026693400032
+        }
+      },
+      "paired": [
+        {
+          "user": {
+            "total_gain": 2.814828513648359,
+            "scalar_gain": 2.7676272013381573,
+            "simd_increment": 1.0170547941888197,
+            "remaining_ffmpeg_ratio": 13.417604675457001
+          },
+          "wall": {
+            "total_gain": 2.8107287490644928,
+            "scalar_gain": 2.7643153699085374,
+            "simd_increment": 1.0167901895931255,
+            "remaining_ffmpeg_ratio": 13.370316587586563
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.818594839956007,
+            "scalar_gain": 2.7644230230977405,
+            "simd_increment": 1.0195960663059314,
+            "remaining_ffmpeg_ratio": 13.450922875258616
+          },
+          "wall": {
+            "total_gain": 2.8136281024135554,
+            "scalar_gain": 2.7622166547283005,
+            "simd_increment": 1.018612387843383,
+            "remaining_ffmpeg_ratio": 13.4005138568133
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.8132502596710824,
+            "scalar_gain": 2.764406661251048,
+            "simd_increment": 1.0176687457401545,
+            "remaining_ffmpeg_ratio": 13.526856334026654
+          },
+          "wall": {
+            "total_gain": 2.8106172951265744,
+            "scalar_gain": 2.7589043588971855,
+            "simd_increment": 1.0187440119345275,
+            "remaining_ffmpeg_ratio": 13.465684911391733
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.8224285706560197,
+            "scalar_gain": 2.7653645320165725,
+            "simd_increment": 1.0206352681459447,
+            "remaining_ffmpeg_ratio": 13.3491551347248
+          },
+          "wall": {
+            "total_gain": 2.81745781958388,
+            "scalar_gain": 2.761650553251026,
+            "simd_increment": 1.020207939149708,
+            "remaining_ffmpeg_ratio": 13.299700991293863
+          }
+        },
+        {
+          "user": {
+            "total_gain": 2.84823916182004,
+            "scalar_gain": 2.7961098145808347,
+            "simd_increment": 1.0186435264335352,
+            "remaining_ffmpeg_ratio": 13.308998981376483
+          },
+          "wall": {
+            "total_gain": 2.842006030864307,
+            "scalar_gain": 2.7936646592183547,
+            "simd_increment": 1.0173039278305787,
+            "remaining_ffmpeg_ratio": 13.255715922191342
+          }
+        }
+      ],
+      "profiles": {
+        "baseline-dist": {
+          "period": 187078130011,
+          "samples": 12074,
+          "leaf_only_share": 0.0026374428211944825,
+          "unknown_leaf_share": 0.006623395497523643,
+          "missing_caller_share": 0.0065440479489933725,
+          "unresolved_share": 0.006875552882233583,
+          "components": {
+            "entropy_coefficients": {
+              "period": 4310514021,
+              "samples": 280,
+              "estimated_user": 1.3938873728841648
+            },
+            "inverse_transform": {
+              "period": 4312470606,
+              "samples": 279,
+              "estimated_user": 1.394520072166011
+            },
+            "intra_prediction": {
+              "period": 277852405,
+              "samples": 20,
+              "estimated_user": 0.08984890362684589
+            },
+            "interpolation": {
+              "period": 64650947360,
+              "samples": 4179,
+              "estimated_user": 20.90612366206773
+            },
+            "inter_other": {
+              "period": 930036666,
+              "samples": 60,
+              "estimated_user": 0.3007451915806417
+            },
+            "loop_filter": {
+              "period": 106667307086,
+              "samples": 6871,
+              "estimated_user": 34.492919341494236
+            },
+            "reference_packing": {
+              "period": 4627214720,
+              "samples": 299,
+              "estimated_user": 1.496298617382861
+            },
+            "frame_management": {
+              "period": 15521571,
+              "samples": 1,
+              "estimated_user": 0.005019197645297495
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 1286265576,
+              "samples": 85,
+              "estimated_user": 0.4159386411521377
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-safe-dist": {
+          "period": 67719651766,
+          "samples": 4380,
+          "leaf_only_share": 0.011235290261519034,
+          "unknown_leaf_share": 0.020114844088491086,
+          "missing_caller_share": 0.02033235638537793,
+          "unresolved_share": 0.020114844088491086,
+          "components": {
+            "entropy_coefficients": {
+              "period": 3836845942,
+              "samples": 252,
+              "estimated_user": 1.2398689208558051
+            },
+            "inverse_transform": {
+              "period": 4565384534,
+              "samples": 296,
+              "estimated_user": 1.475294677198265
+            },
+            "intra_prediction": {
+              "period": 266063701,
+              "samples": 19,
+              "estimated_user": 0.08597794095058602
+            },
+            "interpolation": {
+              "period": 12023133216,
+              "samples": 780,
+              "estimated_user": 3.8852509147284144
+            },
+            "inter_other": {
+              "period": 1063486125,
+              "samples": 69,
+              "estimated_user": 0.34366336675523257
+            },
+            "loop_filter": {
+              "period": 44572319261,
+              "samples": 2873,
+              "estimated_user": 14.403453830979092
+            },
+            "reference_packing": {
+              "period": 15518893,
+              "samples": 1,
+              "estimated_user": 0.005014898541054508
+            },
+            "frame_management": {
+              "period": 14729857,
+              "samples": 1,
+              "estimated_user": 0.004759923171017515
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 1362170237,
+              "samples": 89,
+              "estimated_user": 0.44018252682064196
+            }
+          },
+          "lost_samples": 0
+        },
+        "merged-auto-dist": {
+          "period": 66489726550,
+          "samples": 4300,
+          "leaf_only_share": 0.0,
+          "unknown_leaf_share": 0.022608656885805767,
+          "missing_caller_share": 0.0,
+          "unresolved_share": 0.0,
+          "components": {
+            "entropy_coefficients": {
+              "period": 3968585871,
+              "samples": 259,
+              "estimated_user": 1.2810592368180274
+            },
+            "inverse_transform": {
+              "period": 4269996006,
+              "samples": 277,
+              "estimated_user": 1.3783544069525275
+            },
+            "intra_prediction": {
+              "period": 308380822,
+              "samples": 22,
+              "estimated_user": 0.09954530740217815
+            },
+            "interpolation": {
+              "period": 10814795558,
+              "samples": 702,
+              "estimated_user": 3.491015236715404
+            },
+            "inter_other": {
+              "period": 1156956304,
+              "samples": 75,
+              "estimated_user": 0.3734654126207883
+            },
+            "loop_filter": {
+              "period": 44869288993,
+              "samples": 2892,
+              "estimated_user": 14.483803294763103
+            },
+            "reference_packing": {
+              "period": 465730680,
+              "samples": 30,
+              "estimated_user": 0.15033783037009177
+            },
+            "frame_management": {
+              "period": 219993395,
+              "samples": 16,
+              "estimated_user": 0.07101385225480657
+            },
+            "shown_picture_copy": {
+              "period": 415998921,
+              "samples": 27,
+              "estimated_user": 0.13428442210300426
+            },
+            "unresolved": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            }
+          },
+          "lost_samples": 0
+        },
+        "ffmpeg-symbols": {
+          "period": 24826019047,
+          "samples": 8159,
+          "leaf_only_share": 0.5044355205436494,
+          "unknown_leaf_share": 0.007878979131921553,
+          "missing_caller_share": 0.5028433425579173,
+          "unresolved_share": 0.014285591472743867,
+          "components": {
+            "entropy_coefficients": {
+              "period": 9410006348,
+              "samples": 3090,
+              "estimated_user": 0.6048986688604946
+            },
+            "inverse_transform": {
+              "period": 213461143,
+              "samples": 70,
+              "estimated_user": 0.01372181446844436
+            },
+            "intra_prediction": {
+              "period": 341408332,
+              "samples": 113,
+              "estimated_user": 0.021946578772348537
+            },
+            "interpolation": {
+              "period": 3823170073,
+              "samples": 1255,
+              "estimated_user": 0.2457629041319941
+            },
+            "inter_other": {
+              "period": 1935884020,
+              "samples": 636,
+              "estimated_user": 0.12444345130704294
+            },
+            "loop_filter": {
+              "period": 8713823986,
+              "samples": 2862,
+              "estimated_user": 0.5601463309253072
+            },
+            "reference_packing": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "frame_management": {
+              "period": 33610779,
+              "samples": 11,
+              "estimated_user": 0.002160584671739933
+            },
+            "shown_picture_copy": {
+              "period": 0,
+              "samples": 0,
+              "estimated_user": null
+            },
+            "unresolved": {
+              "period": 354654366,
+              "samples": 122,
+              "estimated_user": 0.022798066862575364
+            }
+          },
+          "lost_samples": 0
+        }
+      },
+      "paired_ranges": {
+        "user": {
+          "total_gain": [
+            2.8132502596710824,
+            2.84823916182004
+          ],
+          "scalar_gain": [
+            2.764406661251048,
+            2.7961098145808347
+          ],
+          "simd_increment": [
+            1.0170547941888197,
+            1.0206352681459447
+          ],
+          "remaining_ffmpeg_ratio": [
+            13.308998981376483,
+            13.526856334026654
+          ]
+        },
+        "wall": {
+          "total_gain": [
+            2.8106172951265744,
+            2.842006030864307
+          ],
+          "scalar_gain": [
+            2.7589043588971855,
+            2.7936646592183547
+          ],
+          "simd_increment": [
+            1.0167901895931255,
+            1.020207939149708
+          ],
+          "remaining_ffmpeg_ratio": [
+            13.255715922191342,
+            13.465684911391733
+          ]
+        }
+      },
+      "symbol_build_drift": 1.0150567862814879
+    }
+  ],
+  "calls": [
+    {
+      "input": 0,
+      "arm": "baseline-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 5.079850867000005,
+      "user": 5.063020999999992,
+      "system": 0.01599700000000004
+    },
+    {
+      "input": 0,
+      "arm": "merged-safe-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9773523110000042,
+      "user": 1.9566189999999892,
+      "system": 0.01996600000000015
+    },
+    {
+      "input": 0,
+      "arm": "merged-auto-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.899588375999997,
+      "user": 1.882865000000038,
+      "system": 0.01598999999999995
+    },
+    {
+      "input": 0,
+      "arm": "ffmpeg-pinned",
+      "round": 0,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 8.315778346000002,
+      "user": 8.166712999999959,
+      "system": 0.14804899999999988
+    },
+    {
+      "input": 0,
+      "arm": "ffmpeg-symbols",
+      "round": 0,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 8.42361667099999,
+      "user": 8.278667000000041,
+      "system": 0.14397700000000002
+    },
+    {
+      "input": 0,
+      "arm": "merged-safe-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9803755699999783,
+      "user": 1.967599000000007,
+      "system": 0.011997000000000035
+    },
+    {
+      "input": 0,
+      "arm": "merged-auto-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.899681581999971,
+      "user": 1.894965999999954,
+      "system": 0.003997999999999724
+    },
+    {
+      "input": 0,
+      "arm": "ffmpeg-pinned",
+      "round": 1,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 8.315436605999935,
+      "user": 8.166427999999996,
+      "system": 0.14804400000000006
+    },
+    {
+      "input": 0,
+      "arm": "ffmpeg-symbols",
+      "round": 1,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 8.42504459199995,
+      "user": 8.232095000000015,
+      "system": 0.192002
+    },
+    {
+      "input": 0,
+      "arm": "baseline-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 5.079847029999996,
+      "user": 5.074838,
+      "system": 0.004002999999999979
+    },
+    {
+      "input": 0,
+      "arm": "merged-auto-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9003076010000086,
+      "user": 1.8914670000000342,
+      "system": 0.008014000000000188
+    },
+    {
+      "input": 0,
+      "arm": "ffmpeg-pinned",
+      "round": 2,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 8.325896969000041,
+      "user": 8.176921999999934,
+      "system": 0.1480170000000003
+    },
+    {
+      "input": 0,
+      "arm": "ffmpeg-symbols",
+      "round": 2,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 8.413733587000024,
+      "user": 8.252775000000042,
+      "system": 0.16001499999999957
+    },
+    {
+      "input": 0,
+      "arm": "baseline-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 5.083144626000035,
+      "user": 5.074232000000052,
+      "system": 0.008003999999999678
+    },
+    {
+      "input": 0,
+      "arm": "merged-safe-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9788555730000326,
+      "user": 1.974081999999953,
+      "system": 0.004004000000000119
+    },
+    {
+      "input": 0,
+      "arm": "ffmpeg-pinned",
+      "round": 3,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 8.329000836999967,
+      "user": 8.111743000000047,
+      "system": 0.21609999999999996
+    },
+    {
+      "input": 0,
+      "arm": "ffmpeg-symbols",
+      "round": 3,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 8.418327278999982,
+      "user": 8.28134399999999,
+      "system": 0.13602200000000053
+    },
+    {
+      "input": 0,
+      "arm": "baseline-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 5.080199745999948,
+      "user": 5.075333999999998,
+      "system": 0.00399899999999942
+    },
+    {
+      "input": 0,
+      "arm": "merged-safe-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9778085579999924,
+      "user": 1.9569960000000037,
+      "system": 0.020010000000000083
+    },
+    {
+      "input": 0,
+      "arm": "merged-auto-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.8996535960000074,
+      "user": 1.8869399999999814,
+      "system": 0.011994000000000504
+    },
+    {
+      "input": 0,
+      "arm": "ffmpeg-symbols",
+      "round": 4,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 8.420063948000006,
+      "user": 8.25108499999999,
+      "system": 0.16798100000000016
+    },
+    {
+      "input": 0,
+      "arm": "baseline-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 5.074065539999992,
+      "user": 5.0571599999999535,
+      "system": 0.016003999999999685
+    },
+    {
+      "input": 0,
+      "arm": "merged-safe-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9782965079999713,
+      "user": 1.965532000000053,
+      "system": 0.012008999999999936
+    },
+    {
+      "input": 0,
+      "arm": "merged-auto-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.8996938020000016,
+      "user": 1.890892000000008,
+      "system": 0.008011999999999908
+    },
+    {
+      "input": 0,
+      "arm": "ffmpeg-pinned",
+      "round": 4,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 8.3206441829999,
+      "user": 8.131694999999922,
+      "system": 0.18799300000000052
+    },
+    {
+      "input": 1,
+      "arm": "ffmpeg-symbols",
+      "round": 0,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 4.736299549000023,
+      "user": 4.531497999999942,
+      "system": 0.20397700000000007
+    },
+    {
+      "input": 1,
+      "arm": "ffmpeg-pinned",
+      "round": 0,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 4.589179616000024,
+      "user": 4.424348000000009,
+      "system": 0.16401299999999974
+    },
+    {
+      "input": 1,
+      "arm": "merged-auto-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 0.5091185729999097,
+      "user": 0.5004030000000057,
+      "system": 0.008007000000000097
+    },
+    {
+      "input": 1,
+      "arm": "merged-safe-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 0.49907749800001966,
+      "user": 0.4904639999999745,
+      "system": 0.007975000000000065
+    },
+    {
+      "input": 1,
+      "arm": "baseline-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 2.6891447499999686,
+      "user": 2.6712150000000747,
+      "system": 0.016019000000000005
+    },
+    {
+      "input": 1,
+      "arm": "ffmpeg-pinned",
+      "round": 1,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 4.596296172000052,
+      "user": 4.431511,
+      "system": 0.16398199999999985
+    },
+    {
+      "input": 1,
+      "arm": "merged-auto-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 0.5092412670001067,
+      "user": 0.4884999999999309,
+      "system": 0.020019999999999705
+    },
+    {
+      "input": 1,
+      "arm": "merged-safe-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 0.4998881909999682,
+      "user": 0.49532399999998233,
+      "system": 0.003995000000000637
+    },
+    {
+      "input": 1,
+      "arm": "baseline-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 2.691672765000021,
+      "user": 2.670923000000016,
+      "system": 0.019991999999999344
+    },
+    {
+      "input": 1,
+      "arm": "ffmpeg-symbols",
+      "round": 1,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 4.631787950000103,
+      "user": 4.442992000000004,
+      "system": 0.18795700000000082
+    },
+    {
+      "input": 1,
+      "arm": "merged-auto-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 0.5085349879999512,
+      "user": 0.503906000000029,
+      "system": 0.0039999999999995595
+    },
+    {
+      "input": 1,
+      "arm": "merged-safe-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 0.5005279939999809,
+      "user": 0.4878929999999855,
+      "system": 0.011997000000000035
+    },
+    {
+      "input": 1,
+      "arm": "baseline-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 2.6968314339999324,
+      "user": 2.6802000000000135,
+      "system": 0.016001000000000154
+    },
+    {
+      "input": 1,
+      "arm": "ffmpeg-symbols",
+      "round": 2,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 4.665978616999951,
+      "user": 4.456733999999983,
+      "system": 0.2080339999999996
+    },
+    {
+      "input": 1,
+      "arm": "ffmpeg-pinned",
+      "round": 2,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 4.603394613999967,
+      "user": 4.442453,
+      "system": 0.16008900000000015
+    },
+    {
+      "input": 1,
+      "arm": "merged-safe-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 0.49422268500006794,
+      "user": 0.46968200000003435,
+      "system": 0.023882000000000403
+    },
+    {
+      "input": 1,
+      "arm": "baseline-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 2.6891528389999166,
+      "user": 2.668419999999969,
+      "system": 0.020002999999999993
+    },
+    {
+      "input": 1,
+      "arm": "ffmpeg-symbols",
+      "round": 3,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 4.665864214000067,
+      "user": 4.4971140000000105,
+      "system": 0.16789199999999926
+    },
+    {
+      "input": 1,
+      "arm": "ffmpeg-pinned",
+      "round": 3,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 4.569592524999962,
+      "user": 4.3688170000000355,
+      "system": 0.19985500000000034
+    },
+    {
+      "input": 1,
+      "arm": "merged-auto-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 0.5080105189999813,
+      "user": 0.4993979999999283,
+      "system": 0.007990000000000386
+    },
+    {
+      "input": 1,
+      "arm": "baseline-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 2.690360891999944,
+      "user": 2.6895299999999907,
+      "system": 0.0
+    },
+    {
+      "input": 1,
+      "arm": "ffmpeg-symbols",
+      "round": 4,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 4.654364585999929,
+      "user": 4.477456000000075,
+      "system": 0.17605700000000013
+    },
+    {
+      "input": 1,
+      "arm": "ffmpeg-pinned",
+      "round": 4,
+      "loops": 80,
+      "frames": 9600,
+      "rc": 0,
+      "wall": 4.642949477000002,
+      "user": 4.485969999999952,
+      "system": 0.15606899999999957
+    },
+    {
+      "input": 1,
+      "arm": "merged-auto-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 0.5090276809999068,
+      "user": 0.4962960000000294,
+      "system": 0.012006999999999657
+    },
+    {
+      "input": 1,
+      "arm": "merged-safe-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 0.49945466300005137,
+      "user": 0.49475699999993594,
+      "system": 0.003989999999999938
+    },
+    {
+      "input": 2,
+      "arm": "baseline-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 6.484449752999922,
+      "user": 6.475493999999912,
+      "system": 0.008000000000000895
+    },
+    {
+      "input": 2,
+      "arm": "merged-safe-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.3514845099999775,
+      "user": 1.3308150000000296,
+      "system": 0.019981999999999722
+    },
+    {
+      "input": 2,
+      "arm": "merged-auto-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.364182221999954,
+      "user": 1.3474730000000363,
+      "system": 0.015994000000000064
+    },
+    {
+      "input": 2,
+      "arm": "ffmpeg-pinned",
+      "round": 0,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 3.412611804999983,
+      "user": 3.323823999999945,
+      "system": 0.08799499999999938
+    },
+    {
+      "input": 2,
+      "arm": "ffmpeg-symbols",
+      "round": 0,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 3.3715884839999717,
+      "user": 3.2707149999999956,
+      "system": 0.10008300000000059
+    },
+    {
+      "input": 2,
+      "arm": "merged-safe-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.3485736589999533,
+      "user": 1.3278260000000728,
+      "system": 0.019997000000000043
+    },
+    {
+      "input": 2,
+      "arm": "merged-auto-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.3644186799999716,
+      "user": 1.339689999999905,
+      "system": 0.023994999999999322
+    },
+    {
+      "input": 2,
+      "arm": "ffmpeg-pinned",
+      "round": 1,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 3.387758471999973,
+      "user": 3.295028000000002,
+      "system": 0.0919730000000003
+    },
+    {
+      "input": 2,
+      "arm": "ffmpeg-symbols",
+      "round": 1,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 3.469207271000073,
+      "user": 3.3964130000000523,
+      "system": 0.07200899999999955
+    },
+    {
+      "input": 2,
+      "arm": "baseline-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 6.478192296000088,
+      "user": 6.469315000000051,
+      "system": 0.008001000000000147
+    },
+    {
+      "input": 2,
+      "arm": "merged-auto-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.361404738000033,
+      "user": 1.344665999999961,
+      "system": 0.016008000000001132
+    },
+    {
+      "input": 2,
+      "arm": "ffmpeg-pinned",
+      "round": 2,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 3.5252059590000044,
+      "user": 3.4325360000000273,
+      "system": 0.09190699999999907
+    },
+    {
+      "input": 2,
+      "arm": "ffmpeg-symbols",
+      "round": 2,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 3.414069853000001,
+      "user": 3.325371999999902,
+      "system": 0.08793100000000109
+    },
+    {
+      "input": 2,
+      "arm": "baseline-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 6.482549382000002,
+      "user": 6.457638000000088,
+      "system": 0.023990999999998763
+    },
+    {
+      "input": 2,
+      "arm": "merged-safe-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.3497585750000098,
+      "user": 1.3330539999999473,
+      "system": 0.015964999999999563
+    },
+    {
+      "input": 2,
+      "arm": "ffmpeg-pinned",
+      "round": 3,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 3.4661428470000146,
+      "user": 3.3894450000000234,
+      "system": 0.07594300000000054
+    },
+    {
+      "input": 2,
+      "arm": "ffmpeg-symbols",
+      "round": 3,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 3.543163404999973,
+      "user": 3.450290999999993,
+      "system": 0.09206100000000106
+    },
+    {
+      "input": 2,
+      "arm": "baseline-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 6.4774528560000135,
+      "user": 6.460607999999979,
+      "system": 0.015990999999999644
+    },
+    {
+      "input": 2,
+      "arm": "merged-safe-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.346655425999984,
+      "user": 1.3299880000000712,
+      "system": 0.015976000000000212
+    },
+    {
+      "input": 2,
+      "arm": "merged-auto-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.3637481929999922,
+      "user": 1.3470579999999472,
+      "system": 0.015988999999999365
+    },
+    {
+      "input": 2,
+      "arm": "ffmpeg-symbols",
+      "round": 4,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 3.386538531000042,
+      "user": 3.301531999999952,
+      "system": 0.08403900000000064
+    },
+    {
+      "input": 2,
+      "arm": "baseline-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 6.485500137000031,
+      "user": 6.468620000000101,
+      "system": 0.016000999999999266
+    },
+    {
+      "input": 2,
+      "arm": "merged-safe-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.3461385140000175,
+      "user": 1.3253599999999324,
+      "system": 0.020020999999999844
+    },
+    {
+      "input": 2,
+      "arm": "merged-auto-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.3636548389999916,
+      "user": 1.3469430000000102,
+      "system": 0.01598700000000086
+    },
+    {
+      "input": 2,
+      "arm": "ffmpeg-pinned",
+      "round": 4,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 3.5280925319999596,
+      "user": 3.447340000000054,
+      "system": 0.07998499999999886
+    },
+    {
+      "input": 3,
+      "arm": "ffmpeg-symbols",
+      "round": 0,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 5.909457387999964,
+      "user": 5.799442999999997,
+      "system": 0.10799000000000092
+    },
+    {
+      "input": 3,
+      "arm": "ffmpeg-pinned",
+      "round": 0,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 5.832178325999962,
+      "user": 5.754284999999982,
+      "system": 0.07597699999999996
+    },
+    {
+      "input": 3,
+      "arm": "merged-auto-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9967333869999493,
+      "user": 1.9799040000000332,
+      "system": 0.016000000000000014
+    },
+    {
+      "input": 3,
+      "arm": "merged-safe-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9792541890000166,
+      "user": 1.9544690000000173,
+      "system": 0.024029999999999774
+    },
+    {
+      "input": 3,
+      "arm": "baseline-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 8.48733241900004,
+      "user": 8.475949000000014,
+      "system": 0.007996000000000336
+    },
+    {
+      "input": 3,
+      "arm": "ffmpeg-pinned",
+      "round": 1,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 5.813228014999936,
+      "user": 5.720250999999962,
+      "system": 0.09200399999999931
+    },
+    {
+      "input": 3,
+      "arm": "merged-auto-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.989052003000097,
+      "user": 1.9707090000000562,
+      "system": 0.015990000000000393
+    },
+    {
+      "input": 3,
+      "arm": "merged-safe-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.980672735999974,
+      "user": 1.9558939999999438,
+      "system": 0.02399800000000063
+    },
+    {
+      "input": 3,
+      "arm": "baseline-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 8.437939776999997,
+      "user": 8.427908000000002,
+      "system": 0.007999999999999119
+    },
+    {
+      "input": 3,
+      "arm": "ffmpeg-symbols",
+      "round": 1,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 5.848621647000073,
+      "user": 5.719684000000029,
+      "system": 0.12799300000000002
+    },
+    {
+      "input": 3,
+      "arm": "merged-auto-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.98988663800003,
+      "user": 1.9691139999999905,
+      "system": 0.020011999999999475
+    },
+    {
+      "input": 3,
+      "arm": "merged-safe-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9817959830000973,
+      "user": 1.9557320000000118,
+      "system": 0.02394699999999972
+    },
+    {
+      "input": 3,
+      "arm": "baseline-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 8.463955368999905,
+      "user": 8.438830999999936,
+      "system": 0.02399700000000138
+    },
+    {
+      "input": 3,
+      "arm": "ffmpeg-symbols",
+      "round": 2,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 5.805990515999952,
+      "user": 5.690319000000045,
+      "system": 0.11196699999999993
+    },
+    {
+      "input": 3,
+      "arm": "ffmpeg-pinned",
+      "round": 2,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 5.85474418199999,
+      "user": 5.753078999999957,
+      "system": 0.10001899999999964
+    },
+    {
+      "input": 3,
+      "arm": "merged-safe-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9797709939999777,
+      "user": 1.967029000000025,
+      "system": 0.011993999999999616
+    },
+    {
+      "input": 3,
+      "arm": "baseline-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 8.432131463000019,
+      "user": 8.418279999999982,
+      "system": 0.011997000000000924
+    },
+    {
+      "input": 3,
+      "arm": "ffmpeg-symbols",
+      "round": 3,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 5.78430799299997,
+      "user": 5.6474450000000616,
+      "system": 0.13598700000000008
+    },
+    {
+      "input": 3,
+      "arm": "ffmpeg-pinned",
+      "round": 3,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 5.74761184099998,
+      "user": 5.641558000000032,
+      "system": 0.10395499999999913
+    },
+    {
+      "input": 3,
+      "arm": "merged-auto-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9873421059999146,
+      "user": 1.9745179999999891,
+      "system": 0.011991000000000085
+    },
+    {
+      "input": 3,
+      "arm": "baseline-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 8.428080969000007,
+      "user": 8.417479999999955,
+      "system": 0.008001000000000147
+    },
+    {
+      "input": 3,
+      "arm": "ffmpeg-symbols",
+      "round": 4,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 5.814389762000019,
+      "user": 5.737423000000035,
+      "system": 0.0760190000000005
+    },
+    {
+      "input": 3,
+      "arm": "ffmpeg-pinned",
+      "round": 4,
+      "loops": 40,
+      "frames": 4800,
+      "rc": 0,
+      "wall": 5.824716262000038,
+      "user": 5.7469129999999495,
+      "system": 0.07598600000000033
+    },
+    {
+      "input": 3,
+      "arm": "merged-auto-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.9872188320000532,
+      "user": 1.9703920000000608,
+      "system": 0.016019000000000005
+    },
+    {
+      "input": 3,
+      "arm": "merged-safe-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 1.977484620000041,
+      "user": 1.9646909999999025,
+      "system": 0.011979999999999436
+    },
+    {
+      "input": 4,
+      "arm": "baseline-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 67.96865988800005,
+      "user": 67.87353600000006,
+      "system": 0.091997000000001
+    },
+    {
+      "input": 4,
+      "arm": "merged-safe-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 25.367562067000108,
+      "user": 25.309703000000127,
+      "system": 0.05599499999999935
+    },
+    {
+      "input": 4,
+      "arm": "merged-auto-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 25.34972394800002,
+      "user": 25.267021999999997,
+      "system": 0.07999700000000054
+    },
+    {
+      "input": 4,
+      "arm": "ffmpeg-pinned",
+      "round": 0,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 5.9679880850001155,
+      "user": 5.910994999999957,
+      "system": 0.05598999999999954
+    },
+    {
+      "input": 4,
+      "arm": "ffmpeg-symbols",
+      "round": 0,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 5.926126247000184,
+      "user": 5.876338999999916,
+      "system": 0.04797100000000043
+    },
+    {
+      "input": 4,
+      "arm": "merged-safe-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 25.216626801999837,
+      "user": 25.151026,
+      "system": 0.06399699999999875
+    },
+    {
+      "input": 4,
+      "arm": "merged-auto-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 25.153002812000068,
+      "user": 25.08229499999993,
+      "system": 0.0679949999999998
+    },
+    {
+      "input": 4,
+      "arm": "ffmpeg-pinned",
+      "round": 1,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 5.80498231699994,
+      "user": 5.756084000000101,
+      "system": 0.04800100000000107
+    },
+    {
+      "input": 4,
+      "arm": "ffmpeg-symbols",
+      "round": 1,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 5.781789626000091,
+      "user": 5.74418199999991,
+      "system": 0.03600099999999884
+    },
+    {
+      "input": 4,
+      "arm": "baseline-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 68.03623067300009,
+      "user": 67.96216000000004,
+      "system": 0.06799800000000111
+    },
+    {
+      "input": 4,
+      "arm": "merged-auto-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 25.232467704999863,
+      "user": 25.156848999999966,
+      "system": 0.0719909999999988
+    },
+    {
+      "input": 4,
+      "arm": "ffmpeg-pinned",
+      "round": 2,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 5.7864034859999265,
+      "user": 5.741527000000133,
+      "system": 0.044012000000000384
+    },
+    {
+      "input": 4,
+      "arm": "ffmpeg-symbols",
+      "round": 2,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 5.833615577000046,
+      "user": 5.784222,
+      "system": 0.04800200000000032
+    },
+    {
+      "input": 4,
+      "arm": "baseline-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 67.85501950100002,
+      "user": 67.75825399999985,
+      "system": 0.09199800000000025
+    },
+    {
+      "input": 4,
+      "arm": "merged-safe-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 25.241828951999878,
+      "user": 25.176240000000007,
+      "system": 0.06400000000000006
+    },
+    {
+      "input": 4,
+      "arm": "ffmpeg-pinned",
+      "round": 3,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 5.7119949879997876,
+      "user": 5.683091000000104,
+      "system": 0.02799599999999991
+    },
+    {
+      "input": 4,
+      "arm": "ffmpeg-symbols",
+      "round": 3,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 5.789360823999914,
+      "user": 5.7484719999999925,
+      "system": 0.040003000000000455
+    },
+    {
+      "input": 4,
+      "arm": "baseline-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 68.00473829900011,
+      "user": 67.91724999999997,
+      "system": 0.0839970000000001
+    },
+    {
+      "input": 4,
+      "arm": "merged-safe-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 25.509608769000124,
+      "user": 25.431599000000006,
+      "system": 0.07599800000000023
+    },
+    {
+      "input": 4,
+      "arm": "merged-auto-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 25.268028288999858,
+      "user": 25.182252999999946,
+      "system": 0.08400799999999897
+    },
+    {
+      "input": 4,
+      "arm": "ffmpeg-symbols",
+      "round": 4,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 5.861879143000124,
+      "user": 5.817002000000002,
+      "system": 0.04400700000000057
+    },
+    {
+      "input": 4,
+      "arm": "baseline-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 67.82605637400002,
+      "user": 67.7376240000001,
+      "system": 0.08399799999999935
+    },
+    {
+      "input": 4,
+      "arm": "merged-safe-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 25.282095234000053,
+      "user": 25.232234000000062,
+      "system": 0.04800000000000004
+    },
+    {
+      "input": 4,
+      "arm": "merged-auto-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 25.221699369999897,
+      "user": 25.14407899999992,
+      "system": 0.07598800000000061
+    },
+    {
+      "input": 4,
+      "arm": "ffmpeg-pinned",
+      "round": 4,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 5.7725497179999365,
+      "user": 5.727677999999969,
+      "system": 0.043998000000000204
+    },
+    {
+      "input": 5,
+      "arm": "ffmpeg-symbols",
+      "round": 0,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 8.140968414999861,
+      "user": 8.099535999999944,
+      "system": 0.039998000000000644
+    },
+    {
+      "input": 5,
+      "arm": "ffmpeg-pinned",
+      "round": 0,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 8.05061356400006,
+      "user": 8.001613000000134,
+      "system": 0.047984999999998834
+    },
+    {
+      "input": 5,
+      "arm": "merged-auto-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 21.527850414999875,
+      "user": 21.472495999999865,
+      "system": 0.05199200000000026
+    },
+    {
+      "input": 5,
+      "arm": "merged-safe-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 21.88930710500017,
+      "user": 21.838705000000118,
+      "system": 0.04799700000000051
+    },
+    {
+      "input": 5,
+      "arm": "baseline-dist",
+      "round": 0,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 60.50894806700012,
+      "user": 60.441393999999946,
+      "system": 0.06399699999999875
+    },
+    {
+      "input": 5,
+      "arm": "ffmpeg-pinned",
+      "round": 1,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 8.031248573000084,
+      "user": 7.97821799999997,
+      "system": 0.05198900000000073
+    },
+    {
+      "input": 5,
+      "arm": "merged-auto-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 21.524571557999934,
+      "user": 21.46287899999993,
+      "system": 0.05999599999999994
+    },
+    {
+      "input": 5,
+      "arm": "merged-safe-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 21.92519523200008,
+      "user": 21.88346700000011,
+      "system": 0.039998999999999896
+    },
+    {
+      "input": 5,
+      "arm": "baseline-dist",
+      "round": 1,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 60.56213942800014,
+      "user": 60.49515999999994,
+      "system": 0.06400000000000006
+    },
+    {
+      "input": 5,
+      "arm": "ffmpeg-symbols",
+      "round": 1,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 8.173396397000033,
+      "user": 8.140431000000035,
+      "system": 0.03198599999999985
+    },
+    {
+      "input": 5,
+      "arm": "merged-auto-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 21.55160140800035,
+      "user": 21.50605399999995,
+      "system": 0.043995999999999924
+    },
+    {
+      "input": 5,
+      "arm": "merged-safe-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 21.95556488200009,
+      "user": 21.886038999999982,
+      "system": 0.06799299999999953
+    },
+    {
+      "input": 5,
+      "arm": "baseline-dist",
+      "round": 2,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 60.57330365500002,
+      "user": 60.501912000000175,
+      "system": 0.063994000000001
+    },
+    {
+      "input": 5,
+      "arm": "ffmpeg-symbols",
+      "round": 2,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 8.12768435299995,
+      "user": 8.06266400000004,
+      "system": 0.06402100000000033
+    },
+    {
+      "input": 5,
+      "arm": "ffmpeg-pinned",
+      "round": 2,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 8.002415602999918,
+      "user": 7.94939099999965,
+      "system": 0.05200899999999997
+    },
+    {
+      "input": 5,
+      "arm": "merged-safe-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 21.945902137999838,
+      "user": 21.892205999999987,
+      "system": 0.052000999999998854
+    },
+    {
+      "input": 5,
+      "arm": "baseline-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 60.60691278100012,
+      "user": 60.53993000000037,
+      "system": 0.06399500000000025
+    },
+    {
+      "input": 5,
+      "arm": "ffmpeg-symbols",
+      "round": 3,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 8.15013346700016,
+      "user": 8.093169999999645,
+      "system": 0.05598100000000095
+    },
+    {
+      "input": 5,
+      "arm": "ffmpeg-pinned",
+      "round": 3,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 8.08710099200016,
+      "user": 8.034062000000176,
+      "system": 0.052012999999998755
+    },
+    {
+      "input": 5,
+      "arm": "merged-auto-dist",
+      "round": 3,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 21.51120501599962,
+      "user": 21.44958799999995,
+      "system": 0.06000500000000031
+    },
+    {
+      "input": 5,
+      "arm": "baseline-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 60.55099257300026,
+      "user": 60.49530099999993,
+      "system": 0.05199600000000082
+    },
+    {
+      "input": 5,
+      "arm": "ffmpeg-symbols",
+      "round": 4,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 8.171843156999785,
+      "user": 8.130476000000272,
+      "system": 0.04001199999999905
+    },
+    {
+      "input": 5,
+      "arm": "ffmpeg-pinned",
+      "round": 4,
+      "loops": 5,
+      "frames": 600,
+      "rc": 0,
+      "wall": 8.036428543000056,
+      "user": 7.979391999999734,
+      "system": 0.05599600000000038
+    },
+    {
+      "input": 5,
+      "arm": "merged-auto-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 21.305722758999764,
+      "user": 21.239544000000024,
+      "system": 0.06399799999999978
+    },
+    {
+      "input": 5,
+      "arm": "merged-safe-dist",
+      "round": 4,
+      "loops": 1,
+      "frames": 120,
+      "rc": 0,
+      "wall": 21.674395447999814,
+      "user": 21.63552400000026,
+      "system": 0.035999000000000336
+    }
+  ],
+  "caveat": "Component times are exclusive cycle-share estimates. The symbol build supplies FFmpeg shares scaled to the pinned asset CPU; its drift, loss, missing callers, unknown owners and sample counts remain visible. Reference storage work is not equivalent."
+}

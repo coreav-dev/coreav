@@ -1,0 +1,851 @@
+{
+ "binding": {
+  "inputs": [
+   {
+    "channels": 2,
+    "class": "mp4",
+    "mode": "hybrid",
+    "packets": {
+     "celt/10": 8145,
+     "hybrid/10": 106220
+    },
+    "sha256": "023b28a2f18af1277f83f020929cd8cb59dfdd0742abb5eb166cf1873d27c27a"
+   },
+   {
+    "channels": 1,
+    "class": "matroska",
+    "mode": "silk",
+    "packets": {
+     "silk/10": 133566
+    },
+    "sha256": "59271d118f40c6db8d0daec2de1cf55972e49d9fbf3e0ffc90f3187c0fbe8961"
+   },
+   {
+    "channels": 2,
+    "class": "matroska",
+    "mode": "celt",
+    "packets": {
+     "celt/5": 352118
+    },
+    "sha256": "9dbeb1ac6119352e29e03e7e66d0c4f02f6c00f7d2af83712831b6fa8b0c20af"
+   },
+   {
+    "channels": 1,
+    "class": "mp4",
+    "mode": "silk",
+    "packets": {
+     "silk/10": 133566
+    },
+    "sha256": "9e34a8c5713310a0de96ca29ca3fb819f7c9cd51a8b933b608579a99929c02d2"
+   },
+   {
+    "channels": 2,
+    "class": "mp4",
+    "mode": "celt",
+    "packets": {
+     "celt/10": 170693
+    },
+    "sha256": "a8ef6eb3b0658ee306b87aa5b0d64d477cf7272d810cdc36e342f734594827b6"
+   },
+   {
+    "channels": 2,
+    "class": "matroska",
+    "mode": "hybrid",
+    "packets": {
+     "celt/10": 8145,
+     "hybrid/10": 106220
+    },
+    "sha256": "b6179fcf1ba703f808dacd9fb0898edee3da09690b280e7d5af861d69c30fe82"
+   }
+  ],
+  "judging": {
+   "bench/audio-decode/agreement.py": "32f312ad10962d654568c85b6962041ae8cce82ccd74272dfddb3b0656ac0818",
+   "bench/audio-decode/capacity.py": "da27491bc077453e0fca6706bddaefdf8098e1d4bb8d1006ada34c6abedd1462",
+   "bench/audio-decode/oracle.py": "6999bc89af9f0ffb4dade872e30b2b0ba7342648b32e22aaeeca50936316b32a",
+   "bench/audio-decode/receipts.py": "e62d9c0e4f8590abdcdc3bbcd3f268c8c54c2de1bb2614befdda44e4ef4de370",
+   "bench/audio-decode/run.py": "257d01aa5b7fd1febb0534d57142e94f718b34d1eee8a8f3338ffb8b2de6fce4",
+   "docs/known-divergences-decode-audio.json": "9b776384b90f23bad4c50d9613661f95fc2ccfb8da195e3bb76da00ea2d30a18",
+   "scripts/decode_audio_check.py": "05277f5e3c9d17a352088d003b703705f6738354bf6dbf81be3620802dd448e2",
+   "scripts/opus_identity.py": "c87a89900823e43b09bbf06a2ead35cd9390e9e7cd59b13ff075637b6e1fd987",
+   "scripts/oracle-audio-args.txt": "52720de7a4d973d387c1c7bffd770f40120b7315dcf307625841d04d5e000586",
+   "scripts/oracle-ffmpeg.env": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
+   "scripts/oracle_audio.py": "cc4a68c084aab8f22201a517fb35efbc427f85590b5007e3dfc852e6dc5a98f4",
+   "scripts/oracle_kd.py": "255f193b6bc6e2f67f32f7fe40bd5f91179ce13c91ce462a6514ecd4b0f50d52",
+   "scripts/oracle_kd_ts.py": "a837051ee8900c860973e0e91bacfed14eb21be99b07260938cf1d409d322d31",
+   "scripts/oracle_pin.py": "b221378b054a6e6bae92051ae4e4e4fa1add451213f28e888825fa6e43f2f909"
+  },
+  "limits": {
+   "concurrency": 1,
+   "job_seconds": 3600,
+   "memory_bytes": 8589934592,
+   "per_call_seconds": 900,
+   "tmpfs_bytes": 4294967296
+  },
+  "minimum_full_frames": 43200000,
+  "operations": [
+   "raw_identity",
+   "cli_identity",
+   "oracle",
+   "head_lib",
+   "base_lib",
+   "lav_lib",
+   "head_dec",
+   "base_dec",
+   "lav_dec",
+   "ffmpeg_cli"
+  ],
+  "oracle": {
+   "lav_archive_sha256": "7a1ba2af36e5beeb98151e766a903b1d115f2206a86571f17f873cd7292c424f",
+   "libraries": {
+    "ld-linux-x86-64.so.2": "c8438e4fde1934e61c88311633f00949ff645d5c04cdb8671fa3d78164d2f307",
+    "libavcodec.so.63": "26e01ab660ce53daabad534681f6289331962d0ed487072570bb1374db571e32",
+    "libavformat.so.63": "b3cfc4710967d6894e4038095a5f82673dd2cc9ea5909b25977f268d5f215236",
+    "libavutil.so.61": "d817837194e6e591f5fa7a18b2d19e4277ada0b37b959bbd9300de9d260f5d5b",
+    "libc.so.6": "9792e3cbb541c8f44c7acf5f14f4022ea62998ecc787d326bed4d8b6547dfd92",
+    "libdl.so.2": "295fa521a03cd2faa99974f378c9e23dd622021ec7d32bcad4f8ea61aec8a872",
+    "libgcc_s.so.1": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+    "libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+    "libmvec.so.1": "cd2f99df70ed0fa44f79bd6322396180d19eaa1fb527b1b6e2aec9cdfc034d9d",
+    "libpthread.so.0": "85e21f7dba0394411d00959176fd18b470e575b0b05f1f4f41e5636802ce0500",
+    "librt.so.1": "7b7b84d1aedda0e0b2bdfc68844362782132180b8f02be1300e21e77572e514b",
+    "libswresample.so.7": "1b5a80d1f17fde2cf3a027b0d6d23d193c057f2ed5f2df3cdb9e760851fc95ad"
+   },
+   "pin_sha256": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24"
+  },
+  "runtime": {
+   "numpy": "2.5.4",
+   "python": "3.13"
+  },
+  "schema": "opus-capacity-binding/1",
+  "scope": "spent",
+  "tools": {
+   "base_abench": "db72836a6082adaa763c1b3fd413d57498655568e505c7dccb02678b3a9f5723",
+   "base_coreav": "4ad1bdc9f49b19235ac6ffa79565fef45d5471fb1f2f213c8a4134883770d0ad",
+   "ffmpeg": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d",
+   "ffprobe": "a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb",
+   "head_abench": "ae275febfdee1d1444f2f315656529c395605c083f78437a19fb1ba7be2c93cd",
+   "head_coreav": "547d8f859ae69616abe79c96831e9bf0f586ebd38de4e8b4297dcf252b5c7c8f",
+   "lav": "664dd1743ca923de6c92c30bef874e0ad8df382c0c558952315710e87df33ed0",
+   "opus_compare": "1c05462421badc2b7e1a8fb2ea30ec14de302529004eaaa02f406079bcf8334d"
+  }
+ },
+ "complete": true,
+ "host": {
+  "cpu": "Intel Xeon Platinum 8581C",
+  "memory_as_bytes": 8589934592,
+  "outputs_tmpfs": true,
+  "smt": false,
+  "tmpfs_budget_bytes": 4294967296,
+  "tmpfs_capacity_bytes": 4294967296
+ },
+ "inputs": [
+  {
+   "class": "mp4",
+   "mode": "hybrid",
+   "operations": {
+    "base_dec": {
+     "error": null,
+     "result": {
+      "samples": 54895200
+     },
+     "status": "complete"
+    },
+    "base_lib": {
+     "error": null,
+     "result": {
+      "bytes": 219579072,
+      "samples": 54894768
+     },
+     "status": "complete"
+    },
+    "cli_identity": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 54894768,
+      "output_bytes": 219579116,
+      "passed": true,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "ffmpeg_cli": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 54894888,
+      "output_bytes": 219579630,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "head_dec": {
+     "error": null,
+     "result": {
+      "samples": 54895200
+     },
+     "status": "complete"
+    },
+    "head_lib": {
+     "error": null,
+     "result": {
+      "bytes": 219579072,
+      "samples": 54894768
+     },
+     "status": "complete"
+    },
+    "lav_dec": {
+     "error": null,
+     "result": {
+      "errors": 0,
+      "packets": 114365,
+      "samples": 54894888
+     },
+     "status": "complete"
+    },
+    "lav_lib": {
+     "error": null,
+     "result": {
+      "bytes": 219579552,
+      "errors": 0,
+      "samples": 54894888
+     },
+     "status": "complete"
+    },
+    "oracle": {
+     "error": null,
+     "result": {
+      "detail": {
+       "applied": true,
+       "compare_passed": true,
+       "default": {
+        "compare_passed": true,
+        "max_steps": 9939,
+        "quality": 2.5,
+        "snr_db": 21.819287543454912
+       },
+       "default_length_ok": true,
+       "entries_count": 1,
+       "ffmpeg_expected": 54894888,
+       "full": 54894888,
+       "length_ok": true,
+       "model": 54894768,
+       "quality": 99.8,
+       "samples": {
+        "default": 54894888,
+        "ours": 54894768,
+        "ref": 54894888
+       }
+      },
+      "error": null,
+      "passed": true,
+      "schema": "opus-oracle/1",
+      "status": "ok"
+     },
+     "status": "complete"
+    },
+    "raw_identity": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 54895200,
+      "packets": 114365,
+      "passed": true
+     },
+     "status": "complete"
+    }
+   },
+   "sha256": "023b28a2f18af1277f83f020929cd8cb59dfdd0742abb5eb166cf1873d27c27a"
+  },
+  {
+   "class": "matroska",
+   "mode": "silk",
+   "operations": {
+    "base_dec": {
+     "error": null,
+     "result": {
+      "samples": 64111680
+     },
+     "status": "complete"
+    },
+    "base_lib": {
+     "error": null,
+     "result": {
+      "bytes": 128222208,
+      "samples": 64111104
+     },
+     "status": "complete"
+    },
+    "cli_identity": {
+     "error": null,
+     "result": {
+      "channels": 1,
+      "frames": 64111104,
+      "output_bytes": 128222252,
+      "passed": true,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "ffmpeg_cli": {
+     "error": null,
+     "result": {
+      "channels": 1,
+      "frames": 64111104,
+      "output_bytes": 128222286,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "head_dec": {
+     "error": null,
+     "result": {
+      "samples": 64111680
+     },
+     "status": "complete"
+    },
+    "head_lib": {
+     "error": null,
+     "result": {
+      "bytes": 128222208,
+      "samples": 64111104
+     },
+     "status": "complete"
+    },
+    "lav_dec": {
+     "error": null,
+     "result": {
+      "errors": 0,
+      "packets": 133566,
+      "samples": 64111104
+     },
+     "status": "complete"
+    },
+    "lav_lib": {
+     "error": null,
+     "result": {
+      "bytes": 128222208,
+      "errors": 0,
+      "samples": 64111104
+     },
+     "status": "complete"
+    },
+    "oracle": {
+     "error": null,
+     "result": {
+      "detail": {
+       "compare_passed": true,
+       "default": {
+        "compare_passed": true,
+        "max_steps": 9308,
+        "quality": 33.2,
+        "snr_db": 14.032328516078662
+       },
+       "default_length_ok": true,
+       "length_ok": true,
+       "quality": 100.0,
+       "samples": {
+        "default": 64111104,
+        "ours": 64111104,
+        "ref": 64111104
+       }
+      },
+      "error": null,
+      "passed": true,
+      "schema": "opus-oracle/1",
+      "status": "ok"
+     },
+     "status": "complete"
+    },
+    "raw_identity": {
+     "error": null,
+     "result": {
+      "channels": 1,
+      "frames": 64111680,
+      "packets": 133566,
+      "passed": true
+     },
+     "status": "complete"
+    }
+   },
+   "sha256": "59271d118f40c6db8d0daec2de1cf55972e49d9fbf3e0ffc90f3187c0fbe8961"
+  },
+  {
+   "class": "matroska",
+   "mode": "celt",
+   "operations": {
+    "base_dec": {
+     "error": null,
+     "result": {
+      "samples": 84508320
+     },
+     "status": "complete"
+    },
+    "base_lib": {
+     "error": null,
+     "result": {
+      "bytes": 338032016,
+      "samples": 84508004
+     },
+     "status": "complete"
+    },
+    "cli_identity": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 84508004,
+      "output_bytes": 338032060,
+      "passed": true,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "ffmpeg_cli": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 84508004,
+      "output_bytes": 338032220,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "head_dec": {
+     "error": null,
+     "result": {
+      "samples": 84508320
+     },
+     "status": "complete"
+    },
+    "head_lib": {
+     "error": null,
+     "result": {
+      "bytes": 338032016,
+      "samples": 84508004
+     },
+     "status": "complete"
+    },
+    "lav_dec": {
+     "error": null,
+     "result": {
+      "errors": 0,
+      "packets": 352118,
+      "samples": 84508004
+     },
+     "status": "complete"
+    },
+    "lav_lib": {
+     "error": null,
+     "result": {
+      "bytes": 338032016,
+      "errors": 0,
+      "samples": 84508004
+     },
+     "status": "complete"
+    },
+    "oracle": {
+     "error": null,
+     "result": {
+      "detail": {
+       "compare_passed": true,
+       "default": {
+        "compare_passed": true,
+        "max_steps": 1,
+        "quality": 99.8,
+        "snr_db": 103.68638165854294
+       },
+       "default_length_ok": true,
+       "length_ok": true,
+       "quality": 99.8,
+       "samples": {
+        "default": 84508004,
+        "ours": 84508004,
+        "ref": 84508004
+       }
+      },
+      "error": null,
+      "passed": true,
+      "schema": "opus-oracle/1",
+      "status": "ok"
+     },
+     "status": "complete"
+    },
+    "raw_identity": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 84508320,
+      "packets": 352118,
+      "passed": true
+     },
+     "status": "complete"
+    }
+   },
+   "sha256": "9dbeb1ac6119352e29e03e7e66d0c4f02f6c00f7d2af83712831b6fa8b0c20af"
+  },
+  {
+   "class": "mp4",
+   "mode": "silk",
+   "operations": {
+    "base_dec": {
+     "error": null,
+     "result": {
+      "samples": 64111680
+     },
+     "status": "complete"
+    },
+    "base_lib": {
+     "error": null,
+     "result": {
+      "bytes": 128222208,
+      "samples": 64111104
+     },
+     "status": "complete"
+    },
+    "cli_identity": {
+     "error": null,
+     "result": {
+      "channels": 1,
+      "frames": 64111104,
+      "output_bytes": 128222252,
+      "passed": true,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "ffmpeg_cli": {
+     "error": null,
+     "result": {
+      "channels": 1,
+      "frames": 64111368,
+      "output_bytes": 128222814,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "head_dec": {
+     "error": null,
+     "result": {
+      "samples": 64111680
+     },
+     "status": "complete"
+    },
+    "head_lib": {
+     "error": null,
+     "result": {
+      "bytes": 128222208,
+      "samples": 64111104
+     },
+     "status": "complete"
+    },
+    "lav_dec": {
+     "error": null,
+     "result": {
+      "errors": 0,
+      "packets": 133566,
+      "samples": 64111368
+     },
+     "status": "complete"
+    },
+    "lav_lib": {
+     "error": null,
+     "result": {
+      "bytes": 128222736,
+      "errors": 0,
+      "samples": 64111368
+     },
+     "status": "complete"
+    },
+    "oracle": {
+     "error": null,
+     "result": {
+      "detail": {
+       "applied": true,
+       "compare_passed": true,
+       "default": {
+        "compare_passed": true,
+        "max_steps": 9308,
+        "quality": 33.2,
+        "snr_db": 14.032328516078662
+       },
+       "default_length_ok": true,
+       "entries_count": 1,
+       "ffmpeg_expected": 64111368,
+       "full": 64111368,
+       "length_ok": true,
+       "model": 64111104,
+       "quality": 100.0,
+       "samples": {
+        "default": 64111368,
+        "ours": 64111104,
+        "ref": 64111368
+       }
+      },
+      "error": null,
+      "passed": true,
+      "schema": "opus-oracle/1",
+      "status": "ok"
+     },
+     "status": "complete"
+    },
+    "raw_identity": {
+     "error": null,
+     "result": {
+      "channels": 1,
+      "frames": 64111680,
+      "packets": 133566,
+      "passed": true
+     },
+     "status": "complete"
+    }
+   },
+   "sha256": "9e34a8c5713310a0de96ca29ca3fb819f7c9cd51a8b933b608579a99929c02d2"
+  },
+  {
+   "class": "mp4",
+   "mode": "celt",
+   "operations": {
+    "base_dec": {
+     "error": null,
+     "result": {
+      "samples": 81932640
+     },
+     "status": "complete"
+    },
+    "base_lib": {
+     "error": null,
+     "result": {
+      "bytes": 327725952,
+      "samples": 81931488
+     },
+     "status": "complete"
+    },
+    "cli_identity": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 81931488,
+      "output_bytes": 327725996,
+      "passed": true,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "ffmpeg_cli": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 81932328,
+      "output_bytes": 327729390,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "head_dec": {
+     "error": null,
+     "result": {
+      "samples": 81932640
+     },
+     "status": "complete"
+    },
+    "head_lib": {
+     "error": null,
+     "result": {
+      "bytes": 327725952,
+      "samples": 81931488
+     },
+     "status": "complete"
+    },
+    "lav_dec": {
+     "error": null,
+     "result": {
+      "errors": 0,
+      "packets": 170693,
+      "samples": 81932328
+     },
+     "status": "complete"
+    },
+    "lav_lib": {
+     "error": null,
+     "result": {
+      "bytes": 327729312,
+      "errors": 0,
+      "samples": 81932328
+     },
+     "status": "complete"
+    },
+    "oracle": {
+     "error": null,
+     "result": {
+      "detail": {
+       "applied": true,
+       "compare_passed": true,
+       "default": {
+        "compare_passed": true,
+        "max_steps": 1318,
+        "quality": 32.2,
+        "snr_db": 55.25130312151812
+       },
+       "default_length_ok": true,
+       "entries_count": 1,
+       "ffmpeg_expected": 81932328,
+       "full": 81932328,
+       "length_ok": true,
+       "model": 81931488,
+       "quality": 99.8,
+       "samples": {
+        "default": 81932328,
+        "ours": 81931488,
+        "ref": 81932328
+       }
+      },
+      "error": null,
+      "passed": true,
+      "schema": "opus-oracle/1",
+      "status": "ok"
+     },
+     "status": "complete"
+    },
+    "raw_identity": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 81932640,
+      "packets": 170693,
+      "passed": true
+     },
+     "status": "complete"
+    }
+   },
+   "sha256": "a8ef6eb3b0658ee306b87aa5b0d64d477cf7272d810cdc36e342f734594827b6"
+  },
+  {
+   "class": "matroska",
+   "mode": "hybrid",
+   "operations": {
+    "base_dec": {
+     "error": null,
+     "result": {
+      "samples": 54895200
+     },
+     "status": "complete"
+    },
+    "base_lib": {
+     "error": null,
+     "result": {
+      "bytes": 219579040,
+      "samples": 54894760
+     },
+     "status": "complete"
+    },
+    "cli_identity": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 54894760,
+      "output_bytes": 219579084,
+      "passed": true,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "ffmpeg_cli": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 54894760,
+      "output_bytes": 219579118,
+      "sample_rate": 48000,
+      "sample_width": 2
+     },
+     "status": "complete"
+    },
+    "head_dec": {
+     "error": null,
+     "result": {
+      "samples": 54895200
+     },
+     "status": "complete"
+    },
+    "head_lib": {
+     "error": null,
+     "result": {
+      "bytes": 219579040,
+      "samples": 54894760
+     },
+     "status": "complete"
+    },
+    "lav_dec": {
+     "error": null,
+     "result": {
+      "errors": 0,
+      "packets": 114365,
+      "samples": 54894760
+     },
+     "status": "complete"
+    },
+    "lav_lib": {
+     "error": null,
+     "result": {
+      "bytes": 219579040,
+      "errors": 0,
+      "samples": 54894760
+     },
+     "status": "complete"
+    },
+    "oracle": {
+     "error": null,
+     "result": {
+      "detail": {
+       "compare_passed": true,
+       "default": {
+        "compare_passed": true,
+        "max_steps": 9939,
+        "quality": 2.5,
+        "snr_db": 21.819287543454912
+       },
+       "default_length_ok": true,
+       "length_ok": true,
+       "quality": 99.8,
+       "samples": {
+        "default": 54894760,
+        "ours": 54894760,
+        "ref": 54894760
+       }
+      },
+      "error": null,
+      "passed": true,
+      "schema": "opus-oracle/1",
+      "status": "ok"
+     },
+     "status": "complete"
+    },
+    "raw_identity": {
+     "error": null,
+     "result": {
+      "channels": 2,
+      "frames": 54895200,
+      "packets": 114365,
+      "passed": true
+     },
+     "status": "complete"
+    }
+   },
+   "sha256": "b6179fcf1ba703f808dacd9fb0898edee3da09690b280e7d5af861d69c30fe82"
+  }
+ ],
+ "passed": true,
+ "purpose": "full",
+ "schema": "opus-capacity/1"
+}

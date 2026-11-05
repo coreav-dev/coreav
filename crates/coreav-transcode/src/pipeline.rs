@@ -730,6 +730,8 @@ fn execute<S: Source, W: Write>(
                     &options.isobmff_limits,
                     &isobmff_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
                     &RemuxOptions {
+                        video_origin: None,
+                        rebuild_durations: false,
                         streams,
                         on_unsupported: OnUnsupported::Drop,
                         metadata: Metadata::Copy,

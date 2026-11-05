@@ -28,13 +28,7 @@ pub fn run<W: Write>(
     let source = BufferedSource::new(
         FileSource::open(path).map_err(|e| ClipFailure::Rejected(Failure::library(e)))?,
     );
-    Ok(remux_mp4(
-        source,
-        &Limits::default(),
-        allowlist,
-        options,
-        out,
-    )?)
+    run_source(source, options, allowlist, out)
 }
 
 /// Copies mapped streams from several MP4/MOV files.
@@ -73,18 +67,21 @@ pub fn run_slice<W: Write>(
 /// Remuxes any [`Source`](coreav_isobmff::Source), as [`run`] does for a
 /// file.
 pub fn run_source<S: coreav_isobmff::Source, W: Write>(
-    source: S,
+    mut source: S,
     options: &RemuxOptions,
     allowlist: &Allowlist,
     out: W,
 ) -> Result<RemuxSummary, ClipFailure> {
-    Ok(remux_mp4(
-        source,
-        &Limits::default(),
-        allowlist,
-        options,
-        out,
-    )?)
+    match remux_mp4(&mut source, &Limits::default(), allowlist, options, out) {
+        Err(coreav_isobmff_write::ExtractError::Source(coreav_isobmff::Error::NotIsobmff))
+            if crate::mpegts::detect_source(&mut source).map_err(ClipFailure::Rejected)? =>
+        {
+            Err(ClipFailure::Rejected(Failure::Unsupported(
+                "MPEG-TS input is not remuxed yet".to_owned(),
+            )))
+        }
+        result => result.map_err(ClipFailure::from),
+    }
 }
 
 /// The names `--keep` accepts, and what they keep.
@@ -253,8 +250,12 @@ pub fn run_matroska<W: Write>(
     allowlist: &coreav_mkv::Allowlist,
     out: W,
 ) -> Result<MatroskaRemuxSummary, ClipFailure> {
+    let file =
+        std::fs::File::open(path).map_err(|e| ClipFailure::Rejected(Failure::library(e.into())))?;
+    #[cfg(target_os = "linux")]
+    let _ = rustix::fs::fadvise(&file, 0, None, rustix::fs::Advice::Sequential);
     let source = coreav_mkv::BufferedSource::new(
-        FileSource::open(path).map_err(|e| ClipFailure::Rejected(Failure::library(e)))?,
+        FileSource::from_file(file).map_err(|e| ClipFailure::Rejected(Failure::library(e)))?,
     );
     Ok(remux_matroska(
         source,

@@ -2,8 +2,9 @@
 //! for an ISO base media file, from the boxes `coreav_isobmff::metadata`
 //! reads.
 //!
-//! Every rule here was derived black-box from the pinned `ffprobe` 7.0.2 on
-//! crafted files (no FFmpeg source was read):
+//! The legacy rules below were derived black-box from `ffprobe` 7.0.2 on
+//! crafted files (no FFmpeg source was read). Scoped user-data names match
+//! pinned FFmpeg 9.0.2 (`docs/design/ffprobe-iso-track-names.md`).
 //!
 //! - Format tags are one dictionary, filled in file order: each `ftyp`
 //!   before the movie box (`major_brand`, `minor_version`,
@@ -63,6 +64,11 @@ use std::ops::ControlFlow;
 /// What `ffprobe` prints of a file's metadata.
 #[derive(Clone, Debug, Default)]
 pub struct IsoMeta {
+    /// The count of resolved timecode track-reference groups, unavailable
+    /// when the bounded metadata snapshot is incomplete.
+    pub stream_group_count: Option<usize>,
+    /// Whether every summary-visible metadata value was retained.
+    pub summary_complete: bool,
     /// `format` tags in `ffprobe`'s order.
     pub format_tags: Vec<(String, String)>,
     /// Per track (index = `Track::index`): the stream tags in `ffprobe`'s
@@ -102,6 +108,8 @@ pub struct IsoMeta {
     /// every track box of the movie, dropped streams included (index =
     /// `Track::stream_index`, `DroppedStream::stream_index`).
     pub all_streams: Vec<StreamMeta>,
+    /// Complete metadata establishes names in supported encodings.
+    pub names_supported: bool,
 }
 
 /// One stream's metadata.
@@ -201,13 +209,25 @@ fn protected(entry: &metadata::SampleEntry) -> Option<Protected> {
 /// from.
 pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result<IsoMeta, Failure> {
     let meta = metadata::read(&mut *source, limits).map_err(Failure::library)?;
-    let quicktime = match meta.file_types.first() {
-        Some(f) => f.major_brand == FourCc(*b"qt  "),
-        None => meta
-            .tracks
-            .iter()
-            .any(|t| t.handler_component == Some(FourCc(*b"mhlr"))),
-    };
+    let mut summary_complete = meta.complete
+        && !meta.tracks.iter().any(|track| {
+            track
+                .sample_entry
+                .as_ref()
+                .is_some_and(|entry| entry.timecode.is_some())
+                || track
+                    .references
+                    .iter()
+                    .any(|reference| reference.kind.0 == *b"tmcd")
+        })
+        && !meta.items.iter().any(|item| match &item.value {
+            ItemValue::ListItem { key, data, .. } => {
+                matches!(key, ListKey::Atom(FourCc(kind)) if kind == b"loci")
+                    || data.iter().any(|value| value.type_indicator == 2)
+            }
+            ItemValue::UserData { .. } => false,
+        });
+    let quicktime = quicktime(&meta);
     let timecodes = timecodes(&meta, &mut *source)?;
     // The timecode of each `track_ID`: the first track with that ID.
     let mut by_id: HashMap<u32, &String> = HashMap::new();
@@ -217,6 +237,15 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
         }
     }
     let chapter_list = chapter_list(&meta);
+    let mut names = vec![Vec::new(); meta.tracks.len()];
+    for (position, item) in meta.items.iter().enumerate() {
+        if let (Some(index), ItemValue::UserData { kind, payload }) = (item.track, &item.value)
+            && kind.0 == *b"name"
+            && let Some(name) = names.get_mut(index)
+        {
+            name.push((position, payload.as_slice()));
+        }
+    }
     let chapter_pictures: Vec<u32> = movie
         .tracks
         .iter()
@@ -225,6 +254,7 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
         })
         .map(|t| t.track_id)
         .collect();
+    let mut names_supported = meta.complete;
     let mut all_streams = Vec::with_capacity(meta.tracks.len());
     for (index, track) in meta.tracks.iter().enumerate() {
         let kept = movie.tracks.iter().find(|t| t.stream_index == index);
@@ -234,8 +264,17 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
         };
         let own = timecodes.get(index).and_then(Option::as_ref);
         let timecode = own_or_referenced_timecode(track, own, &by_id);
+        let tags = stream_tags(
+            track,
+            handler_name,
+            timecode,
+            quicktime,
+            names.get(index).map(Vec::as_slice).unwrap_or_default(),
+            &mut names_supported,
+        );
+        summary_complete &= !tags.incomplete;
         all_streams.push(StreamMeta {
-            tags: stream_tags(track, handler_name, timecode, quicktime),
+            tags: tags.entries,
             disposition: disposition(
                 track,
                 kept.is_some_and(|t| chapter_pictures.contains(&t.track_id)),
@@ -252,10 +291,22 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
                 .filter(|(_, d)| *d > 0),
         });
     }
+    let format = format_tags(&meta, &timecodes, &mut names_supported);
+    summary_complete &= !format.incomplete && names_supported;
     let mut out = IsoMeta {
+        names_supported,
+        stream_group_count: stream_group_count(&meta),
         covers: covers(&meta),
-        format_tags: format_tags(&meta, &timecodes),
-        chapters: chapters(movie, &chapter_list, &meta, &mut *source, limits)?,
+        format_tags: format.entries,
+        chapters: chapters(
+            movie,
+            &chapter_list,
+            &meta,
+            &mut *source,
+            limits,
+            &mut summary_complete,
+        )?,
+        summary_complete,
         chapter_pictures,
         protection_headers: meta.protection_headers > 0,
         ..IsoMeta::default()
@@ -281,6 +332,32 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
     Ok(out)
 }
 
+fn stream_group_count(meta: &Metadata) -> Option<usize> {
+    if !meta.complete {
+        return None;
+    }
+    let mut targets: HashSet<u32> = meta
+        .tracks
+        .iter()
+        .filter(|track| {
+            track
+                .sample_entry
+                .as_ref()
+                .is_some_and(|entry| entry.kind == FourCc(*b"tmcd"))
+        })
+        .filter_map(|track| track.track_id)
+        .collect();
+    Some(
+        meta.tracks
+            .iter()
+            .flat_map(|track| &track.references)
+            .filter(|reference| reference.kind == FourCc(*b"tmcd"))
+            .flat_map(|reference| &reference.track_ids)
+            .filter(|id| targets.remove(*id))
+            .count(),
+    )
+}
+
 /// A dictionary with `ffprobe`'s order: setting a key that is there
 /// removes it, moves the last entry into its place and appends the new
 /// value.
@@ -289,11 +366,13 @@ struct Dict {
     entries: Vec<(String, String)>,
     /// Each key's position in `entries`.
     positions: HashMap<String, usize>,
+    incomplete: bool,
 }
 
 impl Dict {
     fn set(&mut self, key: &str, value: String) {
         if let Some(i) = self.positions.remove(key) {
+            self.incomplete = true;
             if i < self.entries.len() {
                 self.entries.swap_remove(i);
             }
@@ -410,6 +489,14 @@ fn c_str(bytes: &[u8]) -> &[u8] {
 
 fn utf8(bytes: &[u8]) -> String {
     String::from_utf8_lossy(c_str(bytes)).into_owned()
+}
+
+fn user_data_name(bytes: &[u8]) -> Option<String> {
+    if bytes.len() > 4 {
+        return std::str::from_utf8(c_str(bytes)).ok().map(str::to_owned);
+    }
+    let value = mac_roman(bytes);
+    (value.len() <= bytes.len() * 2).then_some(value)
 }
 
 /// Mac OS Roman bytes as text (`ffprobe`'s table above 0x7f).
@@ -628,6 +715,9 @@ fn item_tags(dict: &mut Dict, item: &Item) {
                 return;
             }
             let Some((name, parse)) = atom(*kind) else {
+                if item.track.is_none() || kind.0 != *b"name" {
+                    dict.incomplete = true;
+                }
                 return;
             };
             if parse == Parse::Raw {
@@ -714,18 +804,41 @@ fn location(payload: &[u8]) -> Option<(u16, String)> {
     Some((lang, value))
 }
 
-fn format_tags(meta: &Metadata, timecodes: &[Option<String>]) -> Vec<(String, String)> {
+fn format_tags(meta: &Metadata, timecodes: &[Option<String>], names_supported: &mut bool) -> Dict {
     let mut dict = Dict::default();
     for file_type in &meta.file_types {
         dict.set("major_brand", utf8(&file_type.major_brand.0));
         dict.set("minor_version", file_type.minor_version.to_string());
         dict.set("compatible_brands", utf8(&file_type.compatible_brands));
     }
-    if let Some(time) = creation_time(meta.movie_created) {
-        dict.set("creation_time", time);
+    let mut created = creation_time(meta.movie_created);
+    for (position, item) in meta.items.iter().enumerate() {
+        if item.track.is_some()
+            && !matches!(&item.value, ItemValue::UserData { kind, .. } if kind.0 == *b"name")
+        {
+            dict.incomplete = true;
+        }
+        if position == meta.movie_header_item_position
+            && let Some(time) = created.take()
+        {
+            dict.set("creation_time", time);
+        }
+        if let ItemValue::UserData { kind, payload } = &item.value
+            && kind.0 == *b"name"
+        {
+            if item.track.is_none() {
+                if let Some(name) = user_data_name(payload) {
+                    dict.set("name", name);
+                } else {
+                    *names_supported = false;
+                }
+            }
+        } else {
+            item_tags(&mut dict, item);
+        }
     }
-    for item in &meta.items {
-        item_tags(&mut dict, item);
+    if let Some(time) = created {
+        dict.set("creation_time", time);
     }
     if timecodes.iter().any(Option::is_some) {
         let named: HashSet<u32> = meta
@@ -744,7 +857,13 @@ fn format_tags(meta: &Metadata, timecodes: &[Option<String>]) -> Vec<(String, St
             }
         }
     }
-    dict.entries
+    dict
+}
+
+fn quicktime(meta: &Metadata) -> bool {
+    meta.file_types
+        .first()
+        .is_none_or(|file_type| file_type.major_brand == FourCc(*b"qt  "))
 }
 
 /// A handler name: QuickTime stores a counted string (a length byte equal
@@ -785,9 +904,21 @@ fn stream_tags(
     handler: Option<String>,
     timecode: Option<String>,
     quicktime: bool,
-) -> Vec<(String, String)> {
-    let mut tags = Vec::new();
-    let mut push = |key: &str, value: String| tags.push((key.to_owned(), value));
+    names: &[(usize, &[u8])],
+    names_supported: &mut bool,
+) -> Dict {
+    let mut tags = Dict::default();
+    let mut push = |key: &str, value: String| tags.set(key, value);
+    let mut names = names.iter().peekable();
+    while let Some((_, value)) =
+        names.next_if(|(position, _)| *position < track.media_item_position)
+    {
+        if let Some(name) = user_data_name(value) {
+            push("name", name);
+        } else {
+            *names_supported = false;
+        }
+    }
     if let Some(time) = creation_time(track.media_created) {
         push("creation_time", time);
     }
@@ -798,7 +929,7 @@ fn stream_tags(
         push("handler_name", name);
     }
     if let Some(entry) = &track.sample_entry {
-        if let Some(code) = entry.vendor.filter(|code| quicktime || *code != [0; 4]) {
+        if let Some(code) = entry.vendor.filter(|_| quicktime) {
             push("vendor_id", vendor(code));
         }
         if let Some(name) = entry.compressor_name.as_ref().and_then(compressor) {
@@ -814,6 +945,13 @@ fn stream_tags(
                 _ => mac_roman(text),
             };
             push("reel_name", value);
+        }
+    }
+    for (_, value) in names {
+        if let Some(name) = user_data_name(value) {
+            push("name", name);
+        } else {
+            *names_supported = false;
         }
     }
     if let Some(timecode) = timecode {
@@ -1090,6 +1228,7 @@ fn chapters<S: Source>(
     meta: &Metadata,
     source: &mut S,
     limits: &Limits,
+    summary_complete: &mut bool,
 ) -> Result<Vec<Chapter>, Failure> {
     let text_limits = coreav_text::TextLimits::default();
     // Every referenced text track in turn, each chapter replacing the one
@@ -1118,6 +1257,7 @@ fn chapters<S: Source>(
                     let added: u64 = list.chapters.iter().map(|c| c.title.len() as u64).sum();
                     let merged = title_bytes.saturating_sub(replaced).saturating_add(added);
                     if merged > text_limits.max_title_bytes {
+                        *summary_complete = false;
                         return ControlFlow::Continue(());
                     }
                     title_bytes = merged;
@@ -1140,15 +1280,22 @@ fn chapters<S: Source>(
                 Err(coreav_text::TextError::Source(
                     error @ (Error::Io(_) | Error::LimitExceeded { .. }),
                 )) => ControlFlow::Break(error),
-                Err(_) => ControlFlow::Continue(()),
+                Err(_) => {
+                    *summary_complete = false;
+                    ControlFlow::Continue(())
+                }
             }
         });
+    let chapter_read_failed = read.is_err();
     if let Ok(ControlFlow::Break(error))
     | Err(coreav_text::TextError::Source(
         error @ (Error::Io(_) | Error::LimitExceeded { .. }),
     )) = read
     {
         return Err(Failure::library(error));
+    }
+    if chapter_read_failed {
+        *summary_complete = false;
     }
     if !listed.is_empty() {
         return Ok(listed);
@@ -1233,6 +1380,256 @@ mod tests {
         list.iter()
             .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
             .collect()
+    }
+
+    fn file_type(brand: &[u8; 4]) -> metadata::FileType {
+        metadata::FileType {
+            major_brand: FourCc(*brand),
+            minor_version: 0,
+            compatible_brands: brand.to_vec(),
+        }
+    }
+
+    #[test]
+    fn vendor_metadata_follows_the_file_type_mode() {
+        for (brands, expected) in [
+            (Vec::new(), true),
+            (vec![file_type(b"qt  ")], true),
+            (vec![file_type(b"isom")], false),
+            (vec![file_type(b"mp42")], false),
+        ] {
+            let meta = Metadata {
+                file_types: brands,
+                ..Metadata::default()
+            };
+            for code in [[0; 4], *b"test"] {
+                let track = TrackMetadata {
+                    sample_entry: Some(SampleEntry {
+                        kind: FourCc(*b"avc1"),
+                        declared_len: 78,
+                        vendor: Some(code),
+                        compressor_name: None,
+                        timecode: None,
+                        children: Vec::new(),
+                        wave: Vec::new(),
+                    }),
+                    ..TrackMetadata::default()
+                };
+                let tags = stream_tags(&track, None, None, quicktime(&meta), &[], &mut true);
+                assert_eq!(
+                    tags.entries.iter().find(|(key, _)| key == "vendor_id"),
+                    expected
+                        .then(|| ("vendor_id".to_owned(), vendor(code)))
+                        .as_ref(),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn conflicting_file_types_refuse_the_summary_without_changing_tags() {
+        let meta = Metadata {
+            file_types: vec![file_type(b"qt  "), file_type(b"isom")],
+            ..Metadata::default()
+        };
+        let tags = format_tags(&meta, &[], &mut true);
+        assert!(tags.incomplete);
+        assert_eq!(
+            tags.entries,
+            pairs(&[
+                ("minor_version", "0"),
+                ("major_brand", "isom"),
+                ("compatible_brands", "isom"),
+            ])
+        );
+    }
+
+    #[test]
+    fn unconsumed_track_items_refuse_the_summary() {
+        for value in [
+            atom_item(b"\xa9nam", b"title"),
+            list_item(b"\xa9nam", 1, b"title"),
+        ] {
+            let meta = Metadata {
+                items: vec![Item {
+                    track: Some(0),
+                    value,
+                }],
+                ..Metadata::default()
+            };
+            let tags = format_tags(&meta, &[], &mut true);
+            assert!(tags.incomplete);
+            assert_eq!(tags.entries, pairs(&[("title", "title")]));
+        }
+        let meta = Metadata {
+            items: vec![Item {
+                track: Some(0),
+                value: atom_item(b"name", b"track name"),
+            }],
+            ..Metadata::default()
+        };
+        let tags = format_tags(&meta, &[], &mut true);
+        assert!(!tags.incomplete);
+        assert!(tags.entries.is_empty());
+    }
+
+    #[test]
+    fn unconsumed_user_data_refuses_the_summary() {
+        let mut meta = Metadata {
+            items: vec![Item {
+                track: None,
+                value: atom_item(b"zzzz", b"unrepresented metadata"),
+            }],
+            ..Metadata::default()
+        };
+        let tags = format_tags(&meta, &[], &mut true);
+        assert!(tags.incomplete);
+        assert!(tags.entries.is_empty());
+        meta.items = vec![Item {
+            track: None,
+            value: atom_item(b"\xa9nam", b"title"),
+        }];
+        let tags = format_tags(&meta, &[], &mut true);
+        assert!(!tags.incomplete);
+        assert_eq!(tags.entries, pairs(&[("title", "title")]));
+    }
+
+    #[test]
+    fn ambiguous_metadata_collisions_keep_the_structured_mapping() {
+        let mut meta = Metadata {
+            file_types: vec![file_type(b"isom")],
+            items: vec![Item {
+                track: None,
+                value: ItemValue::ListItem {
+                    list: ListPlace::Meta {
+                        handler: Some(FourCc(*b"mdta")),
+                    },
+                    key: ListKey::Key {
+                        namespace: FourCc(*b"mdta"),
+                        name: b"major_brand".to_vec(),
+                    },
+                    data: vec![ItemData {
+                        type_indicator: 1,
+                        locale: 0,
+                        value: b"stored value".to_vec(),
+                        offset: 0,
+                    }],
+                },
+            }],
+            ..Metadata::default()
+        };
+        let tags = format_tags(&meta, &[], &mut true);
+        assert!(tags.incomplete);
+        assert_eq!(
+            tags.entries,
+            pairs(&[
+                ("compatible_brands", "isom"),
+                ("minor_version", "0"),
+                ("major_brand", "stored value"),
+            ])
+        );
+        meta.file_types.clear();
+        meta.items = [b"first".as_slice(), b"last".as_slice()]
+            .iter()
+            .map(|text| Item {
+                track: None,
+                value: atom_item(b"\xa9nam", text),
+            })
+            .collect();
+        let tags = format_tags(&meta, &[], &mut true);
+        assert!(tags.incomplete);
+        assert_eq!(tags.entries, pairs(&[("title", "last")]));
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn chapter_lists_and_cover_items_remain_qualified() {
+        fn boxed(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+            let mut out = u32::try_from(payload.len() + 8)
+                .unwrap()
+                .to_be_bytes()
+                .to_vec();
+            out.extend_from_slice(kind);
+            out.extend_from_slice(payload);
+            out
+        }
+
+        let mvhd: Vec<u8> = [0u32, 0, 0, 1000, 2000]
+            .iter()
+            .flat_map(|value| value.to_be_bytes())
+            .collect();
+        let mut chapter = vec![0, 0, 0, 0, 1];
+        chapter.extend_from_slice(&0u64.to_be_bytes());
+        chapter.extend_from_slice(b"\x03one");
+        let data = boxed(
+            b"data",
+            &[&13u32.to_be_bytes()[..], &[0; 4], b"image"].concat(),
+        );
+        let list = boxed(b"ilst", &boxed(b"covr", &data));
+        let hdlr = boxed(b"hdlr", &[&[0; 8][..], b"mdir", &[0; 12]].concat());
+        let meta = boxed(b"meta", &[&[0; 4][..], &hdlr, &list].concat());
+        let bytes = boxed(
+            b"moov",
+            &[
+                boxed(b"mvhd", &mvhd),
+                boxed(b"udta", &[boxed(b"chpl", &chapter), meta].concat()),
+            ]
+            .concat(),
+        );
+        let mut source = coreav_isobmff::SliceSource::new(&bytes);
+        let limits = Limits::default();
+        let movie =
+            coreav_isobmff::probe(&mut source, &limits, &coreav_isobmff::Allowlist::listing())
+                .unwrap();
+        let result =
+            read(&movie, &mut source, &limits).unwrap_or_else(|e| panic!("{}", e.to_json()));
+        assert!(result.summary_complete);
+        assert_eq!(result.chapters.len(), 1);
+        assert_eq!(result.covers.len(), 1);
+        assert_eq!(
+            result.covers.first().map(|cover| cover.data.as_slice()),
+            Some(b"image".as_slice())
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn unsupported_user_data_names_never_certify_summary_metadata() {
+        fn boxed(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+            let mut out = u32::try_from(payload.len() + 8)
+                .unwrap()
+                .to_be_bytes()
+                .to_vec();
+            out.extend_from_slice(kind);
+            out.extend_from_slice(payload);
+            out
+        }
+        for (payload, supported) in [
+            (b"valid name".as_slice(), true),
+            (b"\xff\xfeA\0B\0".as_slice(), false),
+        ] {
+            let mvhd: Vec<u8> = [0u32, 0, 0, 1000, 2000]
+                .iter()
+                .flat_map(|value| value.to_be_bytes())
+                .collect();
+            let bytes = boxed(
+                b"moov",
+                &[
+                    boxed(b"mvhd", &mvhd),
+                    boxed(b"udta", &boxed(b"name", payload)),
+                ]
+                .concat(),
+            );
+            let mut source = coreav_isobmff::SliceSource::new(&bytes);
+            let limits = Limits::default();
+            let movie =
+                coreav_isobmff::probe(&mut source, &limits, &coreav_isobmff::Allowlist::listing())
+                    .unwrap();
+            let result =
+                read(&movie, &mut source, &limits).unwrap_or_else(|e| panic!("{}", e.to_json()));
+            assert_eq!(result.names_supported, supported);
+            assert_eq!(result.summary_complete, supported);
+        }
     }
 
     #[test]

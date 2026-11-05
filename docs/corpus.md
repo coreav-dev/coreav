@@ -262,6 +262,7 @@ draw's operation.
 | 7 | MPEG-TS demux speed, round 2 | `ts-probe` | | | | rules committed, not yet collected |
 | 8 | Opus speed, round 2 | `audio-decode` | 144 | 322 | 6.48 | spent: "Opus round 2" of [`spikes/audio-decode-bench/README.md`](spikes/audio-decode-bench/README.md) |
 | 9 | Opus speed, round 3 | `audio-decode` | | | | rules committed, not yet collected |
+| 10 | Opus speed, round 4 | `audio-decode` | 120 | 240 | | prepared; [admission refused before judging](spikes/audio-decode-bench/opus-round4.md) |
 
 No `hls` draw is unspent, so the next `hls index` measurement needs a
 draw of its own before it can run.
@@ -540,6 +541,16 @@ The held-out draw of the third Opus speed round ([`design/audio-decode.md`](desi
 - **Nothing seen before:** a candidate whose URL is in corpus v1, `v1-fmp4-large`, `v1-ts-audio`, `mediarecorder-v1`, or in any listing or ledger of draws 1 to 8 is left out of the list, whether or not that draw fetched it; draw 8's candidates that its collection never fetched are left out too. One whose SHA-256 is in any of them is dropped when it is fetched.
 - **Holdout:** every `real` file. Each class's `real` files are ordered by `sha256("coreav-corpus-v2-heldout-audio-decode-3:" + sha256)`.
 - **The collection runs no measurement:** `ffprobe` and the pinned `ffmpeg` 7.0.2's FLAC decode are the only tools run over the files, and no `coreav` command runs on the draw before the round that opens it.
+
+### Draw 10
+
+The fresh held-out draw of the fourth Opus speed round ([`design/audio-decode.md`](design/audio-decode.md#opus-speed-round-4)), after the complete draw 9 set was spent. Operation `audio-decode`, salt `coreav-corpus-v2-heldout-audio-decode-4:`. The rules and tools merged before candidate selection or media acquisition. The fixed list produced 120 real sources and 240 prepared inputs, but the registered workload forecast [refused admission](spikes/audio-decode-bench/opus-round4.md) before judging. The complete roster and the rules below remain unchanged.
+
+- **Form, usability, classes and sets:** draw 9's unchanged files, 200 MB maximum, first audio stream of 5 seconds to 30 minutes, historical FLAC-intermediate qualification and four source-container classes. The pinned current oracle probes the source; only the historical derivation uses FFmpeg 7.0.2. No CoreAV command runs during collection.
+- **Coverage and caps:** 100 to 120 `real` sources, stopping at 120 or at the end of the frozen list. A source-container class takes at most 60 files, a source at most 16 and a group at most 3. A draw below 100 is reported short and no judged round starts; no cap or minimum is relaxed. Every real source produces both derived containers, whose mode and timing minimums remain those of the round's plan.
+- **Candidates, frozen before any fetch:** the existing metadata-only listing mechanisms, using parameters not used by prior draws. All listing parameters, pages, orders and returned metadata are committed with the collection record before a media fetch. Known URLs and normalized keys are removed before selection, whether or not their earlier draw fetched them. The list admits at most 6 candidates per group and 48 per source. Each source's candidates are ordered by `sha256("coreav-corpus-v2-heldout-audio-decode-4:" + key)`, sources by the same hash of their names, then one candidate is taken from each source in turn, followed by the next from each source. One complete list and its digest are frozen before collection; it is never extended or reordered after a fetch.
+- **Nothing seen before:** exclude URLs and keys from corpus v1, the other existing corpora, and every listing, manifest and ledger of draws 1 through 9, including candidates left unfetched. Drop a fetched file whose complete SHA-256 is already known from any of them or from training and capacity inputs. Draw 9's full listing and final collection records are exclusions, not just its successfully timed files; its entire 160-source real set is spent.
+- **Holdout and collection:** every real file is held out. Each class's order is `sha256("coreav-corpus-v2-heldout-audio-decode-4:" + sha256)`. The collector keeps an append-only decision for every candidate, including refusal, failure and byte duplication. It runs no measurement, and neither a CoreAV command nor the candidate's library opens the draw until its single judged run. Original and derived bytes are retained by complete hash; no later reconstruction substitutes for a recorded input.
 
 ### Rules withdrawn or not held
 

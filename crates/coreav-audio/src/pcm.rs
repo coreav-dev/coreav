@@ -99,22 +99,52 @@ impl Pcm {
         }
     }
 
+    pub(crate) fn retained_bytes(&self) -> u64 {
+        let bytes = match &self.data {
+            Data::Int { samples, .. } => samples.capacity().saturating_mul(size_of::<i32>()),
+            Data::Float(samples) => samples.capacity().saturating_mul(size_of::<f32>()),
+        };
+        u64::try_from(bytes).unwrap_or(u64::MAX)
+    }
+
     /// Makes the buffer hold `channels × frames` integer samples of `bits`
     /// bits and returns them, planar. Their values are left over from
     /// earlier packets: the decoder writes every one.
-    pub(crate) fn int_buffer(&mut self, channels: usize, frames: usize, bits: u32) -> &mut [i32] {
-        self.channels = channels;
-        self.frames = frames;
-        let mut samples = match core::mem::take(&mut self.data) {
-            Data::Int { samples, .. } => samples,
-            Data::Float(_) => Vec::new(),
-        };
-        samples.resize(channels.saturating_mul(frames), 0);
-        self.data = Data::Int { bits, samples };
-        match &mut self.data {
-            Data::Int { samples, .. } => samples,
-            Data::Float(_) => &mut [],
+    pub(crate) fn try_int_buffer(
+        &mut self,
+        channels: usize,
+        frames: usize,
+        bits: u32,
+    ) -> Result<&mut [i32], crate::Error> {
+        let failure = || crate::Error::LimitExceeded(crate::LimitKind::OutputSamples);
+        let length = channels.checked_mul(frames).ok_or_else(failure)?;
+        if matches!(self.data, Data::Float(_)) {
+            let mut samples = Vec::new();
+            samples.try_reserve_exact(length).map_err(|_| failure())?;
+            self.data = Data::Int { bits, samples };
         }
+        match &mut self.data {
+            Data::Int {
+                bits: depth,
+                samples,
+            } => {
+                samples
+                    .try_reserve_exact(length.saturating_sub(samples.len()))
+                    .map_err(|_| failure())?;
+                samples.resize(length, 0);
+                *depth = bits;
+                self.channels = channels;
+                self.frames = frames;
+                Ok(samples)
+            }
+            Data::Float(_) => Err(crate::Error::Invalid("integer PCM buffer")),
+        }
+    }
+
+    #[cfg(test)]
+    #[allow(clippy::unwrap_used)]
+    pub(crate) fn int_buffer(&mut self, channels: usize, frames: usize, bits: u32) -> &mut [i32] {
+        self.try_int_buffer(channels, frames, bits).unwrap()
     }
 
     /// Makes the buffer hold `channels × frames` floating-point samples and
@@ -145,6 +175,24 @@ impl Pcm {
         match &mut self.data {
             Data::Float(samples) => samples,
             Data::Int { .. } => &mut [],
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn integer_allocation_overflow_is_fallible() {
+        for frames in [1, 2] {
+            let mut pcm = Pcm::new();
+            assert!(matches!(
+                pcm.try_int_buffer(usize::MAX, frames, 16),
+                Err(crate::Error::LimitExceeded(crate::LimitKind::OutputSamples))
+            ));
+            assert_eq!(pcm.frames(), 0);
+            assert_eq!(pcm.channels(), 0);
         }
     }
 }

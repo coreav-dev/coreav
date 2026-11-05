@@ -17,9 +17,13 @@ mod avi;
 mod capture;
 #[cfg(feature = "transcode")]
 pub mod encode;
+mod ffv1;
 #[cfg(feature = "thumbnail")]
 mod frames;
+#[cfg(feature = "input-capture")]
+mod image_capture;
 mod pcm;
+mod raw_audio;
 
 use crate::error::Failure;
 use crate::fallback::NotNative;
@@ -78,6 +82,12 @@ impl From<Refusal> for Stop {
 
 impl From<WriteFailure> for Stop {
     fn from(failure: WriteFailure) -> Self {
+        if let WriteFailure::Rejected(Failure::Unsupported(reason)) = &failure {
+            return Self::Refused(Refusal::NotNative(NotNative::property(
+                "what the input needs",
+                reason,
+            )));
+        }
         match not_native_reason(&failure) {
             Some(reason) => Self::Refused(Refusal::not_native(reason)),
             None => Self::Failed(failure),
@@ -88,6 +98,8 @@ impl From<WriteFailure> for Stop {
 /// What [`plan`] chose: the writer and its options.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Job {
+    /// A fully registered raw audio conversion.
+    RawAudio(raw_audio::Plan),
     /// Selected streams written to AVI, with explicit audio jobs.
     Avi(Vec<(usize, Codec)>),
     /// Mapped streams copied from several MP4/MOV sources.
@@ -117,6 +129,8 @@ pub enum Job {
     },
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
+        /// The nonzero input origin for checked single-video normalization.
+        video_origin: Option<Rational>,
         /// The tracks, in the output's order, a stream mapped twice twice.
         streams: Vec<usize>,
         /// The cover pictures that are not selected, as
@@ -142,6 +156,11 @@ pub enum Job {
     /// or the one audio stream encoded with libopus or aac, as MP4
     /// (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
     Transcode(TranscodeJob),
+    /// One video stream encoded losslessly as FFV1 in Matroska.
+    Ffv1 {
+        /// The selected source stream.
+        video: usize,
+    },
     /// One selected audio stream encoded without a video stream.
     AudioEncode {
         /// The source audio stream.
@@ -212,13 +231,25 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
-  -f s16le after -i: the same PCM samples without a header
-  -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input
-  -ar RATE after -i with raw S16 input: native rate conversion
+  -f s16le or -f f32le after -i: headerless PCM to a file or stdout
+  raw audio stdout names: -, pipe: or pipe:1
+  encoded audio stdin names: -, pipe: or pipe:0 (bounded encoded spool)
+  standalone WAVE PCM: full-width U8/S16/S24/S32 to raw S16/F32;
+    finite F32 sources support unchanged-rate F32 output only
+  -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input,
+    including streaming stdin without a whole-input spool
+  -threads 0..16 or auto before -i: audio decoder workers
+  raw audio requires registered decoder eligibility; channel conversion,
+    rate conversion and packing require exact registrations
+  MPEG-1 MP3 in MP4 is conformance-only, not byte-exact; AAC/Opus stay refused
+  changed-rate stages are restricted to verified Linux x86-64
   one 16-bit or 24-bit FLAC audio stream to .flac: native FLAC encoding
 Builds with a decoder backend also encode the video with -c:v libx264
 into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
 codec explicitly because its Vorbis default is not implemented.
+They also encode one progressive 8-bit planar YUV video stream with
+-c:v ffv1 into .mkv, without an external encoder. Exclude other streams
+with -an, -sn and -dn or a video-only -map. No pixel conversion is added.
 They encode audio without video to AAC in MP4/M4A or MP3 with libmp3lame,
 using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
 For MP3, use a .mp3 output (or -f mp3), -b:a, or -q:a/-qscale:a 0 to 9.
@@ -233,7 +264,7 @@ Builds with a decoder backend also write .png, .bmp, .yuv and .y4m video outputs
 AVI audio encodes with -c:a pcm_s16le or pcm_u8. MP3 (-c:a libmp3lame)
 needs the opt-in transcode feature and an external encoder; strict-safe
 mode refuses it.
-Prints no status text on success; rawvideo pipes write binary stdout.
+Prints no status text on success; raw audio and rawvideo pipes write binary stdout.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
 refused (exit status 4). Without it, anything else runs the ffmpeg
@@ -241,7 +272,6 @@ program on PATH instead (or the one COREAV_FALLBACK names), which is
 FFmpeg's C code, and says so on standard error. Help on a topic
 (-h long, -h full, -h encoder=NAME, ...) is handled the same way.
 Documentation: https://coreav.dev/docs/commands/ffmpeg
-See docs/design/compat-cli.md.
 ";
 
 /// Parses, plans and runs a command line. Returns the summary its writer's
@@ -252,7 +282,16 @@ See docs/design/compat-cli.md.
 /// is checked before decoding. Explicit encoders are checked before the input is read.
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
-    run_inner(args, strict_safe, None)
+    run_inner(args, strict_safe, None, None)
+}
+
+/// Runs a parsed pipe command from its privately spooled encoded input.
+pub fn run_spooled(
+    args: &[String],
+    strict_safe: StrictSafe,
+    input: &Path,
+) -> Result<serde_json::Value, Stop> {
+    run_with_input(args, strict_safe, None, None, Some(input))
 }
 
 /// Runs a native AAC encode with an opt-in, call-bound actual-stdin receipt.
@@ -264,7 +303,7 @@ pub fn run_captured(
 ) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
     let session = capture::Session::begin(directory, Path::new(&command.input))?;
-    let summary = run_inner(args, strict_safe, Some(&directory.join("stdin.f32")))?;
+    let summary = run_inner(args, strict_safe, Some(&directory.join("stdin.f32")), None)?;
     session.seal(
         &summary,
         args,
@@ -274,13 +313,59 @@ pub fn run_captured(
     Ok(summary)
 }
 
+/// Runs file-based PNG/BMP output with an opt-in pre-encode RGB receipt.
+#[cfg(feature = "input-capture")]
+pub fn run_images_captured(
+    args: &[String],
+    strict_safe: StrictSafe,
+    directory: &Path,
+) -> Result<serde_json::Value, Stop> {
+    let command = args::parse(args)?;
+    if !command.more_inputs.is_empty() || command.muxer != Muxer::Image2 || command.frames.update {
+        return Err(
+            Refusal::not_native("image capture requires non-overwritten image files").into(),
+        );
+    }
+    let session = image_capture::Session::begin(directory, Path::new(&command.input))?;
+    let mut summary = run_inner(args, strict_safe, None, Some(directory))?;
+    session.seal(&summary, args, Path::new(&command.input), strict_safe)?;
+    if let Some(object) = summary.as_object_mut() {
+        object.remove("image_capture_stream");
+    }
+    Ok(summary)
+}
+
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 fn run_inner(
     args: &[String],
     strict_safe: StrictSafe,
     capture: Option<&Path>,
+    image_capture: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
-    let command = args::parse(args)?;
+    run_with_input(args, strict_safe, capture, image_capture, None)
+}
+
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
+fn run_with_input(
+    args: &[String],
+    strict_safe: StrictSafe,
+    capture: Option<&Path>,
+    image_capture: Option<&Path>,
+    spooled: Option<&Path>,
+) -> Result<serde_json::Value, Stop> {
+    let mut command = args::parse(args)?;
+    if let Some(input) = spooled {
+        command.input = input.to_string_lossy().into_owned();
+    }
+    if args::stdin(&command.input)
+        && (!command.more_inputs.is_empty()
+            || !matches!(command.muxer, Muxer::S16le | Muxer::F32le))
+    {
+        return Err(Refusal::not_native("stdin without a single raw audio output").into());
+    }
+    if args::stdin(&command.input) && !matches!(command.demuxer, Some(Demuxer::S16le(_))) {
+        return Err(Refusal::not_native("encoded stdin without an owned replay file").into());
+    }
     if capture.is_some()
         && (!command.more_inputs.is_empty()
             || command.muxer.frames()
@@ -291,26 +376,35 @@ fn run_inner(
     #[cfg(not(feature = "transcode"))]
     avi::strict(&command, strict_safe)?;
     #[cfg(feature = "transcode")]
-    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac) && !command.muxer.frames()
+    if !matches!(
+        command.muxer,
+        Muxer::Wav | Muxer::S16le | Muxer::F32le | Muxer::Flac
+    ) && !command.muxer.frames()
     {
         encode::preflight(&command, strict_safe)?;
     }
     let io = |e| WriteFailure::Rejected(Failure::io(e));
     let input = PathBuf::from(&command.input);
-    std::fs::metadata(&input).map_err(io)?;
     let (list, force) = match command.demuxer {
-        Some(Demuxer::S16le(format)) => return pcm::write_raw(&command, format),
+        Some(Demuxer::S16le(format)) => {
+            return if matches!(command.muxer, Muxer::S16le | Muxer::F32le) {
+                raw_audio::write_raw(&command, format)
+            } else {
+                pcm::write_raw(&command, format)
+            };
+        }
         Some(Demuxer::Concat { safe }) => (Some(list(&input, safe)?), None),
         Some(Demuxer::Isobmff) => (None, Some(crate::ffprobe::args::Container::Isobmff)),
         Some(Demuxer::Matroska) => (None, Some(crate::ffprobe::args::Container::Matroska)),
         None => (None, None),
     };
+    std::fs::metadata(&input).map_err(io)?;
     let probed = list.as_ref().and_then(|l| l.first()).unwrap_or(&input);
     let size = std::fs::metadata(probed).map_err(io)?.len();
     let mut file = FileSource::open(probed).map_err(WriteFailure::from)?;
     let name = probed.display().to_string();
     let report = crate::ffprobe::probe(&mut file, size, &name, force)
-        .map_err(WriteFailure::Rejected)?
+        .map_err(probe_failure)?
         .report;
     if !command.more_inputs.is_empty() {
         let mut reports = vec![report];
@@ -319,7 +413,7 @@ fn run_inner(
             let mut source = FileSource::open(path).map_err(WriteFailure::from)?;
             reports.push(
                 crate::ffprobe::probe(&mut source, size, path, None)
-                    .map_err(WriteFailure::Rejected)?
+                    .map_err(probe_failure)?
                     .report,
             );
         }
@@ -327,6 +421,17 @@ fn run_inner(
         return write(&command, &job);
     }
     let job = plan(&command, &report, list)?;
+    if image_capture.is_some()
+        && !matches!(
+            job,
+            Job::Frames {
+                encoder: args::VideoEncoder::Png | args::VideoEncoder::Bmp,
+                ..
+            }
+        )
+    {
+        return Err(Refusal::not_native("image capture requires a PNG or BMP frame job").into());
+    }
     #[cfg(feature = "transcode")]
     if let Job::Avi(streams) = &job
         && streams
@@ -337,7 +442,14 @@ fn run_inner(
     }
     #[cfg(feature = "thumbnail")]
     if let Job::Frames { video, encoder } = job {
-        return frames::write(&command, video, encoder, &report, strict_safe);
+        return frames::write(
+            &command,
+            video,
+            encoder,
+            &report,
+            strict_safe,
+            image_capture,
+        );
     }
     #[cfg(feature = "transcode")]
     if let Job::Transcode(transcode) = &job {
@@ -351,10 +463,25 @@ fn run_inner(
         return Err(Refusal::not_native("input capture without a native AAC encode").into());
     }
     #[cfg(feature = "transcode")]
+    if let Job::Ffv1 { video } = job {
+        return ffv1::write(&command, &report, video, strict_safe);
+    }
+    #[cfg(feature = "transcode")]
     if let Job::AudioEncode { stream, encoder } = job {
         return audio::write(&command, &report, stream, encoder, strict_safe);
     }
     write(&command, &job)
+}
+
+fn probe_failure(failure: Failure) -> Stop {
+    match failure {
+        Failure::Unsupported(reason) => Refusal::NotNative(NotNative::property(
+            "an unsupported input container or presentation",
+            format!("not supported by coreav ffmpeg: {reason}"),
+        ))
+        .into(),
+        failure => Stop::Failed(WriteFailure::Rejected(failure)),
+    }
 }
 
 /// The files a concat list names (`crate::concat::read`). A directive or a
@@ -398,6 +525,10 @@ pub fn plan(
     list: Option<Vec<PathBuf>>,
 ) -> Result<Job, Refusal> {
     let container = match format_name(report) {
+        Some("wav") if matches!(command.muxer, Muxer::S16le | Muxer::F32le) => {
+            let selected = select(command, &report.streams)?;
+            return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+        }
         Some("mov,mp4,m4a,3gp,3g2,mj2") => Container::Isobmff,
         Some("matroska,webm") => Container::Matroska,
         Some("mpegts") => {
@@ -426,6 +557,11 @@ pub fn plan(
         &report.streams
     };
     let selected = select(command, streams)?;
+    if matches!(command.muxer, Muxer::S16le | Muxer::F32le)
+        && !raw_audio::legacy(command, report, &selected)
+    {
+        return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+    }
     if command.muxer == Muxer::Avi {
         return avi::job(command, report, &selected, list.is_some());
     }
@@ -549,6 +685,9 @@ pub fn plan(
             .collect()
     };
     let encoded = coded(Codec::Libx264);
+    if decided.contains(&Some(Codec::Ffv1)) {
+        return ffv1::plan(command, report, &output, &decided, list.is_some(), trims);
+    }
     let audio_encoded: Vec<(usize, args::AudioEncoder)> = output
         .iter()
         .zip(&decided)
@@ -728,7 +867,31 @@ pub fn plan(
             "cover pictures alone (ffmpeg writes an MP4 file without a track, which ISO/IEC 14496-12 8.3.1 does not allow)",
         ));
     }
+    let origin = input_start(report);
+    let video_origin = if origin == Rational::from_int(0) {
+        None
+    } else {
+        if origin.num < 0
+            || container != Container::Isobmff
+            || tracks.len() != 1
+            || !pictures.is_empty()
+            || !report.chapters.is_empty()
+            || report.streams.iter().any(|s| tag(s, "timecode").is_some())
+            || tracks.iter().any(|index| {
+                report
+                    .streams
+                    .get(*index)
+                    .is_none_or(|s| s.kind != StreamKind::Video)
+            })
+        {
+            return Err(Refusal::not_native(
+                "normalizing this nonzero input origin while copying",
+            ));
+        }
+        Some(origin)
+    };
     Ok(Job::Remux {
+        video_origin,
         left_out_covers: left_out_covers(report, &selected),
         streams: tracks,
         matroska: container == Container::Matroska,
@@ -944,6 +1107,7 @@ fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> 
             }
             (Muxer::Mp3, StreamKind::Audio) => Some(Codec::Audio(args::AudioEncoder::Libmp3lame)),
             (Muxer::Flac, StreamKind::Audio) => Some(Codec::Flac),
+            (Muxer::F32le, StreamKind::Audio) => Some(Codec::PcmF32),
             (Muxer::Wav | Muxer::S16le, StreamKind::Audio) => {
                 Some(Codec::AviAudio(AviAudio::PcmS16))
             }
@@ -1022,7 +1186,6 @@ fn micros(report: &Report, key: &str) -> Option<i128> {
 fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
     let mut offsets = Vec::new();
     let mut end: i128 = 0;
-    let mut first = None;
     for path in paths {
         let size = std::fs::metadata(path)
             .map_err(|e| WriteFailure::Rejected(Failure::io(e)))?
@@ -1036,8 +1199,13 @@ fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
         else {
             return Err(Refusal::not_native("a concat list of a file of unknown duration").into());
         };
-        let first = *first.get_or_insert(start);
-        let offset = end.saturating_sub(start).saturating_add(first);
+        if offsets.is_empty() && start != 0 {
+            return Err(Refusal::not_native(
+                "a concat list whose first input starts at a nonzero time",
+            )
+            .into());
+        }
+        let offset = end.saturating_sub(start);
         offsets.push(
             Rational::new(offset, 1_000_000)
                 .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?,
@@ -1047,12 +1215,10 @@ fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
     Ok(offsets)
 }
 
-/// Why a join is not native: a track it copies has more than one edit in
-/// its file (an empty one included), which the demuxer reads by its own
-/// edit model (docs/design/edit-list-writers.md) where the join keeps the
-/// edits. The edits are counted in each file, as edits that meet merge in
-/// the output.
-fn several_edits(
+/// Why a join's edit handling differs from the concat demuxer's: positive
+/// AAC edits, even in unselected audio, or several edits in a copied track
+/// (docs/design/concat-aac-edits.md and docs/design/edit-list-writers.md).
+fn join_edit_refusal(
     paths: &[PathBuf],
     summary: &JoinSummary,
 ) -> Result<Option<&'static str>, WriteFailure> {
@@ -1060,6 +1226,15 @@ fn several_edits(
         let file = FileSource::open(path)?;
         let movie = coreav_isobmff::probe(file, &Limits::default(), &Allowlist::listing())
             .map_err(|e| WriteFailure::Rejected(Failure::library(e)))?;
+        if movie.tracks.iter().any(|track| {
+            track.kind == coreav_isobmff::TrackKind::Audio
+                && std::iter::once(&track.description)
+                    .chain(&track.later_descriptions)
+                    .any(|description| description.codec == coreav_isobmff::Codec::Aac)
+                && track.edits.iter().any(|edit| edit.media_time > 0)
+        }) {
+            return Ok(Some("a concat input with a positive AAC edit offset"));
+        }
         let copied = [Some(&input.video), input.audio.as_ref()];
         let edited = |track: &Track| {
             track.edits.len() > 1
@@ -1071,6 +1246,9 @@ fn several_edits(
         if movie.tracks.iter().any(edited) {
             return Ok(Some("a join of files whose tracks have several edits"));
         }
+    }
+    if summary.audio_edits > 1 {
+        return Ok(Some("a concat output that needs several audio edits"));
     }
     Ok(None)
 }
@@ -1199,6 +1377,11 @@ fn select_sources(
     streams: &[&Stream],
     ranges: &[std::ops::Range<usize>],
 ) -> Result<Vec<usize>, Refusal> {
+    if command.maps.first().is_some_and(|map| map.remove) {
+        return Err(Refusal::not_native(
+            "a negative -map before any positive -map",
+        ));
+    }
     let all: Vec<(usize, &Stream)> = streams.iter().copied().enumerate().collect();
     let disabled = |s: &Stream| match s.kind {
         StreamKind::Video => {
@@ -1223,7 +1406,10 @@ fn select_sources(
                 })
                 .map(|(i, _)| i)
         };
-        if !matches!(command.muxer, Muxer::Mp3 | Muxer::Wav | Muxer::S16le) {
+        if !matches!(
+            command.muxer,
+            Muxer::Mp3 | Muxer::Wav | Muxer::S16le | Muxer::F32le
+        ) {
             selected.extend(best(StreamKind::Video, &|s| {
                 int(s, "width").saturating_mul(int(s, "height"))
             }));
@@ -1245,8 +1431,10 @@ fn select_sources(
                 Value::Str(name) if *k == "codec_name" => Some(name.as_str()),
                 _ => None,
             });
-            if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac)
-                || codec.is_none_or(|c| TEXT_SUBTITLES.contains(&c))
+            if matches!(
+                command.muxer,
+                Muxer::Wav | Muxer::S16le | Muxer::F32le | Muxer::Flac
+            ) || codec.is_none_or(|c| TEXT_SUBTITLES.contains(&c))
             {
                 selected.push(*i);
             }
@@ -1422,6 +1610,14 @@ fn plan_inputs(command: &Command, reports: &[Report]) -> Result<Job, Refusal> {
         .filter(|s| s.input == 0)
         .map(|s| s.stream)
         .collect();
+    if mapped.iter().all(|stream| stream.input == 0) {
+        return Ok(Job::Remux {
+            left_out_covers: left_out_covers(first, &first_streams),
+            streams: first_streams,
+            matroska: false,
+            video_origin: None,
+        });
+    }
     Ok(Job::RemuxInputs {
         streams: mapped,
         left_out_covers: left_out_covers(first, &first_streams),
@@ -1442,9 +1638,6 @@ fn not_native_reason(failure: &WriteFailure) -> Option<&'static str> {
         | WriteFailure::Rejected(Failure::Matroska(coreav_mkv::Error::CodecNotAllowed {
             ..
         })) => Some("a codec that CoreAV does not copy"),
-        WriteFailure::Rejected(Failure::Unsupported(_)) => {
-            Some("a stream that CoreAV cannot copy to MP4")
-        }
         _ => None,
     }
 }
@@ -1477,6 +1670,9 @@ pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refus
 /// moved into place only once the whole job succeeded. A transcode is
 /// [`encode::write`]'s, in a build that has it.
 fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
+    if let Job::RawAudio(plan) = job {
+        return raw_audio::write(command, plan);
+    }
     if let Job::Avi(streams) = job {
         return avi::write(command, streams);
     }
@@ -1498,7 +1694,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     }
     if matches!(
         job,
-        Job::Transcode(_) | Job::AudioEncode { .. } | Job::Frames { .. }
+        Job::Transcode(_) | Job::Ffv1 { .. } | Job::AudioEncode { .. } | Job::Frames { .. }
     ) {
         return Err(Refusal::not_native("encoding, in a build without a decoder backend").into());
     }
@@ -1568,8 +1764,11 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             streams,
             left_out_covers,
             matroska: false,
+            video_origin,
         } => {
             let options = RemuxOptions {
+                rebuild_durations: true,
+                video_origin: *video_origin,
                 streams: Some(streams.clone()),
                 on_unsupported: OnUnsupported::Fail,
                 left_out_covers: left_out_covers.clone(),
@@ -1618,7 +1817,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                     refused = failure.not_native;
                     WriteFailure::from(failure)
                 })?;
-            if let Some(words) = several_edits(paths, &summary)? {
+            if let Some(words) = join_edit_refusal(paths, &summary)? {
                 refused = Some(words);
                 return Err(WriteFailure::Rejected(Failure::Unsupported(
                     words.to_owned(),
@@ -1632,8 +1831,10 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         Job::Avi(_)
         | Job::Split(_)
         | Job::Transcode(_)
+        | Job::Ffv1 { .. }
         | Job::AudioEncode { .. }
         | Job::Pcm { .. }
+        | Job::RawAudio(_)
         | Job::Frames { .. } => Ok(serde_json::Value::Null),
     });
     match (written, refused) {
@@ -1709,6 +1910,79 @@ mod tests {
     use super::*;
 
     #[test]
+    fn ordinary_copy_origin_plans_only_one_iso_video() {
+        let mut report = Report {
+            streams: vec![Stream {
+                kind: StreamKind::Video,
+                attached_pic: false,
+                entries: vec![],
+                disposition: vec![],
+                tags: vec![],
+                side_data: vec![],
+            }],
+            format: vec![
+                (
+                    "format_name",
+                    Value::Str("mov,mp4,m4a,3gp,3g2,mj2".to_owned()),
+                ),
+                ("start_time", Value::Time(0.08)),
+            ],
+            ..Report::default()
+        };
+        let command =
+            args::parse(&["-i", "in.mp4", "-map", "0", "-c", "copy", "out.mp4"].map(str::to_owned))
+                .unwrap();
+        let origin = Rational::new(2, 25).unwrap();
+        assert!(matches!(plan(&command, &report, None),
+            Ok(Job::Remux { video_origin: Some(value), .. }) if value == origin));
+        let set_start = |report: &mut Report, seconds| {
+            report.format.retain(|(key, _)| *key != "start_time");
+            report.format.push(("start_time", Value::Time(seconds)));
+        };
+        set_start(&mut report, 0.0);
+        assert!(matches!(
+            plan(&command, &report, None),
+            Ok(Job::Remux {
+                video_origin: None,
+                ..
+            })
+        ));
+        set_start(&mut report, -0.08);
+        assert!(matches!(
+            plan(&command, &report, None),
+            Err(Refusal::NotNative(_))
+        ));
+        set_start(&mut report, 0.08);
+        report.streams.extend(report.streams.clone());
+        assert!(matches!(
+            plan(&command, &report, None),
+            Err(Refusal::NotNative(_))
+        ));
+        report.streams.truncate(1);
+        report.streams.iter_mut().for_each(|stream| {
+            stream
+                .tags
+                .push(("timecode".to_owned(), "01:00:00:00".to_owned()));
+        });
+        assert!(matches!(
+            plan(&command, &report, None),
+            Err(Refusal::NotNative(_))
+        ));
+        report
+            .streams
+            .iter_mut()
+            .for_each(|stream| stream.tags.clear());
+        report.format.retain(|(key, _)| *key != "format_name");
+        report
+            .format
+            .push(("format_name", Value::Str("matroska,webm".to_owned())));
+        assert!(matches!(
+            plan(&command, &report, None),
+            Err(Refusal::NotNative(_))
+        ));
+    }
+
+    #[test]
     fn unsupported_capture_is_refused_before_input_or_output_io() {
         for line in [
             "-i missing-a.mp4 -i missing-b.mp4 -c copy out.mp4",
@@ -1720,7 +1994,12 @@ mod tests {
                 .map(String::from)
                 .collect::<Vec<_>>();
             assert!(matches!(
-                run_inner(&args, StrictSafe::new(false), Some(Path::new("unused.f32"))),
+                run_inner(
+                    &args,
+                    StrictSafe::new(false),
+                    Some(Path::new("unused.f32")),
+                    None
+                ),
                 Err(Stop::Refused(Refusal::NotNative(_)))
             ));
         }
@@ -1738,6 +2017,10 @@ mod tests {
             side_data: Vec::new(),
         };
         let report = Report {
+            iso_names_supported: None,
+            summary: Default::default(),
+            summary_aspects: Vec::new(),
+            iso_format_output: None,
             streams: vec![
                 stream(StreamKind::Video, vec![]),
                 stream(
@@ -1759,6 +2042,7 @@ mod tests {
             programs: vec![],
             setups: vec![],
             covers: vec![],
+            iso_clean_aperture: false,
         };
         let job = |options: &str| {
             let line = format!("-i in.mp4 {options} out.mp4");
@@ -1788,6 +2072,10 @@ mod tests {
     fn implicit_aac_takes_verified_opus_without_changing_explicit_choices() {
         use crate::ffprobe::model::Unit;
         let mut report = Report {
+            iso_names_supported: None,
+            summary: Default::default(),
+            summary_aspects: Vec::new(),
+            iso_format_output: None,
             streams: vec![
                 Stream {
                     kind: StreamKind::Video,
@@ -1817,6 +2105,7 @@ mod tests {
             programs: vec![],
             setups: vec![],
             covers: vec![],
+            iso_clean_aperture: false,
         };
         let plan_options = |options: &str, report: &Report| {
             let line = format!("-i in.webm {options} out.mp4");

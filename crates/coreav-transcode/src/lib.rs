@@ -18,6 +18,8 @@
 //! - [`pipeline`] is the whole transcode: [`transcode`] decodes the source's
 //!   video stream, encodes its presented frames and writes the MP4 with the
 //!   source's audio copied.
+//! - [`ffv1`] encodes unconverted planar samples natively and writes one
+//!   video track through the Matroska packet writer.
 
 #![forbid(unsafe_code)]
 
@@ -30,6 +32,7 @@ pub mod av1;
 pub mod capture;
 pub mod contract;
 pub mod encoder;
+pub mod ffv1;
 pub mod mp3;
 pub mod pipeline;
 pub mod rawmkv;

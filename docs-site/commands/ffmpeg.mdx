@@ -21,7 +21,7 @@ import Help from '/snippets/help/ffmpeg.mdx';
 | `-f segment` with MP4 segments | [`coreav split --every`](/commands/split) at `-segment_time` |
 | `-f concat` with an MP4 output | [`coreav join`](/commands/join) of the list's files |
 | One audio stream to `.wav` or `-f wav` | Signed 16-bit little-endian PCM, the default codec for WAV |
-| One audio stream with `-f s16le` after `-i` | The same PCM samples without a header |
+| One audio stream with `-f s16le` or `-f f32le` after `-i` | Registered raw PCM paths to a file or standard output |
 | `-f s16le -ar RATE -ac CHANNELS` before `-i`, to WAV or raw S16 | Explicit mono/stereo raw input, with optional output rate conversion |
 
 In a build with a decoder backend, it also runs a command line that encodes the video with `libx264`, through [`coreav transcode`](/commands/transcode). The build's backends decode the video, and an `x264` program encodes it, or an `ffmpeg` program built with libx264 when no `x264` program is found. In strict-safe mode no `ffmpeg` program runs: the command line needs an `x264` program and a backend other than `ffmpeg-fallback` that decodes the video, and is refused with exit status 4 otherwise ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
@@ -46,7 +46,7 @@ Any other command line is refused in strict-safe mode, and goes to the real `ffm
 
 ## PCM audio output
 
-WAV and raw PCM output run natively for FLAC tracks in MP4, MOV or Matroska, including in strict-safe mode. MP3, Opus and AAC sources keep the existing external FFmpeg fallback, or are refused in strict-safe mode. PCM and ALAC tracks in containers are not supported. Automatic selection chooses one audio stream, preferring the default disposition, then the most channels. `-map` can select another audio stream. Video and cover pictures are not selected automatically for these outputs.
+WAV output runs natively for FLAC tracks in MP4, MOV or Matroska, including in strict-safe mode. PCM and ALAC tracks in containers are not supported. Automatic selection chooses one audio stream, preferring the default disposition, then the most channels. `-map` can select another audio stream. Video and cover pictures are not selected automatically for these outputs. Headerless raw output uses the separate eligibility rules below.
 
 ```sh
 coreav --strict-safe ffmpeg -i input.mka output.wav
@@ -54,13 +54,47 @@ coreav --strict-safe ffmpeg -i input.mp4 -acodec pcm_s16le -f s16le output.raw
 coreav --strict-safe ffmpeg -i input.mka -ss 0 -t 30 output.wav
 ```
 
-For those FLAC sources, the rate and channel count stay unchanged. `-ar` is accepted only at the source rate. `-ac` is accepted only for a mono or stereo source with that same channel count. A zero output `-ss` and `-t` or `-to` can limit the output from its start when the duration is a whole sample count. Input `-ss 0` is supported only for FLAC. Input `-t 0` means unlimited input, while output `-t 0` writes an empty stream. An effective `-to 0` is an error. The decoder still reads the whole input. Nonzero seeking, mixing, FLAC-source resampling, multiple output files and other PCM codecs are not supported.
+For WAV and legacy raw S16 commands with timing options, the rate and channel count stay unchanged. `-ar` is accepted only at the source rate. `-ac` is accepted only for a mono or stereo source with that same channel count. A zero output `-ss` and `-t` or `-to` can limit the output from its start when the duration is a whole sample count. Input `-ss 0` is supported only for FLAC. Input `-t 0` means unlimited input, while output `-t 0` writes an empty stream. An effective `-to 0` is an error. The decoder still reads the whole input. Nonzero seeking, multiple output files and other PCM codecs are not supported.
 
 Output `-threads` is accepted but does not change PCM serialization or start encoder workers.
 
 WAV metadata copying is not supported. Use `-map_metadata -1` for an input with tags other than container bookkeeping or encoder identification. Stream-to-global metadata mapping and WAV chapter copying are refused. Damaged audio, decoder warnings and WAV output beyond the RIFF size limit fail without replacing the destination. A `.raw` or `.pcm` extension alone does not select raw output; use `-f s16le`.
 
 The [PCM output design](https://github.com/coreav-dev/coreav/blob/main/docs/design/pcm-output.md) records its correctness bars and limitations.
+
+### Headerless audio streams
+
+Use `-f f32le` for interleaved 32-bit float samples, or `-f s16le` for signed 16-bit little-endian samples. Their default codecs are `pcm_f32le` and `pcm_s16le`. An explicit codec must match the selected raw format. Output `-`, `pipe:` and `pipe:1` write only sample bytes to stdout. A closed stdout exits quietly with status 141, including a failure of the final buffered flush.
+
+```sh
+coreav --strict-safe ffmpeg -threads 2 -i input.mka -ac 1 -ar 48000 -f f32le pipe:
+cat input.mka | coreav --strict-safe ffmpeg -i pipe: -f s16le pipe:
+```
+
+Every stage must have an eligibility registration. Current exact decoder rows cover mono or stereo 16-bit and 24-bit FLAC tracks. Unchanged-rate FLAC output is byte-identical to the pinned FFmpeg. Linux x86-64 additionally has registered S16 compatibility-rate paths and mono float-preserving 44.1 or 48 kHz to 16 kHz paths. These platform-specific registrations do not apply on macOS. Channel changes, combined downmix and resampling, other representations and unregistered paths fall back, or exit 4 in strict-safe mode.
+
+Decoder eligibility distinguishes exact output from specification-conformance-only output. MPEG-1 Layer III MP3 in MP4 runs natively when every frame and the native presentation timeline satisfy the [decoder eligibility record](https://github.com/coreav-dev/coreav/blob/main/docs/design/lossy-pcm-eligibility.md). Opus MP4 also runs natively for mapping family 0, mono or stereo, zero output gain and native 48 kHz decoding, with a supported warning-free timeline that inserts no silence. Finite edits own their complete sample window; without an edit, actual PreSkip trims the decoded packet sequence. These lossy outputs are conformance-only, not byte-identical to FFmpeg. MPEG-2 and MPEG-2.5 MP3, AAC, other Opus configurations, and lossy Matroska presentation remain refused. Conformance-only decoder registration never relaxes the exact bar for channel conversion, rate conversion or packing.
+
+Input `-`, `pipe:` and `pipe:0` accept encoded container bytes. CoreAV spools only the encoded input to a private temporary file with a 1 GiB cap because container decoding needs positioned reads. Declared raw S16 stdin streams directly without a whole-input spool. Unsupported encoded input is replayed from its start to the fallback with the original arguments. Decoded audio is never collected as a whole file; a discard decode validates presentation before stdout begins, so this safety check costs an extra decode. Any failure after output begins is terminal and never starts fallback.
+
+Standalone RIFF/WAVE, RF64 and BW64 input uses the existing parser's validated PCM data span. Full-width unsigned 8-bit and signed 16/24/32-bit little-endian PCM support S16 and F32 output with unchanged mono or stereo channels. Finite F32 input supports unchanged-rate F32 output only, preserving sample bits including signed zero. F32-to-S16 packing and rate conversion from F32 WAVE input remain unregistered; the pinned macOS oracle disagrees at rounding boundaries and finite extrema. Changed-rate U8-to-S16 also falls back because the complete source command differs from the existing rate stages. Other integer-source rate conversion still requires its existing Linux x86-64 registration and exact source composition.
+
+Reduced valid precision, F64, RIFX, compressed WAVE, unconventional speaker masks, multiple data chunks, unsupported metadata and incomplete data extents fall back. Empty data followed by another chunk is also refused because the oracle reads that tail as samples. The parser's ability to probe one of these files does not establish exact PCM output. WAVE files and encoded stdin share bounded preflight and output ownership; no decoded file is buffered, and source I/O or malformed headers remain terminal errors. Other WAVE output jobs and standalone FLAC decoding are not added. The [WAVE source plan](https://github.com/coreav-dev/coreav/blob/main/docs/design/wav-pcm-source.md) and [raw audio plan](https://github.com/coreav-dev/coreav/blob/main/docs/design/raw-audio-pipes.md) record the boundaries.
+
+## Lossless FFV1 video
+
+A build with a decoder backend accepts `-c:v ffv1` for one progressive, fixed-size, 8-bit planar YUV video stream in a `.mkv` file. Supported sampling is 4:2:0, 4:2:2 or 4:4:4. The encoder runs in CoreAV and preserves the decoded samples without conversion. No external video encoder is needed. The source must be a local MP4/MOV or Matroska/WebM file whose video this build decodes. Strict-safe mode still applies to that decoder.
+
+This first path accepts H.264 with `native-h264`, AV1 with `dav1d`, and VP8 or VP9 with `libvpx`. It does not use the FFmpeg decode fallback or hardware pictures, because their frame descriptions do not establish the required scan structure here.
+
+```sh
+coreav --strict-safe ffmpeg -i input.mp4 -map 0:v:0 -an -sn -dn -c:v ffv1 output.mkv
+```
+
+Exclude other selected streams explicitly. Audio, subtitles, attachments and additional video streams are not written by this path. RGB, alpha, monochrome, higher bit depths, unknown or interlaced scan structure, changing geometry, filters, resizing, seeking, trimming, frame selection, rate-control options and other containers are not native. `-pix_fmt` can require the decoded format but cannot convert it. Above 101,376 pixels, 4:2:0 requires width and height divisible by four, and 4:2:2 requires width divisible by four, so internal slices meet on chroma boundaries.
+
+Output uses FFV1 version 3 with independent keyframes and slice checksums. Known sample aspect and the writer's supported colour fields are preserved. Unsupported source metadata and display transforms are refused. Encoding has explicit packet, memory, index, disk-spool and deadline bounds; reaching a bound fails without replacing an existing destination. Unsupported native commands retain the existing announced fallback outside strict-safe mode. The [FFV1 design](https://github.com/coreav-dev/coreav/blob/main/docs/design/ffv1-encode.md) records the exact subset and verification gate. No speed or output-size comparison is claimed.
+
 ## Images and raw video
 
 A build with a decoder backend also writes PNG (`.png`), BMP (`.bmp`), raw video (`.yuv` or `-f rawvideo`) and YUV4MPEG2 (`.y4m` or `-f yuv4mpegpipe`). These outputs select one video stream and no audio automatically. `-map` can select that stream explicitly. Strict-safe mode uses the same decoder restrictions as thumbnails and never runs FFmpeg.
@@ -94,9 +128,9 @@ coreav --strict-safe ffmpeg -f s16le -ar 44.1k -ac 2 -i input.pcm output.wav
 coreav --strict-safe ffmpeg -f s16le -ar 8000 -ac 2 -i input.pcm -ar 44100 output.wav
 ```
 
-An unchanged rate copies integer bytes without a floating-point conversion. A changed output `-ar` uses a separate, independently derived compatibility kernel. Ratios requiring more than 1,024 phases, 4,096 taps or 65,536 coefficients are refused. Complete sample frames are required. The same atomic WAV/raw output owner handles both paths.
+At an unchanged rate, S16 output copies integer bytes without a floating-point conversion. F32 output scales the input samples to floats. A changed output `-ar` uses a separate, independently derived compatibility kernel. Ratios requiring more than 1,024 phases, 4,096 taps or 65,536 coefficients are refused. Complete sample frames are required. Changed-rate headerless output requires the platform-specific exact registration described above. Unchanged-rate identity output is platform-independent. WAV retains its existing sized-input adapter.
 
-Raw input does not support seeking or duration options, explicit maps, channel mixing, stream copy, other sample formats, FLAC or lossy output, filters, dither or soxr. The [investigation plan and finite synthetic evidence](https://github.com/coreav-dev/coreav/blob/main/docs/design/audio-swr-parity-plan.md) describe the arithmetic and its limitations; matching those cases is not proof of general parity or measured command coverage.
+Raw input does not support seeking or duration options, explicit maps, channel mixing, stream copy, other input sample formats, FLAC or lossy output, filters, dither or soxr. Headerless F32 output is supported at the input rate. The [investigation plan and finite synthetic evidence](https://github.com/coreav-dev/coreav/blob/main/docs/design/audio-swr-parity-plan.md) describe the arithmetic and its limitations; matching those cases is not proof of general parity or measured command coverage.
 
 ## FLAC audio output
 

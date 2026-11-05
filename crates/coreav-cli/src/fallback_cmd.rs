@@ -1,6 +1,6 @@
 //! The FFmpeg fallback (`docs/design/compat-cli.md`, "Fallback to FFmpeg"): a
 //! command `coreav ffprobe` or `coreav ffmpeg` does not run natively runs the
-//! real program instead, with the arguments unchanged and standard input,
+//! real program instead, with `-hide_banner` before the arguments and standard input,
 //! output and error inherited, unless strict-safe mode is on. Standard
 //! output stays the program's: CoreAV writes one notice line on standard
 //! error, and the log line to `COREAV_FALLBACK_LOG`.
@@ -33,8 +33,45 @@ pub fn refuse(
     refusal: NotNative,
     strict_safe: StrictSafe,
 ) -> ExitCode {
+    refuse_inner(tool, args, refusal, strict_safe, None)
+}
+
+pub fn refuse_with_input(
+    tool: Tool,
+    args: &[String],
+    refusal: NotNative,
+    strict_safe: StrictSafe,
+    input: std::fs::File,
+    spool: super::compat_cmd::EncodedInput,
+) -> ExitCode {
+    refuse_inner(tool, args, refusal, strict_safe, Some((input, spool)))
+}
+
+fn refuse_inner(
+    tool: Tool,
+    args: &[String],
+    refusal: NotNative,
+    strict_safe: StrictSafe,
+    input: Option<(std::fs::File, super::compat_cmd::EncodedInput)>,
+) -> ExitCode {
+    #[cfg(not(feature = "net"))]
+    if fallback::has_remote_input(tool, args) {
+        message(
+            tool,
+            "this build has no network; URL inputs are not supported",
+        );
+        return ExitCode::from(super::EXIT_USAGE);
+    }
     let found = if strict_safe.on() {
         Err((NotRun::StrictSafe, None))
+    } else if cfg!(target_os = "wasi") {
+        Err((
+            NotRun::Unusable,
+            Some(format!(
+                "the WebAssembly build cannot run {}; use a native build for the FFmpeg fallback",
+                tool.name()
+            )),
+        ))
     } else if std::env::var_os(GUARD).is_some() {
         Err((
             NotRun::Guard,
@@ -56,7 +93,7 @@ pub fn refuse(
                 path.display(),
                 reason.redacted(tool)
             );
-            let error = run(&path, args);
+            let error = run(&path, args, input);
             message(tool, &format!("could not run {}: {error}", path.display()));
             log(tool, args, reason, Err(NotRun::Unusable));
             ExitCode::from(EXIT_UNSUPPORTED)
@@ -181,9 +218,17 @@ fn log(tool: Tool, args: &[String], reason: &fallback::Reason, ran: Result<&str,
 /// process (`exec`), so the process id, signals and exit status are the
 /// program's; elsewhere it waits for it and exits with its exit code.
 /// Returns only when the program could not start.
-fn run(path: &Path, args: &[String]) -> std::io::Error {
+fn run(
+    path: &Path,
+    args: &[String],
+    input: Option<(std::fs::File, super::compat_cmd::EncodedInput)>,
+) -> std::io::Error {
     let mut command = Command::new(path);
-    command.args(args).env(GUARD, "1");
+    command.arg("-hide_banner").args(args).env(GUARD, "1");
+    let spool = input.map(|(input, spool)| {
+        command.stdin(input);
+        spool
+    });
     #[cfg(unix)]
     let error = {
         use std::os::unix::process::CommandExt;
@@ -191,8 +236,14 @@ fn run(path: &Path, args: &[String]) -> std::io::Error {
     };
     #[cfg(not(unix))]
     let error = match command.status() {
-        Ok(status) => std::process::exit(status.code().unwrap_or(1)),
+        Ok(status) => {
+            drop(command);
+            drop(spool);
+            std::process::exit(status.code().unwrap_or(1));
+        }
         Err(error) => error,
     };
+    drop(command);
+    drop(spool);
     error
 }

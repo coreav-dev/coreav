@@ -99,6 +99,10 @@ such line before the input is read.
 
 Native H.264 output accepts `-b:v`, `-crf`, `-preset` and `-s` within the transcode pipeline's limits. The frame-rate mode option `-vsync` accepts only `0` or `passthrough`; other values still fall back or are refused in strict-safe mode.
 
+Headerless audio output accepts `-f f32le` and `-f s16le`, their matching PCM codecs, and stdin/stdout descriptors through the [registered raw audio pipeline](raw-audio-pipes.md). Decoder eligibility distinguishes exact and conformance-only paths, while downmix, rate conversion and packing always require exact registration. Unregistered stages keep the fallback and strict-safe exit 4. [Bounded standalone WAVE PCM input](wav-pcm-source.md) reuses the existing parser's validated data spans; probing support alone never grants source eligibility.
+
+Builds with a decoder backend also accept explicit `-c:v ffv1` for one progressive 8-bit planar YUV stream into `.mkv`. The encoder is native and adds no pixel conversion. Other selected streams require explicit exclusion. RGB, higher bit depths, changing geometry, transformations, trim and rate-control options are not native. The [FFV1 design](ffv1-encode.md) defines slice alignment, resource limits and exact decoded-pixel verification. Existing strict-safe and announced fallback rules are unchanged.
+
 Builds with a decoder backend also accept the image and raw-video output described in [frame-output.md](frame-output.md): `-c:v png`, `bmp` or `rawvideo`, `-f image2`, `rawvideo` or `yuv4mpegpipe`, `-frames:v`/`-vframes`, `-update`, output `-r` that only drops frames, and `-pix_fmt` without a new conversion. Their extension defaults are limited to `.png`, `.bmp`, `.yuv` and `.y4m`. Builds without a decoder backend still refuse these jobs. The historical command-coverage labels stay unchanged.
 
 Every refused option or property is **named** in the error, and the exit status is non-zero. A
@@ -1008,13 +1012,17 @@ status 4**, a status no other `coreav` command uses, so a script can tell
 "not supported here" from a failure. Rejected: reusing 1 (a rejected file)
 or 2 (a usage error), which would make a refusal look like a bad file or a
 typo. The other statuses keep their meaning in every `coreav` command: 1 the
-input was rejected (not a container `coreav ffprobe` reads, or invalid; the
+input was rejected (unrecognized or invalid; the
 message names the input, as `ffprobe`'s does), 2 a malformed command (a
 missing value, a second input, a value that does not parse; `ffprobe` also
 refuses those), 3 the input could not be read (missing, unreadable, a
 failed remote read), 141 standard output closed by its reader. `ffprobe`
 itself exits 1 for all of 1 to 3; a script that tests for success sees the
 same answer.
+
+Recognized standalone MP3, FLAC and WAV inputs are unsupported containers, not invalid files: they use the FFmpeg fallback, or exit 4 when strict-safe mode or an unavailable fallback prevents it. Builds without networking refuse URL inputs with status 2 before opening an input, consistently with `coreav probe`; they are not missing local files and do not produce status 3. The WebAssembly build cannot start another process, so a command needing FFmpeg exits 4 even when the host has FFmpeg installed.
+
+Audio bitrate and quality expressions outside the native numeric grammar are passed unchanged to FFmpeg, whose exit status is preserved. Strict-safe mode refuses them with status 4 without attempting to validate FFmpeg's expression grammar.
 
 A refusal while the command line is parsed comes before the input is
 opened. A refusal while the job is planned or run comes once the input is
@@ -1047,12 +1055,15 @@ appear and in what order, and `-show_entries`'s selection rules, as the
 pinned `ffprobe` 7.0.2 prints them for the same command. The black box is
 the only source for those rules.
 
-**Standard error is not.** `ffprobe` writes a banner and a summary of the
-input on standard error at the default log level; CoreAV writes nothing on
-standard error on success, at any `-v`. A command that asks for no section
-(`ffprobe INPUT`, `ffprobe -v debug -i INPUT`) exists only for that summary,
-so it is refused (exit 4), never run to print nothing. `-show_error` prints
-the error section on standard output, as `ffprobe` does.
+**Input summaries on standard error** are a separate native output contract for `ffprobe INPUT` and `ffprobe -i INPUT` without section options. The [input-summary plan](input-summary.md) requires byte-identical summary text against the pinned FFmpeg 9.0.2, including metadata, chapters, programs and supported stream side data. An unsupported summary falls back before printing any partial summary, or exits 4 under strict-safe. Diagnostic levels below info suppress the summary; detailed or decorated logging uses fallback. Sectioned commands retain their existing standard-error behavior. `-show_error` prints the error section on standard output, as `ffprobe` does.
+
+An explicit `-of`, `-print_format` or `-output_format` remains a structured request even without selected sections; JSON retains its empty document rather than entering bare-summary admission. Program summaries count every membership entry, including repeated entries, and print `No Program` before unassigned streams only when that entry count is less than the stream count. A sole language metadata key is omitted case-insensitively; case variants beside other metadata remain visible.
+
+Display-matrix summaries admit only axis-aligned matrices with nonzero axes: diagonal or anti-diagonal linear components. They emit fixed quarter-turn text, preserving signed zero, without a C math dependency. Every non-axis matrix, including fractional, nearby and scaled variants, refuses before summary emission. Whole-degree structured rotation keeps its existing calculation and truncation unchanged.
+
+`ffmpeg -i INPUT` without an output uses the same summary and then prints `At least one output file must be specified` with status 1. CoreAV always suppresses FFmpeg's version and configuration banner, including on fallback. This deliberate identity divergence is not an exception to the summary's byte comparison.
+
+Standalone WAVE and FLAC summaries use the existing audio readers under the [summary admission bounds](input-summary.md#native-admission). An explicit speaker layout and complete source extents qualify WAVE; FLAC also qualifies mono/stereo without a mask. Unproved layouts, precision disagreements, incomplete extents and ambiguous metadata retain atomic fallback. Structured audio reports keep their existing behavior.
 
 **Keys.** Every key the sections have in `ffprobe`, in its order, with the
 value derived from what the container and the codec configuration say,
@@ -1400,6 +1411,10 @@ refused (`encoding a cover picture`): `ffmpeg` fails on it, exit status
 picture: their selection rules refuse one by name (`one video and one
 audio stream`, `an M4A output of other than one audio stream`).
 
+Ordinary single-input ISO copy rebuilds media durations from copied samples and track durations from validated edits or media, rather than keeping conflicting declared header overrides. Simple edits that cut the copied presentation refuse before output; AAC may retain a partial final sample. Edits extending beyond the complete end's movie-tick ceiling refuse unless they are AAC edits that can be shortened to an exactly representable end. Native `coreav remux` retains its separate default preservation policy. This changes neither sample selection nor source packet clocks; see [the copied-header plan](copy-header-durations.md).
+
+After multi-input validation, a command whose final maps use only input zero follows that same ordinary copy policy. An unused second input cannot change duration reconstruction or timing admission. Map order and default metadata still come from the first input. Selections from another input or mixed inputs keep the existing multi-source path; see [first-input-only mapped copy](first-input-copy.md).
+
 **Times.** Every time counts from the input's start time (`ffprobe`'s
 `format.start_time`, 0 when it has none): on a file presented from 5 s,
 `-ss 6` before or after `-i` is 11 s on its timeline (black box). An input
@@ -1513,13 +1528,13 @@ FFmpeg).**
   rejected, exit 1.
 - A join that would not be timed as the concat demuxer times it: inputs
   whose tracks have several edits, which the demuxer reads by its own edit
-  model, and an input the demuxer would place before the previous input's
-  video ends. Also inputs that do not match the first
+  model, an input with a positive AAC media edit offset (including unselected audio), a first input with a nonzero format start, and an input the demuxer would place before the previous input's
+  video ends. An output that needs several audio edits is also refused, including gaps created from unedited inputs; native join's edit-based presentation is not the concat muxer's packet clock. See [audio-gap admission](concat-audio-gaps.md). Also inputs that do not match the first
   (codec, configuration, size, time base), inputs without a stream of the
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
-  `join_mp4` does not copy (MPEG-4 Visual video, PCM or MP3 audio, say). The join runs to a temporary file and finds these
-  at its end; the output is left as it was.
+  `join_mp4` does not copy (MPEG-4 Visual video, PCM or MP3 audio, say). Output is staged and published only for a supported join; a refusal leaves the output as it was.
+  The AAC restriction keeps the native join's gapless presentation from being mistaken for FFmpeg concat packet timing; see [the plan](concat-aac-edits.md).
 - Cover pictures alone (C03's `-map 0 -map -0:m:language:eng` on a file
   whose tracks are tagged `eng`, or `-map 0:2` naming the picture): the
   pinned `ffmpeg` 9.0.2 writes a movie box with the picture in its item
@@ -1851,7 +1866,10 @@ stream oracle checks. The other fields include:
   full-range 8-bit 4:2:0 H.264 and H.265, as `ffprobe` names it. Without a
   reordering depth in the H.264 VUI, `has_b_frames` is the depth the first
   packets' presentation order shows.
-- `sample_aspect_ratio`: the `pasp` box, else the stream's VUI.
+- `sample_aspect_ratio`: the `pasp` box, else the stream's VUI or the
+  track's presentation geometry. Configured AV1 defaults to square pixels
+  when none of those signals supplies a ratio; see
+  [ISO AV1 aspect ratios](ffprobe-aspect-ratio.md).
 - `r_frame_rate`: an estimate from the decode times of the first 21
   packets, as for Matroska (`mkv::estimate_rate`): among the standard
   rates (twelfths of a frame per second, whole rates, NTSC rates) whose
@@ -1908,10 +1926,12 @@ stream oracle checks. The other fields include:
   or none; and `edit_multi_audio_average.mp4`, several edits whose
   declared averages were patched). A data or subtitle track takes its
   own span (`fragmented_text.mp4`). A fragmented movie's video and audio
-  rate is over the stream's duration as printed (`fragmented_late.mp4`),
-  and every track's rate in a fragmented movie is rounded to the nearest;
-  with a segment index (`sidx`) `ffprobe` counts only the first
-  fragment's bytes, over the whole duration.
+  rate is over its summed encoded sample durations, excluding the decode
+  origin (`fragmented_late.mp4`), and is rounded to the nearest. With a
+  segment index (`sidx`) it uses the initial movie samples' bytes and encoded
+  duration together, or the first sample-bearing fragment's when the movie
+  tables are empty, never one window's bytes over another's duration.
+  See [fragmented stream bit rates](ffprobe-bit-rate.md).
 - Packets of a subtitle track in a movie with fragments have no
   duration, and every one is a key frame whatever the fragment's flags
   say (`fragmented_text.mp4`; the library's rule,
@@ -1955,6 +1975,13 @@ stream oracle checks. The other fields include:
   no bit depth (`codec_flac*`, `codec_alac*` at 44.1 to 192 kHz).
 - A timecode stream's `avg_frame_rate` is its `tmcd` entry's timescale
   over its frame duration, unreduced.
+- ISO `format.nb_stream_groups` counts distinct targets of `tmcd` track
+  references whose first sample entry is also `tmcd`, including unsupported
+  tracks. Shared targets count once, and stream selection does not change
+  this format-level count. Requesting it from an incomplete metadata
+  snapshot is refused before output and uses the existing ffprobe fallback
+  outside strict-safe mode. This does not add group listing
+  (`docs/design/ffprobe-iso-stream-group-count.md`).
 - A protected stream of a movie with protection system headers (`pssh`)
   carries an "Encryption initialization data" side data element; its
   other values come from the format `frma` names.
@@ -2001,19 +2028,26 @@ headers and picture timing, MPEG-1/2 sequence headers, audio frame
 headers), streams numbered as `ffprobe` numbers them (which removes
 `KD-TS-STREAM-ORDER` for this command), and packets in `ffprobe`'s order
 with the "MPEGTS Stream ID" side data and its rebuilt decode times
-(`docs/design/mpegts.md`). The `bit_rate` of ADTS AAC is a running mean
-over the frames `ffprobe`'s analysis reads: whole PES packets in file
-order, up to and including the first after which some stream's latest
-decoding time lies more than five seconds (450,000 ticks, strictly) past
-its first timed frame's presentation time, or the first that starts past
-five million bytes (a 35 Mb/s stream crafted for it; of two AAC streams
-past that limit, `ffprobe` counts a few more frames of the second, which
-this window does not model); each frame's rate is its
-`frame_length` bytes over 1024 samples at its sampling rate, and the mean
-is truncated toward zero at every frame (`m += (rate − m) / n`). It agrees
-on every AAC transport stream of the fixtures and on 11 of the 14 AAC
-files of the development set; on the others `ffprobe`'s mean starts or
-ends at frames this window does not explain.
+(`docs/design/mpegts.md`). The `bit_rate` of ADTS AAC is a running integer
+mean of complete frame rates: `frame_length` bytes over 1024 samples at
+the header's sampling rate, truncated toward zero at every frame
+(`m += (rate − m) / n`). Analysis counts consumed payload bytes rather
+than physical transport offsets and known media periods rather than
+timestamp gaps. The initial PES initializes each stream's clock; the
+five-second check runs before charging every subsequent fetched packet.
+When time expires, complete eligible headers already parsed for that
+packet's PES are observed once before the rate freezes. A borrowed view
+neither reads nor consumes packets, and only that stream and PES offset
+are included: a later PES queued by the same read is not another admitted
+observation. The separate five-million-byte payload stop does not admit
+an unrelated new PES. Split frames whose headers were already read are
+excluded, as is the first complete frame after an initial raw tail;
+later frames without physical positions still count. The independent
+eight-MiB head limit is unchanged, unknown codec periods are not guessed,
+and single-frame clock-initialization exceptions remain outside this
+model. These analysis and eligibility rules match observed pinned-probe
+behavior, not a transport bit-rate field required by the specification
+(`docs/design/ffprobe-ts-aac-rate.md`).
 
 Streams are numbered in two steps, as if `ffprobe` read the file twice:
 first the streams of the first Program Map Table completed after the PAT,
@@ -2392,8 +2426,9 @@ installs both tools.
 
 ### Running it
 
-The program gets the arguments unchanged, standard input, output and error
-inherited, and the environment with one variable added. On Unix CoreAV
+The program gets `-hide_banner` followed by the original arguments. It inherits
+standard output and standard error. It inherits standard input unless CoreAV
+supplies a replay file. The environment has one variable added. On Unix CoreAV
 replaces itself with it (`exec`), so the process id, signals and exit status
 are FFmpeg's; on Windows it starts the program, waits, and exits with its
 exit code. Either way the exit status of a fallback is the program's.

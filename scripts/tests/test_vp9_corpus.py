@@ -278,6 +278,28 @@ class InputsAndChildren(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'bytes changed'):
                 runner.compare(entry, args, set(), self.root)
 
+    def test_acquisition_shares_a_request_cap_and_reports_reserved_reads_even_on_failure(self):
+        budget = SimpleNamespace(requests=0)
+        pool_factory = mock.Mock(side_effect=lambda: SimpleNamespace(limits=None))
+        fake = SimpleNamespace(pool=pool_factory)
+        limiter = mock.Mock(return_value=budget)
+
+        def acquire(args):
+            first, second = fake.pool(), fake.pool()
+            self.assertIs(first.limits, budget)
+            self.assertIs(second.limits, budget)
+            budget.requests = 17
+            raise ValueError('synthetic acquisition failure')
+
+        with mock.patch.dict(sys.modules, round_files=fake, r2pool=SimpleNamespace(Limits=limiter)), \
+                mock.patch.object(runner, 'fetch', side_effect=acquire), mock.patch('builtins.print') as printed:
+            with self.assertRaisesRegex(ValueError, 'synthetic acquisition failure'):
+                runner.bounded_fetch(SimpleNamespace())
+        limiter.assert_called_once_with(requests=5000, bytes_=1 << 40)
+        self.assertIs(fake.pool, pool_factory)
+        self.assertEqual(json.loads(printed.call_args.args[0]),
+                         dict(read_requests_reserved=17, read_request_cap=5000))
+
     @unittest.skipUnless(sys.platform == 'linux', 'C2 subprocess limits are Linux-only')
     def test_the_decoder_child_inherits_no_corpus_or_cloud_credentials(self):
         marker = dict(R2_ACCESS_KEY_ID='unit-only', R2_SECRET_ACCESS_KEY='unit-only',

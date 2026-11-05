@@ -306,8 +306,10 @@ dependencies = [
  "clap",
  "coreav-audio",
  "coreav-avi",
+ "coreav-backend-dav1d",
  "coreav-backend-h264",
  "coreav-backend-svt-av1",
+ "coreav-backend-libvpx",
  "coreav-backend-vp9",
  "coreav-decode",
  "coreav-frame",
@@ -326,6 +328,7 @@ dependencies = [
  "rustls",
  "rustls-native-certs",
  "serde_json",
+ "sha2",
  "ureq",
  "url",
 ]
@@ -370,6 +373,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-ffv1"
+version = "0.0.1"
+dependencies = [
+ "coreav-frame",
+ "coreav-mkv",
+ "serde_json",
+]
+
+[[package]]
 name = "coreav-frame"
 version = "0.0.1"
 
@@ -387,6 +399,14 @@ version = "0.0.1"
 dependencies = [
  "coreav-h264",
  "coreav-kernels-h264",
+]
+
+[[package]]
+name = "coreav-hevc"
+version = "0.0.1"
+dependencies = [
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -523,6 +543,7 @@ dependencies = [
  "coreav-audio",
  "coreav-backend-svt-av1",
  "coreav-decode",
+ "coreav-ffv1",
  "coreav-frame",
  "coreav-isobmff",
  "coreav-isobmff-write",

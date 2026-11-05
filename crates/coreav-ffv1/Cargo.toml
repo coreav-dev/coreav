@@ -1,0 +1,19 @@
+[package]
+name = "coreav-ffv1"
+description = "Bounded native FFV1 version 3 lossless encoding"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+coreav-frame = { path = "../coreav-frame" }
+
+[dev-dependencies]
+coreav-mkv = { path = "../coreav-mkv" }
+serde_json.workspace = true
+
+[lints]
+workspace = true

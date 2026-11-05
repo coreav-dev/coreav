@@ -7,6 +7,7 @@ from pathlib import Path
 import plistlib
 import sys
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -30,29 +31,27 @@ AVCC = list(bytes([1, 100, 0, 31, 255, 225]) + len(SPS).to_bytes(2, "big") + SPS
 
 
 def spec():
-    return {"schema": "coreav.videotoolbox-observability/1",
-            "fields": {name: {"prefix": f"observed-{name}=", "suffix": ""} for name in observations.FIELDS}}
+    return {"schema": "coreav.videotoolbox-observability/2",
+            "encoder_id": {"prefix": "Init the encoder: ", "suffix": ""},
+            "refusal_fields": {name: {"prefix": f"observed-{name}=", "suffix": ""}
+                               for name in ("status", "submitted")}}
 
 
 def observed(item, cell="hardware", bitrate=1000000):
-    return {"encoder_id": "actual.fake.encoder", "hardware": cell, "profile": "high", "reordering": False,
-            "realtime": False, "bitrate": bitrate, "width": item["width"], "height": item["height"],
-            "fps_num": item["rate"]["num"], "fps_den": item["rate"]["den"],
-            "expected_frame_rate_hint": registration.cadence_hint(item),
-            "keyframe_frames": 2 * item["rate"]["num"] // item["rate"]["den"], "keyframe_seconds": 2,
-            "pixel_format": "yuv420p", "range": "limited", "primaries": "bt709", "transfer": "bt709",
-            "matrix": "bt709", "submitted": item["frames"], "status": "encoded"}
+    return {"encoder_id": "actual.fake.encoder"}
 
 
 def trace_bytes(values):
-    return ("\n".join(f"observed-{name}={str(value).lower() if type(value) is bool else value}"
+    return ("\n".join("[h264_videotoolbox @ 0x1234] " +
+                      (f"Init the encoder: {value}" if name == "encoder_id" else f"observed-{name}={value}")
                       for name, value in values.items()) + "\n").encode()
 
 
 def probe_document(item):
     extradata = "\n" + "\n".join(f"{at:08x}: {PARAMETERS[at:at + 16].hex()}  text"
                                    for at in range(0, len(PARAMETERS), 16)) + "\n"
-    return {"streams": [{"codec_name": "h264", "profile": "High", "width": item["width"], "height": item["height"],
+    return {"streams": [{"codec_name": "h264", "profile": "High", "level": 31, "has_b_frames": 0,
+                         "width": item["width"], "height": item["height"],
                          "pix_fmt": "yuv420p", "color_range": "tv", "color_space": "bt709", "color_transfer": "bt709",
                          "color_primaries": "bt709", "time_base": "1/30", "r_frame_rate": "30/1", "extradata": extradata,
                          "extradata_size": len(PARAMETERS)}],
@@ -93,6 +92,10 @@ class FakeCommands:
         executable = Path(command[0]).name
         if executable == "ffprobe":
             evidence.write(directory / stdout, probe_document(self.item))
+        elif executable == "decoder" and command[1] == "identify":
+            evidence.write(Path(command[command.index("--report") + 1]), {
+                "schema": "coreav.videotoolbox-encoder-identity/1",
+                "encoder_id": command[command.index("--encoder-id") + 1], "hardware": "hardware"})
         elif executable == "decoder" and command[1] == "decode":
             Path(command[command.index("--output") + 1]).write_bytes(self.decoded)
             evidence.write(Path(command[command.index("--report") + 1]),
@@ -117,7 +120,8 @@ class FakeCommands:
                 raise evidence.Invalid("child_failure")
             Path(command[-1]).write_bytes(VIDEO)
             Path(command[command.index("-stats_enc_post") + 1]).write_bytes(b"".join(
-                f"{n} 1/30 {n} 6\n".encode() for n in range(self.item["frames"])))
+                f"{n} 1/30 {n} {6 + (len(PARAMETERS) if n == 0 else 0)}\n".encode()
+                for n in range(self.item["frames"])))
             values = observed(self.item, cell, int(command[command.index("-b:v") + 1]))
             if self.drop_observation:
                 values.pop(self.drop_observation)
@@ -145,27 +149,140 @@ class FakeCommands:
 
 
 class Observability(unittest.TestCase):
-    def test_integer_hint_is_observed_separately_from_the_exact_source_clock(self):
+    def test_encoder_ids_are_bounded_opaque_utf8_not_path_tokens(self):
+        for identifier in ("opaque encoder / Main (é)", "a" * 4096, "é" * 2048):
+            parsed, _ = observations.trace(trace_bytes({"encoder_id": identifier}), spec())
+            self.assertEqual(parsed["encoder_id"], identifier)
+        for identifier in ("", "bad\0id", "bad\nid", "bad\rid", "a" * 4097, "é" * 2049, "\ud800"):
+            with self.assertRaises(evidence.Invalid):
+                observations.encoder_identifier(identifier)
+
+    def test_unobserved_refusal_fields_never_establish_unavailability(self):
+        value = spec()
+        value["refusal_fields"] = None
+        good = b"[h264_videotoolbox @ 0x1234] Init the encoder: actual.encoder\n"
+        observed, retained = observations.trace(good, value)
+        self.assertEqual(observed, {"encoder_id": "actual.encoder"})
+        self.assertEqual(retained, good)
+        for data in (b"", good, b"[h264_videotoolbox @ 1234] status=no_encoder submitted=0\n"):
+            with self.assertRaises(evidence.Invalid):
+                observations.trace(data, value, failed=True)
+
+    def test_query_binds_the_actual_id_trace_output_binary_host_and_process(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / "capture"
+            directory.mkdir()
+            reg = registered()
+            item = producer.unit_item()
+            for side, name in (("coreav", "decoder"), ("ffmpeg", "ffmpeg")):
+                (root / name).write_bytes(name.encode())
+                reg["executables"][side].update(file=name, sha256=evidence.file_hash(root / name))
+            command = timing.commands(reg, {"raw_file": "unused", **item}, "hardware", root,
+                                      directory / "video.h264", directory / "packets.stats")["ffmpeg"]
+            command[command.index("-i") + 1] = str(directory / "source.yuv")
+            command[command.index("-b:v") + 1] = "2000000"
+            fake = FakeCommands(item, smoke.source())
+            fake(command, directory, 120)
+            ended = time.time_ns()
+            with mock.patch.object(observations, "host_observation", return_value=reg["host"]), \
+                    mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}), \
+                    mock.patch.object(observations, "run", side_effect=fake):
+                result = observations.capture_identity(directory, reg, root, spec(), ended, command, item, "hardware")
+            self.assertEqual(result["hardware"], "hardware")
+            queries = [call for call in fake.commands if "identify" in call]
+            self.assertEqual(len(queries), 1)
+            self.assertEqual(queries[0][2:4], ["--encoder-id", "actual.fake.encoder"])
+            value = evidence.load(directory / "identity-query.json")
+            self.assertGreaterEqual(value["process"]["started_ns"], ended)
+            self.assertEqual(value["trace_sha256"], evidence.file_hash(directory / "stderr"))
+            original = {name: (directory / name).read_bytes() for name in observations.BASELINE_FILES}
+            mutations = [
+                ("identity.json", lambda r: r.pop("hardware")),
+                ("identity.json", lambda r: r.update(hardware=None)),
+                ("identity.json", lambda r: r.update(hardware=True)),
+                ("identity.json", lambda r: r.update(hardware="unknown")),
+                ("identity.json", lambda r: r.update(hardware="software")),
+                ("identity.json", lambda r: r.update(encoder_id="unmatched.encoder")),
+                ("identity.json", lambda r: r.update(extra=True)),
+                ("identity-query.json", lambda r: r.update(binary_sha256=h("other-binary"))),
+                ("identity-query.json", lambda r: r["host"].update(hardware_sha256=h("other-host"))),
+                ("identity-query.json", lambda r: r["host"].update(os_build="other-build")),
+                ("identity-query.json", lambda r: r["host"].update(allocation_sha256=h("other-allocation"))),
+                ("identity-query.json", lambda r: r.update(trace_sha256=h("other-trace"))),
+                ("identity-query.json", lambda r: r.update(output_sha256=h("other-output"))),
+                ("identity-query.json", lambda r: r["process"].update(started_ns=ended - 1)),
+                ("identity-query.json", lambda r: r["process"].update(status="child_failure", exit_code=1)),
+                ("identity-query.json", lambda r: r["process"].pop("report_sha256")),
+                ("identity-query.json", lambda r: r["process"]["arguments"].__setitem__(3, "other.id"))]
+            for filename, mutate in mutations:
+                changed = evidence.loads(original[filename])
+                mutate(changed)
+                evidence.write(directory / filename, changed)
+                if filename == "identity.json":
+                    query = evidence.loads(original["identity-query.json"])
+                    query["process"]["report_sha256"] = evidence.file_hash(directory / filename)
+                    evidence.write(directory / "identity-query.json", query)
+                with self.subTest(filename=filename, changed=changed), self.assertRaises(evidence.Invalid):
+                    observations.identity(directory, reg, "hardware", spec(), evidence.file_hash(directory / "video.h264"), ended)
+                for name, data in original.items():
+                    (directory / name).write_bytes(data)
+            duplicate = b'{"schema":"coreav.videotoolbox-encoder-identity/1","encoder_id":"actual.fake.encoder",' \
+                        b'"hardware":"hardware","hardware":"software"}'
+            (directory / "identity.json").write_bytes(duplicate)
+            with self.assertRaises(evidence.Invalid):
+                observations.identity(directory, reg, "hardware", spec(), evidence.file_hash(directory / "video.h264"))
+
+    def test_failed_query_is_retained_and_never_an_unavailable_encode(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            reg, item = registered(), producer.unit_item()
+            (root / "decoder").write_bytes(b"decoder")
+            reg["executables"]["coreav"].update(file="decoder", sha256=evidence.file_hash(root / "decoder"))
+            (root / "stderr").write_bytes(trace_bytes(observed(item)))
+            (root / "video.h264").write_bytes(VIDEO)
+            command = timing.commands(reg, {"raw_file": "unused", **item}, "hardware", root,
+                                      root / "video.h264", root / "packets.stats")["ffmpeg"]
+            command[command.index("-i") + 1] = str(root / "source.yuv")
+            command[command.index("-b:v") + 1] = "2000000"
+            with mock.patch.object(observations, "host_observation", return_value=reg["host"]), \
+                    mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}), \
+                    mock.patch.object(observations, "run", side_effect=evidence.Invalid("child_failure")) as query, \
+                    self.assertRaises(evidence.Invalid):
+                observations.capture_identity(root, reg, root, spec(), time.time_ns(), command, item, "hardware")
+            query.assert_called_once()
+            self.assertEqual(evidence.load(root / "identity-query.json")["process"]["status"], "failed")
+            self.assertTrue((root / "observations.txt").is_file())
+            self.assertFalse((root / "availability.json").exists())
+
+    def test_integer_hint_is_requested_only_and_native_readback_stays_exact(self):
         for num, den, hint in ((30000, 1001, 30), (24000, 1001, 24), (60000, 1001, 60),
                                (3, 2, 2), (5, 2, 3), (7, 3, 2), (1, 1, 1), (479, 2, 240)):
             item = producer.unit_item()
             item["rate"] = {"num": num, "den": den}
             self.assertEqual(registration.cadence_hint(item), hint)
-            good = observed(item)
-            parsed, _ = observations.trace(trace_bytes(good), spec())
-            observations.effective(parsed, item, "hardware", 1000000)
-            self.assertEqual((parsed["fps_num"], parsed["fps_den"]), (num, den))
-            changed = dict(good)
-            changed.pop("expected_frame_rate_hint")
-            with self.assertRaises(evidence.Invalid):
-                observations.trace(trace_bytes(changed), spec())
-            changed = dict(good, expected_frame_rate_hint=hint + 1)
-            with self.assertRaises(evidence.Invalid):
-                observations.effective(changed, item, "hardware", 1000000)
-            if den != 1:
-                changed = dict(good, fps_num=hint, fps_den=1)
+            reg = registered()
+            arguments = timing.commands(reg, {"raw_file": "unused", **item}, "hardware", Path("/root"),
+                                        Path("/ram/video.h264"), Path("/ram/packets"))["ffmpeg"]
+            arguments[arguments.index("-i") + 1] = "/ram/source.yuv"
+            arguments[arguments.index("-b:v") + 1] = "2000000"
+            value = observations.requested(arguments, item)
+            observations.validate_requested(value, item, reg, "hardware")
+            self.assertEqual(value["nominal_frame_rate_hint"]["value"], hint)
+            self.assertEqual(value["nominal_frame_rate_hint"]["observation"], "unobserved")
+            self.assertIsNone(value["realtime"]["-realtime"])
+            self.assertIsNone(value["rate_control"]["-constant_bit_rate"])
+            for mutate in (lambda r: r.update(observation="observed"),
+                           lambda r: r["nominal_frame_rate_hint"].update(observation="observed"),
+                           lambda r: r["nominal_frame_rate_hint"].update(provenance="session_property"),
+                           lambda r: r["nominal_frame_rate_hint"].update(value=hint + 1),
+                           lambda r: r["realtime"].update({"-realtime": "0"}),
+                           lambda r: r["rate_control"].update({"-constant_bit_rate": "0"}),
+                           lambda r: r["arguments"].extend(["-realtime", "0"])):
+                changed = copy.deepcopy(value)
+                mutate(changed)
                 with self.assertRaises(evidence.Invalid):
-                    observations.effective(changed, item, "hardware", 1000000)
+                    observations.validate_requested(changed, item, reg, "hardware")
         item = producer.unit_item()
         value = native_report(item)
         producer.native_facts(value, item, "hardware")
@@ -173,7 +290,7 @@ class Observability(unittest.TestCase):
         with self.assertRaises(evidence.Invalid):
             producer.native_facts(value, item, "hardware")
 
-    def test_nondividing_demux_clock_retains_observed_duration(self):
+    def test_demux_clock_and_advertised_rate_are_diagnostic_only(self):
         for rate, ticks in ((144, 8333), (225, 5333)):
             item = producer.unit_item()
             item["rate"] = {"num": rate, "den": 1}
@@ -183,14 +300,16 @@ class Observability(unittest.TestCase):
             for frame in value["frames"]:
                 frame["duration"] = ticks
             _, _, observed_clock = producer.probe_facts(value, item)
-            self.assertEqual(observed_clock[2][0].numerator, ticks // math.gcd(ticks, 1200000))
+            self.assertEqual(observed_clock["demux_time_base_diagnostic"], {"num": 1, "den": 1200000})
             value["frames"][0]["duration"] = ticks + 8
-            with self.assertRaises(evidence.Invalid):
-                producer.probe_facts(value, item)
+            producer.probe_facts(value, item)
             value["frames"][0]["duration"] = ticks
             value["streams"][0]["r_frame_rate"] = "30/1"
+            self.assertEqual(producer.probe_facts(value, item)[2]["advertised_rate_diagnostic"], {"num": 30, "den": 1})
+            ledger = b"".join(f"{n} 1/{rate} {n} 6\n".encode() for n in range(item["frames"]))
+            producer.packet_ledger(ledger, item, item["frames"] * 6)
             with self.assertRaises(evidence.Invalid):
-                producer.probe_facts(value, item)
+                producer.packet_ledger(ledger.replace(f"1/{rate}".encode(), b"1/30"), item, item["frames"] * 6)
 
     def test_empty_oracle_wrappers_keep_producer_metadata_and_clock_checks(self):
         item = producer.unit_item()
@@ -199,7 +318,9 @@ class Observability(unittest.TestCase):
         value.update(programs=[], stream_groups=[])
         self.assertEqual(producer.probe_facts(value, item), expected)
         for mutate in (lambda r: r["streams"][0].update(color_range="pc"),
-                       lambda r: r["streams"][0].update(r_frame_rate="29/1"),
+                       lambda r: r["streams"][0].update(level=42),
+                       lambda r: r["streams"][0].update(has_b_frames=1),
+                       lambda r: r["frames"][1].update(pict_type="B"),
                        lambda r: r["frames"][0].update(duration=0),
                        lambda r: r["frames"].pop()):
             changed = copy.deepcopy(value)
@@ -207,38 +328,127 @@ class Observability(unittest.TestCase):
             with self.assertRaises(evidence.Invalid):
                 producer.probe_facts(changed, item)
 
-    def test_only_explicit_identity_and_controls_are_accepted(self):
+    def test_only_one_pinned_encoder_id_log_is_identity_evidence(self):
         item = producer.unit_item()
         good = observed(item)
         parsed, retained = observations.trace(trace_bytes(good) + b"input /secret/path\n", spec())
-        observations.effective(parsed, item, "hardware", 1000000)
-        self.assertNotIn(b"/secret", retained)
-        for field in ("hardware", "encoder_id", "reordering", "bitrate", "submitted", "status", "expected_frame_rate_hint"):
-            changed = dict(good)
-            changed.pop(field)
+        self.assertEqual(parsed, {"encoder_id": "actual.fake.encoder"})
+        self.assertIn(b"input /secret/path", retained)
+        for changed in (b"-require_sw 0\n", b"Init the encoder: actual.fake.encoder\n",
+                        b"observed-encoder_id=actual.fake.encoder\n", trace_bytes({}),
+                        trace_bytes(good) * 2,
+                        trace_bytes(good) + trace_bytes({"encoder_id": "other.encoder"}),
+                        trace_bytes({"encoder_id": "bad\0id"})):
             with self.assertRaises(evidence.Invalid):
-                observations.trace(trace_bytes(changed), spec())
-        good["hardware"] = "software"
-        parsed, _ = observations.trace(trace_bytes(good), spec())
-        with self.assertRaises(evidence.Invalid):
-            observations.effective(parsed, item, "hardware", 1000000)
-        with self.assertRaises(evidence.Invalid):
-            observations.trace(b"-require_sw 0\n", spec())
-        with self.assertRaises(evidence.Invalid):
-            observations.trace(b"observed-status=no_encoder\n", spec())
+                observations.trace(changed, spec())
+        refusal = trace_bytes({"status": "no_encoder", "submitted": 0})
+        self.assertEqual(observations.trace(refusal, spec(), failed=True)[0]["status"], "no_encoder")
+        for changed in (refusal, trace_bytes({"status": "no_encoder"}),
+                        trace_bytes({"status": "no_encoder", "submitted": 1}),
+                        refusal + trace_bytes(good)):
+            with self.assertRaises(evidence.Invalid):
+                observations.trace(changed, spec())
+        for changed in (trace_bytes({"status": "no_encoder"}),
+                        trace_bytes({"status": "no_encoder", "submitted": 1}), refusal + trace_bytes(good)):
+            with self.assertRaises(evidence.Invalid):
+                observations.trace(changed, spec(), failed=True)
 
     def test_exact_rational_clocks_and_complete_packet_coverage(self):
         item = producer.unit_item()
         good = b"".join(f"{n} 1/30 {n} 6\n".encode() for n in range(4))
-        producer.packet_clock(good, item)
-        producer.packet_clock(good.replace(b"1/30", b"1/29"), item)
+        producer.packet_ledger(good, item, 24)
+        producer.packet_ledger(good.replace(b"1/30", b"1/29"), item, 24)
         for changed in (good.replace(b"1/30", b"1/15"), good.replace(b"1 1/30 1", b"0 1/30 1"),
                         good.splitlines(keepends=True)[0], good + good[:13], good.replace(b"6", b"0")):
             with self.assertRaises(evidence.Invalid):
-                producer.packet_clock(changed, item)
+                producer.packet_ledger(changed, item, 24)
+        for changed in (good.replace(b"6", b"7"), good.replace(b"1/30 1", b"1/30 0")):
+            with self.assertRaises(evidence.Invalid):
+                producer.packet_ledger(changed, item, 24)
+        item["rate"] = {"num": 30000, "den": 1001}
+        item["source_tick"] = {"num": 1, "den": 90000}
+        fractional = b"".join(f"{n * 6006} 1/180000 {n * 6006} 6\n".encode() for n in range(4))
+        producer.packet_ledger(fractional, item, 24)
+        boundary = fractional.replace(b"6006 1/180000 6006", b"6007 1/180000 6007")
+        producer.packet_ledger(boundary, item, 24)
+        with self.assertRaises(evidence.Invalid):
+            producer.packet_ledger(boundary.replace(b"6007", b"6008"), item, 24)
 
 
 class RealEvidencePaths(unittest.TestCase):
+    def test_uncovered_2160_is_refused_before_media_or_identity_execution(self):
+        reg = registered()
+        item = {**producer.unit_item(), "class": 2160, "height": 1200}
+        with mock.patch.object(producer, "run") as media, \
+                mock.patch.object(observations, "run") as query:
+            with self.assertRaises(evidence.Invalid):
+                producer.decode(Path("missing"), item, Path("missing"), Path("missing"), Path("missing"), Path("missing"))
+            with self.assertRaises(evidence.Invalid):
+                observations.capture_identity(Path("missing"), reg, Path("missing"), spec(), 1, [], item, "hardware")
+            with self.assertRaises(evidence.Invalid):
+                producer.packet_ledger(b"", item, 0)
+            with self.assertRaises(evidence.Invalid):
+                producer.output_limits(item, "ffmpeg")
+        media.assert_not_called()
+        query.assert_not_called()
+
+    def test_baseline_capture_analysis_and_replay_bind_all_new_records(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, model = root / "source.yuv", root / "model.json"
+            source.write_bytes(smoke.source())
+            model.write_bytes(b'{"fake_model":true}')
+            reg, item = registered(), producer.unit_item()
+            for side, name in (("coreav", "decoder"), ("ffmpeg", "ffmpeg")):
+                (root / name).write_bytes(name.encode())
+                reg["executables"][side].update(file=name, sha256=evidence.file_hash(root / name))
+            reg["metric_tools"]["model"] = evidence.file_hash(model)
+            evidence.write(root / "registration.json", {})
+            evidence.write(root / "timing.json", {})
+            directory = root / "capture"
+            directory.mkdir()
+            fake = FakeCommands(item, smoke.source())
+            command = timing.commands(reg, {"raw_file": "unused", **item}, "hardware", root,
+                                      directory / "video.h264", directory / "packets.stats")["ffmpeg"]
+            command[command.index("-i") + 1] = str(directory / "source.yuv")
+            command[command.index("-b:v") + 1] = "2000000"
+            fake(command, directory, 120)
+            with mock.patch.object(observations, "host_observation", return_value=reg["host"]), \
+                    mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}), \
+                    mock.patch.object(observations, "run", side_effect=fake):
+                observations.capture_identity(directory, reg, root, spec(), time.time_ns(), command, item, "hardware")
+            for name in ("stdout", "stderr"):
+                (directory / name).unlink()
+            args = SimpleNamespace(oracle_bin=root, coreav_decoder=root / "decoder", model=model, resume=False,
+                                   registration=root / "registration.json", capture=root / "timing.json")
+            with mock.patch.object(producer, "run", side_effect=fake):
+                result = producer.analyse(directory, source, item, "hardware", "ffmpeg", reg, args, spec())
+            self.assertEqual(result["baseline"]["identity"]["encoder_id"], "actual.fake.encoder")
+            self.assertEqual(result["requested_settings"]["observation"], "unobserved")
+            self.assertEqual(sum(row["bytes"] for row in result["packet_ledger"]), len(VIDEO))
+            with mock.patch.object(producer, "run", side_effect=AssertionError("replay executed media")), \
+                    mock.patch.object(observations, "run", side_effect=AssertionError("replay queried identity")):
+                producer.verify_output(result, directory, source, item, "hardware", "ffmpeg", reg, spec(), args)
+            for mutate in (lambda r: r["baseline"]["identity"].update(hardware="unknown"),
+                           lambda r: r["baseline"]["query"].pop("host"),
+                           lambda r: r["requested_settings"].update(observation="observed"),
+                           lambda r: r["packet_ledger"][0].update(bytes=1),
+                           lambda r: (r["packet_ledger"][0].update(bytes=r["packet_ledger"][0]["bytes"] - 1),
+                                      r["packet_ledger"][1].update(bytes=r["packet_ledger"][1]["bytes"] + 1)),
+                           lambda r: r.update(packet_text=r["packet_text"].replace("1/30", "1/29")),
+                           lambda r: r["packet_ledger"][1].update(dts_value=0),
+                           lambda r: r["frames"][1].update(pts={"value": 0, "scale": 30})):
+                changed = copy.deepcopy(result)
+                mutate(changed)
+                with self.assertRaises(evidence.Invalid):
+                    judging.conformance(changed, item, "hardware", "ffmpeg", result["output_sha256"], reg)
+            for filename in observations.BASELINE_FILES:
+                original = (directory / filename).read_bytes()
+                (directory / filename).write_bytes(original + b" ")
+                with self.subTest(filename=filename), self.assertRaises(evidence.Invalid):
+                    producer.verify_output(result, directory, source, item, "hardware", "ffmpeg", reg, spec(), args)
+                (directory / filename).write_bytes(original)
+
     def test_resume_rebuilds_only_an_owned_incomplete_analysis_unit(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -384,6 +594,9 @@ class RealEvidencePaths(unittest.TestCase):
             SMALL = producer.SMALL
             with mock.patch.object(producer, "preflight", return_value=reg), \
                     mock.patch.object(timing, "host_state", return_value=observation()), \
+                    mock.patch.object(observations, "host_observation", return_value=reg["host"]), \
+                    mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}), \
+                    mock.patch.object(observations, "run", side_effect=fake), \
                     mock.patch.object(smoke, "capture", side_effect=native_capture), \
                     mock.patch.object(producer, "run", side_effect=fake):
                 producer.capture_preflights(args)
@@ -403,6 +616,9 @@ class RealEvidencePaths(unittest.TestCase):
             refused_args = SimpleNamespace(**{**vars(args), "output": root / "hosted-refusal"})
             with mock.patch.object(producer, "preflight", return_value=reg), \
                     mock.patch.object(timing, "host_state", return_value=observation()), \
+                    mock.patch.object(observations, "host_observation", return_value=reg["host"]), \
+                    mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}), \
+                    mock.patch.object(observations, "run", side_effect=fake), \
                     mock.patch.object(smoke, "capture", side_effect=native_capture), \
                     mock.patch.object(producer, "run", side_effect=fake), self.assertRaises(evidence.Invalid) as refused:
                 producer.capture_preflights(refused_args)
@@ -416,10 +632,13 @@ class RealEvidencePaths(unittest.TestCase):
             evidence.write(proof_path, value)
             with self.assertRaises(evidence.Invalid):
                 timing.availability_file(args.output / "availability.json", reg, root)
-            fake.drop_observation = "hardware"
+            fake.drop_observation = "encoder_id"
             args.output = root / "missing-observation"
             with mock.patch.object(producer, "preflight", return_value=reg), \
                     mock.patch.object(timing, "host_state", return_value=observation()), \
+                    mock.patch.object(observations, "host_observation", return_value=reg["host"]), \
+                    mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}), \
+                    mock.patch.object(observations, "run", side_effect=fake), \
                     mock.patch.object(smoke, "capture", side_effect=native_capture), \
                     mock.patch.object(producer, "run", side_effect=fake), self.assertRaises(evidence.Invalid):
                 producer.capture_preflights(args)
@@ -428,6 +647,71 @@ class RealEvidencePaths(unittest.TestCase):
             self.assertEqual(failure["diagnostic"], "ffmpeg_observability_missing")
             self.assertNotIn("/secret", (args.output / "failure.json").read_text())
             self.assertFalse(any(path.name == "stderr" for path in args.output.rglob("*")))
+
+
+class BaselineBuild(unittest.TestCase):
+    def test_prebuilt_identity_accepts_reviewed_gpl_configuration_and_rejects_mutations(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "scripts").mkdir()
+            reg = registered()
+            pin = {"MACOS_BUILD": "test-vendor", "MACOS_SIGNING_TEAM": "TESTTEAM"}
+            for name in ("ffmpeg", "ffprobe"):
+                pin.update({f"MACOS_{name.upper()}_URL": f"https://example.invalid/{name}.zip",
+                            f"MACOS_{name.upper()}_SHA256": h(f"zip-{name}"),
+                            f"MACOS_{name.upper()}_BINARY_SHA256": h(name)})
+            (root / "scripts/oracle-ffmpeg.env").write_text("VERSION=test\nBUILD=unrelated-linux-build\n")
+            (root / "scripts/oracle-ffmpeg-macos.env").write_text(
+                "".join(f"{key}={value}\n" for key, value in pin.items()))
+            configuration = ["--enable-gpl", "--enable-videotoolbox"]
+            configuration_hash = evidence.sha("\0".join(configuration).encode())
+            reg["executables"]["ffmpeg"]["configuration_sha256"] = configuration_hash
+            record = {"schema": "coreav.videotoolbox-ffmpeg-build/2", "version": "test",
+                      "macos_build": pin["MACOS_BUILD"],
+                      "macos_pin_sha256": evidence.file_hash(root / "scripts/oracle-ffmpeg-macos.env"),
+                      "binary_sha256": h("ffmpeg"), "ffprobe_file": "bin/ffprobe", "ffprobe_sha256": h("ffprobe"),
+                      "configuration": configuration, "configuration_sha256": configuration_hash,
+                      "encoder_help_sha256": h("help"),
+                      "release_review": {"role": "release-owner", "binary_sha256": h("ffmpeg")},
+                      "source_removed": True, "examples_removed": True, "source_acquired": False,
+                      "binary_redistributed": False, "observability": spec(),
+                      "architectures": {name: "arm64" for name in ("ffmpeg", "ffprobe")},
+                      "signatures": {name: {"verified": True, "strict": True, "anchor": "apple generic",
+                                            "team": pin["MACOS_SIGNING_TEAM"]} for name in ("ffmpeg", "ffprobe")},
+                      "acquisition": {"kind": "pinned-prebuilt-zip", **{
+                          name: {"url": pin[f"MACOS_{name.upper()}_URL"],
+                                 "archive_sha256": pin[f"MACOS_{name.upper()}_SHA256"],
+                                 "binary_sha256": pin[f"MACOS_{name.upper()}_BINARY_SHA256"]}
+                          for name in ("ffmpeg", "ffprobe")}}}
+            registration.baseline_build(record, reg, root)
+            mutations = [lambda r: r.update(schema="coreav.videotoolbox-ffmpeg-build/1"),
+                         lambda r: r.update(version="other"), lambda r: r.update(**{"macos_build": "other"}),
+                         lambda r: r.update(macos_pin_sha256=h("other")),
+                         lambda r: r.update(binary_sha256=h("other")),
+                         lambda r: r.update(ffprobe_sha256=h("other")),
+                         lambda r: r.update(ffprobe_file="other/ffprobe"),
+                         lambda r: r["configuration"].append("--different"),
+                         lambda r: r["release_review"].update(role="caller"),
+                         lambda r: r["release_review"].update(binary_sha256=h("other")),
+                         lambda r: r.update(source_removed=False), lambda r: r.update(examples_removed=False),
+                         lambda r: r.update(source_acquired=True), lambda r: r.update(binary_redistributed=True),
+                         lambda r: r["acquisition"]["ffmpeg"].update(url="https://example.invalid/other.zip"),
+                         lambda r: r["acquisition"]["ffprobe"].update(archive_sha256=h("other")),
+                         lambda r: r["acquisition"]["ffmpeg"].update(binary_sha256=h("other")),
+                         lambda r: r["architectures"].update(ffprobe="x86_64"),
+                         lambda r: r["signatures"]["ffmpeg"].update(team="OTHERTEAM"),
+                         lambda r: r["signatures"]["ffprobe"].update(verified=False),
+                         lambda r: r["signatures"]["ffmpeg"].update(strict=False),
+                         lambda r: r["observability"]["encoder_id"].update(prefix="requested-encoder="),
+                         lambda r: r.pop("observability"), lambda r: r.pop("release_review")]
+            for mutate in mutations:
+                changed = copy.deepcopy(record)
+                mutate(changed)
+                with self.assertRaises(evidence.Invalid):
+                    registration.baseline_build(changed, reg, root)
+            (root / "scripts/oracle-ffmpeg-macos.env").unlink()
+            with self.assertRaises(OSError):
+                registration.baseline_build(record, reg, root)
 
 
 class MetricDefinitions(unittest.TestCase):
@@ -450,8 +734,8 @@ class MetricDefinitions(unittest.TestCase):
         self.assertEqual(judging.deltas(perfect, actual)["psnr"], math.inf)
         self.assertEqual(judging.deltas(actual, perfect)["psnr"], -math.inf)
         with self.assertRaises(evidence.Invalid):
-            judging.quality({height: [judging.deltas(actual, perfect)] * 10 for height, _ in registration.CLASSES},
-                            [judging.deltas(perfect, perfect)])
+            judging.quality({height: [judging.deltas(actual, perfect)] * 10 for height in registration.COVERED_CLASSES},
+                            [judging.deltas(perfect, perfect)], reg)
 
     def test_raw_extent_is_bounded_above_sixteen_gibibytes(self):
         maximum = {"width": 3840, "height": 2160, "frames": 1800}
@@ -592,6 +876,7 @@ class GuardedEntry(unittest.TestCase):
                 cache.counters(prefix + body + "\n", (42116 if "42116" in body else 1307) * 4096, 4096)
 
     def test_identical_m1_specs_cannot_hide_a_different_observed_machine(self):
+        reg = registered()
         first, second = ("-".join(character * width for width in (8, 4, 4, 4, 12))
                          for character in "12")
         identifiers = [first]
@@ -606,7 +891,7 @@ class GuardedEntry(unittest.TestCase):
             elif argv[0].endswith("sysctl"):
                 path.write_text(values[argv[-1]])
             else:
-                path.write_text("15.7" if argv[-1] == "-productVersion" else "24G-test")
+                path.write_text(reg["host"]["os_version"] if argv[-1] == "-productVersion" else reg["host"]["os_build"])
             return 1
 
         with mock.patch.object(registration.sys, "platform", "darwin"), \
@@ -617,15 +902,30 @@ class GuardedEntry(unittest.TestCase):
         self.assertEqual({k: v for k, v in a.items() if k != "hardware_sha256"},
                          {k: v for k, v in b.items() if k != "hardware_sha256"})
         self.assertNotEqual(a["hardware_sha256"], b["hardware_sha256"])
-        reg = registered()
+        self.assertEqual({k: v for k, v in a.items() if k != "hardware_sha256"},
+                         {k: reg["host"][k] for k in a if k != "hardware_sha256"})
         reg["host"]["hardware_sha256"] = a["hardware_sha256"]
         with tempfile.TemporaryDirectory() as temporary, \
                 mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}, clear=True), \
                 mock.patch.object(registration.sys, "platform", "darwin"), \
                 mock.patch.object(registration, "source_registration", return_value=reg), \
                 mock.patch.object(registration, "host_observation", return_value=b), \
-                mock.patch.object(registration, "run") as command, self.assertRaises(evidence.Invalid):
+                mock.patch.object(registration, "file_hash", side_effect=AssertionError("post-host file check reached")) as binary, \
+                mock.patch.object(registration, "run") as command, \
+                self.assertRaisesRegex(evidence.Invalid, "^host_mismatch$"):
             registration.preflight(Path(temporary) / "registration.json", Path(temporary))
+        binary.assert_not_called()
+        command.assert_not_called()
+        with tempfile.TemporaryDirectory() as temporary, \
+                mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}, clear=True), \
+                mock.patch.object(registration.sys, "platform", "darwin"), \
+                mock.patch.object(registration, "source_registration", return_value=reg), \
+                mock.patch.object(registration, "host_observation", return_value=a), \
+                mock.patch.object(registration, "file_hash", side_effect=AssertionError("post-host file check reached")) as binary, \
+                mock.patch.object(registration, "run") as command, \
+                self.assertRaisesRegex(AssertionError, "^post-host file check reached$"):
+            registration.preflight(Path(temporary) / "registration.json", Path(temporary))
+        binary.assert_called_once()
         command.assert_not_called()
         with mock.patch.object(timing.sys, "platform", "darwin"), \
                 mock.patch.object(timing, "hardware_fingerprint", return_value=b["hardware_sha256"]), \
@@ -636,6 +936,25 @@ class GuardedEntry(unittest.TestCase):
         self.assertNotIn(first, encoded)
         self.assertNotIn(second, encoded)
         self.assertNotIn("private-serial-marker", encoded)
+
+    def test_fingerprint_regression_detects_neutralized_hardware_comparison(self):
+        original = registration.preflight
+
+        def neutralized(path, root):
+            reg = registration.source_registration(path, root)
+            observed = registration.host_observation()
+            with mock.patch.object(registration, "host_observation", return_value={
+                    **observed, "hardware_sha256": reg["host"]["hardware_sha256"]}):
+                return original(path, root)
+
+        case = type(self)("test_identical_m1_specs_cannot_hide_a_different_observed_machine")
+        result = unittest.TestResult()
+        with mock.patch.object(registration, "preflight", side_effect=neutralized):
+            case.run(result)
+        self.assertEqual(result.testsRun, 1)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(len(result.failures), 1)
+        self.assertIn("post-host file check reached", result.failures[0][1])
 
     def test_ci_cannot_open_judged_references_or_launch_analysis_commands(self):
         for event in ("pull_request", "pull_request_target", "merge_group", "workflow_dispatch"):

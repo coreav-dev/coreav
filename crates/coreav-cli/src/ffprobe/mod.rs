@@ -10,6 +10,7 @@
 //! writer the command chose.
 
 pub mod args;
+pub(crate) mod audio;
 mod frames;
 mod iso;
 mod iso_meta;
@@ -18,6 +19,7 @@ mod metadata;
 mod mkv;
 pub mod model;
 mod names;
+pub mod summary;
 mod ts;
 pub(crate) mod video;
 pub mod writer;
@@ -169,6 +171,11 @@ pub struct Packet {
 
 /// The packets of a file, read one at a time.
 pub trait PacketSource {
+    /// Whether this source implements packet and frame inspection.
+    fn supports_listing(&self) -> bool {
+        true
+    }
+
     /// Calls `f` with every packet in the order `ffprobe` lists them,
     /// until it returns `Ok(false)` or the packets end; with each packet's
     /// bytes when its stream's `payloads` entry is true, as a decoder takes them.
@@ -182,17 +189,33 @@ pub trait PacketSource {
 #[cfg(test)]
 mod frames_tests;
 
+/// Format timing values that may differ only at the output boundary.
+#[derive(Clone, Debug)]
+pub struct FormatTiming {
+    start: Value,
+    duration: Value,
+    bit_rate: Value,
+}
+
 /// Everything but the packets.
 #[derive(Clone, Debug, Default)]
 pub struct Report {
+    /// Admission of the separate diagnostic input summary.
+    pub summary: SummaryEvidence,
+    /// The origin of each stream's reported aspect ratio.
+    pub summary_aspects: Vec<SummaryAspect>,
     /// The streams, in index order.
     pub streams: Vec<Stream>,
     /// Each stream's time base, for the packets' times.
     pub time_bases: Vec<(i64, i64)>,
     /// The format's entries.
     pub format: Entries,
+    /// ISO format timing for output only, separate from stream-copy planning.
+    pub iso_format_output: Option<FormatTiming>,
     /// The format's tags.
     pub format_tags: Vec<(String, String)>,
+    /// Whether complete ISO metadata establishes supported names, absent otherwise.
+    pub iso_names_supported: Option<bool>,
     /// The chapters.
     pub chapters: Vec<Chapter>,
     /// The programs.
@@ -204,6 +227,38 @@ pub struct Report {
     /// picture starts in the file, as `RemuxOptions::left_out_covers`
     /// names it.
     pub covers: Vec<(usize, u64)>,
+    /// ISO clean aperture is present or a visual child layout is incomplete.
+    pub iso_clean_aperture: bool,
+}
+
+/// Whether the native analysis retained the facts an input summary needs.
+#[derive(Clone, Debug, Default)]
+pub enum SummaryEvidence {
+    /// This report producer has not qualified input summaries.
+    #[default]
+    Unverified,
+    /// Some summary-visible information was not retained.
+    Unsupported(&'static str),
+    /// Metadata and timing were retained without a best-effort omission.
+    Complete {
+        /// The input start in microseconds, absent when unknown.
+        start: Option<i64>,
+        /// The input duration in microseconds, absent when unknown.
+        duration: Option<i64>,
+    },
+}
+
+/// The source of an aspect ratio in the input diagnostic.
+#[derive(Clone, Copy, Debug, Default)]
+pub enum SummaryAspect {
+    /// The diagnostic provenance was not retained.
+    #[default]
+    Unverified,
+    /// The codec-description ratio is known, independently of the stream ratio.
+    Complete {
+        /// The codec-description sample aspect ratio, absent when unspecified.
+        codec: Option<(u32, u32)>,
+    },
 }
 
 /// A probed file: its report and what lists its packets.
@@ -242,7 +297,45 @@ pub fn probe_limited<'a, S: Source + 'a>(
     force: Option<args::Container>,
     limits: &coreav_isobmff::Limits,
 ) -> Result<Probed<'a>, Failure> {
+    probe_with_purpose(source, size, name, force, limits, Purpose::Structured)
+}
+
+/// Probes and qualifies a complete input summary, including audio payload
+/// validation where header facts alone cannot establish diagnostic timing.
+pub fn probe_summary<'a, S: Source + 'a>(
+    source: &'a mut S,
+    size: u64,
+    name: &str,
+    force: Option<args::Container>,
+) -> Result<Probed<'a>, Failure> {
+    probe_with_purpose(
+        source,
+        size,
+        name,
+        force,
+        &coreav_isobmff::Limits::default(),
+        Purpose::Summary,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Purpose {
+    Structured,
+    Summary,
+}
+
+fn probe_with_purpose<'a, S: Source + 'a>(
+    source: &'a mut S,
+    size: u64,
+    name: &str,
+    force: Option<args::Container>,
+    limits: &coreav_isobmff::Limits,
+    purpose: Purpose,
+) -> Result<Probed<'a>, Failure> {
     let mut buffered = coreav_isobmff::BufferedSource::new(source);
+    if let Some(probed) = audio::probe(&mut buffered, size, name, force, limits, purpose)? {
+        return Ok(probed);
+    }
     let matroska = crate::matroska::detect_source(&mut buffered)?;
     let wanted = |c: args::Container| force.is_none_or(|f| f == c);
     if matroska {
@@ -272,7 +365,7 @@ pub fn probe_limited<'a, S: Source + 'a>(
                             config: description
                                 .codec_config
                                 .as_ref()
-                                .filter(|c| matches!(&c.kind.0, b"avcC" | b"dfLa"))
+                                .filter(|c| matches!(&c.kind.0, b"avcC" | b"dfLa" | b"dOps"))
                                 .map(|c| c.data.clone()),
                             width: description.width.map(u32::from),
                             height: description.height.map(u32::from),
@@ -398,8 +491,45 @@ pub fn emit(
     probed: &mut Probed<'_>,
     out: &mut dyn Write,
 ) -> Result<(), Failure> {
+    if probed.report.iso_names_supported == Some(false)
+        && [Sid::StreamTags, Sid::FormatTags].into_iter().any(|sid| {
+            options.selection.shown(sid) && options.selection.entry_ignoring_case(sid, "name")
+        })
+    {
+        return Err(Failure::Unsupported(
+            "names require complete ISO metadata and supported text encoding".to_owned(),
+        ));
+    }
+    if !probed.packets.supports_listing()
+        && (options.selection.shown(Sid::Packets)
+            || options.selection.shown(Sid::Frames)
+            || options.count_packets
+            || options.count_frames
+            || !options.read_intervals.is_empty())
+    {
+        return Err(Failure::Unsupported(
+            "standalone audio packet and frame inspection is not supported".to_owned(),
+        ));
+    }
     let sel = &options.selection;
     let report = &probed.report;
+    if sel.shown(Sid::Format)
+        && sel.entry(Sid::Format, "nb_stream_groups")
+        && report
+            .format
+            .iter()
+            .any(|(key, value)| *key == "nb_stream_groups" && matches!(value, Value::Na))
+    {
+        return Err(Failure::Unsupported(
+            "stream-group count is not supported with incomplete ISO metadata".to_owned(),
+        ));
+    }
+    if report.iso_clean_aperture {
+        return Err(Failure::Unsupported(
+            "ISO clean-aperture metadata or an incomplete visual layout is not supported"
+                .to_owned(),
+        ));
+    }
     let mut w = Writer::new(options.writer.clone(), options.style);
     let mut buf: Vec<u8> = Vec::with_capacity(1 << 16);
     let flush = |buf: &mut Vec<u8>, out: &mut dyn Write| -> Result<(), Failure> {
@@ -586,7 +716,18 @@ pub fn emit(
     }
     if sel.shown(Sid::Format) {
         w.header(&mut buf, Sid::Format, None);
-        entries(&mut w, &mut buf, sel, Sid::Format, &report.format);
+        let mut format = std::borrow::Cow::Borrowed(&report.format);
+        if let Some(timing) = &report.iso_format_output {
+            for (key, value) in format.to_mut() {
+                *value = match *key {
+                    "start_time" => timing.start.clone(),
+                    "duration" => timing.duration.clone(),
+                    "bit_rate" => timing.bit_rate.clone(),
+                    _ => continue,
+                };
+            }
+        }
+        entries(&mut w, &mut buf, sel, Sid::Format, &format);
         tags(&mut w, &mut buf, sel, Sid::FormatTags, &report.format_tags);
         w.footer(&mut buf);
     }
@@ -818,8 +959,7 @@ pub const USAGE: &str = "\
 usage: coreav ffprobe [OPTIONS] INPUT
 
 Experimental: values can differ from ffprobe's for MP4/MOV, Matroska/WebM
-and MPEG-TS. docs/measurements/compat-ffprobe.md has the agreement of
-every key.
+and MPEG-TS. See https://coreav.dev/docs/commands/ffprobe for field agreement.
 
 The common ffprobe invocations, over CoreAV's own probes. Options:
   -show_format -show_streams -show_chapters -show_programs -show_packets
@@ -828,7 +968,11 @@ The common ffprobe invocations, over CoreAV's own probes. Options:
   -select_streams SPEC -read_intervals INTERVALS -f FORMAT
   -of|-print_format default|compact|csv|flat|json[=OPTIONS]
   -pretty -sexagesimal -v LEVEL -loglevel LEVEL -hide_banner -nostdin
-Reads MP4, MOV, Matroska, WebM and MPEG-TS files and HTTP(S) URLs.
+  -show_private_data -probesize 5000000 -analyzeduration 0 -threads 1
+Reads MP4, MOV, Matroska, WebM, MPEG-TS, PCM WAVE and native FLAC
+files. Builds with networking also read HTTP(S) URLs. Standalone WAVE
+and FLAC support format and stream sections; packet and frame
+inspection uses the fallback.
 Frames are decoded for MP3, FLAC and PCM, and for H.264 in a build
 with CoreAV's H.264 decoder; other codecs' frames are refused.
 
@@ -837,5 +981,5 @@ refused (exit status 4). Without it, anything else runs the ffprobe
 program on PATH instead (or the one COREAV_FALLBACK names), which is
 FFmpeg's C code, and says so on standard error. Help on a topic
 (-h long, -h full, -h demuxer=NAME, ...) is handled the same way.
-See docs/design/compat-cli.md.
+Documentation: https://coreav.dev/docs/commands/ffprobe
 ";

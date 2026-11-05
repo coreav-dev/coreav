@@ -16,15 +16,17 @@ from process import run
 ROOT = Path(__file__).resolve().parents[3]
 PLAN = "scripts/encoders/macos/videotoolbox-plan.md"
 CLASSES = ((360, 1000000), (720, 3000000), (1080, 6000000), (2160, 20000000))
+COVERED_CLASSES = (360, 720, 1080)
+SCOPE = "prepared-raw-i420-encoder-only"
 COLOUR = {"primaries": "bt709", "transfer": "bt709", "matrix": "bt709", "range": "limited"}
 SETTINGS = {"profile": "high", "reordering": False, "keyframe_seconds": 2,
             "cadence_hint": "nearest_whole_fps_ties_up",
             "pixel_format": "yuv420p", "warmups": 1, "pairs": 5,
             "bootstrap_resamples": 10000, "bootstrap_seed": 0,
             "output_storage": "ram", "input_cache": "warm"}
-HOST = {"profile": "ENC-MAC-1", "provider": "scaleway", "type": "M1-M",
+HOST = {"profile": "ENC-MAC-1", "provider": "private-reference", "type": "M1-M",
         "model": "Macmini9,1", "cpu": "Apple M1", "cores": 8, "memory": 8589934592,
-        "os_version": "15.7", "virtual": False, "dedicated": True}
+        "os_version": "15.8.2", "virtual": False, "dedicated": True}
 
 
 def clock(value):
@@ -42,10 +44,63 @@ def revision(value):
     require(type(value) is str and re.fullmatch(r"[0-9a-f]{40}", value), "revision")
 
 
+def coverage(value):
+    require(type(value) is dict and "covered_classes" in value and "uncovered_classes" in value,
+            "class_coverage")
+    covered = value["covered_classes"]
+    require(type(covered) is list and covered == list(COVERED_CLASSES) and
+            all(type(height) is int for height in covered), "class_coverage")
+    uncovered = value["uncovered_classes"]
+    require(type(uncovered) is list and len(uncovered) == 1, "class_coverage")
+    entry = uncovered[0]
+    keys(entry, "class reason verified_inputs required_inputs failure_ledger")
+    require(type(entry["class"]) is int and entry["class"] == 2160 and
+            entry["reason"] == "insufficient_verified_fixed_pool_inputs" and
+            type(entry["verified_inputs"]) is int and entry["verified_inputs"] == 1 and
+            type(entry["required_inputs"]) is int and entry["required_inputs"] == 10,
+            "class_coverage")
+    keys(entry["failure_ledger"], "file sha256 review_commit")
+    relative(entry["failure_ledger"]["file"])
+    digest(entry["failure_ledger"]["sha256"])
+    revision(entry["failure_ledger"]["review_commit"])
+    return {"covered_classes": covered, "uncovered_classes": uncovered}
+
+
+def covered_class(item):
+    require(type(item) is dict and "class" in item and "width" in item and "height" in item,
+            "height_class")
+    integer(item["width"], 2, 3840)
+    integer(item["height"], 2, 2160)
+    require(item["width"] % 2 == item["height"] % 2 == 0, "geometry")
+    height = next(bound for bound, _ in CLASSES if item["height"] <= bound)
+    require(type(item["class"]) is int and item["class"] == height and height in COVERED_CLASSES,
+            "uncovered_class")
+    return height
+
+
+def roster_coverage(value):
+    declaration = coverage(value)
+    require(type(value.get("inputs")) is list and len(value["inputs"]) == 30, "roster")
+    counts = {height: 0 for height in COVERED_CLASSES}
+    seen = set()
+    for item in value["inputs"]:
+        height = covered_class(item)
+        digest(item.get("id"))
+        require(item["id"] not in seen, "roster_identity")
+        seen.add(item["id"])
+        counts[height] += 1
+    require(all(count == 10 for count in counts.values()), "class_coverage")
+    return declaration
+
+
 def validate(value):
     keys(value, "schema candidate tooling plan_sha256 tools host executables baseline_build coreav_builds "
-         "settings environment cells inputs fixtures metric_tools session_id command_controls commands eligibility cache_observer")
-    require(value["schema"] == "coreav.videotoolbox-registration/1", "schema")
+         "settings environment cells inputs fixtures metric_tools session_id command_controls commands eligibility cache_observer "
+         "covered_classes uncovered_classes source_freeze")
+    require(value["schema"] == "coreav.videotoolbox-registration/2", "schema")
+    roster_coverage(value)
+    from source_freeze import reference
+    reference(value["source_freeze"], reviewed=True)
     revision(value["candidate"])
     revision(value["tooling"])
     from cache_residency import declaration
@@ -97,9 +152,7 @@ def validate(value):
         require(type(arguments) is list and all(type(arg) is str for arg in arguments), "controls")
         require(arguments == ["-profile:v", "high", "-bf", "0", "-allow_sw", "1" if cell == "software" else "0",
                               "-require_sw", "1" if cell == "software" else "0"], "controls")
-    require(type(value["inputs"]) is list and len(value["inputs"]) == 40, "roster")
     seen = set()
-    counts = {height: 0 for height, _ in CLASSES}
     ordering = []
     for item in value["inputs"]:
         keys(item, "id class source_sha256 raw_file raw_sha256 stream width height frames rate "
@@ -111,12 +164,7 @@ def validate(value):
         relative(item["raw_file"])
         digest(item["raw_sha256"])
         integer(item["stream"], 0, 1024)
-        integer(item["width"], 2, 3840)
-        integer(item["height"], 2, 2160)
-        require(item["width"] % 2 == item["height"] % 2 == 0, "geometry")
-        height = next(bound for bound, _ in CLASSES if item["height"] <= bound)
-        require(type(item["class"]) is int and item["class"] == height, "height_class")
-        counts[height] += 1
+        height = covered_class(item)
         frames = integer(item["frames"], 240, 1800)
         rate = clock(item["rate"])
         require(8 <= Fraction(frames, 1) / rate <= 30, "duration")
@@ -130,18 +178,14 @@ def validate(value):
         require(item["audio_start_ticks"] is None or
                 type(item["audio_start_ticks"]) is int, "audio_clock")
         ordering.append((height, sha(("coreav-encoders-v1:" + item["source_sha256"]).encode())))
-    require(set(counts.values()) == {10} and ordering == sorted(ordering), "roster_order")
+    require(ordering == sorted(ordering), "roster_order")
     require(type(value["fixtures"]) is dict and value["fixtures"], "fixtures")
     for fixture, item in value["fixtures"].items():
         token(fixture)
         keys(item, "id class width height frames rate colour raw_file raw_sha256 source_frame_sha256 source_tick")
         require(item["id"] == fixture, "fixture_identity")
-        integer(item["width"], 2, 3840)
-        integer(item["height"], 2, 2160)
+        covered_class(item)
         integer(item["frames"], 1, 1800)
-        require(item["width"] % 2 == item["height"] % 2 == 0 and
-                item["class"] == next(bound for bound, _ in CLASSES if item["height"] <= bound),
-                "fixture_geometry")
         clock(item["rate"])
         clock(item["source_tick"])
         require(item["colour"] == COLOUR and type(item["source_frame_sha256"]) is list and
@@ -157,42 +201,6 @@ def validate(value):
     for cell in ("hardware", "software"):
         require(value["commands"][cell] == command_templates(value, cell), "commands")
     return value
-
-
-def eligible_roster(value, registration):
-    keys(value, "schema candidates")
-    require(value["schema"] == "coreav.videotoolbox-eligibility/1" and
-            type(value["candidates"]) is list and value["candidates"], "eligibility")
-    candidates = {bound: [] for bound, _ in CLASSES}
-    seen = set()
-    for item in value["candidates"]:
-        keys(item, "sha256 width height frames rate pixel_format sdr partition")
-        digest(item["sha256"])
-        require(item["sha256"] not in seen, "eligibility_duplicate")
-        seen.add(item["sha256"])
-        integer(item["width"], 1, 65536)
-        integer(item["height"], 1, 65536)
-        integer(item["frames"], 1, 2**31 - 1)
-        rate = clock(item["rate"])
-        require(type(item["sdr"]) is bool and item["partition"] in ("held_out", "training"), "eligibility")
-        require(type(item["pixel_format"]) is str, "eligibility")
-        if (item["partition"] != "held_out" or not item["sdr"] or item["pixel_format"] != "yuv420p" or
-                not 240 <= item["frames"] <= 1800 or not 8 <= Fraction(item["frames"], 1) / rate <= 30 or
-                item["width"] > 3840 or item["height"] > 2160 or
-                item["width"] % 2 or item["height"] % 2):
-            continue
-        height = next(bound for bound, _ in CLASSES if item["height"] <= bound)
-        candidates[height].append(item)
-    expected = []
-    for height, _ in CLASSES:
-        require(len(candidates[height]) >= 10, "eligibility_incomplete")
-        expected.extend(sorted(candidates[height], key=lambda row:
-                               sha(("coreav-encoders-v1:" + row["sha256"]).encode()))[:10])
-    require([item["sha256"] for item in expected] == [item["id"] for item in registration["inputs"]],
-            "eligibility_selection")
-    for candidate, selected in zip(expected, registration["inputs"]):
-        require(all(candidate[k] == selected[k] for k in ("width", "height", "frames", "rate")),
-                "eligibility_metadata")
 
 
 def command_templates(registration, cell):
@@ -287,19 +295,8 @@ def source_registration(registration_path, root=ROOT):
                    *(record["review_commit"] for record in registration["coreav_builds"].values())):
         git(root, "merge-base", "--is-ancestor", commit, main)
     require(file_hash(root / PLAN) == registration["plan_sha256"], "plan_changed")
-    selection = registration["eligibility"]
-    committed(root, selection["file"], selection["cutoff_commit"])
-    require(file_hash(root / selection["file"]) == selection["sha256"], "eligibility_changed")
-    eligible_roster(load(root / selection["file"], 16 * 1024**2), registration)
-    tool_paths = {name for name in git(root, "ls-files", "scripts/encoders/macos").decode().splitlines()
-                  if name.endswith(".py") or name == PLAN}
-    tool_paths |= {"scripts/oracle-ffmpeg.env", "scripts/oracle_pin.py", "scripts/rust-dist.env",
-                   "scripts/install-oracle-ffmpeg.sh", "docs/design/encoders.md",
-                   "docs/design/encoders/macos.md"}
-    require(set(registration["tools"]) == tool_paths, "tool_coverage")
-    for name, expected in registration["tools"].items():
-        require(file_hash(root / name, root=root) == expected, "tool_changed")
-        committed(root, name, registration["tooling"])
+    from source_freeze import verify_seal
+    verify_seal(registration, root)
     build = registration["baseline_build"]
     committed(root, build["file"], build["review_commit"])
     require(file_hash(root / build["file"]) == build["sha256"], "build_changed")
@@ -363,10 +360,15 @@ def preflight(registration_path, root=ROOT):
     build_record = load(root / registration["baseline_build"]["file"])
     with tempfile.TemporaryDirectory() as temporary:
         binary = root / registration["executables"]["ffmpeg"]["file"]
+        require((binary.parent / "ffprobe").resolve(strict=True) ==
+                (root / build_record["ffprobe_file"]).resolve(strict=True), "baseline_probe_changed")
+        run([sys.executable, str(root / "scripts/oracle_pin_macos.py"), "--root", str(root),
+             "--verify-bin", str(binary.parent)], temporary, 60, stdout="pin", stderr="pin-error")
+        require(not read(temporary, "pin-error", 65536), "baseline_pin")
         run([str(binary), "-version"], temporary, 10, stdout="version", stderr="version-error")
         version = read(temporary, "version", 65536).decode().splitlines()
-        require(version and re.match(r"ffmpeg version n?" + re.escape(build_record["version"]) +
-                                     r"(?:\s|[-.])", version[0]), "baseline_version")
+        require(version and version[0].split()[:3] == ["ffmpeg", "version", build_record["macos_build"]],
+                "baseline_version")
         configuration = [line.removeprefix("configuration: ") for line in version
                          if line.startswith("configuration: ")]
         require(len(configuration) == 1 and shlex.split(configuration[0]) ==
@@ -380,21 +382,47 @@ def preflight(registration_path, root=ROOT):
 
 def baseline_build(value, registration, root):
     require(type(value) is dict and "observability" in value, "ffmpeg_observability_missing")
-    keys(value, "schema version source_build source_pin_sha256 binary_sha256 ffprobe_sha256 configuration configuration_sha256 "
-         "encoder_help_sha256 release_review source_removed examples_removed observability")
-    require(value["schema"] == "coreav.videotoolbox-ffmpeg-build/1", "build_schema")
-    pin = {}
-    for line in read(root, "scripts/oracle-ffmpeg.env", 32768).decode().splitlines():
-        if line and not line.startswith("#"):
-            key, entry = line.split("=", 1)
-            pin[key] = entry
-    require(value["version"] == pin["VERSION"] and value["source_build"] == pin["BUILD"] and value["source_pin_sha256"] ==
-            file_hash(root / "scripts/oracle-ffmpeg.env"), "baseline_pin")
-    require(value["binary_sha256"] == registration["executables"]["ffmpeg"]["sha256"], "baseline_binary")
+    keys(value, "schema version macos_build macos_pin_sha256 binary_sha256 ffprobe_file ffprobe_sha256 "
+         "configuration configuration_sha256 encoder_help_sha256 release_review source_removed examples_removed "
+         "source_acquired binary_redistributed acquisition architectures signatures observability")
+    require(value["schema"] == "coreav.videotoolbox-ffmpeg-build/2", "build_schema")
+    pins = []
+    for name in ("scripts/oracle-ffmpeg.env", "scripts/oracle-ffmpeg-macos.env"):
+        pin = {}
+        for line in read(root, name, 32768).decode().splitlines():
+            if line and not line.startswith("#"):
+                match = re.fullmatch(r"([A-Z][A-Z0-9_]*)=(\S+)", line)
+                require(match is not None and match[1] not in pin, "baseline_pin")
+                pin[match[1]] = match[2]
+        pins.append(pin)
+    linux, pin = pins
+    require(value["version"] == linux["VERSION"] == pin["MACOS_BUILD"].split("-", 1)[0] and
+            value["macos_build"] == pin["MACOS_BUILD"] and value["macos_pin_sha256"] ==
+            file_hash(root / "scripts/oracle-ffmpeg-macos.env"), "baseline_pin")
+    require(value["binary_sha256"] == registration["executables"]["ffmpeg"]["sha256"] ==
+            pin["MACOS_FFMPEG_BINARY_SHA256"] and value["ffprobe_sha256"] == pin["MACOS_FFPROBE_BINARY_SHA256"],
+            "baseline_binary")
+    relative(value["ffprobe_file"])
+    require(Path(value["ffprobe_file"]).name == "ffprobe" and Path(value["ffprobe_file"]).parent ==
+            Path(registration["executables"]["ffmpeg"]["file"]).parent, "baseline_binary")
+    keys(value["acquisition"], "kind ffmpeg ffprobe")
+    require(value["acquisition"]["kind"] == "pinned-prebuilt-zip", "baseline_acquisition")
+    keys(value["architectures"], "ffmpeg ffprobe")
+    keys(value["signatures"], "ffmpeg ffprobe")
+    for name in ("ffmpeg", "ffprobe"):
+        entry = value["acquisition"][name]
+        keys(entry, "url archive_sha256 binary_sha256")
+        require(entry == {"url": pin[f"MACOS_{name.upper()}_URL"],
+                          "archive_sha256": pin[f"MACOS_{name.upper()}_SHA256"],
+                          "binary_sha256": pin[f"MACOS_{name.upper()}_BINARY_SHA256"]}, "baseline_acquisition")
+        require(value["architectures"][name] == "arm64", "baseline_architecture")
+        signature = value["signatures"][name]
+        keys(signature, "verified strict anchor team")
+        require(signature["verified"] is True and signature["strict"] is True and
+                signature["anchor"] == "apple generic" and signature["team"] == pin["MACOS_SIGNING_TEAM"],
+                "baseline_signature")
     require(type(value["configuration"]) is list and
-            all(type(arg) is str for arg in value["configuration"]) and
-            "--disable-doc" in value["configuration"] and
-            "--enable-gpl" not in value["configuration"], "baseline_configuration")
+            value["configuration"] and all(type(arg) is str for arg in value["configuration"]), "baseline_configuration")
     require(value["configuration_sha256"] == sha("\0".join(value["configuration"]).encode()) ==
             registration["executables"]["ffmpeg"]["configuration_sha256"], "baseline_configuration")
     digest(value["encoder_help_sha256"])
@@ -403,7 +431,8 @@ def baseline_build(value, registration, root):
     require(value["release_review"]["role"] == "release-owner" and
             value["release_review"]["binary_sha256"] == value["binary_sha256"],
             "baseline_review")
-    require(value["source_removed"] is True and value["examples_removed"] is True, "baseline_source")
+    require(value["source_removed"] is True and value["examples_removed"] is True and
+            value["source_acquired"] is False and value["binary_redistributed"] is False, "baseline_source")
     from observations import specification
     specification(value["observability"])
 
@@ -415,7 +444,9 @@ def raw_size(item):
 
 
 def input_hashes(root, registration, fixtures=False):
+    roster_coverage(registration)
     for item in (list(registration["fixtures"].values()) if fixtures else registration["inputs"]):
+        covered_class(item)
         path = Path(root) / item["raw_file"]
         size = item["width"] * item["height"] * 3 // 2
         require(path.stat().st_size == size * item["frames"] and

@@ -48,6 +48,8 @@ pub struct Metadata {
     pub file_types: Vec<FileType>,
     /// The movie header's creation time (`mvhd`).
     pub movie_created: Option<Timestamp>,
+    /// Number of metadata items read before the movie header.
+    pub movie_header_item_position: usize,
     /// One entry per track box (`trak`) of the movie box, in file order: the
     /// position is the stream index probe gives the track
     /// ([`crate::Track::stream_index`]).
@@ -120,6 +122,8 @@ pub struct TrackMetadata {
     pub flags: Option<u32>,
     /// The media header's creation time (`mdhd`).
     pub media_created: Option<Timestamp>,
+    /// Number of metadata items read before this track's media box.
+    pub media_item_position: usize,
     /// The media header's language as stored: a packed ISO 639-2/T code
     /// (ISO/IEC 14496-12) or a Macintosh language code below 0x400
     /// (QuickTime).
@@ -482,6 +486,7 @@ impl<S: Source> Reader<'_, S> {
         for child in self.children(moov.payload_offset(), moov.end())? {
             match &child.kind.0 {
                 b"mvhd" => {
+                    out.movie_header_item_position = out.items.len();
                     if let Some(head) = self.head(&child, HEADER_HEAD)? {
                         out.movie_created = created(&head);
                     }
@@ -570,7 +575,11 @@ impl<S: Source> Reader<'_, S> {
                         }
                     }
                 }
-                b"mdia" => self.media(&child, &mut track)?,
+                b"tref" => self.complete = false,
+                b"mdia" => {
+                    track.media_item_position = items.len();
+                    self.media(&child, &mut track)?;
+                }
                 b"udta" => {
                     self.user_data(&child, Some(index), items, &mut track.kinds)?;
                 }
@@ -1403,6 +1412,18 @@ mod tests {
         assert_eq!(decoder_specific_info(&without), None);
         for len in 0..esds.len() {
             let _ = decoder_specific_info(&esds[..len]);
+        }
+    }
+
+    #[test]
+    fn an_oversized_reference_marks_metadata_incomplete() {
+        for (count, complete) in [(1022, true), (1023, false)] {
+            let ids = 2u32.to_be_bytes().repeat(count);
+            let tref = boxed(b"tref", &boxed(b"tmcd", &ids));
+            let bytes = boxed(b"moov", &boxed(b"trak", &tref));
+            let meta = read(SliceSource::new(&bytes), &Limits::default()).unwrap();
+            assert_eq!(meta.complete, complete, "{count}");
+            assert_eq!(meta.tracks[0].references.len(), usize::from(complete));
         }
     }
 

@@ -142,3 +142,125 @@ fn every_value_a_sample_holds_filters_without_overflow() {
         }
     }
 }
+
+fn literal_wide<P: Pixel>(edge: &mut Edge<'_, P>, log2_size: u32, depth: BitDepth) {
+    let n = (1isize << (log2_size - 1)) - 1;
+    let mut result = [0i32; 16];
+    for (k, i) in (-n..n).enumerate() {
+        let mut sum = edge.get(i);
+        for j in -n..=n {
+            sum += edge.get((i + j).clamp(-(n + 1), n));
+        }
+        result[k] = ((i64::from(sum) + (1 << (log2_size - 1))) >> log2_size) as i32;
+    }
+    for (k, i) in (-n..n).enumerate() {
+        edge.set(i, result[k], depth);
+    }
+}
+
+#[test]
+fn sliding_wide_sums_equal_the_literal_formula_in_both_orientations() {
+    fn check<P: Pixel>(samples: Vec<P>, step: usize, size: FilterSize, log2: u32, depth: BitDepth) {
+        let mut actual = samples.clone();
+        let mut expected = samples;
+        wide(
+            &mut Edge::new(&mut actual, 8 * step + 1, step, size).unwrap(),
+            log2,
+            depth,
+        );
+        literal_wide(
+            &mut Edge::new(&mut expected, 8 * step + 1, step, size).unwrap(),
+            log2,
+            depth,
+        );
+        assert_eq!(actual, expected, "{step} {size:?} {depth:?}");
+    }
+    let mut seed = 0x7c33_1e29u32;
+    for depth in [BitDepth::Eight, BitDepth::Ten, BitDepth::Twelve] {
+        for step in [1, 19] {
+            for (size, log2) in [(FilterSize::Eight, 3), (FilterSize::Sixteen, 4)] {
+                for pattern in 0..256 {
+                    let samples: Vec<u16> = (0..16 * step + 2)
+                        .map(|i| {
+                            seed ^= seed << 13;
+                            seed ^= seed >> 17;
+                            seed ^= seed << 5;
+                            match pattern % 8 {
+                                0 => 0,
+                                1 => u16::MAX,
+                                2 => {
+                                    if i & 1 == 0 {
+                                        0
+                                    } else {
+                                        u16::MAX
+                                    }
+                                }
+                                3 => (1 << depth.bits()) - 1,
+                                4 => 100 + (i % 3) as u16,
+                                _ => seed as u16,
+                            }
+                        })
+                        .collect();
+                    check(
+                        samples.iter().map(|&v| v as u8).collect(),
+                        step,
+                        size,
+                        log2,
+                        depth,
+                    );
+                    check(samples, step, size, log2, depth);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn every_strength_and_size_preserves_filter_results_across_orientations() {
+    fn check<P: Pixel>(depth: BitDepth) {
+        let background = P::clip(183, depth);
+        for level in 1..=63 {
+            for sharpness in 0..=7 {
+                for size in [FilterSize::Four, FilterSize::Eight, FilterSize::Sixteen] {
+                    for pattern in 0..4 {
+                        let input: [P; 16] = core::array::from_fn(|i| {
+                            let value = match pattern {
+                                0 => 100 + if i < 8 { 0 } else { 2 },
+                                1 => 100 + i as i64 % 4,
+                                2 => {
+                                    if i & 1 == 0 {
+                                        0
+                                    } else {
+                                        (1 << depth.bits()) - 1
+                                    }
+                                }
+                                _ => (1 << depth.bits()) - 1,
+                            };
+                            P::clip(value, depth)
+                        });
+                        let mut row = input;
+                        let mut column = vec![background; 16 * 19];
+                        for (i, &sample) in input.iter().enumerate() {
+                            column[i * 19 + 1] = sample;
+                        }
+                        let strength = Strength::new(level, sharpness).unwrap();
+                        filter_edge(Edge::new(&mut row, 8, 1, size).unwrap(), strength, depth);
+                        filter_edge(
+                            Edge::new(&mut column, 8 * 19 + 1, 19, size).unwrap(),
+                            strength,
+                            depth,
+                        );
+                        for (i, &sample) in column.iter().enumerate() {
+                            let expected = if i % 19 == 1 { row[i / 19] } else { background };
+                            assert_eq!(sample, expected, "{level}/{sharpness} {size:?} {depth:?}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for depth in [BitDepth::Eight, BitDepth::Ten, BitDepth::Twelve] {
+        check::<u8>(depth);
+        check::<u16>(depth);
+    }
+}

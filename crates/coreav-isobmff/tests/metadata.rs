@@ -109,6 +109,22 @@ fn video(kind: &[u8; 4], config: Vec<u8>) -> coreav_isobmff::Track {
         .remove(0)
 }
 
+#[test]
+fn duplicate_hdr_children_invalidate_visual_metadata_completeness() {
+    for (kind, payload) in [(b"mdcv", vec![0; 24]), (b"clli", vec![0; 4])] {
+        let child = bx(kind, &payload);
+        let single = video(b"avc1", child.clone());
+        assert!(single.description.visual_children_complete);
+        let duplicate = video(b"avc1", cat(&[child.clone(), child]));
+        assert!(!duplicate.description.visual_children_complete);
+        assert_eq!(duplicate.description.entry_boxes.len(), 1);
+    }
+    let aspect = bx(b"pasp", &u32s(&[1, 1]));
+    let duplicate = video(b"avc1", cat(&[aspect.clone(), aspect]));
+    assert!(duplicate.description.visual_children_complete);
+    assert_eq!(duplicate.description.entry_boxes.len(), 1);
+}
+
 /// An `mp4a` entry whose `esds` carries `config` as `DecoderSpecificInfo`
 /// and the given buffer size, maximum and average bit rates, plus `extra`
 /// child boxes.

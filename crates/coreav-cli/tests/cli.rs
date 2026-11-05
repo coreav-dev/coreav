@@ -1349,6 +1349,21 @@ fn small_ts(prefix: usize) -> Vec<u8> {
 }
 
 #[test]
+fn remux_names_the_unsupported_transport_stream_input() {
+    let input = file("remux-unsupported.ts", &small_ts(0));
+    let output = output("remux-unsupported.mp4");
+    let result = remux(&[input.to_str().unwrap(), output.to_str().unwrap()]);
+    let error = assert_error(&result, 1, "unsupported_feature");
+    assert!(
+        error["message"]
+            .as_str()
+            .unwrap()
+            .contains("MPEG-TS input is not remuxed yet")
+    );
+    assert!(!output.exists());
+}
+
+#[test]
 fn transport_streams_print_their_own_schema() {
     let path = file("small.ts", &small_ts(0));
     let run = run(&[], &path);
@@ -1430,7 +1445,7 @@ fn a_file_that_is_no_container_is_still_unsupported() {
 }
 
 /// A stream whose type names no codec the reader knows is listed with
-/// `codec` `other`, in both output shapes.
+/// `codec` `other` natively; unidentified private streams refuse compatibility.
 #[test]
 fn unnamed_transport_streams_are_listed() {
     let mut mux = ts::Mux::default();
@@ -1446,16 +1461,23 @@ fn unnamed_transport_streams_are_listed() {
     assert_eq!(streams[1]["stream_type"], 0xA1);
     assert_eq!(streams[2]["codec"], "other");
     assert_eq!(doc["dropped_streams"].as_array().unwrap().len(), 0);
-    let compat = json(&ffprobe(&path).stdout);
-    assert_eq!(compat["format"]["nb_streams"], 3);
+    let refused = ffprobe(&path);
+    assert_eq!(refused.code, 4, "{}", refused.stderr);
+    assert!(refused.stdout.is_empty());
+    assert!(refused.stderr.contains("unidentified private"));
+    let mut mux = ts::Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x0F, 0x101), (0xA1, 0x102)]);
+    mux.pes(0x101, 0xC0, 90_000, &ts::adts(100), true);
+    let path = file("unnamed-nonprivate.ts", &mux.out);
+    let output = ffprobe(&path);
+    assert_eq!(output.code, 0, "{}", output.stderr);
+    let compat = json(&output.stdout);
+    assert_eq!(compat["format"]["nb_streams"], 2);
     let out = compat["streams"].as_array().unwrap();
-    assert_eq!(out.len(), 3);
-    // `ffprobe` leaves an unknown stream's media type out, and reads an
-    // unnamed private stream (type 0x06) as binary data.
+    assert_eq!(out.len(), 2);
     assert!(out[1].get("codec_type").is_none(), "{}", out[1]);
     assert!(out[1].get("codec_name").is_none(), "{}", out[1]);
-    assert_eq!(out[2]["codec_type"], "data");
-    assert_eq!(out[2]["codec_name"], "bin_data");
 }
 
 /// The listing reads the whole file, so its warnings reach the document;
@@ -1985,6 +2007,22 @@ fn fixture_remuxes_match_the_schema() {
     // A fixture set without MP4, MOV or M4A files (the Matroska fixtures)
     // has nothing to remux.
     assert!(candidates == 0 || remuxed > 0, "no fixture was remuxed");
+}
+
+#[test]
+fn file_and_slice_matroska_remux_are_byte_identical() {
+    let data = mkv::small_webm();
+    let input = file("remux_file_and_slice.webm", &data);
+    let options = coreav_isobmff_write::MatroskaRemuxOptions::default();
+    let allowlist = coreav_mkv::Allowlist::default();
+    let mut from_file = Vec::new();
+    assert!(coreav_cli::remux::run_matroska(&input, &options, &allowlist, &mut from_file).is_ok());
+    let mut from_slice = Vec::new();
+    assert!(
+        coreav_cli::remux::run_matroska_slice(&data, &options, &allowlist, &mut from_slice).is_ok()
+    );
+    assert!(!from_file.is_empty());
+    assert_eq!(from_file, from_slice);
 }
 
 #[test]

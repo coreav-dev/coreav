@@ -1,0 +1,8 @@
+{
+  "cores": 4,
+  "cpu": "\t: Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+  "image": "20261026.354.1",
+  "kernel": "7.0.0-1017-azure",
+  "machine": "x86_64",
+  "system": "Linux"
+}

@@ -1,5 +1,6 @@
 """Bounded subprocess execution with closed, publishable failure receipts."""
 import contextlib
+import base64
 import dataclasses
 import json
 import math
@@ -72,9 +73,23 @@ def _validate(value):
 
 
 class CommandFailure(Exception):
-    def __init__(self, value):
+    def __init__(self, value, stderr=b''):
         self.receipt = value if validate(value) else receipt('capacity.stage', 'harness', 'protocol_error')
+        self.stderr = bytes(stderr[:BUFFER_LIMIT])
         super().__init__(self.receipt['outcome'])
+
+
+def private_failure(error):
+    raw = error.stderr
+    for name in ('R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'CAPY_API_KEY', 'COREAV_GCP_SA_KEY'):
+        secret = os.environ.get(name)
+        if secret:
+            raw = raw.replace(secret.encode(), b'[redacted]')
+    retained = raw[:BUFFER_LIMIT]
+    return {'receipt': error.receipt, 'stderr_base64': base64.b64encode(retained).decode('ascii'),
+            'stderr_captured_bytes': len(error.stderr), 'stderr_retained_bytes': len(retained),
+            'redacted': raw != error.stderr,
+            'truncated': error.receipt['diagnostics']['truncated'] or len(raw) > BUFFER_LIMIT}
 
 
 def exception_receipt(error, operation='capacity.stage', tool_role='harness'):
@@ -178,6 +193,10 @@ def invoke(operation, tool_role, argv, timeout, stdout_path=None):
                 stack.callback(pipe.close)
                 os.set_blocking(pipe.fileno(), False)
                 selector.register(pipe, selectors.EVENT_READ, name)
+            exit_file = None
+            if hasattr(os, 'pidfd_open'):
+                exit_file = stack.enter_context(os.fdopen(os.pidfd_open(child.pid), 'rb', buffering=0))
+                selector.register(exit_file, selectors.EVENT_READ, 'exit')
             while selector.get_map() or child.poll() is None:
                 remaining = timeout - (time.monotonic() - started)
                 if remaining <= 0:
@@ -185,7 +204,10 @@ def invoke(operation, tool_role, argv, timeout, stdout_path=None):
                 if child.poll() is not None:
                     with contextlib.suppress(ProcessLookupError):
                         os.killpg(child.pid, signal.SIGKILL)
-                for event, _ in selector.select(min(remaining, 0.05)):
+                for event, _ in selector.select(remaining if exit_file is not None else min(remaining, 0.05)):
+                    if event.data == 'exit':
+                        selector.unregister(event.fileobj)
+                        continue
                     block = os.read(event.fd, 65536)
                     if not block:
                         selector.unregister(event.fileobj)
@@ -221,10 +243,11 @@ def invoke(operation, tool_role, argv, timeout, stdout_path=None):
             if outcome not in ('ok', 'disagree'):
                 raise CommandFailure(value)
             return Result(outcome, bytes(output), value, code, bytes(errors))
-    except CommandFailure:
+    except CommandFailure as error:
+        error.stderr = bytes(errors)
         raise
     except BaseException as error:
-        raise CommandFailure(exception_receipt(error, operation, tool_role)) from None
+        raise CommandFailure(exception_receipt(error, operation, tool_role), stderr=errors) from None
     finally:
         if child is not None:
             with contextlib.suppress(ProcessLookupError):

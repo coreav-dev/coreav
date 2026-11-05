@@ -53,7 +53,7 @@ pub enum Reason {
     /// what is refused (`-f lavfi`).
     Option(String, Option<String>),
     /// What the command asks for, in fixed words that hold no user data
-    /// (`no section`, `standard input`).
+    /// (`input summary`, `standard input`).
     Property(&'static str),
 }
 
@@ -198,6 +198,35 @@ pub fn redact(tool: Tool, args: &[String]) -> Vec<String> {
 /// number is a value.
 fn is_option(arg: &str) -> bool {
     arg.starts_with('-') && arg != "-" && !arg[1..].starts_with(|c: char| c.is_ascii_digit())
+}
+
+/// Whether the pinned option shapes identify an HTTP(S) input.
+pub fn has_remote_input(tool: Tool, args: &[String]) -> bool {
+    let is_remote = |arg: &str| arg.starts_with("http://") || arg.starts_with("https://");
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        if arg == "--" {
+            return tool == Tool::Ffprobe && args.any(|arg| is_remote(arg));
+        }
+        if !is_option(arg) {
+            if tool == Tool::Ffprobe && is_remote(arg) {
+                return true;
+            }
+            continue;
+        }
+        let (head, inline) = arg
+            .split_once('=')
+            .map_or((arg.as_str(), None), |(head, value)| (head, Some(value)));
+        let base = head.split_once(':').map_or(head, |(base, _)| base);
+        if takes_value(tool, base) == Some(false) {
+            continue;
+        }
+        let value = inline.or_else(|| args.next().map(String::as_str));
+        if base == "-i" && value.is_some_and(is_remote) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Whether a listed option takes a value; `None` for one off the listing. A

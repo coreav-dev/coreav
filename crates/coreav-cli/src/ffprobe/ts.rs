@@ -56,7 +56,6 @@
 //!   microseconds, each stream's start and duration rounded on their own
 //!   ([`file_micros`]). A service the SDT names alone is a program
 //!   ([`programs`]); DVB strings print as [`dvb_text`] has it.
-
 mod iso_8859;
 pub(super) mod params;
 
@@ -226,6 +225,14 @@ pub fn probe<'a, S: Source + 'a>(
             times.1 = file.span;
         }
         report.streams.push(stream(&ts, st, i, h, facts, times));
+        let aspect = st
+            .video
+            .and_then(|v| video_aspect(st, facts, v.width, v.height))
+            .and_then(|(a, b)| Some((u32::try_from(a).ok()?, u32::try_from(b).ok()?)))
+            .map_or(super::SummaryAspect::Unverified, |codec| {
+                super::SummaryAspect::Complete { codec: Some(codec) }
+            });
+        report.summary_aspects.push(aspect);
         report.time_bases.push((1, TIMESCALE));
     }
     let services = if ts.services.is_empty() {
@@ -235,6 +242,33 @@ pub fn probe<'a, S: Source + 'a>(
     };
     report.programs = programs(&ts, &services);
     report.format = format(&ts, &file, size, name, report.programs.len());
+    report.summary = if report.streams.iter().any(|stream| {
+        stream.kind == StreamKind::Data
+            && stream.entries.iter().any(|(key, value)| {
+                *key == "codec_name" && matches!(value, Value::Str(codec) if codec == "bin_data")
+            })
+    }) {
+        super::SummaryEvidence::Unsupported(
+            "transport-stream private decoder identity is unqualified",
+        )
+    } else if ts
+        .streams
+        .iter()
+        .any(|stream| matches!(stream.codec, Codec::Aac | Codec::AacLatm))
+    {
+        super::SummaryEvidence::Unsupported(
+            "transport-stream AAC decoder extensions and analysis window are unqualified",
+        )
+    } else if !ts.warnings.is_empty() || !ts.dropped.is_empty() {
+        super::SummaryEvidence::Unsupported(
+            "transport-stream analysis omitted information needed by the input summary",
+        )
+    } else {
+        super::SummaryEvidence::Complete {
+            start: file.start.and_then(micros_of),
+            duration: file.micros,
+        }
+    };
     Ok(Probed {
         report,
         packets: Box::new(TsPackets {
@@ -474,6 +508,14 @@ fn field_times(
     times
 }
 
+#[derive(Default)]
+enum AacStart {
+    #[default]
+    Unseen,
+    Leading,
+    Frames,
+}
+
 /// What the first access units of one stream show.
 #[derive(Default)]
 struct Head {
@@ -527,6 +569,7 @@ struct Head {
     /// For an ADTS stream: the bit rate `ffprobe` reports and how many
     /// frames it averages ([`Analysis`]).
     aac_rate: (i64, i64),
+    aac_start: AacStart,
     /// For an audio stream whose first frames state no time: their
     /// durations, until a frame states one ([`MAX_LEAD`] at most).
     untimed: Vec<Option<i64>>,
@@ -659,59 +702,41 @@ impl Order {
     }
 }
 
-/// The part of the file `ffprobe` analyses before it reports the streams,
-/// as far as the bit rate of an ADTS stream shows it: whole PES packets in
-/// file order, up to and including the first after which some stream's
-/// latest decoding time lies more than [`ANALYSIS_SPAN`] past the
-/// presentation time of its first timed frame. On every AAC transport
-/// stream of the fixtures and on most AAC files of the development set,
-/// the bit rate `ffprobe` reports is the running mean of the bit rates of
-/// the ADTS frames listed in that part (each frame's `frame_length` bytes
-/// over 1024 samples at its sampling rate), truncated to an integer at
-/// every frame as C's division does; files crafted with frames of chosen
-/// sizes show it frame by frame.
+/// The bounded analysis used for ADTS bit rates: consumed packet payload
+/// bytes and accumulated media periods, not transport offsets or timestamp
+/// gaps. The integer running mean counts complete ADTS headers; a frame
+/// whose complete header was read in an earlier PES packet is excluded.
+/// The first PES initializes each stream's media clock. Single-frame
+/// initialization cases are not extended by this model.
 ///
-/// Two refinements, both seen on crafted files as well as on the
-/// development set:
-///
-/// - A frame whose 7-byte header ends in one PES packet and whose payload
-///   goes on in the next is listed but left out of the mean
-///   ([`coreav_mpegts::Packet::split`]). Cutting one frame at each byte
-///   shows it: cut inside its header, the frame counts; cut after it, it
-///   does not.
-/// - When the file has no video stream, a stream's span starts at the
-///   first frame listed from its second PES packet, not its first:
-///   audio-only files crafted with 2 to 30 frames in the first PES packet
-///   and 2 to 12 in the others end where that span passes five seconds,
-///   and so do 4 audio-only files of the development set
-///   (`-analyzeduration` scans place the start within 10 ms of the second
-///   PES packet's time). Files with video do not follow it, and how their
-///   video stream ends the analysis is not modelled beyond the rule above.
-///   One case is left out: with a single frame in each of the first PES
-///   packets, crafted files start at the third.
+/// A completing PES can have further headers already parsed when the
+/// analysis closes. The caller observes that admitted frontier once,
+/// without consuming queued packets or changing its read limits.
 #[derive(Default)]
 struct Analysis {
-    /// Per stream: the presentation time of its first timed frame and the
-    /// decoding time of its latest one.
-    spans: Vec<Option<(i64, i64)>>,
+    durations: Vec<i64>,
     /// Per stream: where its first PES packet starts.
     firsts: Vec<Option<u64>>,
-    /// The spans start at each stream's second PES packet (a file without
-    /// video).
+    /// The initial PES configures the media clock rather than advancing it.
     from_second: bool,
     /// The stream of the PES packet being read, and where it starts.
     current: Option<(usize, u64)>,
-    /// The analysis ended.
-    over: bool,
+    bytes: u64,
+    /// The reason analysis ended.
+    over: Option<AnalysisStop>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AnalysisStop {
+    Time,
+    Bytes,
 }
 
 /// How far the analysis reads into a stream, in 90 kHz ticks: past five
 /// seconds, strictly.
 const ANALYSIS_SPAN: i64 = 5 * 90_000;
 
-/// How far the analysis reads into the file: it ends after the first PES
-/// packet that starts past five million bytes (a 35 Mb/s stream ends
-/// there, 1 s in, and not after five seconds).
+/// Consumed packet payload bytes, independently of transport padding.
 const ANALYSIS_BYTES: u64 = 5_000_000;
 
 impl Analysis {
@@ -722,30 +747,34 @@ impl Analysis {
         stream: usize,
         offset: u64,
         starts: bool,
-        pts: Option<i64>,
-        dts: Option<i64>,
+        duration: Option<i64>,
+        payload_bytes: usize,
     ) -> bool {
-        if self.over {
+        if self.over.is_some() {
             return false;
         }
         let new = starts || self.current.is_none_or(|(s, _)| s != stream);
-        if let Some((_, at)) = self.current.filter(|_| new) {
-            let past = at > ANALYSIS_BYTES
-                || self
-                    .spans
-                    .iter()
-                    .flatten()
-                    .any(|(first, last)| last - first > ANALYSIS_SPAN);
-            if past {
-                self.over = true;
-                return false;
+        if self.current.is_some() {
+            let bytes = new && self.bytes > ANALYSIS_BYTES;
+            let time = self.durations.iter().any(|ticks| *ticks > ANALYSIS_SPAN);
+            if bytes || time {
+                self.over = Some(if bytes {
+                    AnalysisStop::Bytes
+                } else {
+                    AnalysisStop::Time
+                });
+                return !new;
             }
         }
         if new {
             self.current = Some((stream, offset));
         }
-        if self.spans.len() <= stream {
-            self.spans.resize(stream + 1, None);
+        self.bytes = u64::try_from(payload_bytes)
+            .ok()
+            .and_then(|bytes| self.bytes.checked_add(bytes))
+            .unwrap_or(u64::MAX);
+        if self.durations.len() <= stream {
+            self.durations.resize(stream + 1, 0);
             self.firsts.resize(stream + 1, None);
         }
         let first_pes = self
@@ -755,9 +784,8 @@ impl Analysis {
         if self.from_second && first_pes == Some(offset) {
             return true;
         }
-        if let (Some(dts), Some(span)) = (dts, self.spans.get_mut(stream)) {
-            let first = span.map_or(pts.unwrap_or(dts), |(first, _)| first);
-            *span = Some((first, dts));
+        if let (Some(duration), Some(elapsed)) = (duration, self.durations.get_mut(stream)) {
+            *elapsed = elapsed.saturating_add(duration.max(0));
         }
         true
     }
@@ -781,6 +809,26 @@ fn adts_bit_rate(data: &[u8]) -> Option<i64> {
         .ok()?
         .checked_mul(i64::from(*rate))
         .map(|b| b / 1024)
+}
+
+fn note_aac_rate(head: &mut Head, codec: Codec, packet: &coreav_mpegts::Packet) {
+    if codec != Codec::Aac {
+        return;
+    }
+    let Some(rate) = adts_bit_rate(&packet.data) else {
+        if matches!(head.aac_start, AacStart::Unseen) {
+            head.aac_start = AacStart::Leading;
+        }
+        return;
+    };
+    let after_lead = matches!(head.aac_start, AacStart::Leading);
+    head.aac_start = AacStart::Frames;
+    if packet.split || after_lead {
+        return;
+    }
+    let (mean, n) = &mut head.aac_rate;
+    *n += 1;
+    *mean += (rate - *mean) / *n;
 }
 
 /// The times of frames that state none, from the `time` the frame after
@@ -845,7 +893,7 @@ fn head<S: Source>(
     let mut streams: Vec<Head> = ts.streams.iter().map(|_| Head::default()).collect();
     let end = ts.first_packet.saturating_add(HEAD_BYTES);
     let mut analysis = Analysis {
-        from_second: !ts.streams.iter().any(|st| st.kind == Kind::Video),
+        from_second: true,
         ..Analysis::default()
     };
     let adts = ts.streams.iter().any(|st| st.codec == Codec::Aac);
@@ -853,6 +901,7 @@ fn head<S: Source>(
     // Whether the head read to the end of the file or of its budget, which
     // covers what `ffprobe` decodes of every stream ([`Order`]).
     let mut whole = true;
+    let mut admitted_pes = None;
     // Whether it read to the end of the file.
     let mut eof = true;
     while let Some(item) = packets.next() {
@@ -879,21 +928,10 @@ fn head<S: Source>(
             }
             continue;
         }
-        let analysed = analysis.note(
-            packet.stream,
-            packet.pes_offset,
-            packet.pos.is_some(),
-            packet.pts,
-            packet.dts,
-        );
+        let was_over = analysis.over.is_some();
+        let packet_pes = (packet.stream, packet.pes_offset);
+        let completing_admitted = packet.split || admitted_pes == Some(packet_pes);
         if let Some(h) = streams.get_mut(packet.stream) {
-            if analysed && st.codec == Codec::Aac && !packet.split {
-                if let Some(rate) = adts_bit_rate(&packet.data) {
-                    let (mean, n) = &mut h.aac_rate;
-                    *n += 1;
-                    *mean += (rate - *mean) / *n;
-                }
-            }
             let keep = h.unit.is_none()
                 && packet.data.len() <= MAX_KEPT_UNIT
                 && configures(st.codec, &packet.data);
@@ -968,8 +1006,45 @@ fn head<S: Source>(
                     times.1.or(times.0)
                 });
             }
+            let duration = packet.duration.or_else(|| {
+                h.clock
+                    .zip(ticks)
+                    .and_then(|(clock, ticks)| clock.duration(ticks))
+                    .or(h.mpeg_ticks)
+            });
+            let analysed = analysis.note(
+                packet.stream,
+                packet.pes_offset,
+                packet.pos.is_some(),
+                duration,
+                packet.data.len(),
+            );
+            if !was_over
+                && (analysed || analysis.over == Some(AnalysisStop::Time) || completing_admitted)
+            {
+                note_aac_rate(h, st.codec, &packet);
+            }
+            if analysed {
+                admitted_pes = Some(packet_pes);
+            }
             if keep {
                 h.unit = Some(packet.data);
+            }
+        }
+        if analysis.over.is_some()
+            && !was_over
+            && (analysis.over == Some(AnalysisStop::Time) || completing_admitted)
+        {
+            for buffered in packets
+                .buffered_packets()
+                .filter(|p| (p.stream, p.pes_offset) == packet_pes)
+            {
+                if let (Some(h), Some(st)) = (
+                    streams.get_mut(buffered.stream),
+                    ts.streams.get(buffered.stream),
+                ) {
+                    note_aac_rate(h, st.codec, buffered);
+                }
             }
         }
         // Subtitle and data streams state nothing the head reads. An
@@ -986,7 +1061,7 @@ fn head<S: Source>(
         // names; when it found none, the head waits a little longer for
         // them.
         let named = !ts.services.is_empty() || !packets.services().is_empty();
-        let done = done && (analysis.over || !adts);
+        let done = done && (analysis.over.is_some() || !adts);
         if done && (named || packet.pes_offset > ts.first_packet.saturating_add(SDT_WAIT)) {
             whole = false;
             eof = false;
@@ -1462,6 +1537,28 @@ fn has_b_frames(st: &coreav_mpegts::Stream, facts: &Facts) -> Option<u32> {
     }
 }
 
+fn video_aspect(
+    st: &coreav_mpegts::Stream,
+    facts: &Facts,
+    width: u32,
+    height: u32,
+) -> Option<(u64, u64)> {
+    match st.codec {
+        Codec::H264 | Codec::Hevc => facts
+            .sps
+            .and_then(|sps| sps.vui.sar)
+            .map(|(a, b)| (u64::from(a), u64::from(b))),
+        Codec::Mpeg1Video | Codec::Mpeg2Video => facts
+            .mpeg
+            .and_then(|m| mpeg_sar(&m, st.codec == Codec::Mpeg1Video, width, height)),
+        Codec::Mpeg4 => facts
+            .vol
+            .and_then(|v| v.sar)
+            .map(|(a, b)| (u64::from(a), u64::from(b))),
+        _ => None,
+    }
+}
+
 /// The video entries, from `width` to `refs` and the H.264 pair after.
 fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut Entries) {
     let (w, h) = match facts.vol {
@@ -1485,22 +1582,11 @@ fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut
     e.push(("film_grain", Value::Int(0)));
     let sps = facts.sps;
     let mpeg = facts.mpeg;
-    let mpeg1 = st.codec == Codec::Mpeg1Video;
     e.push((
         "has_b_frames",
         has_b_frames(st, facts).map_or(Value::Na, int),
     ));
-    let sar = match st.codec {
-        Codec::H264 | Codec::Hevc => sps
-            .and_then(|sps| sps.vui.sar)
-            .map(|(a, b)| (u64::from(a), u64::from(b))),
-        Codec::Mpeg1Video | Codec::Mpeg2Video => mpeg.and_then(|m| mpeg_sar(&m, mpeg1, w, h)),
-        Codec::Mpeg4 => facts
-            .vol
-            .and_then(|v| v.sar)
-            .map(|(a, b)| (u64::from(a), u64::from(b))),
-        _ => None,
-    };
+    let sar = video_aspect(st, facts, w, h);
     e.push((
         "sample_aspect_ratio",
         sar.and_then(|(a, b)| ratio(a, b)).map_or(Value::Na, s),
@@ -1866,6 +1952,12 @@ fn stream(
         let sample_fmt = match (facts.lpcm, lossless_bits(facts)) {
             (Some(l), _) if l.bits > 16 => Some("s32"),
             (_, Some(bits)) => Some(if bits > 16 { "s32p" } else { "s16p" }),
+            _ if codec_name == Some("mp2")
+                && st.audio.is_some_and(|a| a.detail == 2)
+                && (st.stream_type == 0x04 || !st.with_first_table) =>
+            {
+                Some("s16p")
+            }
             _ => codec_name.and_then(|n| names::sample_fmt(n, None)),
         };
         e.push(("sample_fmt", sample_fmt.map_or(unknown(), s)));
@@ -2929,22 +3021,22 @@ mod tests {
     #[test]
     fn the_analysis_ends_after_the_pes_packet_past_five_seconds() {
         let mut a = Analysis::default();
-        assert!(a.note(0, 0, true, Some(0), Some(0)));
-        assert!(a.note(1, 0, true, Some(100), Some(100)));
+        assert!(a.note(0, 0, true, Some(0), 0));
+        assert!(a.note(1, 0, true, Some(100), 0));
         // Exactly five seconds is not past them.
-        assert!(a.note(0, 0, true, Some(450_000), Some(450_000)));
-        assert!(a.note(0, 0, true, Some(450_001), Some(450_001)));
+        assert!(a.note(0, 0, true, Some(450_000), 0));
+        assert!(a.note(0, 0, true, Some(1), 0));
         // The frames of the same PES packet are still read.
-        assert!(a.note(0, 0, false, None, Some(452_000)));
-        assert!(!a.note(1, 0, true, Some(9_000), Some(9_000)));
-        assert!(!a.note(0, 0, true, Some(460_000), Some(460_000)));
+        assert!(a.note(0, 0, false, Some(1_999), 0));
+        assert!(!a.note(1, 0, true, Some(9_000), 0));
+        assert!(!a.note(0, 0, true, Some(460_000), 0));
         // Five million bytes end it too, after the PES packet that starts
         // past them.
         let mut a = Analysis::default();
-        assert!(a.note(0, 4_999_000, true, Some(0), Some(0)));
-        assert!(a.note(0, 5_000_100, true, Some(10), Some(10)));
-        assert!(a.note(0, 5_000_100, false, None, Some(20)));
-        assert!(!a.note(1, 5_000_300, true, Some(30), Some(30)));
+        assert!(a.note(0, 4_999_000, true, Some(0), 4_999_000));
+        assert!(a.note(0, 5_000_100, true, Some(10), 1_100));
+        assert!(a.note(0, 5_000_100, false, Some(10), 20));
+        assert!(!a.note(1, 5_000_300, true, Some(10), 30));
     }
 
     #[test]
@@ -2954,13 +3046,48 @@ mod tests {
             ..Analysis::default()
         };
         // The first PES packet of stream 0 does not start its span.
-        assert!(a.note(0, 0, true, Some(0), Some(0)));
-        assert!(a.note(0, 0, false, None, Some(100_000)));
-        assert!(a.note(0, 188, true, Some(200_000), Some(200_000)));
-        // 650 000 is more than five seconds past 0, not past 200 000.
-        assert!(a.note(0, 376, true, Some(650_000), Some(650_000)));
-        assert!(a.note(0, 564, true, Some(650_001), Some(650_001)));
-        assert!(!a.note(0, 752, true, Some(660_000), Some(660_000)));
+        assert!(a.note(0, 0, true, Some(0), 100));
+        assert!(a.note(0, 0, false, Some(100_000), 100));
+        assert!(a.note(0, 188, true, Some(0), 100));
+        assert!(a.note(0, 376, true, Some(450_000), 100));
+        assert!(a.note(0, 564, true, Some(1), 100));
+        assert!(!a.note(0, 752, true, Some(10_000), 100));
+        assert_eq!(a.bytes, 500);
+    }
+
+    #[test]
+    fn analysis_payload_limits_do_not_measure_file_positions() {
+        let mut a = Analysis::default();
+        assert!(a.note(0, 1 << 40, true, None, 1));
+        assert!(a.note(0, (1 << 40) + 188, true, None, 1));
+        assert!(a.over.is_none());
+        let mut a = Analysis::default();
+        assert!(a.note(0, 0, true, None, 5_000_000));
+        assert!(a.note(0, 188, true, None, 1));
+        assert!(!a.note(0, 376, true, None, 1));
+        let mut a = Analysis {
+            bytes: u64::MAX - 1,
+            current: Some((0, 0)),
+            ..Analysis::default()
+        };
+        assert!(a.note(0, 0, false, None, 4));
+        assert_eq!(a.bytes, u64::MAX);
+        assert!(!a.note(0, 188, true, None, 0));
+        assert_eq!(a.over, Some(AnalysisStop::Bytes));
+    }
+
+    #[test]
+    fn media_time_is_checked_before_each_packet_period_is_charged() {
+        let mut a = Analysis::default();
+        assert!(a.note(0, 0, true, Some(450_001), 100));
+        assert!(a.over.is_none());
+        assert!(a.note(0, 0, false, Some(1_920), 100));
+        assert_eq!(a.over, Some(AnalysisStop::Time));
+        assert_eq!(a.durations, vec![450_001]);
+        assert_eq!(a.bytes, 100);
+        assert!(!a.note(0, 0, false, Some(1_920), 100));
+        assert_eq!(a.durations, vec![450_001]);
+        assert_eq!(a.bytes, 100);
     }
 
     #[test]

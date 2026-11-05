@@ -128,7 +128,9 @@ pub(super) fn write(
         .map(|text| {
             super::encode::bits(text)
                 .and_then(|n| u32::try_from(n).ok())
-                .ok_or_else(|| Refusal::Usage(format!("Invalid audio bit rate '{text}'.")))
+                .ok_or_else(|| Refusal::NotNative(crate::fallback::NotNative::option(
+                    "-b:a", Some(text), "an audio bit rate outside the native unsigned integer and SI-suffix syntax",
+                )))
         })
         .transpose()?;
     let opus = coreav_transcode::OpusAudio {
@@ -150,7 +152,11 @@ pub(super) fn write(
                     .ok()
                     .filter(|q| q.is_finite() && (0.0..=9.0).contains(q))
                     .ok_or_else(|| {
-                        Refusal::Usage(format!("Invalid MP3 quality '{text}': use 0 to 9."))
+                        Refusal::NotNative(crate::fallback::NotNative::option(
+                            "-q:a",
+                            Some(text),
+                            "an MP3 quality outside the native numeric range 0 to 9",
+                        ))
                     })?,
             ),
             None => coreav_transcode::mp3::Mode::Constant(bitrate),
@@ -242,16 +248,7 @@ mod tests {
 
     #[test]
     fn resolved_external_encoders_are_refused_before_discovery() {
-        let report = Report {
-            streams: vec![],
-            time_bases: vec![],
-            format: vec![],
-            format_tags: vec![],
-            chapters: vec![],
-            programs: vec![],
-            setups: vec![],
-            covers: vec![],
-        };
+        let report = Report::default();
         for (name, output, encoder) in [
             ("AAC", "out.m4a", AudioEncoder::Aac),
             ("MP3", "out.mp3", AudioEncoder::Libmp3lame),

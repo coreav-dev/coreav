@@ -929,8 +929,6 @@ fn video_span<'a, S: Source>(
     // ends where that frame does, or where the edit taken above holds it.
     if timeline.has_windows() {
         end = timeline.presented_until(end)?;
-    } else if let (Some(duration), None) = (track.duration, window_end) {
-        end = min(end, add(window_start, duration)?)?;
     }
     let start = max(scaled.ticks(first)?, window_start)?;
     if !lt(start, end)? {

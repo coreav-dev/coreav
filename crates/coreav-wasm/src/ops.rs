@@ -613,6 +613,8 @@ fn remux_document<S: Source, W: Write>(
         remux::matroska_document(&summary)
     } else {
         let remux_options = RemuxOptions {
+            video_origin: None,
+            rebuild_durations: false,
             streams: options.streams.clone(),
             on_unsupported,
             metadata,

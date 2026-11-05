@@ -6,10 +6,11 @@
 //! [`PredictionMut`] and [`ReferencePlane`]) cover the samples they access,
 //! and building it checked its bounds. Their other inputs are typed to the domains the
 //! specification gives them ([`TxSize`], [`BitDepth`], [`Coefficients`]),
-//! so no value outside them reaches the arithmetic. These are the scalar reference kernels, written
+//! so no value outside them reaches the arithmetic. The kernels are written
 //! from clauses 8.5, 8.7 and 8.8.5 of the VP9 Bitstream & Decoding Process
-//! Specification (version 0.7); faster implementations come later and are
-//! compared with them bit for bit (`docs/design/vp9.md`, milestone 6).
+//! Specification (version 0.7). On x86-64, unscaled eight-bit interpolation
+//! detects AVX2 for one horizontal arithmetic kernel. The `safe` feature
+//! compiles only the scalar paths and forbids unsafe code in this crate.
 //!
 //! ```
 //! use coreav_kernels_vp9::{
@@ -26,12 +27,23 @@
 //! assert_eq!(plane, [101u8; 16]);
 //! ```
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
+#![cfg_attr(
+    any(feature = "safe", not(target_arch = "x86_64")),
+    forbid(unsafe_code)
+)]
 
+#[forbid(unsafe_code)]
 mod filter;
+#[forbid(unsafe_code)]
 mod inter;
+#[forbid(unsafe_code)]
 mod intra;
+#[cfg(all(target_arch = "x86_64", not(feature = "safe")))]
+mod simd;
+#[forbid(unsafe_code)]
 mod tables;
+#[forbid(unsafe_code)]
 mod transform;
 
 pub use filter::{Edge, FilterSize, Strength, filter_edge};
@@ -72,10 +84,25 @@ impl BitDepth {
     }
 }
 
+#[forbid(unsafe_code)]
 mod sealed {
-    pub trait Sealed {}
+    pub trait Sealed {
+        #[cfg(all(target_arch = "x86_64", not(feature = "safe")))]
+        fn bytes(samples: &[Self]) -> Option<&[u8]>
+        where
+            Self: Sized,
+        {
+            let _ = samples;
+            None
+        }
+    }
 
-    impl Sealed for u8 {}
+    impl Sealed for u8 {
+        #[cfg(all(target_arch = "x86_64", not(feature = "safe")))]
+        fn bytes(samples: &[Self]) -> Option<&[u8]> {
+            Some(samples)
+        }
+    }
     impl Sealed for u16 {}
 }
 

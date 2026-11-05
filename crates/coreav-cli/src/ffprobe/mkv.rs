@@ -108,8 +108,8 @@ const FRAME_HEAD: u64 = 64;
 /// Element visits allowed for the early packets.
 const EARLY_WORK: u64 = 1 << 16;
 
-/// Bytes of clusters, from the first packet, and packets the early scan
-/// reads at most: a track with few packets must not make it read the file.
+/// Maximum cluster span and processed packets of the early window. One
+/// bounded packet-header lookahead distinguishes its cap from end of input.
 const EARLY_SPAN: u64 = 64 << 20;
 const EARLY_TOTAL: usize = 1 << 14;
 
@@ -119,7 +119,7 @@ pub(super) fn frame_rates<S: Source>(source: &mut S) -> Result<Vec<(usize, Strin
     let limits = Limits::default();
     let segment =
         coreav_mkv::probe(&mut *source, &limits, &Allowlist::any()).map_err(Failure::Matroska)?;
-    let early = early_packets(&segment, source, &limits);
+    let (early, _) = early_packets(&segment, source, &limits);
     Ok(segment
         .tracks
         .iter()
@@ -142,7 +142,7 @@ pub fn probe<'a, S: Source + 'a>(
 ) -> Result<Probed<'a>, Failure> {
     let segment = coreav_mkv::probe_with_metadata(&mut source, &limits, &Allowlist::any())
         .map_err(Failure::Matroska)?;
-    let early = early_packets(&segment, &mut source, &limits);
+    let (early, incomplete) = early_packets(&segment, &mut source, &limits);
     // The tracks `ffprobe` lists, numbered in order.
     let mut next = 0usize;
     let infos: Vec<Info> = segment
@@ -163,6 +163,21 @@ pub fn probe<'a, S: Source + 'a>(
         .map(|a| attached_picture(a, &mut source))
         .collect();
     let mut report = report(&segment, &infos, &early, &pictures, size, name);
+    if incomplete
+        || !segment.warnings.is_empty()
+        || !segment.metadata_complete
+        || segment.tracks.iter().any(|track| {
+            !track.warnings.is_empty()
+                || !matches!(
+                    track.encoding,
+                    Encoding::None | Encoding::HeaderStripping(_)
+                )
+        })
+    {
+        report.summary = super::SummaryEvidence::Unsupported(
+            "Matroska analysis omitted information needed by the input summary",
+        );
+    }
     report.setups = vec![super::Setup::default(); report.streams.len()];
     for (track, info) in segment.tracks.iter().zip(&infos) {
         if let Some(setup) = info.stream.and_then(|i| report.setups.get_mut(i)) {
@@ -198,7 +213,11 @@ struct Early {
 
 /// Reads the first packets of every track, best effort: until every audio
 /// and video track has [`EARLY_PACKETS`] of them.
-fn early_packets<S: Source>(segment: &Segment, source: &mut S, limits: &Limits) -> Vec<Early> {
+fn early_packets<S: Source>(
+    segment: &Segment,
+    source: &mut S,
+    limits: &Limits,
+) -> (Vec<Early>, bool) {
     let mut out = vec![Early::default(); segment.tracks.len()];
     let peek = Limits {
         max_block_work: limits.max_block_work.min(EARLY_WORK),
@@ -209,12 +228,19 @@ fn early_packets<S: Source>(segment: &Segment, source: &mut S, limits: &Limits) 
     let mut iter = segment.packets(&mut *source, &peek);
     let mut seq = 0usize;
     let mut start = None;
+    let mut incomplete = false;
     while pending > 0 && seq < EARLY_TOTAL {
-        let Some(Ok(packet)) = iter.next() else {
-            break;
+        let packet = match iter.next() {
+            Some(Ok(packet)) => packet,
+            Some(Err(_)) => {
+                incomplete = true;
+                break;
+            }
+            None => break,
         };
         let first = *start.get_or_insert(packet.block_offset);
         if packet.block_offset.saturating_sub(first) > EARLY_SPAN {
+            incomplete = true;
             break;
         }
         seq += 1;
@@ -245,7 +271,10 @@ fn early_packets<S: Source>(segment: &Segment, source: &mut S, limits: &Limits) 
             pending -= 1;
         }
     }
-    out
+    if pending > 0 && seq == EARLY_TOTAL && iter.next().is_some() {
+        incomplete = true;
+    }
+    (out, incomplete)
 }
 
 /// Whether `ffprobe` lists a track, found black box: video, audio,
@@ -933,6 +962,20 @@ fn report(
         report
             .streams
             .push(stream(&meta, track, info, index, timing, tb));
+        report.summary_aspects.push(match track.codec {
+            Codec::H264 => info
+                .params
+                .and_then(|params| params.sar)
+                .filter(|(num, den)| *num > 0 && *den > 0)
+                .map_or(super::SummaryAspect::Unverified, |sar| {
+                    super::SummaryAspect::Complete { codec: Some(sar) }
+                }),
+            Codec::Av1 => super::SummaryAspect::Complete {
+                codec: Some((1, 1)),
+            },
+            Codec::Vp8 | Codec::Vp9 => super::SummaryAspect::Complete { codec: None },
+            _ => super::SummaryAspect::Unverified,
+        });
     }
     report.time_bases = vec![tb; report.streams.len()];
     for (attachment, picture) in segment.attachments.iter().zip(pictures) {
@@ -950,6 +993,62 @@ fn report(
     report.format = format(report.streams.len(), format_start, duration_us, size, name);
     report.format_tags = format_tags(segment, &meta);
     report.chapters = chapters(segment, &meta);
+    report.summary = super::SummaryEvidence::Complete {
+        start: format_start,
+        duration: duration_us,
+    };
+    if segment.tracks.iter().any(|track| {
+        track.codec == Codec::Aac
+            && (!matches!(
+                track.profile,
+                Some(coreav_isobmff::Profile::Aac {
+                    object_type: 2,
+                    sbr: false,
+                    ps: false,
+                })
+            ) || !track
+                .codec_private
+                .as_deref()
+                .is_some_and(coreav_isobmff::aac_has_explicit_no_sbr))
+    }) {
+        report.summary = super::SummaryEvidence::Unsupported(
+            "AAC decoder extensions are not explicitly ruled out by the configuration",
+        );
+    }
+    if format_start.is_some_and(|start| start < 0) {
+        report.summary = super::SummaryEvidence::Unsupported(
+            "negative Matroska diagnostic timing has not been qualified",
+        );
+    }
+    if segment.tracks.iter().any(|track| track.codec == Codec::Av1) {
+        report.summary = super::SummaryEvidence::Unsupported(
+            "AV1 sequence and configuration pixel formats are not independently retained",
+        );
+    }
+    if segment.tags.iter().any(|tag| {
+        tag.track_uids.iter().any(|uid| *uid != 0)
+            && tag.simple_tags.iter().any(|simple| {
+                simple.string.is_some()
+                    && simple.name != "language"
+                    && simple.name.eq_ignore_ascii_case("language")
+            })
+    }) {
+        report.summary = super::SummaryEvidence::Unsupported(
+            "Matroska language metadata routing and spelling have not been qualified",
+        );
+    }
+    if report
+        .streams
+        .iter()
+        .zip(&report.summary_aspects)
+        .any(|(stream, aspect)| {
+            stream.kind == StreamKind::Video && matches!(aspect, super::SummaryAspect::Unverified)
+        })
+    {
+        report.summary = super::SummaryEvidence::Unsupported(
+            "Matroska codec aspect ratio description has not been qualified",
+        );
+    }
     report
 }
 
@@ -3340,6 +3439,303 @@ mod tests {
         out.extend(&(payload.len() as u64).to_be_bytes()[1..]);
         out.extend(payload);
         out
+    }
+
+    fn summary_fixture(codec: &[u8], kind: u8, extra: &[u8], tags: &[u8]) -> Vec<u8> {
+        let track = el(
+            &[0xAE],
+            &[
+                el(&[0xD7], &[1]),
+                el(&[0x73, 0xC5], &[1]),
+                el(&[0x83], &[kind]),
+                el(&[0x86], codec),
+                el(&[0xE0], &[el(&[0xB0], &[16]), el(&[0xBA], &[16])].concat()),
+                el(
+                    &[0xE1],
+                    &[
+                        el(&[0xB5], &48_000f64.to_be_bytes()),
+                        el(&[0x9F], &[1]),
+                        el(&[0x62, 0x64], &[16]),
+                    ]
+                    .concat(),
+                ),
+                extra.to_vec(),
+            ]
+            .concat(),
+        );
+        [
+            el(&[0x1A, 0x45, 0xDF, 0xA3], &el(&[0x42, 0x82], b"matroska")),
+            el(
+                &[0x18, 0x53, 0x80, 0x67],
+                &[
+                    el(&[0x15, 0x49, 0xA9, 0x66], &[]),
+                    el(&[0x16, 0x54, 0xAE, 0x6B], &track),
+                    tags.to_vec(),
+                ]
+                .concat(),
+            ),
+        ]
+        .concat()
+    }
+
+    fn summary_report(data: &[u8]) -> Report {
+        let mut source = Reads {
+            data,
+            read: &Cell::new(0),
+        };
+        let Ok(probed) = probe(
+            &mut source,
+            data.len() as u64,
+            "fixture.mkv",
+            Limits::default(),
+        ) else {
+            panic!("the summary fixture does not probe");
+        };
+        probed.report
+    }
+
+    #[test]
+    fn summary_distinguishes_early_scan_caps_from_end_of_input() {
+        let track = |number, kind, codec: &[u8]| {
+            el(
+                &[0xAE],
+                &[
+                    el(&[0xD7], &[number]),
+                    el(&[0x73, 0xC5], &[number]),
+                    el(&[0x83], &[kind]),
+                    el(&[0x86], codec),
+                    el(&[0xE0], &[el(&[0xB0], &[16]), el(&[0xBA], &[16])].concat()),
+                    el(
+                        &[0xE1],
+                        &[
+                            el(&[0xB5], &48_000f64.to_be_bytes()),
+                            el(&[0x9F], &[1]),
+                            el(&[0x62, 0x64], &[16]),
+                        ]
+                        .concat(),
+                    ),
+                ]
+                .concat(),
+            )
+        };
+        let tracks = el(
+            &[0x16, 0x54, 0xAE, 0x6B],
+            &[track(1, 1, b"V_VP8"), track(2, 2, b"A_PCM/INT/LIT")].concat(),
+        );
+        let video = el(
+            &[0xA3],
+            &[0x81, 0, 0, 0x80, 0x10, 0, 0, 0x9d, 1, 0x2a, 16, 0, 16, 0],
+        );
+        let audio = el(&[0xA3], &[0x82, 0, 0, 0x80, 0, 0]);
+        for (name, audio_count, later_video, gap, complete) in [
+            ("packet cap", EARLY_TOTAL - 1, 1, 0, false),
+            ("span cap", EARLY_PACKETS, 1, EARLY_SPAN as usize, false),
+            ("short eof", 1, 0, 0, true),
+            ("exact packet-cap eof", EARLY_TOTAL - 1, 0, 0, true),
+            (
+                "complete windows",
+                EARLY_PACKETS,
+                EARLY_PACKETS - 1,
+                0,
+                true,
+            ),
+        ] {
+            let mut cluster = el(&[0xE7], &[0]);
+            cluster.extend_from_slice(&video);
+            cluster.extend(audio.repeat(audio_count));
+            if gap > 0 {
+                cluster.extend(el(&[0xEC], &vec![0; gap]));
+            }
+            cluster.extend(video.repeat(later_video));
+            let data = [
+                el(&[0x1A, 0x45, 0xDF, 0xA3], &el(&[0x42, 0x82], b"matroska")),
+                el(
+                    &[0x18, 0x53, 0x80, 0x67],
+                    &[
+                        el(&[0x15, 0x49, 0xA9, 0x66], &[]),
+                        tracks.clone(),
+                        el(&[0x1F, 0x43, 0xB6, 0x75], &cluster),
+                    ]
+                    .concat(),
+                ),
+            ]
+            .concat();
+            let report = summary_report(&data);
+            assert_eq!(
+                matches!(
+                    report.summary,
+                    super::super::SummaryEvidence::Complete { .. }
+                ),
+                complete,
+                "{name}"
+            );
+            assert_eq!(
+                super::super::summary::render(&report, 0, "fixture.mkv").is_ok(),
+                complete,
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn summary_language_admission_preserves_structured_metadata() {
+        for key in ["language", "LANGUAGE", "Language"] {
+            for value in ["eng", "und", "fra"] {
+                let tags = el(
+                    &[0x12, 0x54, 0xC3, 0x67],
+                    &el(
+                        &[0x73, 0x73],
+                        &[
+                            el(&[0x63, 0xC0], &el(&[0x63, 0xC5], &[1])),
+                            el(
+                                &[0x67, 0xC8],
+                                &[
+                                    el(&[0x45, 0xA3], key.as_bytes()),
+                                    el(&[0x44, 0x87], value.as_bytes()),
+                                ]
+                                .concat(),
+                            ),
+                        ]
+                        .concat(),
+                    ),
+                );
+                let report = summary_report(&summary_fixture(b"A_PCM/INT/LIT", 2, &[], &tags));
+                assert_eq!(
+                    report.streams[0].tags,
+                    vec![(key.to_owned(), value.to_owned())]
+                );
+                assert_eq!(
+                    matches!(
+                        report.summary,
+                        super::super::SummaryEvidence::Complete { .. }
+                    ),
+                    key == "language",
+                    "{key}={value}"
+                );
+                assert_eq!(
+                    super::super::summary::render(&report, 0, "fixture.mkv").is_ok(),
+                    key == "language"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn summary_aac_requires_explicit_negative_extension_evidence() {
+        for (config, qualified) in [
+            (&[0x11, 0x88][..], false),
+            (&[0x11, 0x88, 0x56, 0xe5, 0x00][..], true),
+        ] {
+            let report = summary_report(&summary_fixture(
+                b"A_AAC",
+                2,
+                &el(&[0x63, 0xa2], config),
+                &[],
+            ));
+            assert_eq!(
+                matches!(
+                    report.summary,
+                    super::super::SummaryEvidence::Complete { .. }
+                ),
+                qualified
+            );
+            assert_eq!(
+                super::super::summary::render(&report, 0, "fixture.mkv").is_ok(),
+                qualified
+            );
+            assert!(report.streams[0].entries.iter().any(|(key, value)| {
+                *key == "profile" && matches!(value, Value::Str(profile) if profile == "LC")
+            }));
+        }
+    }
+
+    #[test]
+    fn summary_refuses_encrypted_and_warning_bearing_tracks() {
+        for extra in [
+            el(&[0x6D, 0x80], &el(&[0x62, 0x40], &el(&[0x50, 0x33], &[1]))),
+            el(&[0x23, 0x31, 0x4F], &2f64.to_be_bytes()),
+        ] {
+            let report = summary_report(&summary_fixture(b"A_PCM/INT/LIT", 2, &extra, &[]));
+            assert_eq!(report.streams.len(), 1);
+            assert!(matches!(
+                report.summary,
+                super::super::SummaryEvidence::Unsupported(
+                    "Matroska analysis omitted information needed by the input summary"
+                )
+            ));
+            assert!(super::super::summary::render(&report, 0, "fixture.mkv").is_err());
+        }
+        let report = summary_report(&summary_fixture(b"A_PCM/INT/LIT", 2, &[], &[]));
+        assert!(super::super::summary::render(&report, 0, "fixture.mkv").is_ok());
+    }
+
+    #[test]
+    fn summary_refuses_unretained_codec_aspect_descriptions() {
+        for codec in [
+            b"V_MPEG4/ISO/AVC".as_slice(),
+            b"V_MPEGH/ISO/HEVC",
+            b"V_MPEG2",
+        ] {
+            let report = summary_report(&summary_fixture(codec, 1, &[], &[]));
+            assert_eq!(report.streams.len(), 1);
+            assert!(matches!(
+                report.summary,
+                super::super::SummaryEvidence::Unsupported(
+                    "Matroska codec aspect ratio description has not been qualified"
+                )
+            ));
+            assert!(super::super::summary::render(&report, 0, "fixture.mkv").is_err());
+        }
+    }
+
+    #[test]
+    fn summary_aspects_keep_codec_and_stream_ratios_separate() {
+        for (codec, sar, expected) in [
+            (
+                b"V_MPEG4/ISO/AVC".as_slice(),
+                Some((32, 27)),
+                Some((32, 27)),
+            ),
+            (b"V_AV1", None, Some((1, 1))),
+            (b"V_VP8", None, None),
+            (b"V_VP9", None, None),
+        ] {
+            let data = summary_fixture(codec, 1, &[], &[]);
+            let mut source = Reads {
+                data: &data,
+                read: &Cell::new(0),
+            };
+            let mut segment =
+                coreav_mkv::probe_with_metadata(&mut source, &Limits::default(), &Allowlist::any())
+                    .unwrap();
+            let track = &mut segment.tracks[0];
+            let video = track.video.as_mut().unwrap();
+            video.display_width = Some(20);
+            video.display_height = Some(16);
+            let early = Early::default();
+            let mut info = Info::new(&segment, &segment.tracks[0], &early, Some(0));
+            info.params = Some(video::Params {
+                sar,
+                ..video::Params::default()
+            });
+            let report = report(
+                &segment,
+                &[info],
+                &[early],
+                &[],
+                data.len() as u64,
+                "fixture.mkv",
+            );
+            let super::super::SummaryAspect::Complete { codec: actual } = report.summary_aspects[0]
+            else {
+                panic!("the codec aspect was not retained");
+            };
+            assert_eq!(actual, expected);
+            assert!(report.streams[0].entries.iter().any(|(key, value)| {
+                *key == "sample_aspect_ratio"
+                    && matches!(value, Value::Str(value) if value == "5:4")
+            }));
+        }
     }
 
     #[test]

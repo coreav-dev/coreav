@@ -1,0 +1,257 @@
+{
+  "version": 1,
+  "exclusions": {
+    "SAODBLK_A": {
+      "archive_sha256": "2ca335887ff3262f4a1a2653b5feaa34d2fd313e0f268966ce316549e654e1e0",
+      "bitstream_sha256": "dab095100e4cea72b8e871d01bf39bb5027b460be5c495ea3374454f4aafe507",
+      "published_md5": "b9c98937bcb6be445348fdc89c208f1e",
+      "observed_oracle_md5": "23f03fffa670f7d770302c819b04f439",
+      "decision": "excluded by maintainer decision, 2026-11-04",
+      "investigation": "Official archives, current and backup listings, H.265.1 and the allowed public conformance documents supplied no corrected reference; the closed canonical C1 layout missed the published MD5",
+      "layout_registration": "bench/hevc-conformance/saodblk-layouts.md",
+      "layout_registration_sha256_at_trial": "c808cf292008775865b6e1cd3f2bc697c826149d275a80836248b6b98d4794a4",
+      "trial_head": "30c0009802ce43af0efb0513bb756f832bcbbe88",
+      "historical_trial": {
+        "kind": "historical",
+        "trial_head": "30c0009802ce43af0efb0513bb756f832bcbbe88",
+        "source_census_sha256": "275a71b989290f10edc46b70a5961678381b67d88312f55bf1dea8a7f901dd06",
+        "original_input_sha256": "dab095100e4cea72b8e871d01bf39bb5027b460be5c495ea3374454f4aafe507",
+        "oracle": {
+          "ffmpeg": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d",
+          "ffprobe": "a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb",
+          "pin_sha256": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24"
+        },
+        "reference_attempts": [
+          {
+            "candidate": "C1",
+            "layout": "whole_output_yuv_file",
+            "packing": "visible planar Y,Cb,Cr; 10-bit little-endian 16-bit",
+            "pixel_format": "yuv420p",
+            "command": [
+              "{oracle_ffmpeg}",
+              "-v",
+              "repeat+error",
+              "-noautorotate",
+              "-flags",
+              "unaligned",
+              "-f",
+              "hevc",
+              "-c:v",
+              "hevc",
+              "-threads:a",
+              "1",
+              "-i",
+              "{original_bitstream}",
+              "-map",
+              "0:v:0",
+              "-fps_mode",
+              "passthrough",
+              "-noautoscale",
+              "-c:v",
+              "rawvideo",
+              "-pix_fmt",
+              "+yuv420p",
+              "-progress",
+              "pipe:2",
+              "-f",
+              "md5",
+              "-"
+            ],
+            "layout_registration": {
+              "candidate": "C1",
+              "document": "bench/hevc-conformance/saodblk-layouts.md",
+              "sha256": "c808cf292008775865b6e1cd3f2bc697c826149d275a80836248b6b98d4794a4"
+            },
+            "expected_md5": "b9c98937bcb6be445348fdc89c208f1e",
+            "observed_md5": "23f03fffa670f7d770302c819b04f439",
+            "exit_code": 0,
+            "progress_complete": true,
+            "output_pictures": 500,
+            "frame_metadata_count": 500,
+            "count_matches_frame_metadata": true,
+            "status": "md5_mismatch",
+            "stdout_capture": "reference-md5.stdout",
+            "stderr_capture": "reference-md5.stderr",
+            "progress": [
+              {
+                "frame": "232",
+                "fps": "0.00",
+                "stream_0_0_q": "-0.0",
+                "bitrate": "   0.0kbits/s",
+                "total_size": "0",
+                "out_time_us": "9400000",
+                "out_time_ms": "9400000",
+                "out_time": "00:00:09.400000",
+                "dup_frames": "0",
+                "drop_frames": "0",
+                "speed": "18.8x",
+                "progress": "continue"
+              },
+              {
+                "frame": "481",
+                "fps": "480.70",
+                "stream_0_0_q": "-0.0",
+                "bitrate": "   0.0kbits/s",
+                "total_size": "0",
+                "out_time_us": "19520000",
+                "out_time_ms": "19520000",
+                "out_time": "00:00:19.520000",
+                "dup_frames": "0",
+                "drop_frames": "0",
+                "speed": "19.5x",
+                "progress": "continue"
+              },
+              {
+                "frame": "500",
+                "fps": "483.28",
+                "stream_0_0_q": "-0.0",
+                "bitrate": "   0.0kbits/s",
+                "total_size": "37",
+                "out_time_us": "19960000",
+                "out_time_ms": "19960000",
+                "out_time": "00:00:19.960000",
+                "dup_frames": "0",
+                "drop_frames": "0",
+                "speed": "19.3x",
+                "progress": "end"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "SAODBLK_B": {
+      "archive_sha256": "575165fe6d0a474abdbfb2a628e8c1c2399827fca9f9f47c11aaf71976b51441",
+      "bitstream_sha256": "8f3d22ccfffe230c034f1fbcc996088282cea52e2d3e22455c395a2fbb0b91ae",
+      "published_md5": "031043495e9b9f4ce120afa316aa5705",
+      "observed_oracle_md5": "de53c4f4adb77faca65c994c5fa7e7d0",
+      "decision": "excluded by maintainer decision, 2026-11-04",
+      "investigation": "Official archives, current and backup listings, H.265.1 and the allowed public conformance documents supplied no corrected reference; the closed canonical C1 layout missed the published MD5",
+      "layout_registration": "bench/hevc-conformance/saodblk-layouts.md",
+      "layout_registration_sha256_at_trial": "c808cf292008775865b6e1cd3f2bc697c826149d275a80836248b6b98d4794a4",
+      "trial_head": "30c0009802ce43af0efb0513bb756f832bcbbe88",
+      "historical_trial": {
+        "kind": "historical",
+        "trial_head": "30c0009802ce43af0efb0513bb756f832bcbbe88",
+        "source_census_sha256": "275a71b989290f10edc46b70a5961678381b67d88312f55bf1dea8a7f901dd06",
+        "original_input_sha256": "8f3d22ccfffe230c034f1fbcc996088282cea52e2d3e22455c395a2fbb0b91ae",
+        "oracle": {
+          "ffmpeg": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d",
+          "ffprobe": "a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb",
+          "pin_sha256": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24"
+        },
+        "reference_attempts": [
+          {
+            "candidate": "C1",
+            "layout": "whole_output_yuv_file",
+            "packing": "visible planar Y,Cb,Cr; 10-bit little-endian 16-bit",
+            "pixel_format": "yuv420p",
+            "command": [
+              "{oracle_ffmpeg}",
+              "-v",
+              "repeat+error",
+              "-noautorotate",
+              "-flags",
+              "unaligned",
+              "-f",
+              "hevc",
+              "-c:v",
+              "hevc",
+              "-threads:a",
+              "1",
+              "-i",
+              "{original_bitstream}",
+              "-map",
+              "0:v:0",
+              "-fps_mode",
+              "passthrough",
+              "-noautoscale",
+              "-c:v",
+              "rawvideo",
+              "-pix_fmt",
+              "+yuv420p",
+              "-progress",
+              "pipe:2",
+              "-f",
+              "md5",
+              "-"
+            ],
+            "layout_registration": {
+              "candidate": "C1",
+              "document": "bench/hevc-conformance/saodblk-layouts.md",
+              "sha256": "c808cf292008775865b6e1cd3f2bc697c826149d275a80836248b6b98d4794a4"
+            },
+            "expected_md5": "031043495e9b9f4ce120afa316aa5705",
+            "observed_md5": "de53c4f4adb77faca65c994c5fa7e7d0",
+            "exit_code": 0,
+            "progress_complete": true,
+            "output_pictures": 500,
+            "frame_metadata_count": 500,
+            "count_matches_frame_metadata": true,
+            "status": "md5_mismatch",
+            "stdout_capture": "reference-md5.stdout",
+            "stderr_capture": "reference-md5.stderr",
+            "progress": [
+              {
+                "frame": "145",
+                "fps": "0.00",
+                "stream_0_0_q": "-0.0",
+                "bitrate": "   0.0kbits/s",
+                "total_size": "0",
+                "out_time_us": "5840000",
+                "out_time_ms": "5840000",
+                "out_time": "00:00:05.840000",
+                "dup_frames": "0",
+                "drop_frames": "0",
+                "speed": "11.7x",
+                "progress": "continue"
+              },
+              {
+                "frame": "312",
+                "fps": "311.93",
+                "stream_0_0_q": "-0.0",
+                "bitrate": "   0.0kbits/s",
+                "total_size": "0",
+                "out_time_us": "12520000",
+                "out_time_ms": "12520000",
+                "out_time": "00:00:12.520000",
+                "dup_frames": "0",
+                "drop_frames": "0",
+                "speed": "12.5x",
+                "progress": "continue"
+              },
+              {
+                "frame": "477",
+                "fps": "317.83",
+                "stream_0_0_q": "-0.0",
+                "bitrate": "   0.0kbits/s",
+                "total_size": "0",
+                "out_time_us": "19040000",
+                "out_time_ms": "19040000",
+                "out_time": "00:00:19.040000",
+                "dup_frames": "0",
+                "drop_frames": "0",
+                "speed": "12.7x",
+                "progress": "continue"
+              },
+              {
+                "frame": "500",
+                "fps": "321.14",
+                "stream_0_0_q": "-0.0",
+                "bitrate": "   0.0kbits/s",
+                "total_size": "37",
+                "out_time_us": "19960000",
+                "out_time_ms": "19960000",
+                "out_time": "00:00:19.960000",
+                "dup_frames": "0",
+                "drop_frames": "0",
+                "speed": "12.8x",
+                "progress": "end"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

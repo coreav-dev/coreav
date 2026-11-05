@@ -2882,6 +2882,8 @@ bits_per_raw_sample
 bits_per_sample
 bl_present_flag
 block_additional_id
+blue_x
+blue_y
 buffer_size
 captions
 category
@@ -2933,6 +2935,7 @@ duration_time
 duration_ts
 dv_bl_signal_compatibility_id
 dv_level
+dv_md_compression
 dv_profile
 dv_version_major
 dv_version_minor
@@ -2955,8 +2958,9 @@ format_name
 gapless_playback
 gbrp
 genre
+green_x
+green_y
 grouping
-handler_name
 has_b_frames
 hd_video
 hearing_impaired
@@ -2973,7 +2977,6 @@ is_avc
 karaoke
 key_frame
 keywords
-language
 level
 location
 loro_cmixlev
@@ -2988,11 +2991,12 @@ max_average
 max_bit_rate
 max_bitrate
 max_content
+max_luminance
 media_type
 metadata
 mime_codec_string
-mimetype
 min_bitrate
+min_luminance
 minor_version
 model
 monow
@@ -3015,7 +3019,6 @@ original
 original_artist
 original_format
 original_source
-packets_and_frames
 pal8
 pcr_pid
 pict_type
@@ -3043,7 +3046,8 @@ qtrle
 quarter_sample
 r_frame_rate
 rating
-reel_name
+red_x
+red_y
 refs
 repeat_pict
 rgb24
@@ -3070,7 +3074,6 @@ sort_show
 start
 start_pts
 start_time
-stereo_mode
 still_image
 stream_index
 svq1
@@ -3085,7 +3088,6 @@ ts_id
 ts_packetsize
 type
 vbv_delay
-vendor_id
 view
 view_ids_available
 view_pos_available
@@ -3093,9 +3095,10 @@ visual_impaired
 vorbis
 vp8
 warning
+white_point_x
+white_point_y
 width
 yaw
-yuv
 yuv410p
 yuv422p10le
 yuv444p12le

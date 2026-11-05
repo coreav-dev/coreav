@@ -77,7 +77,9 @@ pub fn preflight(command: &Command, strict_safe: StrictSafe) -> Result<(), Refus
             authorize_audio(*encoder, strict_safe)?;
         }
     }
-    if !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264) {
+    if command.codecs.iter().any(|(_, c)| *c == Codec::Ffv1)
+        || !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264)
+    {
         return Ok(());
     }
     strict_safe
@@ -218,7 +220,13 @@ pub fn request(
     let preset = match preset {
         None => "medium".to_owned(),
         Some(p) if PRESETS.contains(&p.as_str()) => p.clone(),
-        Some(p) => return Err(Refusal::Usage(format!("Invalid preset '{p}' for libx264."))),
+        Some(p) => {
+            return Err(refused(
+                "-preset",
+                p,
+                "a preset outside the native preset names",
+            ));
+        }
     };
     let threads = match threads.as_deref() {
         None | Some("auto" | "0") => None,
@@ -308,7 +316,7 @@ const IDENTITY: [i32; 9] = [0x1_0000, 0, 0, 0, 0x1_0000, 0, 0, 0, 0x4000_0000];
 /// to the frames, and with it `ffmpeg` writes the source's matrix, which
 /// the transcode writes the same only when the matrix has no translation or
 /// projection. A Matroska projection or rotation is refused.
-fn check_container(
+pub(super) fn check_container(
     command: &Command,
     container: coreav_thumbnail::Container,
     video: usize,

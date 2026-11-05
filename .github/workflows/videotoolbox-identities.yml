@@ -1,0 +1,73 @@
+name: videotoolbox-identities
+
+# workflow-check: not required
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - .github/workflows/videotoolbox-identities.yml
+      - tools/videotoolbox-identities/**
+      - docs/design/encoders/macos-tool-identities.md
+      - docs/design/encoders/macos-builds/baseline.json
+      - docs/design/encoders/macos-builds/cache-observer.json
+      - scripts/install-oracle-ffmpeg-macos.sh
+      - scripts/oracle-ffmpeg-macos.env
+      - scripts/oracle_pin_macos.py
+      - scripts/oracle-ffmpeg.env
+      - scripts/oracle_pin.py
+      - scripts/encoders/macos/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/videotoolbox-identities.yml
+      - tools/videotoolbox-identities/**
+      - docs/design/encoders/macos-tool-identities.md
+      - docs/design/encoders/macos-builds/baseline.json
+      - docs/design/encoders/macos-builds/cache-observer.json
+      - scripts/install-oracle-ffmpeg-macos.sh
+      - scripts/oracle-ffmpeg-macos.env
+      - scripts/oracle_pin_macos.py
+      - scripts/oracle-ffmpeg.env
+      - scripts/oracle_pin.py
+      - scripts/encoders/macos/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  metadata:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Test metadata boundaries without native execution
+        run: python3 -m unittest discover -s tools/videotoolbox-identities -p 'test_*.py' -v
+      - name: Verify pinned prebuilt tools
+        run: scripts/install-oracle-ffmpeg-macos.sh "$RUNNER_TEMP/oracle-macos"
+      - name: Capture metadata and synthetic cache compatibility
+        run: python3 tools/videotoolbox-identities/capture.py --oracle-bin "$RUNNER_TEMP/oracle-macos" --output "$RUNNER_TEMP/identities"
+      - name: Compare committed receipts when present
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          for name in ("baseline.json", "cache-observer.json"):
+              committed = Path("docs/design/encoders/macos-builds") / name
+              if committed.exists():
+                  actual = Path(os.environ["RUNNER_TEMP"]) / "identities" / name
+                  assert committed.read_bytes() == actual.read_bytes(), "recapture differs from committed identity"
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: videotoolbox-tool-identities
+          path: ${{ runner.temp }}/identities/
+          if-no-files-found: error
+          retention-days: 7

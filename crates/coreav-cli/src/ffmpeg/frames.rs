@@ -153,7 +153,12 @@ pub(super) fn write(
     encoder: VideoEncoder,
     report: &Report,
     strict_safe: StrictSafe,
+    capture: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
+    #[cfg(not(feature = "input-capture"))]
+    if capture.is_some() {
+        return Err(unsupported("image capture is not enabled in this build"));
+    }
     let mut source = BufferedSource::new(
         FileSource::open(Path::new(&command.input)).map_err(WriteFailure::from)?,
     );
@@ -214,6 +219,7 @@ pub(super) fn write(
     let mut decoder = opened.decoder;
     let mut run = Run {
         command,
+        stream: &video.stream,
         encoder,
         pixel_aspect: video.pixel_aspect,
         quarter_turns: video.quarter_turns,
@@ -227,6 +233,8 @@ pub(super) fn write(
         shape: None,
         input_shape: None,
         continuous: None,
+        #[cfg(feature = "input-capture")]
+        capture: capture.map(super::image_capture::Recorder::new),
     };
     let mut pending = PacketQueue {
         sizes: VecDeque::new(),
@@ -297,11 +305,18 @@ pub(super) fn write(
         };
         output.finish()?;
     }
-    Ok(serde_json::json!({"frames": run.count}))
+    let summary = serde_json::json!({"frames": run.count});
+    #[cfg(feature = "input-capture")]
+    if let Some(capture) = run.capture.take() {
+        capture.finish()?;
+        return Ok(serde_json::json!({"frames": run.count, "image_capture_stream": stream}));
+    }
+    Ok(summary)
 }
 
 struct Run<'a> {
     command: &'a Command,
+    stream: &'a coreav_decode::StreamConfig,
     encoder: VideoEncoder,
     pixel_aspect: Option<(u64, u64)>,
     quarter_turns: u8,
@@ -315,6 +330,8 @@ struct Run<'a> {
     shape: Option<(u32, u32, PixelFormat)>,
     input_shape: Option<(u32, u32, PixelFormat)>,
     continuous: Option<Continuous>,
+    #[cfg(feature = "input-capture")]
+    capture: Option<super::image_capture::Recorder>,
 }
 
 impl Run<'_> {
@@ -338,7 +355,7 @@ impl Run<'_> {
         }
     }
 
-    fn take_frame(&mut self, frame: Frame) -> Result<(), Stop> {
+    fn take_frame(&mut self, mut frame: Frame) -> Result<(), Stop> {
         if self.complete() {
             return Ok(());
         }
@@ -383,6 +400,8 @@ impl Run<'_> {
             )));
         }
         self.input_shape = Some(input_shape);
+        frame.color =
+            coreav_thumbnail::frame_color(self.stream.codec, frame.color, self.stream.color);
         let mut picture = frame.to_cpu().map_err(frame_error)?.into_owned();
         let turns = if self.command.noautorotate {
             0
@@ -473,6 +492,10 @@ impl Run<'_> {
             None
         };
         self.shape = Some(shape);
+        #[cfg(feature = "input-capture")]
+        if let Some(capture) = &mut self.capture {
+            capture.picture(&picture, pts, time, pixel_name(input_shape.2), &frame.color)?;
+        }
         let bytes = match self.encoder {
             VideoEncoder::Png => coreav_thumbnail::encode_png_with_aspect(&picture, self.aspect())
                 .map_err(image_error)?,
@@ -512,6 +535,10 @@ impl Run<'_> {
             output::to_file(&path, force, |out| {
                 out.write_all(&bytes).map_err(|e| WriteFailure::output(&e))
             })?;
+            #[cfg(feature = "input-capture")]
+            if let Some(capture) = &mut self.capture {
+                capture.output(&path)?;
+            }
         } else {
             if self.continuous.is_none() {
                 self.continuous = Some(Continuous::open(self.command)?);
@@ -740,8 +767,10 @@ mod tests {
         )
         .unwrap();
         let original_shape = (2, 2, PixelFormat::Rgb24);
+        let stream = coreav_decode::StreamConfig::new(coreav_decode::Codec::H264);
         let mut run = Run {
             command: &command,
+            stream: &stream,
             encoder: VideoEncoder::Rawvideo,
             pixel_aspect: None,
             quarter_turns: 0,
@@ -755,6 +784,8 @@ mod tests {
             shape: Some(original_shape),
             input_shape: Some(original_shape),
             continuous: None,
+            #[cfg(feature = "input-capture")]
+            capture: None,
         };
         let mut frame = Frame {
             pts: Some(0),

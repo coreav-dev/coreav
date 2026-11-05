@@ -8,13 +8,14 @@
 //! runs FFmpeg in its place.
 
 use std::ffi::OsString;
-use std::io::Write;
+use std::io::{Read, Seek, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
 use coreav_cli::error::Failure;
 use coreav_cli::fallback::{NotNative, Tool};
 use coreav_cli::ffmpeg::{self, Refusal, Stop};
+use coreav_cli::ffprobe::model::Value;
 use coreav_cli::ffprobe::{self, args::Refusal as ProbeRefusal};
 use coreav_cli::strict_safe::StrictSafe;
 use coreav_isobmff::{BufferedSource, FileSource, Source};
@@ -71,10 +72,75 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
         Ok(args) => args,
         Err(code) => return code,
     };
-    match ffmpeg::run(&args, strict_safe) {
+    match ffmpeg::args::summary(&args) {
+        Ok(Some(options)) => return run_summary(Tool::Ffmpeg, &args, &options, strict_safe),
+        Ok(None) => {}
+        Err(Refusal::NotNative(refusal)) => {
+            return fallback_cmd::refuse(Tool::Ffmpeg, &args, refusal, strict_safe);
+        }
+        Err(Refusal::Usage(text)) => {
+            message("ffmpeg", &text);
+            return ExitCode::from(EXIT_USAGE);
+        }
+        Err(Refusal::Help) => return print_usage(ffmpeg::USAGE),
+    }
+    let mut spool = None;
+    if let Ok(command) = ffmpeg::args::parse(&args)
+        && ffmpeg::args::stdin(&command.input)
+        && command.more_inputs.is_empty()
+        && matches!(
+            command.muxer,
+            ffmpeg::args::Muxer::S16le | ffmpeg::args::Muxer::F32le
+        )
+        && !matches!(
+            command.demuxer,
+            Some(ffmpeg::args::Demuxer::S16le(_) | ffmpeg::args::Demuxer::Concat { .. })
+        )
+    {
+        match EncodedInput::read() {
+            Ok(input) => spool = Some(input),
+            Err(error) => {
+                message("ffmpeg", &format!("could not spool encoded stdin: {error}"));
+                return ExitCode::from(EXIT_IO);
+            }
+        }
+    }
+    let result = match &spool {
+        Some(input) => ffmpeg::run_spooled(&args, strict_safe, &input.path),
+        None => ffmpeg::run(&args, strict_safe),
+    };
+    match result {
         Ok(_) => ExitCode::SUCCESS,
         Err(Stop::Refused(Refusal::NotNative(refusal))) => {
-            fallback_cmd::refuse(Tool::Ffmpeg, &args, refusal, strict_safe)
+            if let Some(mut input) = spool.take() {
+                let replay = input
+                    .file
+                    .as_mut()
+                    .ok_or_else(|| std::io::Error::other("encoded stdin file is closed"))
+                    .and_then(|file| file.rewind().and_then(|()| file.try_clone()));
+                #[cfg(unix)]
+                let replay =
+                    replay.and_then(|file| std::fs::remove_file(&input.path).map(|()| file));
+                match replay {
+                    Ok(file) => fallback_cmd::refuse_with_input(
+                        Tool::Ffmpeg,
+                        &args,
+                        refusal,
+                        strict_safe,
+                        file,
+                        input,
+                    ),
+                    Err(error) => {
+                        message(
+                            "ffmpeg",
+                            &format!("could not replay encoded stdin: {error}"),
+                        );
+                        ExitCode::from(EXIT_IO)
+                    }
+                }
+            } else {
+                fallback_cmd::refuse(Tool::Ffmpeg, &args, refusal, strict_safe)
+            }
         }
         Err(Stop::Refused(Refusal::Usage(text))) => {
             message("ffmpeg", &text);
@@ -102,6 +168,84 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
                 EXIT_REJECTED
             })
         }
+    }
+}
+
+pub(super) struct EncodedInput {
+    path: std::path::PathBuf,
+    file: Option<std::fs::File>,
+}
+
+impl EncodedInput {
+    fn read() -> std::io::Result<Self> {
+        let tag = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(std::io::Error::other)?
+            .as_nanos();
+        let mut created = None;
+        for attempt in 0..32 {
+            let path = std::env::temp_dir().join(format!(
+                "coreav-encoded-stdin-{}-{tag}-{attempt}",
+                std::process::id()
+            ));
+            let mut options = std::fs::OpenOptions::new();
+            options.read(true).write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.mode(0o600);
+            }
+            match options.open(&path) {
+                Ok(file) => {
+                    created = Some(Self {
+                        path,
+                        file: Some(file),
+                    });
+                    break;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        let mut input = created.ok_or_else(|| {
+            std::io::Error::other("could not exclusively create encoded stdin file")
+        })?;
+        let file = input
+            .file
+            .as_mut()
+            .ok_or_else(|| std::io::Error::other("encoded stdin file is closed"))?;
+        let mut stdin = std::io::stdin().lock();
+        let mut bytes = [0u8; 65_536];
+        let mut size = 0u64;
+        loop {
+            let count = match stdin.read(&mut bytes) {
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                result => result?,
+            };
+            if count == 0 {
+                break;
+            }
+            size += count as u64;
+            if size > 1_073_741_824 {
+                return Err(std::io::Error::other(
+                    "encoded stdin exceeds the 1 GiB limit",
+                ));
+            }
+            file.write_all(
+                bytes
+                    .get(..count)
+                    .ok_or_else(|| std::io::Error::other("encoded stdin read buffer"))?,
+            )?;
+        }
+        file.rewind()?;
+        Ok(input)
+    }
+}
+
+impl Drop for EncodedInput {
+    fn drop(&mut self) {
+        drop(self.file.take());
+        let _ = std::fs::remove_file(&self.path);
     }
 }
 
@@ -170,12 +314,16 @@ pub fn run_ffprobe(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
-    if !options.sections {
-        let refusal = NotNative::property(
-            "no section",
-            "a command without -show_* or -show_entries is not supported: ffprobe's summary of the input on standard error is not reproduced; ask for the sections, for example -show_format -show_streams",
+    #[cfg(not(feature = "net"))]
+    if options.input.starts_with("http://") || options.input.starts_with("https://") {
+        message(
+            "ffprobe",
+            "this build has no network; URL inputs are not supported",
         );
-        return fallback_cmd::refuse(Tool::Ffprobe, &args, refusal, strict_safe);
+        return ExitCode::from(EXIT_USAGE);
+    }
+    if !options.sections {
+        return run_summary(Tool::Ffprobe, &args, &[options], strict_safe);
     }
     let input = options.input.clone();
     let result = if coreav_cli::remote_url(&input) {
@@ -210,6 +358,168 @@ pub fn run_ffprobe(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
     }
 }
 
+fn run_summary(
+    tool: Tool,
+    args: &[String],
+    inputs: &[ffprobe::args::Options],
+    strict_safe: StrictSafe,
+) -> ExitCode {
+    let mut bytes = Vec::new();
+    let mut errors_visible = true;
+    for (index, options) in inputs.iter().enumerate() {
+        let level = match ffprobe::args::summary_level(&options.diagnostic_level) {
+            Ok(level) => level,
+            Err(refusal) => return fallback_cmd::refuse(tool, args, refusal, strict_safe),
+        };
+        errors_visible = level >= 16;
+        let input = &options.input;
+        let result = if coreav_cli::remote_url(input) {
+            summary_remote(input, options, index)
+        } else {
+            summary_local(input, options, index)
+        };
+        match result {
+            Ok(output) => {
+                if level >= 32 {
+                    bytes.extend(output.summary);
+                }
+                if tool == Tool::Ffprobe && level >= 24 {
+                    bytes.extend(output.warnings);
+                }
+            }
+            Err(failure) => {
+                let text = match failure {
+                    Failure::Unsupported(text) => text,
+                    _ => "native input analysis did not complete".to_owned(),
+                };
+                return fallback_cmd::refuse(
+                    tool,
+                    args,
+                    NotNative::property(
+                        "input summary",
+                        format!("input cannot be summarized natively: {text}"),
+                    ),
+                    strict_safe,
+                );
+            }
+        }
+    }
+    if tool == Tool::Ffmpeg && errors_visible {
+        bytes.extend_from_slice(b"At least one output file must be specified\n");
+    }
+    let mut stderr = std::io::stderr().lock();
+    if let Err(error) = stderr.write_all(&bytes).and_then(|()| stderr.flush()) {
+        return super::write_error(&error);
+    }
+    if tool == Tool::Ffmpeg {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+fn local_path(input: &str) -> &Path {
+    Path::new(input.strip_prefix("file:").unwrap_or(input))
+}
+
+fn summary_local(
+    input: &str,
+    options: &ffprobe::args::Options,
+    index: usize,
+) -> Result<SummaryOutput, Failure> {
+    let path = local_path(input);
+    let size = std::fs::metadata(path).map_err(Failure::io)?.len();
+    let mut source = FileSource::open(path).map_err(Failure::library)?;
+    summary_source(&mut source, size, input, options, index)
+}
+
+fn summary_source<S: Source>(
+    source: &mut S,
+    size: u64,
+    name: &str,
+    options: &ffprobe::args::Options,
+    index: usize,
+) -> Result<SummaryOutput, Failure> {
+    let mut checked = SummarySource {
+        inner: source,
+        failed: false,
+    };
+    let probed = ffprobe::probe_summary(&mut checked, size, name, options.force)?;
+    match probed.report.summary {
+        ffprobe::SummaryEvidence::Complete { .. } => {}
+        ffprobe::SummaryEvidence::Unsupported(reason) => {
+            return Err(Failure::Unsupported(reason.to_owned()));
+        }
+        ffprobe::SummaryEvidence::Unverified => {
+            return Err(Failure::Unsupported(
+                "this input's summary has not been qualified".to_owned(),
+            ));
+        }
+    }
+    let rendered = ffprobe::summary::render(&probed.report, index, name)?;
+    let warnings = ffprobe::summary::warnings(&probed.report)?;
+    drop(probed);
+    if checked.failed {
+        return Err(Failure::Unsupported(
+            "input analysis encountered an incomplete read".to_owned(),
+        ));
+    }
+    Ok(SummaryOutput {
+        summary: rendered,
+        warnings,
+    })
+}
+
+struct SummaryOutput {
+    summary: Vec<u8>,
+    warnings: Vec<u8>,
+}
+
+struct SummarySource<'a, S> {
+    inner: &'a mut S,
+    failed: bool,
+}
+
+impl<S: Source> Source for SummarySource<'_, S> {
+    fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+        let result = self.inner.len();
+        self.failed |= result.is_err();
+        result
+    }
+
+    fn read_exact_at(
+        &mut self,
+        offset: u64,
+        bytes: &mut [u8],
+    ) -> Result<(), coreav_isobmff::Error> {
+        let result = self.inner.read_exact_at(offset, bytes);
+        self.failed |= result.is_err();
+        result
+    }
+}
+
+#[cfg(feature = "net")]
+fn summary_remote(
+    input: &str,
+    options: &ffprobe::args::Options,
+    index: usize,
+) -> Result<SummaryOutput, Failure> {
+    let mut source = coreav_cli::remote::open(input, &coreav_cli::remote::Options::from_env())?;
+    let size = source.len_known();
+    summary_source(&mut source, size, input, options, index).map_err(|f| source.explain(f))
+}
+
+#[cfg(not(feature = "net"))]
+fn summary_remote(
+    _input: &str,
+    _options: &ffprobe::args::Options,
+    _index: usize,
+) -> Result<SummaryOutput, Failure> {
+    Err(Failure::Unsupported(
+        "this build does not read remote inputs".to_owned(),
+    ))
+}
+
 enum Outcome {
     /// The input could not be read or was rejected.
     Read(Failure),
@@ -236,7 +546,7 @@ fn describe(failure: &Failure) -> (i64, String) {
 }
 
 fn local(input: &str, options: &ffprobe::args::Options) -> Result<(), Outcome> {
-    let path = Path::new(input);
+    let path = local_path(input);
     let size = std::fs::metadata(path)
         .map_err(|e| Outcome::Read(Failure::io(e)))?
         .len();
@@ -272,6 +582,19 @@ fn run<S: Source>(
     let mut source = BufferedSource::new(source);
     let mut probed =
         ffprobe::probe(&mut source, size, name, options.force).map_err(Outcome::Read)?;
+    if probed.report.format.iter().any(|(key, value)| {
+        *key == "format_name" && matches!(value, Value::Str(kind) if kind == "mpegts")
+    }) && probed.report.streams.iter().any(|stream| {
+        stream.kind == ffprobe::StreamKind::Data
+            && stream.entries.iter().any(|(key, value)| {
+                *key == "codec_name" && matches!(value, Value::Str(codec) if codec == "bin_data")
+            })
+    }) {
+        return Err(Outcome::Read(Failure::Unsupported(
+            "ffprobe compatibility for unidentified private MPEG-TS streams is not supported"
+                .to_owned(),
+        )));
+    }
     let stdout = std::io::stdout();
     let mut out = std::io::BufWriter::with_capacity(1 << 16, stdout.lock());
     match ffprobe::emit(options, &mut probed, &mut out) {

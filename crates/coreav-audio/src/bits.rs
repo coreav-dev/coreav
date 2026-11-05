@@ -196,13 +196,16 @@ impl<'a> Bits<'a> {
         Ok(())
     }
 
-    /// Skips to the next byte boundary.
-    pub(crate) fn align(&mut self) {
+    /// Consumes zero padding to the next byte boundary.
+    pub(crate) fn align_zero(&mut self) -> Result<(), Error> {
         let partial = self.have % 8;
-        self.consume(partial);
+        if self.read(partial)? != 0 {
+            return Err(Error::Invalid("nonzero frame alignment padding"));
+        }
+        Ok(())
     }
 
-    /// Whole bytes read so far, after [`Bits::align`].
+    /// Whole bytes read so far, after [`Bits::align_zero`].
     pub(crate) fn byte_position(&self) -> usize {
         self.next - (self.have / 8) as usize
     }
@@ -211,6 +214,18 @@ impl<'a> Bits<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn alignment_requires_zero_padding() {
+        let mut bits = Bits::new(&[0xa0, 0x55]);
+        assert_eq!(bits.read(3).unwrap(), 5);
+        bits.align_zero().unwrap();
+        assert_eq!(bits.byte_position(), 1);
+        assert_eq!(bits.read(8).unwrap(), 0x55);
+        let mut bits = Bits::new(&[0xa1]);
+        assert_eq!(bits.read(3).unwrap(), 5);
+        assert!(matches!(bits.align_zero(), Err(Error::Invalid(_))));
+    }
 
     #[test]
     fn reads_across_refills() {

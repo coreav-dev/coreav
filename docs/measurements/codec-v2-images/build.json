@@ -1,0 +1,28 @@
+{
+  "schema": "coreav.image-build/1",
+  "source_sha": "e42fc012b13e782babc596e709c8f740840cba2d",
+  "cargo_lock_sha256": "68d7ff212d7636899de39fb2b3abd0aa5b04c7040856f4f3516da6ca3e822c59",
+  "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "target": "x86_64-unknown-linux-gnu",
+  "binaries": {
+    "coreav": {
+      "sha256": "d1c57f1fc482c3f8eaea74494ccd09e1a20743268f9c70f5004399832e730f3e",
+      "features": [
+        "release-full"
+      ]
+    },
+    "harness": {
+      "sha256": "0c1c43737860cb4a08f59b32c2a1fb886843a2ae92721f9e1b72b297589ff3f4",
+      "features": [
+        "release-full"
+      ]
+    },
+    "image_harness": {
+      "sha256": "40d4cc4877c80b9fcb46ab49006114f80dc1732fb428e3afcab11d3185a0971a",
+      "features": [
+        "release-full",
+        "input-capture"
+      ]
+    }
+  }
+}
