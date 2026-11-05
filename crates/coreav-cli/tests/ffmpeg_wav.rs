@@ -55,6 +55,268 @@ fn info_tag(tag: &[u8; 4], text: &[u8]) -> Vec<u8> {
     chunk
 }
 
+#[cfg(feature = "aac")]
+#[test]
+fn aac_s16_wav_forms_match_complete_pinned_outputs_and_retain_native_metadata_cases() {
+    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
+    if !ffmpeg.is_file() {
+        assert!(
+            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
+            "set COREAV_FFMPEG to the pin"
+        );
+        return;
+    }
+    let verified = Command::new("python3")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/oracle_pin.py"))
+        .arg("--verify-bin")
+        .arg(ffmpeg.parent().unwrap())
+        .output()
+        .unwrap();
+    assert!(verified.status.success(), "{verified:?}");
+    let dir = scratch("aac-output-oracle");
+    let input = dir.join("silence.mp4");
+    let policy: Vec<_> = include_str!("../../../scripts/oracle-audio-args.txt")
+        .split_whitespace()
+        .collect();
+    let generated = Command::new(&ffmpeg)
+        .args(["-v", "error", "-f", "lavfi"])
+        .args(&policy)
+        .args([
+            "-i",
+            "testsrc2=size=64x48:rate=25:duration=0.12",
+            "-f",
+            "lavfi",
+        ])
+        .args(&policy)
+        .args([
+            "-i",
+            "anullsrc=r=48000:cl=mono",
+            "-t",
+            "0.12",
+            "-c:v",
+            "libx264",
+            "-threads:v",
+            "1",
+            "-c:a",
+            "aac",
+            "-aac_pns",
+            "0",
+            "-aac_tns",
+            "0",
+        ])
+        .arg(&input)
+        .output()
+        .unwrap();
+    assert!(generated.status.success(), "{generated:?}");
+    let forms: [&[&str]; 5] = [
+        &["-ac", "1", "-ar", "48000", "-f", "wav"],
+        &["-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", "-f", "wav"],
+        &[
+            "-ac",
+            "1",
+            "-ar",
+            "48000",
+            "-c:a",
+            "pcm_s16le",
+            "-f",
+            "wav",
+            "-vn",
+        ],
+        &["-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le"],
+        &["-c:a", "pcm_s16le", "-f", "wav"],
+    ];
+    for options in forms {
+        let candidate = dir.join("candidate.wav");
+        let reference = dir.join("reference.wav");
+        let pin = Command::new(&ffmpeg)
+            .args(["-v", "error", "-y"])
+            .args(&policy)
+            .arg("-i")
+            .arg(&input)
+            .args(options)
+            .arg(&reference)
+            .output()
+            .unwrap();
+        assert!(pin.status.success(), "{options:?}: {pin:?}");
+        let native = strict()
+            .arg("-y")
+            .arg("-i")
+            .arg(&input)
+            .args(options)
+            .arg(&candidate)
+            .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
+            .output()
+            .unwrap();
+        assert!(native.status.success(), "{options:?}: {native:?}");
+        assert!(native.stdout.is_empty());
+        assert_eq!(
+            std::fs::read(&candidate).unwrap(),
+            std::fs::read(&reference).unwrap(),
+            "{options:?}"
+        );
+    }
+    let native = strict()
+        .arg("-i")
+        .arg(&input)
+        .args(["-c:a", "pcm_s16le", "-f", "wav", "pipe:1"])
+        .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
+        .output()
+        .unwrap();
+    let pin = Command::new(&ffmpeg)
+        .args(["-v", "error"])
+        .args(&policy)
+        .arg("-i")
+        .arg(&input)
+        .args(["-c:a", "pcm_s16le", "-f", "wav", "pipe:1"])
+        .output()
+        .unwrap();
+    assert!(native.status.success() && pin.status.success());
+    assert_eq!(native.stdout, pin.stdout);
+    let tagged = dir.join("title.mp4");
+    let generated = Command::new(&ffmpeg)
+        .args(["-v", "error"])
+        .args(&policy)
+        .arg("-i")
+        .arg(&input)
+        .args([
+            "-map",
+            "0:a:0",
+            "-c",
+            "copy",
+            "-metadata",
+            "title=Keep this title",
+        ])
+        .arg(&tagged)
+        .output()
+        .unwrap();
+    assert!(generated.status.success());
+    let chapter_metadata = dir.join("chapters.ffmeta");
+    std::fs::write(
+        &chapter_metadata,
+        ";FFMETADATA1\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=100\ntitle=Chapter\n",
+    )
+    .unwrap();
+    let chaptered = dir.join("chaptered.mp4");
+    let generated = Command::new(&ffmpeg)
+        .args(["-v", "error"])
+        .args(&policy)
+        .arg("-i")
+        .arg(&input)
+        .args(["-f", "ffmetadata"])
+        .args(&policy)
+        .arg("-i")
+        .arg(&chapter_metadata)
+        .args([
+            "-map",
+            "0:a:0",
+            "-map_metadata",
+            "1",
+            "-map_chapters",
+            "1",
+            "-c",
+            "copy",
+        ])
+        .arg(&chaptered)
+        .output()
+        .unwrap();
+    assert!(generated.status.success(), "{generated:?}");
+    let pcm = vec![0; 5760 * 2];
+    for source in [&tagged, &chaptered] {
+        for native_only in [false, true] {
+            for options in forms {
+                for existing in [false, true] {
+                    let output = dir.join("preserved-native.wav");
+                    if existing {
+                        std::fs::write(&output, b"replace this file").unwrap();
+                    }
+                    let entries = std::fs::read_dir(&dir).unwrap().count();
+                    let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+                    if native_only {
+                        command.arg("--strict-safe");
+                    }
+                    let result = command
+                        .args(["ffmpeg", "-y", "-i"])
+                        .arg(source)
+                        .args(options)
+                        .arg(&output)
+                        .env_remove("COREAV_STRICT_SAFE")
+                        .env_remove("COREAV_FALLBACK_ACTIVE")
+                        .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
+                        .output()
+                        .unwrap();
+                    assert!(
+                        result.status.success(),
+                        "{source:?} {options:?}: {result:?}"
+                    );
+                    assert!(result.stdout.is_empty() && result.stderr.is_empty());
+                    let mut expected = coreav_audio::wav::header(
+                        coreav_audio::SampleFormat::S16,
+                        1,
+                        48000,
+                        4,
+                        Some(pcm.len() as u64),
+                    );
+                    expected.extend_from_slice(&pcm);
+                    assert_eq!(std::fs::read(&output).unwrap(), expected);
+                    assert_eq!(
+                        std::fs::read_dir(&dir).unwrap().count(),
+                        entries + usize::from(!existing)
+                    );
+                    std::fs::remove_file(&output).unwrap();
+                }
+            }
+            let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+            if native_only {
+                command.arg("--strict-safe");
+            }
+            let result = command
+                .args(["ffmpeg", "-y", "-i"])
+                .arg(source)
+                .args(["-c:a", "pcm_s16le", "-f", "wav", "pipe:1"])
+                .env_remove("COREAV_STRICT_SAFE")
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
+                .output()
+                .unwrap();
+            assert!(result.status.success(), "{source:?}: {result:?}");
+            assert!(result.stderr.is_empty());
+            let mut expected =
+                coreav_audio::wav::header(coreav_audio::SampleFormat::S16, 1, 48000, 4, None);
+            expected.extend_from_slice(&pcm);
+            assert_eq!(result.stdout, expected);
+        }
+    }
+    let candidate = dir.join("discarded.wav");
+    let reference = dir.join("discarded-reference.wav");
+    let native = strict()
+        .arg("-i")
+        .arg(&tagged)
+        .args(["-map_metadata", "-1", "-f", "wav"])
+        .arg(&candidate)
+        .output()
+        .unwrap();
+    let pin = Command::new(&ffmpeg)
+        .args(["-v", "error"])
+        .args(&policy)
+        .arg("-i")
+        .arg(&tagged)
+        .args(["-map_metadata", "-1", "-f", "wav"])
+        .arg(&reference)
+        .output()
+        .unwrap();
+    assert!(
+        native.status.success() && pin.status.success(),
+        "{native:?}, {pin:?}"
+    );
+    assert_eq!(
+        std::fs::read(candidate).unwrap(),
+        std::fs::read(reference).unwrap()
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 #[test]
 fn integer_wav_output_matches_complete_pinned_files() {
     let ffmpeg = std::env::var_os("COREAV_FFMPEG")

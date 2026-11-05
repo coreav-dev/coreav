@@ -25,8 +25,8 @@ pub(super) fn write(
                 .checked_mul(u64::from(summary.output.channels) * 2)
         })
         .ok_or_else(|| super::Refusal::not_native("WAV output size overflows"))?;
-    let header =
-        output_header(plan.output_rate, plan.channels.output, bytes).map_err(super::prestart)?;
+    let header = output_header(plan.output_rate, plan.channels.output, Some(bytes))
+        .map_err(super::prestart)?;
     Ok(super::output::to_file(
         Path::new(&command.output),
         force,
@@ -46,26 +46,31 @@ pub(super) fn write(
     )?)
 }
 
-fn output_header(rate: u32, channels: u16, bytes: u64) -> Result<Vec<u8>, Error> {
+pub(super) fn output_header(
+    rate: u32,
+    channels: u16,
+    bytes: Option<u64>,
+) -> Result<Vec<u8>, Error> {
     let encoder = crate::ffmpeg::MUXER_ENCODER.as_bytes();
     let mut info = b"LIST\x1a\0\0\0INFOISFT\x0d\0\0\0".to_vec();
     info.extend_from_slice(encoder);
     info.extend_from_slice(&[0, 0]);
-    let with_info = bytes
-        .checked_add(info.len() as u64)
-        .filter(|size| coreav_audio::wav::fits(*size))
-        .ok_or(Error::Unsupported(
-            "PCM output larger than the WAV size fields",
-        ))?;
     let mask = if channels == 1 { 4 } else { 3 };
-    let mut header =
-        coreav_audio::wav::header(SampleFormat::S16, channels, rate, mask, Some(bytes));
-    let size = u32::try_from(with_info + header.len() as u64 - 8)
-        .map_err(|_| Error::Unsupported("PCM output larger than the WAV size fields"))?;
-    header
-        .get_mut(4..8)
-        .ok_or(Error::Invalid("WAV RIFF header"))?
-        .copy_from_slice(&size.to_le_bytes());
+    let mut header = coreav_audio::wav::header(SampleFormat::S16, channels, rate, mask, bytes);
+    if let Some(bytes) = bytes {
+        let with_info = bytes
+            .checked_add(info.len() as u64)
+            .filter(|size| coreav_audio::wav::fits(*size))
+            .ok_or(Error::Unsupported(
+                "PCM output larger than the WAV size fields",
+            ))?;
+        let size = u32::try_from(with_info + header.len() as u64 - 8)
+            .map_err(|_| Error::Unsupported("PCM output larger than the WAV size fields"))?;
+        header
+            .get_mut(4..8)
+            .ok_or(Error::Invalid("WAV RIFF header"))?
+            .copy_from_slice(&size.to_le_bytes());
+    }
     let data = header.split_off(header.len().saturating_sub(8));
     header.extend_from_slice(&info);
     header.extend_from_slice(&data);

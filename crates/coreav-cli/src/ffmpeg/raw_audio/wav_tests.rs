@@ -6,10 +6,28 @@ use super::*;
 fn output_header_refuses_riff_overflow_without_allocating_the_payload() {
     for bytes in [u64::from(u32::MAX), u64::MAX - 33, u64::MAX] {
         assert!(matches!(
-            output_header(48000, 1, bytes),
+            output_header(48000, 1, Some(bytes)),
             Err(Error::Unsupported(_))
         ));
     }
+}
+
+#[test]
+fn unknown_output_length_keeps_pipe_sizes_and_the_shared_info_chunk() {
+    let known = output_header(48000, 1, Some(20)).unwrap();
+    let mut unknown = output_header(48000, 1, None).unwrap();
+    assert_eq!(unknown.get(4..8), Some(u32::MAX.to_le_bytes().as_slice()));
+    let tail = unknown.len() - 4;
+    assert_eq!(unknown.get(tail..), Some(u32::MAX.to_le_bytes().as_slice()));
+    unknown
+        .get_mut(4..8)
+        .unwrap()
+        .copy_from_slice(known.get(4..8).unwrap());
+    unknown
+        .get_mut(tail..)
+        .unwrap()
+        .copy_from_slice(known.get(tail..).unwrap());
+    assert_eq!(unknown, known);
 }
 
 struct Generated {
