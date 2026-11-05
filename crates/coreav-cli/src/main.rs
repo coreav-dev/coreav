@@ -1609,6 +1609,7 @@ fn run_remux(args: &RemuxArgs, metadata: Metadata) -> ExitCode {
         }
     };
     let options = RemuxOptions {
+        interleave_packets: false,
         video_origin: None,
         rebuild_durations: false,
         streams: args.streams.clone(),

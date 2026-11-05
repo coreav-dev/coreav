@@ -4,6 +4,7 @@ Workflow required checks, path filters, DCO, pinned actions, merge-group reuse, 
 
 | Rule | Enforced by |
 |---|---|
+| AAC qualification keeps its complete JSON report even when the comparison fails | The existing always-run artifact upload owns retention; `test_aac_qualification_report_survives_failure` checks its condition and report path. Rust types cannot govern workflow artifact paths |
 | Input-summary fixture CI starts for the registered default CLI build inputs and the inherited Cargo manifest and lockfile | `test_default_cli_build_inputs_trigger_summary_checks` pins the fourteen current local dependency crate paths and both root files, and names the filter entries to restore. The input set is checked against `cargo tree -p coreav-cli -e normal,build`; Rust types cannot govern GitHub path filters |
 | No `unwrap`, `expect`, `panic!`, `todo!`, `unimplemented!` or slice indexing in production code | Workspace lints in `Cargo.toml`, `cargo clippy --workspace --all-targets -- -D warnings` (`ci.yml`) |
 | Native SVT backend tests use the installed distribution compiler even when the repository selects stable | The explicit Cargo toolchain selector in `svt-av1-native.yml` owns selection; `test_native_backend_uses_the_installed_pin_despite_a_stable_override` executes that step for all four targets with a different pin and checks linker selection and failure propagation. Rust types cannot select the workflow's compiler |

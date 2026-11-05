@@ -223,6 +223,11 @@ fn remux<S: Source, R: Source, W: Write>(
         return Err(unsupported("a remux needs one to sixteen input sources").into());
     }
     let multiple = inputs.len() > 1;
+    if options.interleave_packets
+        && (multiple || replacements.video.is_some() || replacements.audio.is_some())
+    {
+        return Err(unsupported("packet ordering with replacements or multiple inputs").into());
+    }
     let rebuild_durations = options.rebuild_durations || options.video_origin.is_some();
     if options.rebuild_durations
         && (multiple || replacements.video.is_some() || replacements.audio.is_some())
@@ -494,6 +499,12 @@ fn remux<S: Source, R: Source, W: Write>(
         limits,
     )?;
     let mut budget = Budget::new(limits);
+    if options.interleave_packets
+        && plans.len() > 1
+        && plans.iter().any(|plan| plan.track.kind == TrackKind::Video)
+    {
+        muxer.interleave_packets()?;
+    }
     let mut kept: Vec<Kept<'_>> = Vec::new();
     for mut plan in plans {
         let (input_movie, input_source) = if plan.input == 0 {

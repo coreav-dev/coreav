@@ -914,5 +914,67 @@ class Conformance(unittest.TestCase):
         pool.close.assert_called_once()
 
 
+class AnchoredPictures(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = pathlib.Path(self.temporary.name)
+        self.source, self.binary = self.root / 'original.bit', self.root / 'ffmpeg'
+        self.source.write_bytes(b'self-written source identity')
+        self.binary.write_bytes(b'self-written binary identity')
+        self.sha = runner.digest(self.source)
+        self.frames = [dict(width=2, height=2, pix_fmt='yuv420p')] * 2
+        self.outputs = [dict(picture_index=4), dict(picture_index=1)]
+        self.confirmation = dict(complete=True, exit_code=0, progress_complete=True,
+                                 output_pictures=2, md5='a' * 32, bitstream_sha256=self.sha,
+                                 oracle_build=runner.oracle_pin.load()['BUILD'])
+        self.inventory = dict(members=[dict(name='original.md5', role='reference_hash', sha256='b' * 64)],
+                              references=[dict(source='original.md5', layout='whole_output_yuv_file', md5='a' * 32)])
+        self.stdout, self.stderr = self.root / 'stdout', self.root / 'stderr'
+        self.stdout.write_text('#hash: MD5\n#codec_id 0: rawvideo\n#media_type 0: video\n'
+                               + ''.join(f'0, {i}, {i}, 1, 6, {str(i + 1) * 32}\n' for i in range(2)))
+        self.stderr.write_text('informational text\nframe=2\ndup_frames=0\ndrop_frames=0\nprogress=end\n')
+
+    def derive(self, confirmation=None):
+        return runner.anchored_reference_frames(
+            self.binary, self.source, self.root, self.frames, self.outputs,
+            self.confirmation if confirmation is None else confirmation,
+            self.inventory, 'original', self.sha)
+
+    def test_complete_anchor_derives_all_frames_with_original_provenance(self):
+        with mock.patch.object(runner, 'child', return_value=(0, self.stdout, self.stderr)) as child:
+            references = self.derive()
+        self.assertEqual([r['md5'] for r in references], ['1' * 32, '2' * 32])
+        self.assertEqual([r['picture_index'] for r in references], [4, 1])
+        self.assertEqual([r['output_index'] for r in references], [0, 1])
+        for reference in references:
+            self.assertEqual(reference['stream'], 'original')
+            self.assertEqual(reference['stream_sha256'], self.sha)
+            self.assertEqual(reference['anchoring_md5'], 'a' * 32)
+            self.assertEqual(reference['source'], 'original.md5')
+            self.assertEqual(reference['source_sha256'], 'b' * 64)
+            self.assertEqual(reference['oracle_sha256'], runner.digest(self.binary))
+            self.assertEqual(reference['source_scope'], 'oracle_picture_anchored_to_published_whole_output')
+        self.assertNotIn('-frames:v', child.call_args.args[0])
+        self.assertIn('-noautorotate', child.call_args.args[0])
+        self.assertIn('-noautoscale', child.call_args.args[0])
+
+    def test_failed_changed_or_incomplete_anchor_never_starts_picture_derivation(self):
+        for key, value in [('complete', False), ('exit_code', 1), ('progress_complete', False),
+                           ('output_pictures', 1), ('md5', 'c' * 32), ('bitstream_sha256', 'c' * 64)]:
+            with self.subTest(field=key), mock.patch.object(runner, 'child') as child:
+                with self.assertRaisesRegex(ValueError, 'picture_reference_anchor'):
+                    self.derive(dict(self.confirmation, **{key: value}))
+                child.assert_not_called()
+
+    def test_partial_or_wrong_sized_picture_output_is_not_a_reference(self):
+        complete = self.stdout.read_text()
+        for text in ('\n'.join(complete.splitlines()[:-1]) + '\n', complete.replace(', 6,', ', 12,')):
+            self.stdout.write_text(text)
+            with mock.patch.object(runner, 'child', return_value=(0, self.stdout, self.stderr)), \
+                    self.assertRaises(ValueError):
+                self.derive()
+
+
 if __name__ == '__main__':
     unittest.main()

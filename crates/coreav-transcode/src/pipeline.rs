@@ -730,6 +730,7 @@ fn execute<S: Source, W: Write>(
                     &options.isobmff_limits,
                     &isobmff_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
                     &RemuxOptions {
+                        interleave_packets: false,
                         video_origin: None,
                         rebuild_durations: false,
                         streams,

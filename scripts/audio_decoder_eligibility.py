@@ -9,7 +9,10 @@ from markdown_it import MarkdownIt
 
 ROOT = Path(__file__).resolve().parents[1]
 RECORD = ROOT / 'docs/compat/audio-decoder-eligibility.json'
-REQUIREMENTS = {'mpeg1_layer3', 'aac_lc', 'opus_mapping0', 'supported_mp4_timeline'}
+REQUIREMENTS = {'mpeg1_layer3', 'aac_lc', 'opus_mapping0', 'supported_mp4_timeline',
+                'aac_no_noise_or_all_ms_intensity', 'ffmpeg_aac_mp4_timeline'}
+AAC_TOLERANCE = {'f32_absolute': 2 ** -16, 's16_lsb': 1, 'sample_count': 'exact',
+                 'priming': 'exact', 'timeline': 'exact', 'feature': 'aac'}
 
 
 def heading_anchors(markdown):
@@ -40,16 +43,24 @@ def validate(record):
     require(isinstance(record['decoders'], list), 'decoders must be an array')
     codecs = set()
     for row in record['decoders']:
-        require(isinstance(row, dict) and set(row) == {
+        require(isinstance(row, dict), 'invalid decoder fields')
+        tolerance = row.get('kind') == 'decode_tolerance'
+        fields = {
             'codec', 'kind', 'decoder_eligible', 'presentations', 'evidence',
-            'limitations'}, 'invalid decoder fields')
+            'limitations'} | ({'tolerance'} if tolerance else set())
+        require(set(row) == fields, 'invalid decoder fields')
         codec = row['codec']
         require(isinstance(codec, str) and codec in {'mp3', 'opus', 'aac'}, 'unknown codec')
         require(codec not in codecs, 'duplicate codec')
         codecs.add(codec)
-        require(row['kind'] == 'conformance', 'lossy decoder rows use only conformance')
+        require(row['kind'] == 'conformance' or tolerance and codec == 'aac',
+                'lossy decoder rows require conformance or registered AAC decode tolerance')
+        if tolerance:
+            require(row['tolerance'] == AAC_TOLERANCE
+                    and type(row['tolerance']['s16_lsb']) is int,
+                    'unregistered AAC tolerance or build scope')
         require(type(row['decoder_eligible']) is bool, 'eligibility must be boolean')
-        require(codec != 'aac' or not row['decoder_eligible'],
+        require(codec != 'aac' or tolerance or not row['decoder_eligible'],
                 'AAC eligibility requires a registered ISO conformance procedure')
         require(isinstance(row['limitations'], list) and all(
             isinstance(value, str) and value for value in row['limitations']),
@@ -81,6 +92,11 @@ def validate(record):
             require(len(requirements) == len(set(requirements)), 'duplicate requirement')
             if presentation['eligible']:
                 require(row['decoder_eligible'], 'presentation requires decoder eligibility')
+                if tolerance:
+                    require(container == 'mp4' and requirements == [
+                        'aac_lc', 'aac_no_noise_or_all_ms_intensity', 'ffmpeg_aac_mp4_timeline'],
+                        'AAC tolerance requires its content and presentation predicates')
+                    continue
                 require(container == 'mp4' and 'supported_mp4_timeline' in requirements,
                         'presentation lacks registered timeline predicate')
                 profile = {'mp3': 'mpeg1_layer3', 'aac': 'aac_lc', 'opus': 'opus_mapping0'}.get(codec)

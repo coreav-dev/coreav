@@ -184,6 +184,7 @@ struct MuxTrack {
 /// Writes an MP4 file whose samples are copied from elsewhere; see the
 /// [module documentation](self).
 pub struct Muxer {
+    packet_order: bool,
     file_type: FileType,
     movie: MovieHeader,
     tracks: Vec<MuxTrack>,
@@ -201,6 +202,7 @@ impl Muxer {
             return Err(invalid("movie timescale 0"));
         }
         Ok(Self {
+            packet_order: false,
             file_type,
             movie,
             tracks: Vec::new(),
@@ -215,6 +217,15 @@ impl Muxer {
         if self.written {
             return Err(invalid("the head is already written"));
         }
+        Ok(())
+    }
+
+    pub(crate) fn interleave_packets(&mut self) -> Result<(), Error> {
+        self.open()?;
+        if !self.tracks.is_empty() {
+            return Err(invalid("packet ordering must precede tracks"));
+        }
+        self.packet_order = true;
         Ok(())
     }
 
@@ -238,7 +249,8 @@ impl Muxer {
             });
         }
         self.tracks.try_reserve(1).map_err(|_| table_limit())?;
-        let tables = Tables::with_chunk_bytes(header.timescale, self.table_limit, CHUNK_BYTES);
+        let chunk_bytes = if self.packet_order { 0 } else { CHUNK_BYTES };
+        let tables = Tables::with_chunk_bytes(header.timescale, self.table_limit, chunk_bytes);
         self.tracks.push(MuxTrack { header, tables });
         Ok(self.tracks.len().saturating_sub(1))
     }
@@ -404,6 +416,36 @@ impl Muxer {
         self.open()?;
         self.written = true;
         for track in &mut self.tracks {
+            if self.packet_order {
+                let (delay, media) = match track.header.edits.as_slice() {
+                    [] => (0, None),
+                    [media] if media.media_time >= 0 => (0, Some(media)),
+                    [empty, media] if empty.media_time == -1 && media.media_time >= 0 => {
+                        (empty.duration, Some(media))
+                    }
+                    _ => return Err(invalid("packet ordering needs simple edits").into()),
+                };
+                if track
+                    .header
+                    .edits
+                    .iter()
+                    .any(|edit| edit.rate != Edit::UNIT_RATE)
+                {
+                    return Err(invalid("packet ordering needs unit-rate edits").into());
+                }
+                let delay = u128::from(delay) * u128::from(track.header.timescale);
+                let clock = u128::from(self.movie.timescale);
+                if delay % clock != 0 {
+                    return Err(Error::Unsupported {
+                        reason: "packet ordering needs an exact edit delay",
+                    }
+                    .into());
+                }
+                let delay = i128::try_from(delay / clock).map_err(|_| overflow())?;
+                let origin = delay - i128::from(media.map_or(0, |edit| edit.media_time));
+                track.tables.decode_start = i64::try_from(origin)
+                    .map_err(|_| invalid("packet ordering needs a signed 64-bit decode origin"))?;
+            }
             track.tables.finish();
         }
         let movie_timescale = self.movie.timescale;
@@ -490,7 +532,11 @@ impl Muxer {
                 extra: copied(&self.movie.boxes),
             },
             boxes,
-            Ties::SmallerFirst,
+            if self.packet_order {
+                Ties::TrackOrder
+            } else {
+                Ties::SmallerFirst
+            },
         )?;
         Ok(Head {
             data_start: head.0,
@@ -515,9 +561,12 @@ impl Muxer {
             .try_reserve_exact(self.tracks.len())
             .map_err(|_| E::from(table_limit()))?;
         tables.extend(self.tracks.iter().map(|t| &t.tables));
-        interleave(&tables, Ties::SmallerFirst, |track, chunk| {
-            f(track, chunk.samples)
-        })
+        let ties = if self.packet_order {
+            Ties::TrackOrder
+        } else {
+            Ties::SmallerFirst
+        };
+        interleave(&tables, ties, |track, chunk| f(track, chunk.samples))
     }
 }
 
@@ -873,6 +922,132 @@ mod tests {
         }
         assert!(av01_sample_entry(64, 80, &av1c, Some((0, 1)), None).is_err());
         assert!(av01_sample_entry(64, 80, &av1c, Some((1, 0)), None).is_err());
+    }
+
+    #[test]
+    fn packet_chunks_use_edited_decode_clocks_in_both_passes() {
+        let mut muxer = Muxer::new(
+            FileType {
+                major: FourCc(*b"isom"),
+                minor: 0,
+                compatible: Vec::new(),
+            },
+            MovieHeader {
+                timescale: 1000,
+                creation_time: 0,
+                boxes: Vec::new(),
+            },
+            &Limits::default(),
+        )
+        .unwrap();
+        muxer.interleave_packets().unwrap();
+        for (timescale, media_time, count, duration) in
+            [(1000, 200, 3, 100), (48_000, 1024, 6, 1024)]
+        {
+            let mut h = header(
+                TrackMedia::Audio { volume: 0x0100 },
+                audio_sample_entry(
+                    FourCc(*b"mp4a"),
+                    2,
+                    16,
+                    48_000,
+                    &[RawBox {
+                        kind: FourCc(*b"esds"),
+                        payload: esds(&[0x12, 0x10]),
+                    }],
+                )
+                .unwrap(),
+            );
+            h.timescale = timescale;
+            h.edits = vec![Edit {
+                duration: 100,
+                media_time,
+                rate: Edit::UNIT_RATE,
+            }];
+            let track = muxer.add_track(h).unwrap();
+            for _ in 0..count {
+                muxer
+                    .push_sample(
+                        track,
+                        Sample {
+                            size: 1,
+                            duration,
+                            sync: true,
+                            composition_offset: 0,
+                        },
+                    )
+                    .unwrap();
+            }
+        }
+        let mut out = Vec::new();
+        muxer.write_head(&mut out).unwrap();
+        let mut order = Vec::new();
+        muxer
+            .for_each_chunk(|track, samples| -> Result<(), Error> {
+                assert_eq!(samples, 1);
+                order.push(track);
+                out.push(track as u8);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(order, [0, 0, 1, 0, 1, 1, 1, 1, 1]);
+        let mut source = SliceSource::new(&out);
+        let limits = Limits::default();
+        let parsed = probe(&mut source, &limits, &Allowlist::default()).unwrap();
+        for track in &parsed.tracks {
+            let mut budget = Budget::new(&limits);
+            for packet in parsed
+                .packets(track.index, SliceSource::new(&out), &limits, &mut budget)
+                .unwrap()
+            {
+                let packet = packet.unwrap();
+                assert_eq!(out[packet.offset as usize], track.index as u8);
+            }
+        }
+    }
+
+    #[test]
+    fn packet_chunks_refuse_an_inexact_edit_delay_before_output() {
+        let mut muxer = Muxer::new(
+            FileType {
+                major: FourCc(*b"isom"),
+                minor: 0,
+                compatible: Vec::new(),
+            },
+            MovieHeader {
+                timescale: 1001,
+                creation_time: 0,
+                boxes: Vec::new(),
+            },
+            &Limits::default(),
+        )
+        .unwrap();
+        muxer.interleave_packets().unwrap();
+        let mut h = header(
+            TrackMedia::Audio { volume: 0x0100 },
+            audio_sample_entry(FourCc(*b"mp4a"), 2, 16, 48_000, &[]).unwrap(),
+        );
+        h.edits = vec![
+            Edit {
+                duration: 1,
+                media_time: -1,
+                rate: Edit::UNIT_RATE,
+            },
+            Edit {
+                duration: 1,
+                media_time: 0,
+                rate: Edit::UNIT_RATE,
+            },
+        ];
+        muxer.add_track(h).unwrap();
+        let mut out = Vec::new();
+        assert_eq!(
+            muxer.write_head(&mut out),
+            Err(ExtractError::Source(Error::Unsupported {
+                reason: "packet ordering needs an exact edit delay",
+            }))
+        );
+        assert!(out.is_empty());
     }
 
     #[test]

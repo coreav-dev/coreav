@@ -1,7 +1,7 @@
 use crate::{Error, Result};
 
 /// A decoded-picture hash over the three coded 4:2:0 components (D.3.20).
-/// These are retained, not checked against pixels by this header-only crate.
+/// `HeaderParser` retains these; `IntraPictureDecoder` verifies selected-picture samples.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PictureHash {
     /// Y, Cb and Cr MD5 digests.

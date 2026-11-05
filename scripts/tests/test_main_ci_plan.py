@@ -57,6 +57,16 @@ class MainPlan(unittest.TestCase):
             '--target-dir', 'target/fallback',
         ], 'Run the complete transcode target with AAC enabled; remove test-name filters')
 
+    def test_aac_qualification_report_survives_failure(self):
+        workflow = json.loads(subprocess.check_output(
+            ['ruby', '-rjson', '-rpsych', '-e', 'puts JSON.generate(Psych.load_file(ARGV[0]))',
+             str(ROOT / '.github/workflows/audio-conformance.yml')], text=True))
+        steps = workflow['jobs']['aac']['steps']
+        upload, = [step for step in steps if step.get('name') == 'Keep the results']
+        self.assertEqual(upload['if'], 'always()')
+        self.assertIn('${{ runner.temp }}/aac-pcm.json', upload['with']['path'].splitlines(),
+                      'Keep aac-pcm.json in the AAC artifact even when qualification fails')
+
     def test_docs_push_never_drops_an_earlier_source_pushs_main_obligations(self):
         for old_reused, new_reused in ((True, True), (False, False), (True, False), (False, True)):
             old = self.plan('push', old_reused)

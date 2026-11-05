@@ -1,6 +1,6 @@
 # HEVC decoding
 
-Status: Milestone 1 implementation. `coreav-hevc` provides opt-in header inspection and header-only output bookkeeping, not reconstructed pictures or a decode backend. The milestone structure remains; the evidence rules and explicit C1 exclusions are documented below. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
+Status: Milestone 1 is merged. `coreav-hevc` provides opt-in header inspection and a selected-picture scalar intra path; the [milestone-2 design](hevc-intra.md) describes its CABAC, serial traversal and reconstruction limits. G2 media verification is not yet established. No production decode backend or default consumer selects it. The milestone structure remains; the evidence rules and explicit C1 exclusions are documented below. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
 
 ## What this is
 
@@ -30,9 +30,9 @@ Until a milestone implements a tool, that tool is refused, never decoded approxi
 
 ## Packaging: opt-in, separately packaged
 
-HEVC decoding can require a patent licence depending on jurisdiction and use. The packaging is the native H.264 decoder's: the future `native-hevc` Cargo feature is opt-in and absent from every default build. CLI, Python, WebAssembly and npm consumers must not acquire it through transitive default features. A build without it refuses an explicit native HEVC request with `unsupported_feature`.
+HEVC decoding can require a patent licence depending on jurisdiction and use. The packaging is the native H.264 decoder's: the `native-hevc` Cargo feature is opt-in and absent from every default build. CLI, Python, WebAssembly and npm consumers must not acquire it through transitive default features. The current facades expose no API without that feature; a future backend must refuse an explicit native HEVC request without it using `unsupported_feature`.
 
-The decoder has three crate boundaries. The header parser is a workspace member for CI, not a default artifact dependency; the kernel and backend crates follow in later milestones:
+The decoder has three crate boundaries. The parser and scalar kernel crates are workspace members for CI, not default artifact dependencies; the backend follows in a later milestone:
 
 | Crate | Responsibility | Safety |
 |---|---|---|
@@ -89,6 +89,8 @@ About **24 to 29 PRs including this note**, versus VP9's estimate of about 20 to
 Milestone 1 must identify nonempty G2 and G3 coverage sets before reconstruction work starts. If published data lack an effective case for a filter or motion tool, register a deterministic synthetic fixture and its black-box checks before judging it. A fixture must show that the feature changes decoded bytes, with a crossed-hash negative control, not merely count a header flag. Never disable a required filter on an existing judged stream to manufacture agreement. Inter-specific boundary strengths join G4's checks, even though the filter equations land in G3.
 
 **G1 output-count evidence, maintainer decision, 2026-11-04.** For each stream, use an explicit published output count first, then the archived reference YUV length, then an output count stated in H.265.1's prose. When none exists but a published whole-output MD5 does, FFmpeg 9.0.2 may supply the reference count only after its complete output, in the published layout, matches that MD5 exactly. The header-only simulator's count must also agree. A hash mismatch, oracle error, missing hash or unresolved layout fails every stream except the two explicit SAODBLK maintainer exclusions below. This rule applies to the entire MD5-only class, not a selected subset. For example, CAINIT_A, OPFLAG_A and PICSIZE_A have no output counts in clauses 6.6.8.4, 6.6.12.8 and 6.6.12.13. Table 1's frame-rate column is never treated as a picture count. The conformance census labels each stream's evidence source and distinguishes a hash-validated oracle count from a published count. SAODBLK_A and SAODBLK_B remain in all 147-archive accounting as excluded records, not passing count/hash comparisons.
+
+**G2 picture references, Captain decision, 2026-11-05.** If an archive has only a published whole-output MD5, the pinned oracle may supply per-picture hashes only after its complete decoded output first matches that MD5 exactly. Each derived reference retains the original stream identity, coded/output picture indices, anchoring published MD5, attachment identity and oracle identity, and is labelled oracle-derived rather than a published picture hash. This applies to every stream in the same situation, not a selected list. A missing or mismatching anchor remains reported and blocking; it never silently removes eligible pictures.
 
 Oracle error means a nonzero exit, incomplete output, or output not equal to the published reference; stderr diagnostics on verified output are recorded, not failures (Captain, 2026-11-04).
 

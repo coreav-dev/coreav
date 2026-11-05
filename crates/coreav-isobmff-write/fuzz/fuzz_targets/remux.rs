@@ -8,7 +8,7 @@
 use coreav_isobmff::{
     Allowlist, Budget, BufferedSource, Limits, Packet, Rational, SliceSource, Source, probe,
 };
-use coreav_isobmff_write::{Metadata, OnUnsupported, RemuxOptions, remux_mp4};
+use coreav_isobmff_write::{OnUnsupported, RemuxOptions, remux_mp4};
 use libfuzzer_sys::fuzz_target;
 
 fn packets(data: &[u8], limits: &Limits, stream_index: Option<usize>, nth: usize) -> Vec<Packet> {
@@ -59,8 +59,7 @@ fuzz_target!(|data: &[u8]| {
         } else {
             OnUnsupported::Fail
         },
-        metadata: Metadata::Copy,
-        left_out_covers: Vec::new(),
+        ..RemuxOptions::default()
     };
     let mut out = Vec::new();
     let source = BufferedSource::new(SliceSource::new(input));
