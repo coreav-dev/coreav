@@ -274,6 +274,7 @@ mod tests {
             let mut changed = record.clone();
             changed["decoders"][index]["presentations"][0]["requirements"] = requirements;
             assert!(parse(&changed.to_string(), Codec::Mp3, "mp4").is_none());
+            #[cfg(feature = "aac")]
             assert!(parse(&changed.to_string(), Codec::Aac, "mp4").is_none());
         }
     }
