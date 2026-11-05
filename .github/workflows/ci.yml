@@ -1227,6 +1227,14 @@ jobs:
             --test legacy_encoders --target-dir target/fallback
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test transcode \
             --target-dir target/fallback
+      - name: Copied video with AAC encoding preserves exact fallback
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
+        run: |
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac \
+            --test ffmpeg copied_video_aac_encoding_preserves_destinations_and_exact_fallback \
+            --target-dir target/fallback -- --exact
       - name: Observe decoder and AAC encoder boundaries on generated fixtures
         if: ${{ !cancelled() && steps.decode-build.outcome == 'success' }}
         run: |
