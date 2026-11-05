@@ -26,6 +26,8 @@ mod pcm;
 mod raw_audio;
 mod ts;
 
+pub(crate) const MUXER_ENCODER: &str = "Lavf63.1.102";
+
 use crate::error::Failure;
 use crate::fallback::NotNative;
 use crate::ffprobe::args::Kind2;
@@ -1339,15 +1341,6 @@ fn join_edit_refusal(
     if summary.audio_edits > 1 {
         return Ok(Some("a concat output that needs several audio edits"));
     }
-    if summary
-        .inputs
-        .iter()
-        .any(|input| input.video.codec == coreav_isobmff::Codec::H264)
-    {
-        return Ok(Some(
-            "H.264 concat packet conversion that CoreAV cannot copy exactly",
-        ));
-    }
     Ok(None)
 }
 
@@ -1965,6 +1958,9 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 video: VideoChoice::Stream(*video),
                 audio: *audio,
                 placement: Placement::At(offsets.clone()),
+                compatibility: Some(coreav_isobmff_write::JoinCompatibility {
+                    muxer_encoder: MUXER_ENCODER.to_owned(),
+                }),
             };
             let summary =
                 crate::join::run(paths, &options, &allowlist, out).map_err(|failure| {

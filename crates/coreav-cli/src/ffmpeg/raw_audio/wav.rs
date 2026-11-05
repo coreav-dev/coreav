@@ -47,7 +47,10 @@ pub(super) fn write(
 }
 
 fn output_header(rate: u32, channels: u16, bytes: u64) -> Result<Vec<u8>, Error> {
-    let info = b"LIST\x1a\0\0\0INFOISFT\x0d\0\0\0Lavf63.1.102\0\0";
+    let encoder = crate::ffmpeg::MUXER_ENCODER.as_bytes();
+    let mut info = b"LIST\x1a\0\0\0INFOISFT\x0d\0\0\0".to_vec();
+    info.extend_from_slice(encoder);
+    info.extend_from_slice(&[0, 0]);
     let with_info = bytes
         .checked_add(info.len() as u64)
         .filter(|size| coreav_audio::wav::fits(*size))
@@ -64,7 +67,7 @@ fn output_header(rate: u32, channels: u16, bytes: u64) -> Result<Vec<u8>, Error>
         .ok_or(Error::Invalid("WAV RIFF header"))?
         .copy_from_slice(&size.to_le_bytes());
     let data = header.split_off(header.len().saturating_sub(8));
-    header.extend_from_slice(info);
+    header.extend_from_slice(&info);
     header.extend_from_slice(&data);
     Ok(header)
 }

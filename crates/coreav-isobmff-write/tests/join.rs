@@ -57,6 +57,7 @@ fn join_choosing(
             video,
             audio,
             placement: Placement::AfterVideo,
+            compatibility: None,
         },
         &mut out,
     )?;
@@ -510,6 +511,7 @@ fn inputs_go_where_they_are_placed() {
                 video: VideoChoice::First,
                 audio: JoinAudio::First,
                 placement: Placement::At(at),
+                compatibility: None,
             },
             &mut out,
         )
@@ -634,6 +636,7 @@ fn unedited_video_keeps_its_full_composition_span() {
                     video: VideoChoice::First,
                     audio: JoinAudio::None,
                     placement: placement.clone(),
+                    compatibility: None,
                 },
                 &mut output,
             )
@@ -647,6 +650,23 @@ fn unedited_video_keeps_its_full_composition_span() {
             assert_eq!(summary.inputs[0].video_end, expected);
         }
     }
+}
+
+#[test]
+fn decode_duration_does_not_trim_composition_delayed_frames_on_a_round_trip() {
+    let mut video = ibbp_video(25, 25);
+    video.edits.clear();
+    let source = movie(&[video]);
+    let (_, output) = join_with(&[&source, &source], JoinAudio::None).unwrap();
+    let joined = probe_all(&output);
+    let track = &joined.tracks[0];
+    assert_eq!(track.mdhd_duration, track.sample_duration);
+    let expected: Vec<_> = packets(&output, &joined, 0).into_iter().filter(|packet| packet.presented).map(|packet| bytes(&output, &packet)).collect();
+    assert_eq!(expected.len(), 50);
+    let copied = clip(&output, q(0, 1), None).unwrap();
+    let movie = probe_all(&copied);
+    let actual: Vec<_> = packets(&copied, &movie, 0).into_iter().filter(|packet| packet.presented).map(|packet| bytes(&copied, &packet)).collect();
+    assert_eq!(actual, expected);
 }
 
 #[test]
@@ -692,6 +712,7 @@ fn the_work_limit_is_checked_before_writing() {
                 video: VideoChoice::First,
                 audio: JoinAudio::First,
                 placement: Placement::AfterVideo,
+                compatibility: None,
             },
             &mut out,
         );
@@ -1024,6 +1045,7 @@ fn inputs_that_cannot_be_joined_on_their_own() {
                 video: VideoChoice::First,
                 audio: JoinAudio::First,
                 placement: Placement::AfterVideo,
+                compatibility: None,
             },
             Vec::new()
         ),
