@@ -184,6 +184,30 @@ class Repository(unittest.TestCase):
                  '\n      cancel-in-progress: ' + check.CANCEL + '\n')
         self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in self.ci(group, '')))
 
+    def test_a_serialized_notification_is_not_job_cancellation(self):
+        lines = ['concurrency:', '  group: per-run', 'jobs:', '  notify:',
+                 '    concurrency:', '      group: notifications',
+                 '      cancel-in-progress: false']
+        jobs = check.jobs_of(lines)
+        self.assertEqual(check.concurrency_problems('optional.yml', lines, jobs), [])
+        self.assertTrue(check.concurrency_problems('ci.yml', lines, jobs))
+        for cancellation in ('true', check.CANCEL, ''):
+            changed = [line.replace('cancel-in-progress: false',
+                                    'cancel-in-progress: ' + cancellation) for line in lines]
+            self.assertTrue(check.concurrency_problems(
+                'optional.yml', changed, check.jobs_of(changed)))
+
+    def test_a_serialized_job_cannot_bypass_a_required_workflow_group(self):
+        path = self.root / '.github/workflows/deny.yml'
+        text = re.sub(r'\nconcurrency:\n(?:  .*\n)+', '\n', path.read_text())
+        text = text.replace('  deny-checks:\n',
+                            '  deny-checks:\n    concurrency:\n      group: serial\n'
+                            '      cancel-in-progress: false\n')
+        path.write_text(text)
+        found = check.check(self.root)
+        self.assertTrue(any('required' in problem and 'give the workflow exactly' in problem
+                            for problem in found), found)
+
     def test_a_group_another_job_has_is_reported(self):
         found = self.ci('${{ github.workflow }}-msrv-', '${{ github.workflow }}-check-')
         self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in found), found)

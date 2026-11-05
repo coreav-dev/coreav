@@ -17,6 +17,7 @@ import { archiveEntries, validateArchive, validateManifest, consumerEnv } from "
 import { licensePolicy } from "../../../../scripts/notices/render.mjs";
 import { registeredBars } from "./registry.mjs";
 import { GateLedger, residentMemory } from "./gates.mjs";
+import { WorkerdDiagnostics } from "./runtime.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const platform = process.platform === "win32" ? "windows" : process.platform;
@@ -67,7 +68,7 @@ const policy = JSON.parse(readFileSync(join(root, "media/src/policy.json")));
 const records = new Map();
 const compressedRequests = [];
 let puts = 0, comparisons = 0, resources = 0;
-const logs = [];
+const runtimes = [];
 const workers = new Set();
 const memory = [];
 let completed = false;
@@ -172,15 +173,13 @@ const config :Workerd.Config = (
 `);
   const inspectorPort = await freePort();
   const child = spawn(workerd, ["serve", "--inspector-addr", `127.0.0.1:${inspectorPort}`, join(directory, "config.capnp")], { stdio: ["ignore", "pipe", "pipe"] });
-  let launchError;
-  child.on("error", (error) => { launchError = error; });
-  child.stdout.on("data", (chunk) => logs.push(chunk.toString()));
-  child.stderr.on("data", (chunk) => logs.push(chunk.toString()));
+  const runtime = new WorkerdDiagnostics(child, `worker-${workerNumber - 1}-${example}`);
+  runtimes.push(runtime);
   const worker = { child, base: `http://127.0.0.1:${port}`, inspector: `http://127.0.0.1:${inspectorPort}`, build: sha(readFileSync(wasm)), defaultReaders };
   workers.add(worker);
   for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (launchError) throw launchError;
-    if (child.exitCode !== null || child.signalCode !== null) throw new Error(`workerd exited: ${logs.join("")}`);
+    if (runtime.launchError) throw runtime.failure("launch");
+    if (child.exitCode !== null || child.signalCode !== null) throw runtime.failure("exit");
     let response;
     try {
       response = await fetch(worker.base + "/__harness/memory", { signal: AbortSignal.timeout(500) });
@@ -196,7 +195,7 @@ const config :Workerd.Config = (
     }
     await delay(50);
   }
-  throw new Error(`workerd did not start: ${logs.join("")}`);
+  throw runtime.failure("deadline");
 }
 
 async function stop(worker) {
@@ -513,7 +512,7 @@ try {
   assert.equal(unauthorized.status, 401); assert.equal(unauthorized.headers.get("access-control-allow-origin"), "*");
   await stop(hls);
   assert.ok(comparisons > 0 && resources > 0 && files.size > 0, "empty verification is not a pass");
-  assert.doesNotMatch(logs.join(""), secret);
+  for (const runtime of runtimes) assert.doesNotMatch(runtime.stdout.join("") + runtime.stderr.join(""), secret);
   const memoryVerdict = ledger.finish();
   assert.equal(memoryVerdict.state, "passed", `memory gates failed: ${memoryVerdict.failures.map((gate) => `${gate.step} (bar ${gate.bar} bytes)`).join(", ")}`);
   console.log(JSON.stringify({ fixtures: files.size, comparisons, resources, storedIndexes: records.size }));
@@ -524,8 +523,9 @@ try {
   const verdict = { ...ledger.finish(), ...(!completed && { state: "failed" }) };
   writeFileSync(join(output, "verdict.json"), JSON.stringify(verdict) + "\n");
   writeFileSync(join(output, "memory.json"), JSON.stringify({ gates: verdict, records: memory, limitations: ["Small generated fixtures, not a held-out or platform isolate measurement", "The fake bucket retains whole fixture bodies in JavaScript", "Heap and process RSS are diagnostic; RSS is unavailable on macOS", "Zero readerMemoryBytes means library defaults, not a zero-byte reader", "Warm, read-only concurrency and library-default-reader observations have no acceptance bar"] }, null, 2) + "\n");
-  writeFileSync(join(output, "runtime.log"), logs.join(""));
   for (const worker of [...workers]) await stop(worker);
+  await Promise.all(runtimes.map(runtime => runtime.closed));
+  writeFileSync(join(output, "runtime.log"), runtimes.map(runtime => JSON.stringify(runtime.record())).join("\n") + "\n");
   await new Promise((resolve) => { server.close(resolve); server.closeAllConnections(); });
   stopBundler();
   rmSync(consumer, { recursive: true, force: true });

@@ -101,9 +101,9 @@ jobs:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    permissions:
-      contents: read
-      issues: write
+    outputs:
+      gate-outcomes: >-
+        {"installed":"${{ steps.installed.outcome }}","examples":"${{ steps.examples.outcome }}","installed_h264":"${{ steps.installed_h264.outcome }}","thumbnails":"${{ steps.thumbnails.outcome }}"}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -256,10 +256,28 @@ jobs:
           python3 scripts/wasm-thumbnail-fixtures.py --oracle-bin "$RUNNER_TEMP/coreav-oracle-bin" --x264 "$RUNNER_TEMP/thumbnail-x264/x264" --hostile-manifest "$private/hostile/hostile.json" --output "$private/fixtures"
           COREAV_THUMBNAIL_MANIFEST="$private/fixtures/manifest.json" COREAV_THUMBNAIL_ALLOCATION_REPORT="$private/allocations.json" "$test_binary" --ignored --exact generated_4k_refusals_allocate_no_decoded_frame > "$private/allocations.log" 2>&1
           node packages/wasm-h264/test/installed/check.mjs --fixtures "$private/fixtures" --tarball "$WASM_H264_PACKAGE" --package-record "$private/package-record.json" --edge-native "$PWD/target/edge-h264/edge/edge-native" --allocation-report "$private/allocations.json" --allocation-binary "$test_binary" --host-cases packages/wasm-h264/test/installed-host-cases.mjs --oracle-bin "$RUNNER_TEMP/coreav-oracle-bin" --output "$private/capture"
+
+  wasm-failure:
+    needs: wasm-module
+    if: always() && needs.wasm-module.result == 'failure' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: wasm-package-gate-reporter
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
       - name: Record a release-blocking failure
-        if: failure() && (steps.installed.outcome == 'failure' || steps.examples.outcome == 'failure' || steps.installed_h264.outcome == 'failure' || steps.thumbnails.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          GATE_OUTCOMES: ${{ needs.wasm-module.outputs.gate-outcomes }}
         with:
           script: |
             const report = require('./.github/scripts/wasm-memory-failure.cjs');
-            await report({ github, context, core });
+            const outcomes = JSON.parse(process.env.GATE_OUTCOMES);
+            await report({ github, context, outcomes });

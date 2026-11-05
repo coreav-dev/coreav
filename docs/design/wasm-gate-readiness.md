@@ -2,22 +2,22 @@
 
 ## Scope
 
-Restore trustworthy installed-package gate startup detection and keep one open release blocker for repeated failures on main. This changes neither the registered memory bars nor the gate ledger. A crash, timeout or genuine startup failure remains fatal and is not retried or retuned to overturn a result.
+Keep one open release blocker per failing gate class and make startup failures attributable to their own process. This changes neither the registered memory bars nor the gate ledger. A crash, timeout or genuine startup failure remains fatal and is not retried or retuned to overturn a result.
 
 ## Investigation
 
-Compare several failing main runs and retain their job logs outside the repository. Separate runtime launch, HTTP readiness and response validation. A successful example probe in accumulated logs does not by itself establish that the current worker started. If the failure is a real worker startup defect, stop before implementing a detection change.
+The initial investigation compared the available main-run inventory and linked issue runs, retaining job logs outside the repository. The inventory did not support the assumption of repeated main readiness failures. Several linked issues came from PR runs and different failure classes. The accessible readiness failure included output accumulated from earlier workers; a successful example probe did not establish that the failing worker started.
 
-Reproduce the surviving detection mechanism with real output from the pinned workerd runtime. Add a focused regression that fails before the repair, alongside refusal cases for genuine startup failures. Keep the existing startup deadline and isolate/build validation.
+No readiness-detection defect was established. The implementation therefore leaves polling, deadlines and isolate/build validation unchanged. It captures process-specific output and exit status so the next failure can be classified without confusing it with earlier work. A regression uses the pinned workerd's real startup-error output.
 
 ## Implementation
 
-Fix the first incorrect detection decision, without changing worker behavior or acceptance policy. Test readiness through the production polling owner rather than an independent predicate.
+Replace accumulated-output startup errors with per-process diagnostics. Retain stdout and stderr on the runner, capture startup exit state before shutdown, and keep public output limited to the worker, reason and exit status.
 
-Make the failure reporter find one bot-owned open tracking issue independently of the failing commit. Append the commit and run to that issue. Preserve release-blocking wording, fork safety and API failure propagation. Restrict automatic reporting to main, and prevent concurrent reporters from creating separate tracking issues. Add behavioral tests and update the applicable agent-rule enforcement rows.
+Make the failure reporter find one bot-owned open tracking issue per failing step independently of the commit. Append the commit and run once. Preserve release-blocking wording and API failure propagation. Report only main pushes and explicit manual verdict runs. PR and merge-group failures already appear on their PR. Serialize only the issue writer, not the gate jobs. GitHub may replace an older pending notification during a burst; running reporters are not cancelled and the release blocker remains open. Add behavioral tests and update the applicable agent-rule enforcement rows.
 
 ## Verification and after-merge work
 
 Run short regression and workflow checks locally. Run the complete installed-package and memory checks in GitHub Actions. An independent reviewer checks this plan commit before the implementation.
 
-After merge, require a green main gate run before commenting on and closing duplicate automatically filed WASM package blockers. Point each comment to the fix and retain at most one open package-gate tracking issue. Do not close the goal-level tracking issues numbered 22 through 48.
+After merge, triage the existing automatically filed WASM package blockers by run type, failure class and later main successes. Close PR and merge-group reports and failures superseded by a passing main commit with a neutral comment pointing to the fix. Consolidate the WebP parity reports into one issue naming that failure. Do not close goal-level tracking issues.
