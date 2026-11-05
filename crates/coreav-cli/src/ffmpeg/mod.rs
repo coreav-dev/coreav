@@ -1377,6 +1377,11 @@ fn select_sources(
     streams: &[&Stream],
     ranges: &[std::ops::Range<usize>],
 ) -> Result<Vec<usize>, Refusal> {
+    if command.maps.first().is_some_and(|map| map.remove) {
+        return Err(Refusal::not_native(
+            "a negative -map before any positive -map",
+        ));
+    }
     let all: Vec<(usize, &Stream)> = streams.iter().copied().enumerate().collect();
     let disabled = |s: &Stream| match s.kind {
         StreamKind::Video => {
