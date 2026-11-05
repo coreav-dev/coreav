@@ -858,10 +858,10 @@ pub(crate) fn audio_track<'t>(
 /// the chunks in `mdat`, through `window`. Fails with
 /// [`ExtractError::SourceChanged`] when a run holds other samples than its
 /// tables.
-pub(crate) fn copy_cut<'p, 'a, S: Source, W: Write>(
+pub(crate) fn copy_cut<'p, 'a, S: Source, W: Write, const STORED: bool>(
     shared: &'a RefCell<S>,
-    mut first: Run<'p, 'a, S>,
-    mut second: Option<Run<'p, 'a, S>>,
+    mut first: Run<'p, 'a, S, STORED>,
+    mut second: Option<Run<'p, 'a, S, STORED>>,
     window: &mut Window,
     out: &mut W,
 ) -> Result<(), ExtractError> {
@@ -905,7 +905,7 @@ pub(crate) fn copy_cut<'p, 'a, S: Source, W: Write>(
             Ok(())
         },
     )?;
-    let complete = |run: &Run<'_, '_, S>| run.copied == run.tables.samples();
+    let complete = |run: &Run<'_, '_, S, STORED>| run.copied == run.tables.samples();
     if !complete(&first) || second.as_ref().is_some_and(|run| !complete(run)) {
         return Err(ExtractError::SourceChanged);
     }
@@ -2557,7 +2557,7 @@ pub(crate) fn media_duration(
 }
 
 /// One track's kept run in the copy pass.
-pub(crate) struct Run<'p, 'a, S: Source> {
+pub(crate) struct Run<'p, 'a, S: Source, const STORED: bool = false> {
     packets: &'p mut Packets<'a, Shared<'a, S>>,
     tables: &'p Tables,
     copied: u32,
@@ -2574,9 +2574,41 @@ impl<'p, 'a, S: Source> Run<'p, 'a, S> {
         skip: u64,
         tables: &'p Tables,
     ) -> Result<Self, Error> {
+        Self::prepare(packets, skip, tables)
+    }
+}
+
+impl<'p, 'a, S: Source> Run<'p, 'a, S, true> {
+    pub(crate) fn stored(
+        packets: &'p mut Packets<'a, Shared<'a, S>>,
+        skip: u64,
+        tables: &'p Tables,
+    ) -> Result<Self, Error> {
+        Self::prepare(packets, skip, tables)
+    }
+}
+
+impl<'p, 'a, S: Source, const STORED: bool> Run<'p, 'a, S, STORED> {
+    fn packet(packets: &mut Packets<'a, Shared<'a, S>>) -> Option<Result<(u64, u32), Error>> {
+        if STORED {
+            packets
+                .next_run(1)
+                .map(|run| run.map(|run| (run.offset, run.sample_size)))
+        } else {
+            packets
+                .next()
+                .map(|packet| packet.map(|packet| (packet.offset, packet.size)))
+        }
+    }
+
+    fn prepare(
+        packets: &'p mut Packets<'a, Shared<'a, S>>,
+        skip: u64,
+        tables: &'p Tables,
+    ) -> Result<Self, Error> {
         let mut skipped = 0u64;
         while skipped < skip {
-            match packets.next() {
+            match Self::packet(packets) {
                 Some(packet) => {
                     packet?;
                 }
@@ -2587,10 +2619,9 @@ impl<'p, 'a, S: Source> Run<'p, 'a, S> {
         let first = match tables.samples() {
             0 => None,
             _ => {
-                let packet = packets
-                    .next()
+                let packet = Self::packet(packets)
                     .ok_or(unsupported("the source changed during the clip"))??;
-                Some((packet.offset, packet.size))
+                Some(packet)
             }
         };
         Ok(Self {
@@ -2615,10 +2646,7 @@ impl<'p, 'a, S: Source> Run<'p, 'a, S> {
     fn next(&mut self) -> Result<(u64, u32), ExtractError> {
         let (offset, size) = match self.first.take() {
             Some(first) => first,
-            None => {
-                let packet = self.packets.next().ok_or(ExtractError::SourceChanged)??;
-                (packet.offset, packet.size)
-            }
+            None => Self::packet(self.packets).ok_or(ExtractError::SourceChanged)??,
         };
         if self.tables.size(self.copied) != Some(size) {
             return Err(ExtractError::SourceChanged);

@@ -7,7 +7,7 @@ use super::{
 use crate::moov::{CopiedBox, edited_decode_start};
 use crate::replace::roll_boxes_all;
 use crate::scan;
-use coreav_isobmff::{Error, Packet, Profile};
+use coreav_isobmff::{Error, Packets, Profile};
 use std::borrow::Cow;
 use std::io::Write;
 
@@ -43,6 +43,36 @@ fn edit(track: &Track) -> Result<i64, Error> {
     }
 }
 
+#[derive(Clone, Copy)]
+struct Sample {
+    sample: u64,
+    offset: u64,
+    size: u32,
+    dts: i64,
+    cts: i64,
+    duration: u32,
+    keyframe: bool,
+}
+
+fn next_sample<S: Source>(packets: &mut Packets<'_, S>) -> Option<Result<Sample, Error>> {
+    packets.next_run(1).map(|run| {
+        let run = run?;
+        let cts = run
+            .dts
+            .checked_add(run.composition_offset)
+            .ok_or(Error::Overflow { offset: run.offset })?;
+        Ok(Sample {
+            sample: run.first_sample,
+            offset: run.offset,
+            size: run.sample_size,
+            dts: run.dts,
+            cts,
+            duration: run.sample_duration,
+            keyframe: run.keyframe,
+        })
+    })
+}
+
 struct Composition {
     duration: Option<u32>,
     next: Option<i64>,
@@ -69,7 +99,7 @@ impl Composition {
         })
     }
 
-    fn push(&mut self, packet: &Packet) -> Result<(), Error> {
+    fn push(&mut self, packet: &Sample) -> Result<(), Error> {
         if packet.duration == 0
             || self.duration.is_some_and(|d| d != packet.duration)
             || self.next.is_some_and(|d| d != packet.dts)
@@ -131,7 +161,7 @@ fn video_start<S: Source>(
     source: &mut S,
     limits: &Limits,
     budget: &mut Budget,
-) -> Result<Packet, Error> {
+) -> Result<Sample, Error> {
     let format = movie.access_format(video.index).ok_or_else(unqualified)?;
     let mut packets = movie.packets(video.index, source, limits, budget)?;
     let mut chosen = None;
@@ -139,7 +169,7 @@ fn video_start<S: Source>(
     let mut end = 0;
     let mut last_sync = None;
     let target = media.checked_add(start).ok_or_else(overflow)?;
-    while let Some(packet) = packets.next() {
+    while let Some(packet) = next_sample(&mut packets) {
         let packet = packet?;
         composition.push(&packet)?;
         if packet.sample == 0 && packet.cts != media {
@@ -184,14 +214,14 @@ fn audio_start<S: Source>(
     limits: &Limits,
     budget: &mut Budget,
 ) -> Result<u64, Error> {
-    let packets = movie.packets(audio.index, source, limits, budget)?;
+    let mut packets = movie.packets(audio.index, source, limits, budget)?;
     let denominator = i128::from(target.den);
     let target = target.num;
     let mut chosen = None;
     let mut first = None;
     let mut next = None;
     let mut end = 0;
-    for packet in packets {
+    while let Some(packet) = next_sample(&mut packets) {
         let packet = packet?;
         if packet.duration == 0 || packet.cts != packet.dts || next.is_some_and(|d| d != packet.dts)
         {
@@ -233,40 +263,18 @@ fn build<S: Source>(
     end: i64,
     media: i64,
     movie_clock: u32,
-    video: Option<Packet>,
+    video: bool,
     source: &mut S,
     limits: &Limits,
     budget: &mut Budget,
     table_budget: u64,
 ) -> Result<Kept, ExtractError> {
     let until = media.checked_add(end).ok_or_else(overflow)?;
-    let samples = video
-        .map(|key| {
-            let span = u64::try_from(until.checked_sub(key.dts).ok_or_else(overflow)?)
-                .map_err(|_| unqualified())?;
-            let count = span.div_ceil(u64::from(key.duration));
-            Ok::<_, Error>(
-                count.min(
-                    u64::from(track.sample_count)
-                        .checked_sub(first)
-                        .ok_or_else(overflow)?,
-                ),
-            )
-        })
-        .transpose()?;
-    let proof_bytes = samples.unwrap_or(0).checked_mul(8).ok_or_else(overflow)?;
-    let table_bytes = table_budget
-        .checked_sub(proof_bytes)
-        .ok_or_else(table_limit)?;
-    let mut composition = samples
-        .map(|count| Composition::new(count, proof_bytes))
-        .transpose()?;
-    let mut tables = Tables::with_chunk_bytes(track.timescale, table_bytes, 0);
-    let packets = movie.packets(track.index, source, limits, budget)?;
+    let mut tables = Tables::with_chunk_bytes(track.timescale, table_budget, 0);
+    let mut packets = movie.packets(track.index, source, limits, budget)?;
     let mut initial = None;
-    let mut next = None;
     let mut max_end = i64::MIN;
-    for packet in packets {
+    while let Some(packet) = next_sample(&mut packets) {
         let packet = packet?;
         if packet.sample < first {
             continue;
@@ -274,22 +282,8 @@ fn build<S: Source>(
         if packet.dts >= until {
             break;
         }
-        if packet.duration == 0 || next.is_some_and(|d| d != packet.dts) {
-            return Err(unqualified().into());
-        }
-        next = Some(
-            packet
-                .dts
-                .checked_add(i64::from(packet.duration))
-                .ok_or_else(overflow)?,
-        );
-        let (first_dts, first_cts) = *initial.get_or_insert((packet.dts, packet.cts));
-        if let Some(proof) = &mut composition {
-            proof.push(&packet)?;
-            if packet.cts < first_cts {
-                return Err(unqualified().into());
-            }
-        } else if packet.cts != packet.dts {
+        let (_, first_cts) = *initial.get_or_insert((packet.dts, packet.cts));
+        if video && packet.cts < first_cts {
             return Err(unqualified().into());
         }
         max_end = max_end.max(
@@ -304,12 +298,6 @@ fn build<S: Source>(
             packet.keyframe,
             packet.cts.checked_sub(packet.dts).ok_or_else(overflow)?,
         )?;
-        if packet.dts < first_dts {
-            return Err(unqualified().into());
-        }
-    }
-    if let Some(proof) = composition {
-        proof.finish()?;
     }
     tables.finish();
     let (first_dts, _) = initial.ok_or_else(unqualified)?;
@@ -480,7 +468,7 @@ pub(super) fn copy_av<S: Source, W: Write>(
         ev,
         video_edit,
         clock,
-        Some(key),
+        true,
         &mut source,
         limits,
         &mut budget,
@@ -494,7 +482,7 @@ pub(super) fn copy_av<S: Source, W: Write>(
         ea,
         audio_edit,
         clock,
-        None,
+        false,
         &mut source,
         limits,
         &mut budget,
@@ -588,8 +576,8 @@ pub(super) fn copy_av<S: Source, W: Write>(
     let mut ab = Budget::new(&copy_limits);
     let mut vp = movie.packets(video.index, Shared(&shared), &copy_limits, &mut vb)?;
     let mut ap = movie.packets(audio.index, Shared(&shared), &copy_limits, &mut ab)?;
-    let vr = Run::new(&mut vp, video_kept.first, &video_kept.tables)?;
-    let ar = Run::new(&mut ap, audio_kept.first, &audio_kept.tables)?;
+    let vr = Run::stored(&mut vp, video_kept.first, &video_kept.tables)?;
+    let ar = Run::stored(&mut ap, audio_kept.first, &audio_kept.tables)?;
     let mut window = Window::new(COPY_BUFFER);
     copy_cut(&shared, vr, Some(ar), &mut window, &mut out)?;
     drop((vp, ap, window));
@@ -642,7 +630,7 @@ mod tests {
 
     #[test]
     fn composition_authority_requires_complete_unique_positive_intervals() {
-        let packet = |dts, cts| Packet {
+        let packet = |dts, cts| Sample {
             sample: 0,
             offset: 0,
             size: 1,
@@ -650,9 +638,6 @@ mod tests {
             cts,
             duration: 2,
             keyframe: true,
-            pts: None,
-            presentation_dts: None,
-            presented: true,
         };
         for (times, valid) in [
             ([(0, 2), (2, 6), (4, 4)], true),
@@ -674,7 +659,7 @@ mod tests {
         assert!(
             Composition::new(1, 8)
                 .unwrap()
-                .push(&Packet {
+                .push(&Sample {
                     duration: 0,
                     ..packet(0, 0)
                 })
