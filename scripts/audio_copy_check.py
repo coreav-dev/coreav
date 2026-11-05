@@ -266,7 +266,8 @@ def main():
     parser.add_argument("--work", required=True, type=pathlib.Path)
     parser.add_argument("--report", type=pathlib.Path)
     tools = parser.parse_args()
-    test_oracle.require(tools.ffmpeg, tools.ffprobe)
+    qualified = test_oracle.require(tools.ffmpeg, tools.ffprobe)
+    tools.ffmpeg, tools.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     sources, out = tools.work / "sources", tools.work / "outputs"
     shutil.rmtree(tools.work, ignore_errors=True)
     sources.mkdir(parents=True)

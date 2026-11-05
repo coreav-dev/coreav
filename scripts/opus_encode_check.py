@@ -195,7 +195,10 @@ def main():
     parser.add_argument('--check-libopus', action='store_true',
                         help='only check and print the libopus each binary links')
     args = parser.parse_args()
-    test_oracle.require(args.ffmpeg, args.ffprobe)
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg = str(qualified.ffmpeg)
+    if args.ffprobe is not None:
+        args.ffprobe = str(qualified.ffprobe)
     if not args.check_libopus and None in (args.ffprobe, args.work, args.out):
         parser.error('--ffprobe, --work and --out are required to judge the bars')
     libopus = {'pinned': pinned_libopus(), 'coreav': linked_libopus(args.coreav),

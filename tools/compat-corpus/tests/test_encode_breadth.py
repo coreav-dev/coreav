@@ -950,7 +950,12 @@ class Cli(Stubs):
 
     def test_preflight_records_the_supplied_pinned_executables(self):
         self.pinned_stand_ins()
-        programs = eb.oracle_programs(self.opts)
+        program = ('import sys, json, types; sys.path.insert(0, sys.argv[1]); '
+                   'import encode_breadth as eb; '
+                   'print(json.dumps(eb.oracle_programs(types.SimpleNamespace('
+                   'ffmpeg=sys.argv[2], ffprobe=sys.argv[3]))))')
+        programs = json.loads(subprocess.check_output(
+            [sys.executable, '-I', '-c', program, str(HERE), self.opts.ffmpeg, self.opts.ffprobe], text=True))
         for name in ('ffmpeg', 'ffprobe'):
             self.assertEqual(programs[name], {'version': name + ' version ' + eb.oracle_pin.load()['BUILD'],
                                               'sha256': eb.sha256(getattr(self.opts, name))})

@@ -105,7 +105,8 @@ def main():
     p.add_argument('--report', type=pathlib.Path)
     p.add_argument('files', nargs='*', type=pathlib.Path)
     a = p.parse_args()
-    test_oracle.require(a.ffmpeg, a.ffprobe)
+    qualified = test_oracle.require(a.ffmpeg, a.ffprobe)
+    a.ffmpeg, a.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     files = list(a.files)
     if a.fixtures:
         files += sorted(f for f in a.fixtures.iterdir()

@@ -441,7 +441,8 @@ def main():
     p.add_argument('--report')
     p.add_argument('files', nargs='*')
     a = p.parse_args()
-    test_oracle.require(a.ffmpeg, a.ffprobe)
+    qualified = test_oracle.require(a.ffmpeg, a.ffprobe)
+    a.ffmpeg, a.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     if a.fixtures:
         return fixtures(a)
     for f in a.files:

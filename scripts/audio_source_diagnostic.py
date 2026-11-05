@@ -163,12 +163,12 @@ def main():
     parser.add_argument('--fixtures', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    args.coreav, args.ffmpeg = args.coreav.resolve(), args.ffmpeg.resolve()
+    args.coreav = args.coreav.resolve()
     args.out.mkdir(parents=True, exist_ok=False)
     report = {'diagnostic_only': True, 'completed': False, 'results': []}
     report_path = args.out / 'report.json'
     try:
-        test_oracle.require(args.ffmpeg)
+        args.ffmpeg = test_oracle.require(args.ffmpeg).ffmpeg
         manifest = (args.fixtures / 'MANIFEST').read_text().splitlines()
         if 'generated browser.webm' not in manifest:
             raise ValueError('browser fixture is not registered as generated')

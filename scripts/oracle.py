@@ -234,7 +234,8 @@ def main():
     candidate.add_argument("--candidate-exe", type=Path)
     candidate.add_argument("--candidate-dir", type=Path)
     args = parser.parse_args()
-    test_oracle.require(args.ffmpeg, args.ffprobe)
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
     if args.command == "run" and not (args.candidate_exe or args.candidate_dir):

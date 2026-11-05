@@ -863,7 +863,8 @@ def main():
     j.add_argument('--out', type=pathlib.Path, required=True)
     a = parser.parse_args()
     if a.command != "encode":
-        test_oracle.require(a.ffmpeg, getattr(a, "ffprobe", None))
+        qualified = test_oracle.require(a.ffmpeg, getattr(a, "ffprobe", None))
+        a.ffmpeg, a.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     return {'sources': sources, 'encode': encode, 'select': select, 'prepare': prepare, 'judge': judge}[a.command](a)
 
 

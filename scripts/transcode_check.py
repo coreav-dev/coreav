@@ -1912,7 +1912,8 @@ def main():
         p.error('--coreav and at least one --arm are required')
     if not args.ffmpeg or not args.ffprobe:
         p.error('ffmpeg and ffprobe are required (--ffmpeg, --ffprobe)')
-    test_oracle.require(args.ffmpeg, args.ffprobe)
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     global ENV
     ENV = child_env(args.ffmpeg)
     if identity is not None:

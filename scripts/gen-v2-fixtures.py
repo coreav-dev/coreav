@@ -180,7 +180,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if any(RECIPES[name].length is None and RECIPES[name].text is None
            for name in selection(args.only)):
-        test_oracle.require(args.ffmpeg, args.ffprobe)
+        qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+        args.ffmpeg, args.ffprobe = qualified.ffmpeg, qualified.ffprobe
     try:
         names = generate(args.ffmpeg, args.ffprobe, args.out, args.only)
     except (GenerationError, OSError) as error:

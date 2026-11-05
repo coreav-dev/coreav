@@ -449,7 +449,8 @@ def main():
         rep = summarize(args.out, sel, args.classes)
         print(table(rep))
         return status(rep)
-    test_oracle.require(args.ffmpeg, args.ffprobe)
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     args.arms = tc.parse_arms(args.arm, p)
     for need in ('selection', 'files', 'coreav', 'gate', 'out'):
         if not getattr(args, need):

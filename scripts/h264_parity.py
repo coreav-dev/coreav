@@ -392,7 +392,7 @@ def main():
                     help='frames of the gate stream (default 300)')
     ap.add_argument('streams', nargs='+')
     args = ap.parse_args()
-    test_oracle.require(args.ffmpeg)
+    args.ffmpeg = str(test_oracle.require(args.ffmpeg).ffmpeg)
     host = machine()
     print(f"machine: {host['cpu_model']} (family {host['cpu_family']}, model "
           f"{host['cpu_model_number']}, stepping {host['cpu_stepping']}), {host['cpu_mhz']} MHz, "

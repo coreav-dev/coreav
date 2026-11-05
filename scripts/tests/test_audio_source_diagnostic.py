@@ -49,7 +49,8 @@ class AudioSourceDiagnostic(unittest.TestCase):
                 argv = ['audio_source_diagnostic.py', '--coreav', str(root / 'coreav'),
                         '--ffmpeg', str(root / 'ffmpeg'), '--fixtures', str(root), '--out', str(output)]
                 with mock.patch.object(sys, 'argv', argv), mock.patch.object(diagnostic, 'run', failing_run), \
-                        mock.patch.object(diagnostic.test_oracle, 'require'):
+                        mock.patch.object(diagnostic.test_oracle, 'require', side_effect=lambda path:
+                                          diagnostic.test_oracle.Oracle(path, path.with_name('ffprobe'))):
                     with self.assertRaises((RuntimeError, FileNotFoundError)):
                         diagnostic.main()
                 report = diagnostic.json.loads((output / 'report.json').read_text())

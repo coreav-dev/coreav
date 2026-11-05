@@ -786,8 +786,8 @@ def main():
     for need in ('selection', 'files', 'out', 'ffmpeg', 'ffprobe'):
         if not getattr(args, need):
             p.error(f'{args.command} needs --{need.replace("_", "-")}')
-    test_oracle.require(args.ffmpeg, args.ffprobe)
-    args.ffmpeg, args.ffprobe = os.path.abspath(args.ffmpeg), os.path.abspath(args.ffprobe)
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     tc.ENV = tc.child_env(args.ffmpeg)
     to.ENV = tc.ENV
     to.DECODE_ORACLE_ARGS = ['--max-memory-gib', str(args.decode_memory_gib)] if args.decode_memory_gib else []

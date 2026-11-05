@@ -115,7 +115,7 @@ def prepare(a):
         for f in sorted((a.conformance / 'compressedMp4').glob('al*.mp4')):
             mp4s.append((f'conf-{f.stem}', f))
     refs = {}
-    probe = a.ffmpeg.rsplit('ffmpeg', 1)[0] + 'ffprobe'
+    probe = a.ffprobe
     for key, path in mp4s:
         ref = work / 'ref' / f'{key}.f32'
         dec = run([a.ffmpeg, '-v', 'error', '-ignore_editlist', '1', *AUDIO_DECODE_INPUT, '-i', path, '-map', '0:a:0', '-f', 'f32le', ref])
@@ -315,7 +315,8 @@ def main():
     j.add_argument('--work', type=pathlib.Path, required=True)
     j.add_argument('--out', type=pathlib.Path, required=True)
     a = parser.parse_args()
-    test_oracle.require(a.ffmpeg, getattr(a, "ffprobe", None))
+    qualified = test_oracle.require(a.ffmpeg, getattr(a, "ffprobe", None))
+    a.ffmpeg, a.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     return prepare(a) if a.command == 'prepare' else judge(a)
 
 

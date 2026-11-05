@@ -150,6 +150,27 @@ class Qualification(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines(),
                          [str(self.root / 'ffmpeg'), str(self.root / 'ffprobe')])
 
+    def test_vp9_main_retains_the_qualified_path_pair_despite_cwd_shadowing(self):
+        shadow = self.root / 'shadow'
+        self.pair(shadow, version='0.0.0')
+        self.child('import os\n'
+                   'from pathlib import Path\n'
+                   'from unittest.mock import patch\n'
+                   'import vp9_speed\n'
+                   'root = Path(sys.argv[2])\n'
+                   'os.chdir(root / "shadow")\n'
+                   'os.environ["PATH"] = str(root) + os.pathsep + os.environ.get("PATH", "")\n'
+                   'sys.argv = ["vp9_speed.py", "oracle", "--ffmpeg", "ffmpeg", "--ffprobe", "ffprobe",\n'
+                   '            "--selection", "missing", "--files", "missing", "--out", "uncreated",\n'
+                   '            "--decode-oracle", "missing"]\n'
+                   'def inspect_selected(args):\n'
+                   '    assert args.ffmpeg == str(root / "ffmpeg"), args.ffmpeg\n'
+                   '    assert args.ffprobe == str(root / "ffprobe"), args.ffprobe\n'
+                   '    return 0\n'
+                   'with patch.object(vp9_speed, "oracle", side_effect=inspect_selected) as run:\n'
+                   '    assert vp9_speed.main() == 0\n'
+                   '    assert run.call_count == 1\n')
+
     def test_active_entry_points_reject_before_creating_fixture_or_report_output(self):
         self.pair(self.root, version='0.0.0')
         ffmpeg, ffprobe = str(self.root / 'ffmpeg'), str(self.root / 'ffprobe')

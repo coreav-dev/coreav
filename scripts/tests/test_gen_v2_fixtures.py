@@ -161,7 +161,8 @@ class Generator(unittest.TestCase):
             target = out / 'v2_still_rgba.png'
             target.write_bytes(b'previous complete fixture')
             stdout, stderr = io.StringIO(), io.StringIO()
-            with patch.object(generator.test_oracle, 'require'), \
+            with patch.object(generator.test_oracle, 'require', return_value=generator.test_oracle.Oracle(
+                    Path('/oracle/ffmpeg'), Path('/oracle/ffprobe'))), \
                     patch.object(generator.subprocess, 'run', side_effect=subprocess.TimeoutExpired(
                     'ffmpeg', 180, stderr=b'partial encoder diagnostic')):
                 with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):

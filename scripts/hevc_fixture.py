@@ -385,7 +385,8 @@ def main():
     parser.add_argument('--output', required=True, type=pathlib.Path)
     parser.add_argument('--registration', type=pathlib.Path, default=REGISTRATION)
     args = parser.parse_args()
-    test_oracle.require(args.ffmpeg, args.ffprobe)
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = qualified.ffmpeg, qualified.ffprobe
     expected = None
     if args.mode == 'verify':
         expected = json.loads(args.registration.read_text())

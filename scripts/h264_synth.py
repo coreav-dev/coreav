@@ -59,7 +59,8 @@ def main():
     ap.add_argument('--out', required=True, help='directory for the streams')
     ap.add_argument('--frames', type=int, default=300)
     args = ap.parse_args()
-    test_oracle.require(FFMPEG)
+    global FFMPEG
+    FFMPEG = str(test_oracle.require(FFMPEG).ffmpeg)
     os.makedirs(args.out, exist_ok=True)
 
     made = []
