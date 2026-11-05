@@ -137,6 +137,9 @@ pub(super) fn plan(
         _ => None,
     });
     let wave = super::format_name(report) == Some("wav");
+    if wave && command.muxer == Muxer::Wav && args::stdout(&command.output) {
+        return Err(Refusal::not_native("WAVE to WAV stdout is not registered"));
+    }
     let pcm = if wave {
         Some(
             codec_name
@@ -180,6 +183,22 @@ pub(super) fn plan(
         })
         .ok_or_else(|| Refusal::not_native("raw audio with unknown sample rate"))?;
     let output_rate = command.sample_rate.unwrap_or(input_rate);
+    if command.muxer == Muxer::Wav
+        && wave
+        && (output_format != SampleFormat::S16
+            || output_rate != input_rate
+            || output_channels != channels
+            || !report.chapters.is_empty()
+            || command.map_metadata == MapMetadata::Default
+                && report
+                    .format_tags
+                    .iter()
+                    .any(|(key, _)| !key.eq_ignore_ascii_case("encoder")))
+    {
+        return Err(Refusal::not_native(
+            "WAVE to WAV output with unregistered packing, rate, channels or metadata",
+        ));
+    }
     if pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::F32)
         && (output_format != SampleFormat::F32 || output_rate != input_rate)
         || pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::U8)
@@ -659,6 +678,9 @@ pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value,
     let before =
         decode(command, plan, &mut Bytes(&mut std::io::sink())).map_err(DecodeError::preflight)?;
     packet_presentation(command, plan, &before)?;
+    if command.muxer == Muxer::Wav && matches!(plan.decoder, DecoderPlan::Pcm(_)) {
+        return wav::write(command, plan, &before, force);
+    }
     let header = if command.muxer == Muxer::Wav {
         let summary = before
             .converted
