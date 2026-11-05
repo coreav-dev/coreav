@@ -30,6 +30,11 @@ class Matches(unittest.TestCase):
         self.assertEqual(found('# lie about their lengths (issue\n# 123): tables'), ['issue 123'])
         self.assertIn('#123', found('declare samples the file does not back (issue\n    # #123).'))
 
+    def test_input_headers_do_not_hide_issue_references(self):
+        self.assertEqual(found("Input #3, matroska,webm, from 'chapters.mkv':"), [])
+        self.assertEqual(found("Input #3, mov,mp4,m4a,3gp,3g2,mj2, from 'input.mp4': #123"), ['#123'])
+        self.assertEqual(found('Input #3 needs a fix'), ['#3'])
+
     def test_a_reference_that_names_the_repository_passes(self):
         for text in ('fixed in coreav-dev/coreav#56', 'the issue coreav-dev/coreav#31 tracks',
                      'https://github.com/coreav-dev/coreav/issues/31'):

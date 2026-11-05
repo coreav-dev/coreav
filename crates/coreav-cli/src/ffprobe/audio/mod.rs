@@ -2,7 +2,7 @@ mod flac;
 pub(crate) mod wav;
 
 use super::args::Container;
-use super::{Packet, PacketSource, Probed};
+use super::{Packet, PacketSource, Probed, Purpose};
 use crate::error::Failure;
 use coreav_isobmff::{Error, LimitKind, Limits, Source};
 
@@ -12,6 +12,7 @@ pub(super) fn probe<S: Source>(
     name: &str,
     force: Option<Container>,
     limits: &Limits,
+    purpose: Purpose,
 ) -> Result<Option<Probed<'static>>, Failure> {
     if force.is_some_and(|f| !matches!(f, Container::Wav | Container::Flac)) {
         return Ok(None);
@@ -32,7 +33,7 @@ pub(super) fn probe<S: Source>(
     let report = if wave && force != Some(Container::Flac) {
         wav::probe(source, size, name, limits)?
     } else if let Some(start) = flac_start.filter(|_| force != Some(Container::Wav)) {
-        flac::probe(source, size, name, limits, start)?
+        flac::probe(source, size, name, limits, start, purpose)?
     } else {
         if force.is_some() {
             return Err(Failure::Invalid(

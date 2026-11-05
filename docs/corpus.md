@@ -262,6 +262,7 @@ draw's operation.
 | 7 | MPEG-TS demux speed, round 2 | `ts-probe` | | | | rules committed, not yet collected |
 | 8 | Opus speed, round 2 | `audio-decode` | 144 | 322 | 6.48 | spent: "Opus round 2" of [`spikes/audio-decode-bench/README.md`](spikes/audio-decode-bench/README.md) |
 | 9 | Opus speed, round 3 | `audio-decode` | | | | rules committed, not yet collected |
+| 10 | Opus speed, round 4 | `audio-decode` | 120 | 240 | | prepared; [admission refused before judging](spikes/audio-decode-bench/opus-round4.md) |
 
 No `hls` draw is unspent, so the next `hls index` measurement needs a
 draw of its own before it can run.
@@ -543,7 +544,7 @@ The held-out draw of the third Opus speed round ([`design/audio-decode.md`](desi
 
 ### Draw 10
 
-The fresh held-out draw of the fourth Opus speed round ([`design/audio-decode.md`](design/audio-decode.md#opus-speed-round-4)), after the complete draw 9 set was spent. Operation `audio-decode`, salt `coreav-corpus-v2-heldout-audio-decode-4:`. No candidate list has been selected and no media has been fetched for this draw. These rules and the round's tools merge first.
+The fresh held-out draw of the fourth Opus speed round ([`design/audio-decode.md`](design/audio-decode.md#opus-speed-round-4)), after the complete draw 9 set was spent. Operation `audio-decode`, salt `coreav-corpus-v2-heldout-audio-decode-4:`. The rules and tools merged before candidate selection or media acquisition. The fixed list produced 120 real sources and 240 prepared inputs, but the registered workload forecast [refused admission](spikes/audio-decode-bench/opus-round4.md) before judging. The complete roster and the rules below remain unchanged.
 
 - **Form, usability, classes and sets:** draw 9's unchanged files, 200 MB maximum, first audio stream of 5 seconds to 30 minutes, historical FLAC-intermediate qualification and four source-container classes. The pinned current oracle probes the source; only the historical derivation uses FFmpeg 7.0.2. No CoreAV command runs during collection.
 - **Coverage and caps:** 100 to 120 `real` sources, stopping at 120 or at the end of the frozen list. A source-container class takes at most 60 files, a source at most 16 and a group at most 3. A draw below 100 is reported short and no judged round starts; no cap or minimum is relaxed. Every real source produces both derived containers, whose mode and timing minimums remain those of the round's plan.

@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "status": "incomplete",
+  "inference_scope": "capture-clean-eligible-cohort",
+  "failure_limit_per_class": 16,
+  "stop_reason": "operational-limit",
+  "failed_sources": {
+    "known": 0,
+    "unknown": 8
+  },
+  "source_failure_reasons": [
+    {
+      "classification": "unknown",
+      "reason": "stderr",
+      "stage": "source-probe",
+      "sources": 8
+    }
+  ],
+  "per_class": {
+    "sd": {
+      "selected": 16,
+      "failure_charges": {
+        "known": 0,
+        "unknown": 4
+      },
+      "replacements_selected": {
+        "known": 0,
+        "unknown": 4
+      },
+      "unmatched_failure_charges": {
+        "known": 0,
+        "unknown": 0
+      },
+      "failure_limit_reached": false,
+      "reasons": [
+        {
+          "classification": "unknown",
+          "reason": "stderr",
+          "stage": "source-probe",
+          "failure_charges": 4,
+          "replacements_selected": 4
+        }
+      ]
+    },
+    "720p": {
+      "selected": 16,
+      "failure_charges": {
+        "known": 0,
+        "unknown": 4
+      },
+      "replacements_selected": {
+        "known": 0,
+        "unknown": 4
+      },
+      "unmatched_failure_charges": {
+        "known": 0,
+        "unknown": 0
+      },
+      "failure_limit_reached": false,
+      "reasons": [
+        {
+          "classification": "unknown",
+          "reason": "stderr",
+          "stage": "source-probe",
+          "failure_charges": 4,
+          "replacements_selected": 4
+        }
+      ]
+    },
+    "1080p": {
+      "selected": 16,
+      "failure_charges": {
+        "known": 0,
+        "unknown": 4
+      },
+      "replacements_selected": {
+        "known": 0,
+        "unknown": 3
+      },
+      "unmatched_failure_charges": {
+        "known": 0,
+        "unknown": 1
+      },
+      "failure_limit_reached": false,
+      "reasons": [
+        {
+          "classification": "unknown",
+          "reason": "stderr",
+          "stage": "source-probe",
+          "failure_charges": 4,
+          "replacements_selected": 3
+        }
+      ]
+    },
+    "4k": {
+      "selected": 9,
+      "failure_charges": {
+        "known": 0,
+        "unknown": 8
+      },
+      "replacements_selected": {
+        "known": 0,
+        "unknown": 6
+      },
+      "unmatched_failure_charges": {
+        "known": 0,
+        "unknown": 2
+      },
+      "failure_limit_reached": false,
+      "reasons": [
+        {
+          "classification": "unknown",
+          "reason": "stderr",
+          "stage": "source-probe",
+          "failure_charges": 8,
+          "replacements_selected": 6
+        }
+      ]
+    }
+  }
+}

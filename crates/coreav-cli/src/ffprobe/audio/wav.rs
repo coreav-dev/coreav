@@ -1,6 +1,6 @@
 use crate::error::Failure;
 use crate::ffprobe::model::{Unit, Value, s, time};
-use crate::ffprobe::{Report, Stream, StreamKind, iso, names};
+use crate::ffprobe::{Report, Stream, StreamKind, SummaryEvidence, iso, names};
 use coreav_isobmff::{Error, LimitKind, Limits, Source};
 
 struct Reader<'a, S> {
@@ -180,6 +180,7 @@ struct Format {
     align: u16,
     mask: u32,
     extra: u64,
+    summary_complete: bool,
 }
 
 fn format<S: Source>(r: &mut Reader<'_, S>, at: u64, len: u64) -> Result<Format, Failure> {
@@ -200,6 +201,7 @@ fn format<S: Source>(r: &mut Reader<'_, S>, at: u64, len: u64) -> Result<Format,
     let mut valid_bits = bits;
     let mut mask = 0;
     let mut extra = 0;
+    let mut summary_complete = true;
     if len > 16 {
         if len < 18 {
             return Err(invalid("short WAVE format extension"));
@@ -214,6 +216,7 @@ fn format<S: Source>(r: &mut Reader<'_, S>, at: u64, len: u64) -> Result<Format,
                 return Err(invalid("short extensible WAVE format"));
             }
             let valid = r.word(add(at, 18)?)?;
+            summary_complete &= valid == 0 || valid == bits;
             if valid > bits || bits % 8 != 0 {
                 return Err(invalid("invalid extensible WAVE sample precision"));
             }
@@ -272,6 +275,7 @@ fn format<S: Source>(r: &mut Reader<'_, S>, at: u64, len: u64) -> Result<Format,
         align,
         mask,
         extra,
+        summary_complete,
     })
 }
 
@@ -533,6 +537,7 @@ pub(crate) fn probe_pcm<S: Source>(
     let mut ds64: Option<Sizes> = None;
     let mut data = None;
     let mut tags = Vec::new();
+    let mut summary_complete = true;
     while pos < end.min(size) {
         if add(pos, 8)? > end.min(size) {
             return Err(invalid("short WAVE chunk header"));
@@ -603,9 +608,11 @@ pub(crate) fn probe_pcm<S: Source>(
                     return Err(invalid("WAVE data starts outside RIFF"));
                 }
                 data = Some((start, len, len.min(end.min(size) - start)));
+                summary_complete &= len <= end.min(size) - start;
             }
             b"LIST" => info(&mut r, start, len, &mut tags)?,
             b"fact" => {
+                summary_complete = false;
                 r.metadata(len, start)?;
                 if len < 4 {
                     return Err(invalid("short WAVE fact chunk"));
@@ -729,6 +736,25 @@ pub(crate) fn probe_pcm<S: Source>(
         Value::Time(micros as f64 / 1_000_000.0)
     };
     let report = Report {
+        summary: match i64::try_from(micros) {
+            Ok(duration)
+                if summary_complete
+                    && fmt.summary_complete
+                    && fmt.mask != 0
+                    && fmt.extra == 0
+                    && end == size
+                    && bytes != 0
+                    && !tags
+                        .iter()
+                        .any(|(key, _)| key.eq_ignore_ascii_case("language")) =>
+            {
+                SummaryEvidence::Complete {
+                    start: None,
+                    duration: Some(duration),
+                }
+            }
+            _ => SummaryEvidence::Unsupported("unqualified WAVE summary facts"),
+        },
         streams: collected([Stream {
             kind: StreamKind::Audio,
             attached_pic: false,

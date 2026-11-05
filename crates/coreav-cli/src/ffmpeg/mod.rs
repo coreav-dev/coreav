@@ -129,6 +129,8 @@ pub enum Job {
     },
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
+        /// The nonzero input origin for checked single-video normalization.
+        video_origin: Option<Rational>,
         /// The tracks, in the output's order, a stream mapped twice twice.
         streams: Vec<usize>,
         /// The cover pictures that are not selected, as
@@ -865,7 +867,31 @@ pub fn plan(
             "cover pictures alone (ffmpeg writes an MP4 file without a track, which ISO/IEC 14496-12 8.3.1 does not allow)",
         ));
     }
+    let origin = input_start(report);
+    let video_origin = if origin == Rational::from_int(0) {
+        None
+    } else {
+        if origin.num < 0
+            || container != Container::Isobmff
+            || tracks.len() != 1
+            || !pictures.is_empty()
+            || !report.chapters.is_empty()
+            || report.streams.iter().any(|s| tag(s, "timecode").is_some())
+            || tracks.iter().any(|index| {
+                report
+                    .streams
+                    .get(*index)
+                    .is_none_or(|s| s.kind != StreamKind::Video)
+            })
+        {
+            return Err(Refusal::not_native(
+                "normalizing this nonzero input origin while copying",
+            ));
+        }
+        Some(origin)
+    };
     Ok(Job::Remux {
+        video_origin,
         left_out_covers: left_out_covers(report, &selected),
         streams: tracks,
         matroska: container == Container::Matroska,
@@ -1220,6 +1246,9 @@ fn join_edit_refusal(
         if movie.tracks.iter().any(edited) {
             return Ok(Some("a join of files whose tracks have several edits"));
         }
+    }
+    if summary.audio_edits > 1 {
+        return Ok(Some("a concat output that needs several audio edits"));
     }
     Ok(None)
 }
@@ -1576,6 +1605,14 @@ fn plan_inputs(command: &Command, reports: &[Report]) -> Result<Job, Refusal> {
         .filter(|s| s.input == 0)
         .map(|s| s.stream)
         .collect();
+    if mapped.iter().all(|stream| stream.input == 0) {
+        return Ok(Job::Remux {
+            left_out_covers: left_out_covers(first, &first_streams),
+            streams: first_streams,
+            matroska: false,
+            video_origin: None,
+        });
+    }
     Ok(Job::RemuxInputs {
         streams: mapped,
         left_out_covers: left_out_covers(first, &first_streams),
@@ -1722,8 +1759,11 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             streams,
             left_out_covers,
             matroska: false,
+            video_origin,
         } => {
             let options = RemuxOptions {
+                rebuild_durations: true,
+                video_origin: *video_origin,
                 streams: Some(streams.clone()),
                 on_unsupported: OnUnsupported::Fail,
                 left_out_covers: left_out_covers.clone(),
@@ -1865,6 +1905,79 @@ mod tests {
     use super::*;
 
     #[test]
+    fn ordinary_copy_origin_plans_only_one_iso_video() {
+        let mut report = Report {
+            streams: vec![Stream {
+                kind: StreamKind::Video,
+                attached_pic: false,
+                entries: vec![],
+                disposition: vec![],
+                tags: vec![],
+                side_data: vec![],
+            }],
+            format: vec![
+                (
+                    "format_name",
+                    Value::Str("mov,mp4,m4a,3gp,3g2,mj2".to_owned()),
+                ),
+                ("start_time", Value::Time(0.08)),
+            ],
+            ..Report::default()
+        };
+        let command =
+            args::parse(&["-i", "in.mp4", "-map", "0", "-c", "copy", "out.mp4"].map(str::to_owned))
+                .unwrap();
+        let origin = Rational::new(2, 25).unwrap();
+        assert!(matches!(plan(&command, &report, None),
+            Ok(Job::Remux { video_origin: Some(value), .. }) if value == origin));
+        let set_start = |report: &mut Report, seconds| {
+            report.format.retain(|(key, _)| *key != "start_time");
+            report.format.push(("start_time", Value::Time(seconds)));
+        };
+        set_start(&mut report, 0.0);
+        assert!(matches!(
+            plan(&command, &report, None),
+            Ok(Job::Remux {
+                video_origin: None,
+                ..
+            })
+        ));
+        set_start(&mut report, -0.08);
+        assert!(matches!(
+            plan(&command, &report, None),
+            Err(Refusal::NotNative(_))
+        ));
+        set_start(&mut report, 0.08);
+        report.streams.extend(report.streams.clone());
+        assert!(matches!(
+            plan(&command, &report, None),
+            Err(Refusal::NotNative(_))
+        ));
+        report.streams.truncate(1);
+        report.streams.iter_mut().for_each(|stream| {
+            stream
+                .tags
+                .push(("timecode".to_owned(), "01:00:00:00".to_owned()));
+        });
+        assert!(matches!(
+            plan(&command, &report, None),
+            Err(Refusal::NotNative(_))
+        ));
+        report
+            .streams
+            .iter_mut()
+            .for_each(|stream| stream.tags.clear());
+        report.format.retain(|(key, _)| *key != "format_name");
+        report
+            .format
+            .push(("format_name", Value::Str("matroska,webm".to_owned())));
+        assert!(matches!(
+            plan(&command, &report, None),
+            Err(Refusal::NotNative(_))
+        ));
+    }
+
+    #[test]
     fn unsupported_capture_is_refused_before_input_or_output_io() {
         for line in [
             "-i missing-a.mp4 -i missing-b.mp4 -c copy out.mp4",
@@ -1900,6 +2013,8 @@ mod tests {
         };
         let report = Report {
             iso_names_supported: None,
+            summary: Default::default(),
+            summary_aspects: Vec::new(),
             iso_format_output: None,
             streams: vec![
                 stream(StreamKind::Video, vec![]),
@@ -1953,6 +2068,8 @@ mod tests {
         use crate::ffprobe::model::Unit;
         let mut report = Report {
             iso_names_supported: None,
+            summary: Default::default(),
+            summary_aspects: Vec::new(),
             iso_format_output: None,
             streams: vec![
                 Stream {

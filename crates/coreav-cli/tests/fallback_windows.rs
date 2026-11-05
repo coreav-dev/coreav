@@ -102,7 +102,7 @@ fn waits_for_the_program_and_preserves_its_exit_code() {
             assert_eq!(status.code(), Some(code));
             assert_eq!(
                 std::fs::read_to_string(work.join("stdout")).unwrap(),
-                format!("args: {}\n", args(tool).join(" "))
+                format!("args: -hide_banner {}\n", args(tool).join(" "))
             );
             let stderr = std::fs::read_to_string(work.join("stderr")).unwrap();
             assert!(stderr.contains("guard=1"), "{stderr}");

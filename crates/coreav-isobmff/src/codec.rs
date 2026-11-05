@@ -541,6 +541,8 @@ pub(crate) fn parse_sample_entry(
                             kind,
                             data: crate::planning::copy(planning, payload, offset)?,
                         });
+                    } else if matches!(&kind.0, b"mdcv" | b"clli") {
+                        desc.visual_children_complete = false;
                     }
                 } else if !CONFIG_BOXES.contains(&&kind.0)
                     && desc.other_boxes.len() < MAX_OTHER_BOXES
@@ -909,7 +911,7 @@ const CONFIG_BOXES: [&[u8; 4]; 11] = [
 ];
 
 /// Visual sample entry children kept as stored, for the clip writer to copy.
-const ENTRY_BOXES: [&[u8; 4]; 4] = [b"pasp", b"clap", b"colr", b"btrt"];
+const ENTRY_BOXES: [&[u8; 4]; 6] = [b"pasp", b"clap", b"colr", b"btrt", b"mdcv", b"clli"];
 
 /// What a codec configuration record says, read exactly as in a sample
 /// description. Other containers carry the same records: a Matroska
@@ -1071,6 +1073,14 @@ pub fn avc_timing(avcc: &[u8]) -> Option<(u32, u32)> {
 /// read as from an `esds` descriptor; `None` when it cannot be read.
 pub fn describe_audio_specific_config(config: &[u8]) -> Option<Profile> {
     aac_profile(config)
+}
+
+/// Whether an AudioSpecificConfig explicitly signals `sbrPresentFlag=0`
+/// (ISO/IEC 14496-3 1.6.2.1), not merely an LC core without an extension.
+/// This does not certify the rest of the configuration or its packets.
+pub fn aac_has_explicit_no_sbr(config: &[u8]) -> bool {
+    aac_layout(config).is_some_and(|layout| layout.no_ps)
+        && matches!(aac_profile(config), Some(Profile::Aac { sbr: false, .. }))
 }
 
 // Profile readers return the profile and whether the record header agrees
@@ -2055,6 +2065,44 @@ mod tests {
             rate(&[(2, 5), (6, 4), (2, 4), (0, 3), (0x2b7, 11), (5, 5), (0, 1)]),
             Some(24000)
         );
+    }
+
+    #[test]
+    fn explicit_no_sbr_evidence_does_not_confuse_missing_or_positive_extensions() {
+        let negative = pack(&[(2, 5), (4, 4), (1, 4), (0, 3), (0x2b7, 11), (5, 5), (0, 1)]);
+        assert!(aac_has_explicit_no_sbr(&negative));
+        for end in 0..negative.len() {
+            assert!(!aac_has_explicit_no_sbr(&negative[..end]));
+        }
+        assert!(!aac_has_explicit_no_sbr(&[0x12, 0x08]));
+        let delayed = pack(&[
+            (2, 5),
+            (4, 4),
+            (1, 4),
+            (0, 1),
+            (1, 1),
+            (7, 14),
+            (0, 1),
+            (0x2b7, 11),
+            (5, 5),
+            (0, 1),
+        ]);
+        assert!(aac_has_explicit_no_sbr(&delayed));
+        let positive = pack(&[
+            (2, 5),
+            (6, 4),
+            (1, 4),
+            (0, 3),
+            (0x2b7, 11),
+            (5, 5),
+            (1, 1),
+            (3, 4),
+            (0x548, 11),
+            (0, 1),
+        ]);
+        assert!(!aac_has_explicit_no_sbr(&positive));
+        let hierarchical = pack(&[(5, 5), (6, 4), (2, 4), (3, 4), (2, 5), (0, 3)]);
+        assert!(!aac_has_explicit_no_sbr(&hierarchical));
     }
 
     #[test]

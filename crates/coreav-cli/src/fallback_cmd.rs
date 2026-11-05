@@ -1,6 +1,6 @@
 //! The FFmpeg fallback (`docs/design/compat-cli.md`, "Fallback to FFmpeg"): a
 //! command `coreav ffprobe` or `coreav ffmpeg` does not run natively runs the
-//! real program instead, with the arguments unchanged and standard input,
+//! real program instead, with `-hide_banner` before the arguments and standard input,
 //! output and error inherited, unless strict-safe mode is on. Standard
 //! output stays the program's: CoreAV writes one notice line on standard
 //! error, and the log line to `COREAV_FALLBACK_LOG`.
@@ -87,17 +87,11 @@ fn refuse_inner(
     match found {
         Ok(path) => {
             log(tool, args, reason, Ok(&path.to_string_lossy()));
-            let hint = if matches!(reason, fallback::Reason::Property("no section")) {
-                "; try -show_format -show_streams for native output"
-            } else {
-                ""
-            };
             let _ = writeln!(
                 std::io::stderr(),
-                "coreav: ran {} instead (not native: {}{})",
+                "coreav: ran {} instead (not native: {})",
                 path.display(),
-                reason.redacted(tool),
-                hint
+                reason.redacted(tool)
             );
             let error = run(&path, args, input);
             message(tool, &format!("could not run {}: {error}", path.display()));
@@ -230,7 +224,7 @@ fn run(
     input: Option<(std::fs::File, super::compat_cmd::EncodedInput)>,
 ) -> std::io::Error {
     let mut command = Command::new(path);
-    command.args(args).env(GUARD, "1");
+    command.arg("-hide_banner").args(args).env(GUARD, "1");
     let spool = input.map(|(input, spool)| {
         command.stdin(input);
         spool

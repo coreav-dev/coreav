@@ -16,7 +16,7 @@ Fails on, in every tracked text file and every tracked path:
 - "issue N", "issue #N", "issue-N", "PR #N", "prN", "pull request N" and
   the like, also when the name is wrapped onto the next line.
 Machine output that numbers things with "#" (libFuzzer's status lines,
-uname's build number, ffmpeg's stream specifiers, ffprobe's read
+uname's build number, ffmpeg's input headers and stream specifiers, ffprobe's read
 intervals, the host gate's run counters) is not a reference, and neither
 is the salt of a held-out draw, whose text fixes the draw. Files whose
 data are pull request or commit text, where GitHub reads "#N" as this
@@ -51,6 +51,7 @@ NOT_REFERENCES = re.compile(
     r'|#\d+ SMP\b'
     r'|\b(?:sd|720p|1080p|4k) #\d'
     r'|\bcodec #\d'
+    r'|\bInput #\d+(?=, [a-z0-9_,]+, from )'
     r'|\bholdout-issue\d+:')
 
 EXEMPT = {

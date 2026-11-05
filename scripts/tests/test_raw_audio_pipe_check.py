@@ -254,9 +254,10 @@ class WaveRefusals(unittest.TestCase):
     def test_replay_rejects_modified_arguments_bytes_and_status(self):
         command = ["coreav", "ffmpeg", "-threads", "1", "-i", "pipe:0", "-f", "s16le", "pipe:1"]
         payload = CHECK.wave_bytes(b"\x80", "u8", metadata=True)
-        expected = b"-threads\n1\n-i\npipe:0\n-f\ns16le\npipe:1\n" + payload
+        expected = b"-hide_banner\n-threads\n1\n-i\npipe:0\n-f\ns16le\npipe:1\n" + payload
         for status, output, accepted in [(7, expected, True), (0, expected, False),
                                           (7, expected[:-1], False),
+                                          (7, expected.removeprefix(b"-hide_banner\n"), False),
                                           (7, expected.replace(b"pipe:0", b"pipe:9"), False),
                                           (7, expected[:-1] + b"\xff", False)]:
             with self.subTest(status=status, output=output[-4:]), patch.object(
@@ -270,7 +271,7 @@ class WaveRefusals(unittest.TestCase):
     def test_refused_sources_never_create_or_replace_a_destination(self):
         def refuse(command, *, input=None, capture_output=None, env=None, timeout=None):
             if "COREAV_STRICT_SAFE" not in env:
-                output = ("\n".join(str(arg) for arg in command[2:]) + "\n").encode() + input
+                output = ("-hide_banner\n" + "\n".join(str(arg) for arg in command[2:]) + "\n").encode() + input
                 return subprocess.CompletedProcess(command, 7, output, b"")
             return subprocess.CompletedProcess(command, 4, b"", b"unsupported")
 

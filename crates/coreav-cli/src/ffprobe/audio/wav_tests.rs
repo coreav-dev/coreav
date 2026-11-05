@@ -126,6 +126,81 @@ fn pcm_descriptor_keeps_declared_extents_and_valid_precision_separate() {
 }
 
 #[test]
+fn summary_admission_retains_precision_and_complete_extent() {
+    let mut format = fmt(16, 0xfffe, 2);
+    format.extend_from_slice(&22u16.to_le_bytes());
+    format.extend_from_slice(&16u16.to_le_bytes());
+    format.extend_from_slice(&3u32.to_le_bytes());
+    format.extend_from_slice(&[1, 0, 0, 0, 0, 0, 16, 0, 128, 0, 0, 170, 0, 56, 155, 113]);
+    let original = riff(&[chunk(b"fmt ", &format), chunk(b"data", &[0; 1920])]);
+    assert!(matches!(
+        report(&original).summary,
+        SummaryEvidence::Complete {
+            start: None,
+            duration: Some(10_000)
+        }
+    ));
+    let mut truncated = original;
+    truncated.truncate(truncated.len() - 8);
+    for fix_extent in [false, true] {
+        if fix_extent {
+            let extent = truncated.len() as u32 - 8;
+            truncated[4..8].copy_from_slice(&extent.to_le_bytes());
+        }
+        let r = report(&truncated);
+        assert_eq!(field(&r, "duration_ts"), &Value::Int(478));
+        assert!(matches!(r.summary, SummaryEvidence::Unsupported(_)));
+    }
+    for valid in [24u16, 32] {
+        let mut format = fmt(32, 0xfffe, 2);
+        format.extend_from_slice(&22u16.to_le_bytes());
+        format.extend_from_slice(&valid.to_le_bytes());
+        format.extend_from_slice(&3u32.to_le_bytes());
+        format.extend_from_slice(&[1, 0, 0, 0, 0, 0, 16, 0, 128, 0, 0, 170, 0, 56, 155, 113]);
+        let r = report(&riff(&[
+            chunk(b"fmt ", &format),
+            chunk(b"data", &[0; 3840]),
+        ]));
+        assert_eq!(field(&r, "codec_name"), &s("pcm_s32le"));
+        assert_eq!(field(&r, "duration_ts"), &Value::Int(480));
+        assert_eq!(
+            matches!(r.summary, SummaryEvidence::Complete { .. }),
+            valid == 32
+        );
+    }
+}
+
+#[test]
+fn summary_range_overflow_preserves_structured_duration() {
+    let samples = 9_223_372_036_855u64;
+    let mut format = fmt(8, 0xfffe, 1);
+    format[4..8].copy_from_slice(&1u32.to_le_bytes());
+    format[8..12].copy_from_slice(&1u32.to_le_bytes());
+    format.extend_from_slice(&22u16.to_le_bytes());
+    format.extend_from_slice(&8u16.to_le_bytes());
+    format.extend_from_slice(&4u32.to_le_bytes());
+    format.extend_from_slice(&[1, 0, 0, 0, 0, 0, 16, 0, 128, 0, 0, 170, 0, 56, 155, 113]);
+    let size = 12 + 36 + 48 + 8 + samples + (samples & 1);
+    let mut sizes = (size - 8).to_le_bytes().to_vec();
+    sizes.extend_from_slice(&samples.to_le_bytes());
+    sizes.extend_from_slice(&samples.to_le_bytes());
+    sizes.extend_from_slice(&0u32.to_le_bytes());
+    let mut bytes = b"RF64\xff\xff\xff\xffWAVE".to_vec();
+    bytes.extend_from_slice(&chunk(b"ds64", &sizes));
+    bytes.extend_from_slice(&chunk(b"fmt ", &format));
+    bytes.extend_from_slice(b"data\xff\xff\xff\xff");
+    let r = probe(
+        &mut SliceSource::new(&bytes),
+        size,
+        "range.wav",
+        &Limits::default(),
+    )
+    .unwrap_or_else(|e| panic!("{}", e.to_json()));
+    assert_eq!(field(&r, "duration_ts"), &Value::Int(samples as i64));
+    assert!(matches!(r.summary, SummaryEvidence::Unsupported(_)));
+}
+
+#[test]
 fn pcm_and_float_fields_use_storage_width() {
     for (code, bits, codec, sample_fmt) in [
         (1, 8, "pcm_u8", "u8"),

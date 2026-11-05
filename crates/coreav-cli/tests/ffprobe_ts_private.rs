@@ -103,6 +103,56 @@ fn registered_unidentified_private_audio_refuses_before_output() {
 }
 
 #[test]
+fn unidentified_private_ts_summaries_refuse_before_output() {
+    let mut frame = vec![0; 1253];
+    frame[..4].copy_from_slice(&[0xff, 0xfd, 0xe0, 0x04]);
+    for (name, descriptors) in [
+        ("summary", vec![]),
+        ("registered-summary", common::Mux::registration(b"TEST")),
+    ] {
+        let fixture = Fixture::with_payload(name, 0x06, descriptors, &frame);
+        for args in [vec!["ffprobe"], vec!["ffprobe", "-i"], vec!["ffmpeg", "-i"]] {
+            let output = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                .args(&args)
+                .arg(fixture.input())
+                .env_clear()
+                .env("COREAV_STRICT_SAFE", "1")
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(4), "{args:?}: {output:?}");
+            assert!(output.stdout.is_empty());
+            assert!(!String::from_utf8_lossy(&output.stderr).contains("Input #"));
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let program = fixture.0.join(args[0]);
+                let log = fixture.0.join("summary-called");
+                std::fs::write(&program, b"#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$PRIVATE_TS_LOG\"\nprintf 'fallback-only\\n'\nexit 7\n").unwrap();
+                std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+                let fallback = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                    .args(&args)
+                    .arg(fixture.input())
+                    .env_clear()
+                    .env("COREAV_FALLBACK", &program)
+                    .env("PRIVATE_TS_LOG", &log)
+                    .output()
+                    .unwrap();
+                assert_eq!(fallback.status.code(), Some(7));
+                assert_eq!(fallback.stdout, b"fallback-only\n");
+                assert!(!String::from_utf8_lossy(&fallback.stderr).contains("Input #"));
+                let mut expected = vec!["-hide_banner".to_owned()];
+                expected.extend(args[1..].iter().map(|arg| (*arg).to_owned()));
+                expected.push(fixture.input().display().to_string());
+                assert_eq!(
+                    std::fs::read_to_string(log).unwrap(),
+                    expected.join("\n") + "\n"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn identified_streams_and_native_probe_remain_supported() {
     for (name, kind, descriptors) in [
         ("mpeg-audio", 0x03, vec![]),
@@ -178,7 +228,11 @@ fn unidentified_private_ts_preserves_fallback_arguments_and_status() {
         assert_eq!(fallback.stdout, b"fallback-only\n");
         assert_eq!(
             std::fs::read_to_string(log).unwrap(),
-            format!("{}\n{}\n", args[1..].join("\n"), fixture.input().display())
+            format!(
+                "-hide_banner\n{}\n{}\n",
+                args[1..].join("\n"),
+                fixture.input().display()
+            )
         );
     }
 }

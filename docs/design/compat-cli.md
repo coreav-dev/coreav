@@ -1055,12 +1055,15 @@ appear and in what order, and `-show_entries`'s selection rules, as the
 pinned `ffprobe` 7.0.2 prints them for the same command. The black box is
 the only source for those rules.
 
-**Standard error is not.** `ffprobe` writes a banner and a summary of the
-input on standard error at the default log level; CoreAV writes nothing on
-standard error on success, at any `-v`. A command that asks for no section
-(`ffprobe INPUT`, `ffprobe -v debug -i INPUT`) exists only for that summary,
-so it is refused (exit 4), never run to print nothing. `-show_error` prints
-the error section on standard output, as `ffprobe` does.
+**Input summaries on standard error** are a separate native output contract for `ffprobe INPUT` and `ffprobe -i INPUT` without section options. The [input-summary plan](input-summary.md) requires byte-identical summary text against the pinned FFmpeg 9.0.2, including metadata, chapters, programs and supported stream side data. An unsupported summary falls back before printing any partial summary, or exits 4 under strict-safe. Diagnostic levels below info suppress the summary; detailed or decorated logging uses fallback. Sectioned commands retain their existing standard-error behavior. `-show_error` prints the error section on standard output, as `ffprobe` does.
+
+An explicit `-of`, `-print_format` or `-output_format` remains a structured request even without selected sections; JSON retains its empty document rather than entering bare-summary admission. Program summaries count every membership entry, including repeated entries, and print `No Program` before unassigned streams only when that entry count is less than the stream count. A sole language metadata key is omitted case-insensitively; case variants beside other metadata remain visible.
+
+Display-matrix summaries admit only axis-aligned matrices with nonzero axes: diagonal or anti-diagonal linear components. They emit fixed quarter-turn text, preserving signed zero, without a C math dependency. Every non-axis matrix, including fractional, nearby and scaled variants, refuses before summary emission. Whole-degree structured rotation keeps its existing calculation and truncation unchanged.
+
+`ffmpeg -i INPUT` without an output uses the same summary and then prints `At least one output file must be specified` with status 1. CoreAV always suppresses FFmpeg's version and configuration banner, including on fallback. This deliberate identity divergence is not an exception to the summary's byte comparison.
+
+Standalone WAVE and FLAC summaries use the existing audio readers under the [summary admission bounds](input-summary.md#native-admission). An explicit speaker layout and complete source extents qualify WAVE; FLAC also qualifies mono/stereo without a mask. Unproved layouts, precision disagreements, incomplete extents and ambiguous metadata retain atomic fallback. Structured audio reports keep their existing behavior.
 
 **Keys.** Every key the sections have in `ffprobe`, in its order, with the
 value derived from what the container and the codec configuration say,
@@ -1408,6 +1411,10 @@ refused (`encoding a cover picture`): `ffmpeg` fails on it, exit status
 picture: their selection rules refuse one by name (`one video and one
 audio stream`, `an M4A output of other than one audio stream`).
 
+Ordinary single-input ISO copy rebuilds media durations from copied samples and track durations from validated edits or media, rather than keeping conflicting declared header overrides. Simple edits that cut the copied presentation refuse before output; AAC may retain a partial final sample. Edits extending beyond the complete end's movie-tick ceiling refuse unless they are AAC edits that can be shortened to an exactly representable end. Native `coreav remux` retains its separate default preservation policy. This changes neither sample selection nor source packet clocks; see [the copied-header plan](copy-header-durations.md).
+
+After multi-input validation, a command whose final maps use only input zero follows that same ordinary copy policy. An unused second input cannot change duration reconstruction or timing admission. Map order and default metadata still come from the first input. Selections from another input or mixed inputs keep the existing multi-source path; see [first-input-only mapped copy](first-input-copy.md).
+
 **Times.** Every time counts from the input's start time (`ffprobe`'s
 `format.start_time`, 0 when it has none): on a file presented from 5 s,
 `-ss 6` before or after `-i` is 11 s on its timeline (black box). An input
@@ -1522,7 +1529,7 @@ FFmpeg).**
 - A join that would not be timed as the concat demuxer times it: inputs
   whose tracks have several edits, which the demuxer reads by its own edit
   model, an input with a positive AAC media edit offset (including unselected audio), a first input with a nonzero format start, and an input the demuxer would place before the previous input's
-  video ends. Also inputs that do not match the first
+  video ends. An output that needs several audio edits is also refused, including gaps created from unedited inputs; native join's edit-based presentation is not the concat muxer's packet clock. See [audio-gap admission](concat-audio-gaps.md). Also inputs that do not match the first
   (codec, configuration, size, time base), inputs without a stream of the
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
@@ -2419,8 +2426,9 @@ installs both tools.
 
 ### Running it
 
-The program gets the arguments unchanged, standard input, output and error
-inherited, and the environment with one variable added. On Unix CoreAV
+The program gets `-hide_banner` followed by the original arguments. It inherits
+standard output and standard error. It inherits standard input unless CoreAV
+supplies a replay file. The environment has one variable added. On Unix CoreAV
 replaces itself with it (`exec`), so the process id, signals and exit status
 are FFmpeg's; on Windows it starts the program, waits, and exits with its
 exit code. Either way the exit status of a fallback is the program's.
