@@ -170,6 +170,21 @@ pub(super) fn plan(
         })
         .ok_or_else(|| Refusal::not_native("raw audio with unknown sample rate"))?;
     let output_rate = command.sample_rate.unwrap_or(input_rate);
+    if command.muxer == Muxer::Wav
+        && (!wave
+            || output_rate != input_rate
+            || output_channels != channels
+            || !report.chapters.is_empty()
+            || command.map_metadata == MapMetadata::Default
+                && report
+                    .format_tags
+                    .iter()
+                    .any(|(key, _)| !key.eq_ignore_ascii_case("encoder")))
+    {
+        return Err(Refusal::not_native(
+            "WAVE to WAV output with changed rate, channels or unregistered metadata",
+        ));
+    }
     if pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::F32)
         && (output_format != SampleFormat::F32 || output_rate != input_rate)
         || pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::U8)
@@ -617,6 +632,9 @@ pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value,
     let before =
         decode(command, plan, &mut Bytes(&mut std::io::sink())).map_err(DecodeError::preflight)?;
     packet_presentation(command, plan, &before)?;
+    if command.muxer == Muxer::Wav {
+        return wav::write(command, plan, &before, force);
+    }
     let run = |out: &mut dyn Write| -> Result<serde_json::Value, WriteFailure> {
         let after = decode(command, plan, &mut Bytes(out)).map_err(DecodeError::terminal)?;
         if before != after {

@@ -40,6 +40,194 @@ fn strict() -> Command {
     command
 }
 
+fn info_tag(tag: &[u8; 4], text: &[u8]) -> Vec<u8> {
+    let mut payload = b"INFO".to_vec();
+    payload.extend_from_slice(tag);
+    payload.extend_from_slice(&(text.len() as u32 + 1).to_le_bytes());
+    payload.extend_from_slice(text);
+    payload.push(0);
+    if payload.len() % 2 != 0 {
+        payload.push(0);
+    }
+    let mut chunk = b"LIST".to_vec();
+    chunk.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+    chunk.extend(payload);
+    chunk
+}
+
+#[test]
+fn integer_wav_output_matches_complete_pinned_files() {
+    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
+    if !ffmpeg.is_file() {
+        assert!(
+            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
+            "set COREAV_FFMPEG to the pin"
+        );
+        return;
+    }
+    let verified = Command::new("python3")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/oracle_pin.py"))
+        .arg("--verify-bin")
+        .arg(ffmpeg.parent().unwrap())
+        .output()
+        .unwrap();
+    assert!(verified.status.success(), "{verified:?}");
+    let dir = scratch("output-oracle");
+    for bits in [8u16, 16, 24, 32] {
+        for channels in [1u16, 2] {
+            for frames in [0, 3, 40001] {
+                let samples: Vec<u8> = (0..frames * usize::from(channels))
+                    .flat_map(|n| {
+                        let value = match n % 7 {
+                            0 => i32::MIN,
+                            1 => i32::MAX,
+                            2 => 0,
+                            _ => (n as i32).wrapping_mul(1_073_741_789),
+                        };
+                        if bits == 8 {
+                            vec![((value >> 24) + 128) as u8]
+                        } else {
+                            (value >> (32 - bits)).to_le_bytes()[..usize::from(bits / 8)].to_vec()
+                        }
+                    })
+                    .collect();
+                let mut source = wav(1, bits, channels, &samples);
+                let info = info_tag(b"ISFT", b"Input encoder");
+                source.splice(36..36, info);
+                let size = source.len() as u32 - 8;
+                source[4..8].copy_from_slice(&size.to_le_bytes());
+                let input = dir.join("input.wav");
+                std::fs::write(&input, source).unwrap();
+                for explicit in [false, true] {
+                    let candidate = dir.join("candidate.wav");
+                    let reference = dir.join("reference.wav");
+                    let count = channels.to_string();
+                    let mut args = vec![
+                        "-y",
+                        "-i",
+                        input.to_str().unwrap(),
+                        "-ac",
+                        &count,
+                        "-ar",
+                        "48000",
+                        "-f",
+                        "wav",
+                    ];
+                    if explicit {
+                        args.extend(["-acodec", "pcm_s16le"]);
+                    }
+                    let pin = Command::new(&ffmpeg)
+                        .args(&args)
+                        .arg(&reference)
+                        .output()
+                        .unwrap();
+                    assert!(pin.status.success(), "{pin:?}");
+                    let native = strict()
+                        .args(&args)
+                        .arg(&candidate)
+                        .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
+                        .output()
+                        .unwrap();
+                    assert!(native.status.success(), "{native:?}");
+                    assert!(native.stdout.is_empty() && native.stderr.is_empty());
+                    assert_eq!(
+                        std::fs::read(&candidate).unwrap(),
+                        std::fs::read(&reference).unwrap(),
+                        "{bits} bits, {channels} channels, {frames} frames, explicit={explicit}"
+                    );
+                }
+            }
+        }
+    }
+    for rate in [16000u32, 96000] {
+        let mut source = wav(1, 16, 1, &[0, 128, 255, 127]);
+        source[24..28].copy_from_slice(&rate.to_le_bytes());
+        source[28..32].copy_from_slice(&(rate * 2).to_le_bytes());
+        source.splice(36..36, info_tag(b"INAM", b"Discard this title"));
+        let size = source.len() as u32 - 8;
+        source[4..8].copy_from_slice(&size.to_le_bytes());
+        let input = dir.join("input.wav");
+        std::fs::write(&input, source).unwrap();
+        let args = ["-y", "-i", input.to_str().unwrap(), "-map_metadata", "-1"];
+        let reference = dir.join("reference.wav");
+        let pin = Command::new(&ffmpeg)
+            .args(args)
+            .arg(&reference)
+            .output()
+            .unwrap();
+        assert!(pin.status.success(), "{pin:?}");
+        let candidate = dir.join("candidate.wav");
+        let native = strict().args(args).arg(&candidate).output().unwrap();
+        assert!(native.status.success(), "{native:?}");
+        assert!(native.stdout.is_empty() && native.stderr.is_empty());
+        assert_eq!(
+            std::fs::read(candidate).unwrap(),
+            std::fs::read(reference).unwrap()
+        );
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn unregistered_wav_output_preserves_destinations() {
+    let dir = scratch("output-refusals");
+    let input = dir.join("input.wav");
+    let destination = dir.join("output.wav");
+    let integer = wav(1, 16, 1, &[0; 12]);
+    let float = wav(3, 32, 1, &[0; 16]);
+    let mut tagged = integer.clone();
+    tagged.splice(36..36, info_tag(b"INAM", b"Keep this title"));
+    let size = tagged.len() as u32 - 8;
+    tagged[4..8].copy_from_slice(&size.to_le_bytes());
+    for (source, options) in [
+        (&integer, vec!["-ar", "16000"]),
+        (&integer, vec!["-ac", "2"]),
+        (&integer, vec!["-ss", "0.1"]),
+        (&integer, vec!["-c:a", "copy"]),
+        (&float, vec![]),
+        (&tagged, vec![]),
+    ] {
+        std::fs::write(&input, source).unwrap();
+        std::fs::write(&destination, b"preserve").unwrap();
+        let entries = std::fs::read_dir(&dir).unwrap().count();
+        let result = strict()
+            .args(["-y", "-i"])
+            .arg(&input)
+            .args(options)
+            .arg(&destination)
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(4), "{result:?}");
+        assert!(result.stdout.is_empty());
+        assert_eq!(std::fs::read(&destination).unwrap(), b"preserve");
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+    }
+    std::fs::write(&input, &integer).unwrap();
+    let alias = strict()
+        .args(["-y", "-i"])
+        .arg(&input)
+        .arg(&input)
+        .output()
+        .unwrap();
+    assert_eq!(alias.status.code(), Some(2), "{alias:?}");
+    assert_eq!(std::fs::read(&input).unwrap(), integer);
+    let mut truncated = integer;
+    truncated.pop();
+    std::fs::write(&input, truncated).unwrap();
+    let result = strict()
+        .args(["-y", "-i"])
+        .arg(&input)
+        .arg(&destination)
+        .output()
+        .unwrap();
+    assert!(!result.status.success(), "{result:?}");
+    assert!(result.stdout.is_empty());
+    assert_eq!(std::fs::read(destination).unwrap(), b"preserve");
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 #[test]
 fn wav_files_and_encoded_stdin_preserve_packing_without_decoder_workers() {
     let dir = scratch("identity");
