@@ -424,11 +424,12 @@ pub(super) fn frame_rates<S: Source>(source: &mut S) -> Result<Vec<(usize, Strin
 }
 
 /// Probes `source` as ISO base media.
-pub fn probe<S: Source>(
+pub(super) fn probe<S: Source>(
     source: &mut S,
     size: u64,
     name: &str,
     limits: &Limits,
+    purpose: super::Purpose,
 ) -> Result<IsoProbed, Failure> {
     let probed = crate::probe::run_source_limited(
         &mut *source,
@@ -482,10 +483,8 @@ pub fn probe<S: Source>(
         summary_complete &= track.descriptions == 1
             && !track.external_data
             && unwrapped.is_none()
-            && !matches!(
-                &track.description.fourcc.0,
-                b"avc3" | b"hev1" | b"MAC3" | b"MAC6"
-            )
+            && !matches!(&track.description.fourcc.0, b"avc3" | b"MAC3" | b"MAC6")
+            && (track.description.fourcc.0 != *b"hev1" || track.kind == TrackKind::Video)
             && track.description.codec != Codec::Av1
             && !track
                 .description
@@ -559,6 +558,24 @@ pub fn probe<S: Source>(
                 summary_complete &= info
                     .as_ref()
                     .is_some_and(|v| v.coded_size.is_some() && v.coded_size == entry);
+            }
+            if track.description.fourcc.0 == *b"hev1" {
+                let entry = track
+                    .description
+                    .width
+                    .zip(track.description.height)
+                    .map(|(width, height)| (u32::from(width), u32::from(height)));
+                summary_complete &= purpose == super::Purpose::Summary
+                    && movie.tracks.len() == 1
+                    && meta.covers.is_empty()
+                    && track.description.parameter_set_size == entry
+                    && info
+                        .as_ref()
+                        .is_some_and(|info| info.coded_size.is_some() && info.coded_size == entry);
+                if summary_complete {
+                    summary_complete = hevc_summary_authority(movie, track, &mut *source, limits)
+                        .map_err(Failure::library)?;
+                }
             }
         }
         let aspect = match track.description.codec {
@@ -1160,6 +1177,96 @@ fn head<S: Source>(
             .filter(|d| *d > 0)
             .collect(),
     })
+}
+
+fn hevc_summary_authority<S: Source>(
+    movie: &Movie,
+    track: &Track,
+    source: &mut S,
+    limits: &Limits,
+) -> Result<bool, coreav_isobmff::Error> {
+    if !track.tables_valid || track.description.parameter_set_size.is_none() {
+        return Ok(false);
+    }
+    let Some(config) = track
+        .description
+        .codec_config
+        .as_ref()
+        .filter(|config| config.kind.0 == *b"hvcC")
+        .and_then(|config| video::hevc_summary_config(&config.data))
+    else {
+        return Ok(false);
+    };
+    let mut scan = || -> Result<bool, coreav_isobmff::Error> {
+        let mut budget = Budget::new(limits);
+        let mut packets = movie.packets(track.index, &mut *source, limits, &mut budget)?;
+        let mut seen = false;
+        let mut work = 0u64;
+        while let Some(packet) = packets.next() {
+            let packet = packet?;
+            let Some(charged) = work
+                .checked_add(2)
+                .filter(|work| *work <= limits.max_sample_work)
+            else {
+                return Ok(false);
+            };
+            work = charged;
+            if packet.size < 7 {
+                return Ok(false);
+            }
+            const PREFIX: usize = 4 + video::HEVC_SUMMARY_PREFIX_BYTES;
+            let mut bytes = [0u8; PREFIX + 1];
+            let mut read = usize::try_from(packet.size).unwrap_or(0).min(PREFIX);
+            let terminal = {
+                let Some(prefix) = bytes.get_mut(..read) else {
+                    return Ok(false);
+                };
+                packets.source_mut().read_exact_at(packet.offset, prefix)?;
+                read == PREFIX && prefix.ends_with(&[0, 0, 3])
+            };
+            if terminal && u64::from(packet.size) > read as u64 {
+                let Some(offset) = packet.offset.checked_add(read as u64) else {
+                    return Ok(false);
+                };
+                let Some(end) = read.checked_add(1) else {
+                    return Ok(false);
+                };
+                let Some(lookahead) = bytes.get_mut(read..end) else {
+                    return Ok(false);
+                };
+                packets.source_mut().read_exact_at(offset, lookahead)?;
+                read = end;
+            }
+            let Some(prefix) = bytes.get(..read) else {
+                return Ok(false);
+            };
+            let [a, b, c, d, ..] = prefix else {
+                return Ok(false);
+            };
+            let length = u32::from_be_bytes([*a, *b, *c, *d]);
+            if u64::from(length) + 4 != u64::from(packet.size) {
+                return Ok(false);
+            }
+            let Some(irap) = prefix
+                .get(4..)
+                .and_then(|prefix| video::hevc_slice_selects(&config, prefix))
+            else {
+                return Ok(false);
+            };
+            if !seen && !irap {
+                return Ok(false);
+            }
+            seen = true;
+        }
+        Ok(seen)
+    };
+    match scan() {
+        Err(error) => {
+            quiet(error)?;
+            Ok(false)
+        }
+        result => result,
+    }
 }
 
 fn avc_summary_authority<S: Source>(
@@ -4160,6 +4267,10 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 }
 
 #[cfg(test)]
+#[path = "hevc_summary_tests.rs"]
+mod hevc_summary_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -4358,7 +4469,8 @@ mod tests {
                 &mut source,
                 bytes.len() as u64,
                 "gapless",
-                &Limits::default()
+                &Limits::default(),
+                super::super::Purpose::Structured
             ),
             Err(Failure::Library(coreav_isobmff::Error::Io(
                 std::io::ErrorKind::Other
@@ -4379,8 +4491,14 @@ mod tests {
             reads: 0,
         };
         let limits = Limits::default();
-        let probed = probe(&mut source, bytes.len() as u64, "gapless", &limits)
-            .unwrap_or_else(|error| panic!("{}", error.to_json()));
+        let probed = probe(
+            &mut source,
+            bytes.len() as u64,
+            "gapless",
+            &limits,
+            super::super::Purpose::Structured,
+        )
+        .unwrap_or_else(|error| panic!("{}", error.to_json()));
         assert_eq!(source.reads, 2);
         let mut listing = packets(
             IsoProbedPackets {
@@ -4544,8 +4662,14 @@ mod tests {
             );
             let mut full = Fragmented::new(&[track], fragments);
             let size = full.len().unwrap();
-            let full = probe(&mut full, size, "fragmented.mp4", &Limits::default())
-                .unwrap_or_else(|error| panic!("{}", error.to_json()));
+            let full = probe(
+                &mut full,
+                size,
+                "fragmented.mp4",
+                &Limits::default(),
+                super::super::Purpose::Structured,
+            )
+            .unwrap_or_else(|error| panic!("{}", error.to_json()));
             let reported = full.report.streams.first().and_then(|stream| {
                 stream.entries.iter().find_map(|(name, value)| match value {
                     Value::Str(text) if *name == "r_frame_rate" => Some(text.as_str()),

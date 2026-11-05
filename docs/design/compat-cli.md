@@ -1065,6 +1065,8 @@ the only source for those rules.
 
 An explicit `-of`, `-print_format` or `-output_format` remains a structured request even without selected sections; JSON retains its empty document rather than entering bare-summary admission. Program summaries count every membership entry, including repeated entries, and print `No Program` before unassigned streams only when that entry count is less than the stream count. A sole language metadata key is omitted case-insensitively; case variants beside other metadata remain visible.
 
+Video-only `hev1` MP4 summaries can qualify under the [HEVC input-summary contract](hevc-input-summary.md). A bounded whole-track inspection requires one selected slice per sample and complete, linked configuration parameter sets. In-band metadata, mixed tracks, unsupported parameter syntax and incomplete reads retain atomic refusal or fallback. Structured reports and existing `hvc1` admission are unchanged.
+
 Display-matrix summaries admit only axis-aligned matrices with nonzero axes: diagonal or anti-diagonal linear components. They emit fixed quarter-turn text, preserving signed zero, without a C math dependency. Every non-axis matrix, including fractional, nearby and scaled variants, refuses before summary emission. Whole-degree structured rotation keeps its existing calculation and truncation unchanged.
 
 `ffmpeg -i INPUT` without an output uses the same summary and then prints `At least one output file must be specified` with status 1. CoreAV always suppresses FFmpeg's version and configuration banner, including on fallback. This deliberate identity divergence is not an exception to the summary's byte comparison.
