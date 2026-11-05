@@ -550,6 +550,7 @@ pub fn probe<S: Source>(
                 || first.is_some_and(|first| first > 0))
                 && intervals.all(|interval| interval.is_some() && interval == first);
             if track.description.codec == Codec::H264 {
+                summary_complete &= avc_summary_authority(track, &head, &mut *source, limits);
                 let entry = track
                     .description
                     .width
@@ -1159,6 +1160,31 @@ fn head<S: Source>(
             .filter(|d| *d > 0)
             .collect(),
     })
+}
+
+fn avc_summary_authority<S: Source>(
+    track: &Track,
+    head: &Head,
+    source: &mut S,
+    limits: &Limits,
+) -> bool {
+    let mut proof = || -> Option<()> {
+        let config = track.description.codec_config.as_ref()?;
+        if config.kind.0 != *b"avcC" {
+            return None;
+        }
+        let (offset, size) = head.first?;
+        if u64::from(size) > limits.max_packet_bytes.min(limits.max_box_bytes) {
+            return None;
+        }
+        let size = usize::try_from(size).ok()?;
+        let mut sample = Vec::new();
+        sample.try_reserve_exact(size).ok()?;
+        sample.resize(size, 0);
+        source.read_exact_at(offset, &mut sample).ok()?;
+        video::avc_summary(&config.data, &sample)
+    };
+    proof().is_some()
 }
 
 /// The picture properties of a video track's configuration.

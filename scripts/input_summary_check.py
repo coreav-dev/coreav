@@ -24,6 +24,7 @@ import oracle_pin
 import oracle_pin_macos
 import standalone_audio_probe_check as audio_probe
 import mkv_craft
+import stsd_craft
 
 
 MISSING_OUTPUT = b"At least one output file must be specified\n"
@@ -220,6 +221,67 @@ def matroska_without_default_duration(data, parent=None):
     return b''.join(out)
 
 
+def rewrite_avcc(data, change):
+    changed = 0
+
+    def rewrite(start, end):
+        nonlocal changed
+        out = []
+        for kind, at, stop in stsd_craft.boxes(data, start, end):
+            body = at + 8
+            if kind == b"avcC":
+                payload = change(data[body:stop])
+                changed += 1
+            elif kind in (b"moov", b"trak", b"mdia", b"minf", b"stbl"):
+                payload = rewrite(body, stop)
+            elif kind in (b"stsd", b"avc1"):
+                prefix = 8 if kind == b"stsd" else 78
+                payload = data[body:body + prefix] + rewrite(body + prefix, stop)
+            else:
+                out.append(data[at:stop])
+                continue
+            out.append(stsd_craft.box(kind, payload))
+        return b"".join(out)
+
+    top = list(stsd_craft.boxes(data, 0, len(data)))
+    if not top or top[-1][0] != b"moov":
+        raise CheckFailure("avcc-fixture-layout")
+    result = rewrite(0, len(data))
+    if changed != 1:
+        raise CheckFailure("avcc-fixture-count")
+    return result
+
+
+def avcc_pps(config, change, *, suffix=True):
+    if config[5] & 31 != 1:
+        raise CheckFailure("avcc-fixture-sps")
+    at = 8 + int.from_bytes(config[6:8], "big")
+    if config[at] != 1:
+        raise CheckFailure("avcc-fixture-pps")
+    end = at + 3 + int.from_bytes(config[at + 1:at + 3], "big")
+    pps = change(config[at + 3:end])
+    return config[:at + 1] + len(pps).to_bytes(2, "big") + pps + (config[end:] if suffix else b"")
+
+
+def unused_pps(pps):
+    rbsp = pps[1:].replace(b"\x00\x00\x03", b"\x00\x00")
+    bits = "".join(f"{byte:08b}" for byte in rbsp)
+    if not bits.startswith("1") or "1" not in bits:
+        raise CheckFailure("avcc-fixture-pps-id")
+    bits = "010" + bits[1:bits.rindex("1") + 1]
+    bits += "0" * (-len(bits) % 8)
+    raw = bytes(int(bits[at:at + 8], 2) for at in range(0, len(bits), 8))
+    escaped = bytearray(pps[:1])
+    zeros = 0
+    for byte in raw:
+        if zeros == 2 and byte <= 3:
+            escaped.append(3)
+            zeros = 0
+        escaped.append(byte)
+        zeros = zeros + 1 if byte == 0 else 0
+    return bytes(escaped)
+
+
 def generate_fixtures(oracle, directory, *, audio=False):
     """Regenerate only owned names; publish no partial fixture generation."""
     directory = Path(directory).resolve()
@@ -246,6 +308,17 @@ def generate_fixtures(oracle, directory, *, audio=False):
 
         make("mp4-av", "mp4", av)
         make("mp4-unspecified-aspect", "mp4", [*av, "-vf", "setsar=0"])
+        for label, change, native in (
+            ("header-only-pps", lambda pps: b"\x68", False),
+            ("truncated-pps", lambda pps: pps[:-1], False),
+            ("unused-pps", unused_pps, False),
+            ("without-config-suffix", lambda pps: pps, True),
+        ):
+            name = "mp4-unspecified-aspect-" + label
+            path = root / (name + ".mp4")
+            path.write_bytes(rewrite_avcc((root / "mp4-unspecified-aspect.mp4").read_bytes(),
+                lambda config: avcc_pps(config, change, suffix=label != "without-config-suffix")))
+            fixtures.append(Fixture(name, path, native))
         make("mov-unspecified-aspect", "mov", [*av, "-vf", "setsar=0"])
         make("mp4-unspecified-codec-stream-aspect", "mp4", [
             "-i", root / "mp4-unspecified-aspect.mp4", "-map", "0", "-c", "copy", "-aspect", "8:3"])

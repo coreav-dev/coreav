@@ -11,6 +11,9 @@
 
 use coreav_isobmff::Color;
 
+mod avc;
+pub(super) use avc::summary as avc_summary;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Aspect {
     #[default]
@@ -139,6 +142,14 @@ impl<'a> Bits<'a> {
         let k = i64::from(self.ue()?);
         Some(if k % 2 == 1 { (k + 1) / 2 } else { -(k / 2) })
     }
+
+    fn trailing(&self) -> bool {
+        let Some(&byte) = self.data.get(self.pos / 8) else {
+            return false;
+        };
+        self.pos / 8 + 1 == self.data.len()
+            && byte & (0xff >> (self.pos % 8)) == 0x80 >> (self.pos % 8)
+    }
 }
 
 /// The RBSP of a NAL unit: its header bytes skipped and emulation
@@ -192,29 +203,35 @@ pub fn avc(avcc: &[u8], full_range: bool) -> Option<VideoInfo> {
     let len = u16_at(avcc, 6)?;
     let nal = avcc.get(8..8 + len)?;
     let mut info = avc_sps(nal, full_range)?;
-    if info.sar == Aspect::Unspecified {
-        let authority = avcc.first() == Some(&1)
-            && count == 1
-            && avcc.get(8 + len) == Some(&1)
-            && coreav_isobmff::avc_parameter_sets(avcc).is_some_and(|sets| {
-                matches!(sets.as_slice(), [sps, pps]
-                    if sps.first().is_some_and(|byte| byte & 0x9f == 7 && byte & 0x60 != 0)
-                    && pps.first().is_some_and(|byte| byte & 0x9f == 8 && byte & 0x60 != 0))
-            });
-        if !authority {
-            info.sar = Aspect::Unverified;
-        }
+    if info.sar == Aspect::Unspecified && avc::configuration(avcc).is_none() {
+        info.sar = Aspect::Unverified;
     }
     Some(info)
 }
 
 /// An H.264 sequence parameter set NAL unit, header included.
 pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
+    avc_sps_read(nal, full_range).map(|(info, _)| info)
+}
+
+struct AvcSps {
+    id: u32,
+    chroma: u32,
+    depth: u32,
+    profile: u32,
+}
+
+fn avc_sps_read(nal: &[u8], full_range: bool) -> Option<(VideoInfo, Option<AvcSps>)> {
     let data = rbsp(nal, 1);
     let mut b = Bits::new(&data);
     let profile_idc = b.bits(8)?;
-    b.bits(16)?;
-    b.ue()?;
+    let constraints = b.bits(8)?;
+    let level = b.bits(8)?;
+    let id = b.ue()?;
+    let mut valid = matches!(profile_idc, 66 | 77 | 88 | 100 | 110 | 122 | 244)
+        && constraints & 3 == 0
+        && matches!(level, 9..=13 | 20..=22 | 30..=32 | 40..=42 | 50..=52 | 60..=62)
+        && id <= 31;
     let (mut chroma_format, mut bit_depth) = (1, 8);
     if matches!(
         profile_idc,
@@ -222,10 +239,11 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
     ) {
         chroma_format = b.ue()?;
         if chroma_format == 3 {
-            b.bit()?;
+            valid &= !b.flag()?;
         }
         bit_depth = b.ue()?.checked_add(8)?;
-        b.ue()?;
+        let chroma_depth = b.ue()?.checked_add(8)?;
+        valid &= chroma_format <= 3 && bit_depth <= 14 && chroma_depth == bit_depth;
         b.bit()?;
         if b.flag()? {
             let lists = if chroma_format == 3 { 12 } else { 8 };
@@ -236,6 +254,7 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
                     for _ in 0..size {
                         if next != 0 {
                             let delta = b.se()?;
+                            valid &= (-128..=127).contains(&delta);
                             next = (last + delta + 256) % 256;
                         }
                         if next != 0 {
@@ -246,10 +265,10 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
             }
         }
     }
-    b.ue()?;
+    valid &= b.ue()? <= 12;
     match b.ue()? {
         0 => {
-            b.ue()?;
+            valid &= b.ue()? <= 12;
         }
         1 => {
             b.bit()?;
@@ -263,9 +282,10 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
                 b.se()?;
             }
         }
-        _ => {}
+        2 => {}
+        _ => valid = false,
     }
-    b.ue()?;
+    valid &= b.ue()? <= 16;
     b.bit()?;
     let width_mbs = b.ue()?;
     let height_units = b.ue()?;
@@ -302,6 +322,13 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         let y = top.checked_add(bottom)?.checked_mul(unit_y)?;
         w.checked_sub(x).zip(h.checked_sub(y))
     });
+    valid &= cropped.is_some_and(|(w, h)| w > 0 && h > 0);
+    let authority = AvcSps {
+        id,
+        chroma: chroma_format,
+        depth: bit_depth,
+        profile: profile_idc,
+    };
     // An 8-bit monochrome stream is decoded as 4:2:0 (found black box).
     let shown = if chroma_format == 0 && bit_depth == 8 {
         1
@@ -320,7 +347,7 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
     };
     if !b.flag()? {
         info.sar = Aspect::Unspecified;
-        return Some(info);
+        return Some((info, (valid && b.trailing()).then_some(authority)));
     }
     // VUI (E.1.1).
     if b.flag()? {
@@ -346,7 +373,7 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         b.bit()?;
     }
     if b.flag()? {
-        b.bits(3)?;
+        valid &= b.bits(3)? <= 5;
         let full_range = b.flag()?;
         let described = if b.flag()? {
             Some([b.bits(8)?, b.bits(8)?, b.bits(8)?])
@@ -357,7 +384,8 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
     }
     if b.flag()? {
         let top = b.ue()?;
-        b.ue()?;
+        let bottom = b.ue()?;
+        valid &= top <= 5 && bottom <= 5;
         if chroma_format == 1 {
             info.chroma_location = CHROMA_LOCATIONS.get(usize::try_from(top).ok()?).copied();
         }
@@ -366,6 +394,7 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         let units = b.bits(32)?;
         let scale = b.bits(32)?;
         b.bit()?;
+        valid &= units > 0 && scale > 0;
         if units > 0 && scale > 0 {
             info.frame_rate = Some((u64::from(scale), u64::from(units) * 2));
         }
@@ -384,14 +413,16 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
     b.bit()?;
     if b.flag()? {
         b.bit()?;
-        b.ue()?;
-        b.ue()?;
-        b.ue()?;
-        b.ue()?;
-        info.has_b_frames = Some(b.ue()?);
-        b.ue()?;
+        valid &= b.ue()? <= 16;
+        valid &= b.ue()? <= 16;
+        valid &= b.ue()? <= 16;
+        valid &= b.ue()? <= 16;
+        let reorder = b.ue()?;
+        let buffering = b.ue()?;
+        info.has_b_frames = Some(reorder);
+        valid &= reorder <= buffering && buffering <= 16;
     }
-    Some(info)
+    Some((info, (valid && b.trailing()).then_some(authority)))
 }
 
 fn hrd(b: &mut Bits<'_>) -> Option<()> {
@@ -1060,6 +1091,52 @@ mod tests {
             config.extend_from_slice(&[0, 4, 0x68, 0xce, 0x3c, 0x80]);
         }
         config
+    }
+
+    #[test]
+    fn avc_summary_requires_complete_linked_parameter_sets_and_sample_references() {
+        let sps = aspect_sps(true, None);
+        let config = aspect_config(&sps, 1, 1);
+        let sample = [0, 0, 0, 2, 0x65, 0xb8];
+        assert_eq!(avc_summary(&config, &sample), Some(()));
+        let pps_at = 6 + 2 + sps.len() + 1;
+        for pps in [
+            &[0x68][..],
+            &[0x68, 0xce, 0x3c][..],
+            &[0x68, 0xce, 0x3c, 0x80, 0][..],
+            &[0x68, 0xa3, 0x8f, 0x20][..],
+            &[0x68, 0, 0, 3][..],
+        ] {
+            let mut bad = config[..pps_at].to_vec();
+            bad.extend_from_slice(&(pps.len() as u16).to_be_bytes());
+            bad.extend_from_slice(pps);
+            assert_eq!(avc_summary(&bad, &sample), None);
+        }
+        let mut unused = config.clone();
+        unused[pps_at + 2..].copy_from_slice(&[0x68, 0x53, 0x8f, 0x20]);
+        assert_eq!(avc_summary(&unused, &sample), None);
+        assert_eq!(avc_summary(&unused, &[0, 0, 0, 2, 0x65, 0xb4]), Some(()));
+        for sample in [
+            &[][..],
+            &[0, 0, 0, 0][..],
+            &[0, 0, 0, 3, 0x65, 0xb8][..],
+            &[0, 0, 0, 2, 0x65, 0xb4][..],
+            &[0, 0, 0, 2, 0x67, 0x80][..],
+        ] {
+            assert_eq!(avc_summary(&config, sample), None);
+        }
+        for end in 0..config.len() {
+            assert_eq!(avc_summary(&config[..end], &sample), None);
+        }
+        let mut unterminated = sps.clone();
+        unterminated.push(0);
+        assert_eq!(
+            avc_summary(&aspect_config(&unterminated, 1, 1), &sample),
+            None
+        );
+        let mut extra = config;
+        extra.push(0);
+        assert_eq!(avc_summary(&extra, &sample), None);
     }
 
     #[test]

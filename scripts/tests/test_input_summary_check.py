@@ -31,6 +31,33 @@ SUMMARY = (
 TERMINAL = b"At least one output file must be specified\n"
 
 
+class ParameterSetMutations(unittest.TestCase):
+    def test_pps_mutations_preserve_sps_suffix_samples_and_box_extents(self):
+        sps = b"\x67\x64\x00\x0a\x80"
+        pps = b"\x68\xce\x3c\x80"
+        suffix = b"\xfd\xf8\xf8\x00"
+        config = b"\x01\x64\x00\x0a\xff\xe1" + len(sps).to_bytes(2, "big") + sps
+        prefix = config + b"\x01"
+        config = prefix + len(pps).to_bytes(2, "big") + pps + suffix
+        box = check.stsd_craft.box
+        sample = box(b"mdat", b"unchanged encoded samples")
+        entry = box(b"avc1", bytes(78) + box(b"avcC", config))
+        track = box(b"stsd", b"\x00\x00\x00\x00\x00\x00\x00\x01" + entry)
+        for kind in (b"stbl", b"minf", b"mdia", b"trak", b"moov"):
+            track = box(kind, track)
+        source = sample + track
+        for change in (lambda _: b"\x68", check.unused_pps):
+            mutated = check.rewrite_avcc(source, lambda config: check.avcc_pps(config, change))
+            self.assertEqual(mutated[:len(sample)], sample)
+            self.assertEqual(int.from_bytes(mutated[len(sample):len(sample) + 4], "big"),
+                             len(mutated) - len(sample))
+            self.assertIn(prefix, mutated)
+            self.assertTrue(mutated.endswith(suffix))
+            self.assertIn(change(pps), mutated)
+        self.assertEqual(check.unused_pps(pps), b"\x68\x53\x8f\x20")
+        self.assertEqual(check.avcc_pps(config, lambda pps: pps, suffix=False), config[:-4])
+
+
 def result(stderr=SUMMARY, *, code=0, stdout=b""):
     return subprocess.CompletedProcess([], code, stdout, stderr)
 
@@ -251,7 +278,7 @@ class Commands(unittest.TestCase):
     def test_workflow_tracks_both_imported_oracle_pin_verifiers(self):
         workflow = Path(__file__).resolve().parents[2] / '.github/workflows/input-summary.yml'
         text = workflow.read_text()
-        for name in ('oracle_pin.py', 'oracle_pin_macos.py'):
+        for name in ('oracle_pin.py', 'oracle_pin_macos.py', 'stsd_craft.py'):
             self.assertIn('      - scripts/' + name + '\n', text,
                           'Restore the imported oracle verifier to the workflow path filter')
 
@@ -267,19 +294,23 @@ class Commands(unittest.TestCase):
             return result(b"")
 
         with tempfile.TemporaryDirectory() as directory, patch.object(check.subprocess, "run", side_effect=child), \
-                patch.object(check, "matroska_without_default_duration", side_effect=lambda data: data):
+                patch.object(check, "matroska_without_default_duration", side_effect=lambda data: data), \
+                patch.object(check, "rewrite_avcc", side_effect=lambda data, change: data):
             root = Path(directory)
             (root / "unrelated").write_bytes(b"leave alone")
             first = check.generate_fixtures(oracle, root, audio=True)
             second = check.generate_fixtures(oracle, root, audio=True)
             self.assertEqual(first, second)
-            self.assertEqual(len(first), 37)
+            self.assertEqual(len(first), 41)
             by_name = {fixture.name: fixture for fixture in first}
             for name in ("mov-pcm", "ts-av", "ts-audio", "ts-programs", "ts-mp2-unassigned", "mp4-fractional-rotation", "ts-offset", "mp4-split-utf8",
-                         "mp4-fragmented", "mp4-irregular-clock", "mkv-large-track-title", "mkv-analysis-packet-cap"):
+                         "mp4-fragmented", "mp4-irregular-clock", "mkv-large-track-title", "mkv-analysis-packet-cap",
+                         "mp4-unspecified-aspect-header-only-pps", "mp4-unspecified-aspect-truncated-pps",
+                         "mp4-unspecified-aspect-unused-pps"):
                 self.assertFalse(by_name[name].native, name)
             for name in ("mov-aac", "ts-mp2", "ts-mp2-offset", "ts-mp2-programs",
-                         "mp4-chapters", "mp4-hdr", "mp4-hdr-rotation", "mp4-long-metadata"):
+                         "mp4-chapters", "mp4-hdr", "mp4-hdr-rotation", "mp4-long-metadata",
+                         "mp4-unspecified-aspect-without-config-suffix"):
                 self.assertTrue(by_name[name].native, name)
             self.assertEqual([fixture.name for fixture in first if fixture.structured_side_data],
                              ["mp4-hdr-rotation"])
