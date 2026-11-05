@@ -15,14 +15,18 @@ Every zip is checked against the SHA-256 in the manifest
 """
 
 import argparse
+import errno
 import hashlib
+import http.client
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 import zipfile
 
@@ -43,27 +47,67 @@ def digest(path):
 def fetch(zips, stream):
     """The path of the stream's zip, downloaded if it is not there yet."""
     path = os.path.join(zips, stream["zip"])
-    if os.path.exists(path) and digest(path) == stream["zip_sha256"]:
-        return path
+    mismatches = 0
+    if os.path.exists(path):
+        got = digest(path)
+        if got == stream["zip_sha256"]:
+            print(f"{stream['name']}: cache SHA-256 verified {stream['zip']}", flush=True)
+            return path
+        print(f"{stream['name']}: cache SHA-256 mismatch {got}, expected {stream['zip_sha256']}", flush=True)
+        os.unlink(path)
+        mismatches = 1
     os.makedirs(zips, exist_ok=True)
     last = None
-    # The site answers with a short error page now and then, so every URL
-    # is tried a few times and the result is only used once its SHA-256
-    # matches the manifest.
-    for attempt in range(3):
-        for sub in SUBDIRS:
-            url = f"{BASE}/{sub}/{stream['zip']}"
+    for sub in SUBDIRS:
+        url = f"{BASE}/{sub}/{stream['zip']}"
+        for attempt in range(3):
+            print(f"{stream['name']}: GET {url} attempt {attempt + 1}/3", flush=True)
             try:
-                with urllib.request.urlopen(url, timeout=300) as r, open(path, "wb") as out:
-                    shutil.copyfileobj(r, out)
-            except Exception as e:  # noqa: BLE001 - any failure tries the next
-                last = e
-                continue
-            got = digest(path)
-            if got == stream["zip_sha256"]:
-                return path
-            last = ValueError(f"{url}: sha256 {got}, expected {stream['zip_sha256']}")
-        time.sleep(5 * (attempt + 1))
+                with tempfile.NamedTemporaryFile(dir=zips, suffix=".part", delete=False) as out:
+                    temporary = out.name
+                    try:
+                        with urllib.request.urlopen(url, timeout=300) as response:
+                            shutil.copyfileobj(response, out)
+                        out.close()
+                        got = digest(temporary)
+                        if got == stream["zip_sha256"]:
+                            os.replace(temporary, path)
+                            print(f"{url}: SHA-256 verified {got}", flush=True)
+                            return path
+                    finally:
+                        if os.path.exists(temporary):
+                            os.unlink(temporary)
+            except (urllib.error.URLError, OSError, http.client.IncompleteRead) as e:
+                if isinstance(e, urllib.error.HTTPError):
+                    transient = 500 <= e.code <= 599 or e.code == 408
+                    outcome = f"HTTP {e.code}"
+                    e.close()
+                else:
+                    reason = e.reason if isinstance(e, urllib.error.URLError) else e
+                    transient = isinstance(reason, (TimeoutError, http.client.IncompleteRead)) or (
+                        isinstance(reason, OSError) and reason.errno in {
+                            errno.ECONNREFUSED, errno.ENETUNREACH, errno.EHOSTUNREACH,
+                            errno.ECONNRESET, errno.ECONNABORTED, errno.ETIMEDOUT,
+                            socket.EAI_AGAIN,
+                        }
+                    )
+                    outcome = f"{type(reason).__name__} errno={getattr(reason, 'errno', None)}"
+                print(f"{url}: {outcome}; {'transient' if transient else 'permanent'} failure", flush=True)
+                last = f"{url}: {outcome}"
+                if not transient:
+                    if isinstance(e, urllib.error.URLError):
+                        break
+                    raise
+            else:
+                mismatches += 1
+                last = ValueError(f"{url}: sha256 {got}, expected {stream['zip_sha256']}")
+                print(str(last), flush=True)
+                if mismatches >= 2:
+                    raise SystemExit(f"{stream['name']}: repeated digest mismatch ({last})")
+            if attempt < 2:
+                delay = 5 * (attempt + 1)
+                print(f"{url}: retrying in {delay} seconds", flush=True)
+                time.sleep(delay)
     raise SystemExit(f"{stream['name']}: could not fetch its zip ({last})")
 
 
@@ -81,6 +125,7 @@ def extract(zip_path, into):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--zips", help="where the zips are kept")
+    ap.add_argument("--download-only", action="store_true", help="verify or fetch archives without decoding")
     ap.add_argument("--work", help="where a stream is extracted")
     ap.add_argument(
         "--extracted",
@@ -112,6 +157,12 @@ def main():
         streams = [s for s in streams if s["name"] in args.only]
     if not streams:
         raise SystemExit("no streams selected")
+    if args.download_only:
+        if not args.zips or args.extracted:
+            raise SystemExit("--download-only requires --zips and refuses --extracted")
+        for stream in streams:
+            fetch(args.zips, stream)
+        return
     if not args.extracted and not (args.zips and args.work):
         raise SystemExit("either --extracted, or both --zips and --work")
 

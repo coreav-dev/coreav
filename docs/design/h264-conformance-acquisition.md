@@ -8,7 +8,7 @@ The existing Actions cache is saved only after a successful job, so an acquisiti
 
 For each existing URL candidate, make at most three network attempts with backoff of 5 and 10 seconds. Retry connection refused, connection or host unreachable, connection reset, timeouts, incomplete HTTP transfers and HTTP 5xx. A permanent HTTP failure moves to the next existing candidate without backoff. Other operating-system failures fail immediately. Log each URL before opening it and log its outcome. Use a temporary download file and publish it only after digest verification.
 
-A digest mismatch permits one re-download from that same URL. A second downloaded mismatch fails the archive immediately, without trying another URL or accepting the bytes. Network failures consume the same bounded per-URL attempt budget. Invalid cached bytes are removed before reacquisition and never used.
+A digest mismatch permits at most one re-download within the existing URL candidates and attempt budget. A second mismatch fails the archive immediately, without trying another URL or accepting the bytes. A corrupt cached archive also consumes the first mismatch, so only one replacement download may fail its digest. Network failures consume the same bounded per-URL attempt budget. Invalid cached bytes are removed before reacquisition and never used.
 
 ## Verification
 

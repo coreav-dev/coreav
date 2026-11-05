@@ -1882,11 +1882,24 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Cache the conformance zips
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      - name: Restore the conformance zips
+        id: conformance-cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ~/.cache/h264-conformance
-          key: h264-conformance-${{ hashFiles('crates/coreav-h264/tests/data/conformance-streams.json') }}
+          key: h264-conformance-v2-${{ hashFiles('crates/coreav-h264/tests/data/conformance-streams.json') }}
+          restore-keys: h264-conformance-v2-${{ hashFiles('crates/coreav-h264/tests/data/conformance-streams.json') }}-partial-
+      - name: Verify or download the conformance zips
+        id: conformance-acquisition
+        run: python3 -I scripts/h264_conformance.py --download-only --zips ~/.cache/h264-conformance
+      - name: Save the conformance zips before decoding
+        if: >-
+          ${{ !cancelled() && steps.conformance-cache.outputs.cache-hit != 'true' &&
+              (steps.conformance-acquisition.outcome == 'success' || steps.conformance-acquisition.outcome == 'failure') }}
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/h264-conformance
+          key: ${{ steps.conformance-cache.outputs.cache-primary-key }}${{ steps.conformance-acquisition.outcome == 'failure' && format('-partial-{0}-{1}-{2}', github.job, github.run_id, github.run_attempt) || '' }}
       - name: Decode every in-scope stream
         run: |
           python3 -I scripts/h264_conformance.py \
@@ -1899,7 +1912,7 @@ jobs:
       # instance of the hot paths. The step above ran the default build,
       # and the x86-64-v3 instance where the runner's CPU has its features.
       - name: Decode every in-scope stream in safe mode
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.conformance-acquisition.outcome == 'success' }}
         run: |
           python3 -I scripts/h264_conformance.py \
             --zips ~/.cache/h264-conformance \
@@ -2186,11 +2199,24 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Cache the conformance zips
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      - name: Restore the conformance zips
+        id: conformance-cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ~/.cache/h264-conformance
-          key: h264-conformance-${{ hashFiles('crates/coreav-h264/tests/data/conformance-streams.json') }}
+          key: h264-conformance-v2-${{ hashFiles('crates/coreav-h264/tests/data/conformance-streams.json') }}
+          restore-keys: h264-conformance-v2-${{ hashFiles('crates/coreav-h264/tests/data/conformance-streams.json') }}-partial-
+      - name: Verify or download the conformance zips
+        id: conformance-acquisition
+        run: python3 -I scripts/h264_conformance.py --download-only --zips ~/.cache/h264-conformance
+      - name: Save the conformance zips before decoding
+        if: >-
+          ${{ !cancelled() && steps.conformance-cache.outputs.cache-hit != 'true' &&
+              (steps.conformance-acquisition.outcome == 'success' || steps.conformance-acquisition.outcome == 'failure') }}
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/h264-conformance
+          key: ${{ steps.conformance-cache.outputs.cache-primary-key }}${{ steps.conformance-acquisition.outcome == 'failure' && format('-partial-{0}-{1}-{2}', github.job, github.run_id, github.run_attempt) || '' }}
       - name: Decode every in-scope stream
         run: |
           python3 -I scripts/h264_conformance.py \
