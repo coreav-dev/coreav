@@ -42,7 +42,7 @@ The `fiel` payload is the two unsigned-byte field count and detail declaration d
 
 First remove the AV1 control's source metadata suppression and show the complete-record regression fails on the unchanged baseline. Then verify every corrected baseline-native case remains native, with no new fallback, and that the full records and packet payloads agree. Retain existing split/join sample, timing, mismatch, limit and output-publication regressions. Exercise malformed or oversized metadata and late source/I/O failures through the existing error owners.
 
-Run the affected complete CLI and writer targets with the required pin, comparator mutation tests, formatting and all-target Clippy. Run the canonical required-oracle workspace suite with its complete generated fixture set. Before the batched publication, validate public text, signed commit shape and unchanged frozen identities. Obtain exact-head similarity evidence, CI and independent final-head review before handoff. Refs #25.
+Run the affected complete CLI and writer targets with the required pin, comparator mutation tests, formatting and all-target Clippy. Run the canonical required-oracle workspace suite with its complete generated fixture set. Before the batched publication, validate public text, signed commit shape and unchanged frozen identities. Obtain exact-head similarity evidence, CI and independent final-head review before handoff. Refs coreav-dev/coreav#25.
 
 ## Development outcome
 
