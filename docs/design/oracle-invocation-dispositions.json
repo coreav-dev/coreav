@@ -1574,7 +1574,7 @@
     }
   ],
   "schema": 1,
-  "source_snapshot_sha256": "639e53ce3d68104b16179d5537c5dc5f3d36aa9f53788ea85c12f9ae0551c3b9",
+  "source_snapshot_sha256": "6a45af9b605a90aaee295d51f92b848fa87f2dabd6f717c32504505857e6c521",
   "sources": {
     "crates/coreav-audio/tests/flac_encode.rs": "6b63b16444965850c74da0651859128602a9093fe487a15865f8a82093bf6880",
     "crates/coreav-backend-dav1d/tests/decode.rs": "9094fa0b3a4957d348e9b92420c658fda930329cac3b9c2da17e5c3248e0e791",

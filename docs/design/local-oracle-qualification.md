@@ -1,6 +1,6 @@
 # Local oracle qualification
 
-Every non-frozen Rust and Python oracle consumer must qualify its selected executable before comparing output or generating fixtures. Executable permissions alone do not prove the shared pin.
+Migrated Rust and Python oracle consumers qualify their selected executable before comparing output or generating fixtures. Executable permissions alone do not prove the shared pin.
 
 ## Plan
 
