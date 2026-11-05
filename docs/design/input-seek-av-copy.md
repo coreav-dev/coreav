@@ -1,0 +1,41 @@
+# Exact audio-bearing input-seek copies
+
+## Goal and scope
+
+Support a bounded `-ss S -i INPUT -c copy -t D OUTPUT.mp4` path with one H.264 `avc1` video track and one AAC audio track. The output-side `-to D` spelling reaches the same interval. The existing input-seek writer refuses selected audio because native clipping's snapped origin and presentation-end trimming do not model this packet-copy operation. This plan precedes implementation. Refs coreav-dev/coreav#25.
+
+Keep native clip, video-only input seeks, output-side seeking, ordinary remux and concat unchanged. Use the existing compatibility entry point, without changing its public signature or CLI dispatch. Other codecs, fragments, multiple or empty edits, nonzero source presentation origins and unqualified metadata remain outside this extension. The first admitted subset has constant video durations, nonnegative composition offsets and bounds exactly representable in both selected media clocks. Existing limits are unchanged.
+
+## Packet and presentation model
+
+Build a separate audio-bearing packet plan before writing. Select the latest qualified video sync sample whose presentation time is not after the seek. Select the corresponding AAC start from that sync sample's decode time, retaining the required source pre-roll. Preserve per-track clock shifts instead of inventing a common rounded media offset. For a finite bound, stop each stream before the first packet whose shifted DTS reaches it. Copy complete retained packets, including reordered pictures whose composition end exceeds the requested decode bound.
+
+Each output media timeline starts decoding at zero. Preserve each retained sample's composition-minus-decode offset. A unit-rate edit starts presentation at the requested media position relative to the first retained decode time; samples outside that presentation interval are decode pre-roll, not extra output. Derive the edit duration from complete retained composition spans, not from a truncated last packet. Reconstruct `mdhd`, `tkhd` and `mvhd` from those media and presentation spans in exactly representable clocks.
+
+The container proof is independent of oracle equality. ISO/IEC 14496-12:2015 supplies these rules:
+
+- Sections 8.6.1.1 and 8.6.1.2 define decode time from the accumulated `stts` durations. Retained decode intervals must be contiguous and have positive duration.
+- Section 8.6.1.3 defines `CT = DT + CTTS`, signed versus unsigned offset versions, and unique composition timestamps. Verify the retained offsets and unique composition times before publication; do not assume that readable or nonnegative offsets establish validity.
+- Sections 8.6.5 and 8.6.6 define `edts` and the movie-to-media presentation map in `elst`. Validate that each media edit hides the retained pre-roll, presents the declared retained interval and uses a unit media rate. Decode pre-roll must not become an unintended initial presentation.
+- Sections 8.7.3, 8.7.4 and 8.7.5 bind sample sizes, sample-to-chunk runs and chunk offsets. Every retained sample must appear exactly once, use the correct description, and occupy an in-bounds, nonoverlapping output extent.
+- Sections 8.9.2 and 8.9.3 define sample-group membership and descriptions. Qualify source AAC roll information and rebuild the supported output membership for the retained samples rather than copying counts that describe a different range.
+
+The common multiple of media clocks may be used only when it fits the existing header width and represents both edit spans exactly. Reject incomplete, contradictory or unsupported source facts before output. If a pinned-reference choice for an otherwise qualifying input violates the format rules, stop and report the conflict instead of reproducing an invalid presentation.
+
+## Ownership and bounds
+
+`clip_mp4_input_seek` delegates selected-audio cases to a private child module of the clip owner. The old video-only branch remains structurally unchanged. A completed plan owns packet ranges, edit bounds, composition validity and output order. Reuse the existing bounded metadata scan, sample iterator, table builder API, header serializer and copy window; do not add a second ISO reader grammar or buffer packet payloads.
+
+Build the new path's tables through existing chunk-policy APIs so copied packets are ordered by edited rational DTS, with video first on exact ties. Validate sample counts, offsets and descriptions against the completed plan. Use fallible, charged metadata storage for any composition-validity proof; source I/O, arithmetic and budget failures cannot establish successful qualification. Preparation precedes the existing atomic file publication boundary.
+
+Keep AAC roll serialization with its existing owner, preserving every current caller's bytes. `Track.handler_name` and the bounded writer scan provide the metadata and group locations required for admission. Omitted or over-cap metadata cannot prove absence.
+
+No edits to `mux.rs`, `tables.rs`, concat, raw-audio planning, `ffmpeg/mod.rs`, oracle pins, frozen fixtures, command rosters, judging rules or baselines are authorized. Stop and coordinate before changing any of them. Do not narrow admission merely to preserve an obsolete refusal expectation or alter a frozen required-refusal witness.
+
+## Verification
+
+Use independent generated media only. Add failing-before exact-success controls for AAC with reordered and nonreordered video, AAC primer inclusion and exclusion, exact DTS ties, different clocks, both bound spellings and packet-boundary endpoints. Compare complete ordered payload hashes, rational packet timing, stream and format records, every decoded video pixel and every presented AAC sample against pinned FFmpeg 9.0.2. Preserve the shared oracle audio-thread policy.
+
+Independently parse serialized edits, `stts`, `ctts`, sample sizes, sample-to-chunk records and offsets to check the ISO presentation and layout invariants. Mutations must detect exposed pre-roll, duplicate composition times, wrong composition offsets, incorrect sample counts or descriptions, overlapping extents and incorrect edit durations. Cover source-read failures, limits and incomplete metadata before publication.
+
+Previously refused AV controls that now qualify become stronger exact-success assertions. Keep all remaining negative controls, byte-exact original-command fallback, absent/existing destination preservation, and every earlier native path. A native-to-fallback move stops the work. Verify affected writer and CLI suites, both relevant feature configurations, Clippy, formatting and public text; then require final-head CI, independent review and the canonical similarity guard. No measured coverage or performance claim follows from these development controls.
