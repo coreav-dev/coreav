@@ -26,6 +26,8 @@
 use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::io::{self, Read, Write};
+#[cfg(unix)]
+use std::os::fd::{AsFd, OwnedFd};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, ExitStatus};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -1202,7 +1204,11 @@ impl<S: Sink> Process<S> {
             deadline,
             sink,
             |stdin, shared| {
-                let _ = write_frames(stdin, shared);
+                #[cfg(unix)]
+                let pipe = stdin.as_fd().try_clone_to_owned().ok();
+                #[cfg(not(unix))]
+                let pipe = None;
+                let _ = write_frames(stdin, shared, pipe);
             },
         )
     }
@@ -1225,7 +1231,7 @@ impl<S: Sink> Process<S> {
             sink,
             move |stdin, shared| {
                 let mut recorded = recording.attach(stdin);
-                if write_frames(&mut recorded, shared)
+                if write_frames(&mut recorded, shared, None)
                     && let Err(e) = recorded.complete()
                 {
                     shared.record(Error::new(
@@ -1643,12 +1649,26 @@ impl Chunk {
     /// Writes the chunk, a frame's planes in order with their rows packed:
     /// straight from a picture whose rows are, else gathered through
     /// `buffer` (a picture in shared memory is read only by copying out).
-    fn write_to(&self, out: &mut impl Write, buffer: &mut Vec<u8>) -> io::Result<()> {
+    fn write_to(
+        &self,
+        out: &mut impl Write,
+        buffer: &mut Vec<u8>,
+        pipe: Option<&Pipe>,
+    ) -> io::Result<()> {
         let (head, pixels) = match self {
             Self::Bytes(bytes) => return out.write_all(bytes),
             Self::Frame { head, pixels } => (head, pixels),
         };
         out.write_all(head)?;
+        #[cfg(unix)]
+        if let (Pixels::Shared(picture), Some(pipe)) = (pixels, pipe) {
+            out.flush()?;
+            if picture.memory.write_to_pipe(pipe.as_fd())? {
+                return Ok(());
+            }
+        }
+        #[cfg(not(unix))]
+        let _ = pipe;
         if buffer.is_empty() {
             buffer.resize(WRITE_BUFFER, 0);
         }
@@ -1676,6 +1696,11 @@ impl Chunk {
 /// Bytes of the writer's buffer for rows it gathers: a few times the pipe's
 /// own buffer, and small enough to stay in a core's cache.
 const WRITE_BUFFER: usize = 1 << 20;
+
+#[cfg(unix)]
+type Pipe = OwnedFd;
+#[cfg(not(unix))]
+type Pipe = ();
 
 /// Writes `picture`'s planes with their rows packed: each plane whose rows
 /// are packed in one write, the rows of the others gathered in `buffer`.
@@ -1715,7 +1740,7 @@ fn write_picture(out: &mut impl Write, picture: &Picture, buffer: &mut [u8]) -> 
 /// done and empty, or a write fails, or the encode stops; then closes the
 /// input. A frame is dropped only after its write, so a frame lent in the
 /// decoder's shared memory goes back to it then.
-fn write_frames(mut stdin: impl Write, shared: &Shared) -> bool {
+fn write_frames(mut stdin: impl Write, shared: &Shared, pipe: Option<Pipe>) -> bool {
     let mut buffer = Vec::new();
     loop {
         let frame = {
@@ -1741,7 +1766,7 @@ fn write_frames(mut stdin: impl Write, shared: &Shared) -> bool {
         };
         shared.changed.notify_all();
         let written = frame
-            .write_to(&mut stdin, &mut buffer)
+            .write_to(&mut stdin, &mut buffer, pipe.as_ref())
             .and_then(|()| stdin.flush());
         drop(frame);
         if written.is_err() {
@@ -1889,7 +1914,7 @@ mod tests {
                     head: b"head".to_vec(),
                     pixels,
                 }
-                .write_to(&mut out, &mut vec![0; size])
+                .write_to(&mut out, &mut vec![0; size], None)
                 .unwrap();
                 assert_eq!(out, expected, "{size}");
             }
