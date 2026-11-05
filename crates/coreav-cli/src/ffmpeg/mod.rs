@@ -1659,6 +1659,11 @@ fn may_replace(command: &Command, path: &Path) -> Result<bool, Refusal> {
 }
 
 pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refusal> {
+    if output::check_regular_file(path)
+        .is_err_and(|error| error.kind() == std::io::ErrorKind::Unsupported)
+    {
+        return Err(Refusal::not_native("output to a non-regular destination"));
+    }
     let force = may_replace(command, path)?;
     match output::refuse(Path::new(&command.input), path, force) {
         Some(message) => Err(Refusal::Usage(message)),

@@ -2747,6 +2747,84 @@ fn oracle() -> Option<(PathBuf, PathBuf)> {
     None
 }
 
+#[cfg(unix)]
+#[test]
+fn raw_s16_fifo_refuses_and_preserves_exact_pinned_fallback() {
+    use std::io::Read;
+    use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("raw-s16-fifo");
+    let source = dir.join("source.s16");
+    let bytes = [0u8, 128, 0, 0, 255, 127];
+    std::fs::write(&source, bytes).unwrap();
+    let mut payloads = Vec::new();
+    for fallback in [false, true] {
+        let fifo = dir.join(if fallback { "fallback.s16" } else { "pin.s16" });
+        assert!(
+            Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let args = [
+            "-y",
+            "-f",
+            "s16le",
+            "-ar",
+            "48000",
+            "-ac",
+            "1",
+            "-i",
+            source.to_str().unwrap(),
+            "-f",
+            "s16le",
+            fifo.to_str().unwrap(),
+        ];
+        let inode = std::fs::metadata(&fifo).unwrap().ino();
+        let entries = std::fs::read_dir(&dir).unwrap().count();
+        let refused = Command::new(bin())
+            .args(["--strict-safe", "ffmpeg"])
+            .args(args)
+            .env("COREAV_FALLBACK", &pin)
+            .output()
+            .unwrap();
+        assert_eq!(refused.status.code(), Some(4), "{refused:?}");
+        assert!(refused.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&refused.stderr).contains("non-regular destination"));
+        assert_eq!(std::fs::metadata(&fifo).unwrap().ino(), inode);
+        assert!(std::fs::metadata(&fifo).unwrap().file_type().is_fifo());
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+        let mut reader = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(rustix::fs::OFlags::NONBLOCK.bits().try_into().unwrap())
+            .open(&fifo)
+            .unwrap();
+        let mut command = if fallback {
+            let mut command = Command::new(bin());
+            command.arg("ffmpeg");
+            command.env("COREAV_FALLBACK", &pin);
+            command.env_remove("COREAV_STRICT_SAFE");
+            command.env_remove("COREAV_FALLBACK_ACTIVE");
+            command
+        } else {
+            Command::new(&pin)
+        };
+        let result = command.args(args).output().unwrap();
+        assert!(result.status.success(), "{result:?}");
+        assert!(result.stdout.is_empty());
+        let mut payload = Vec::new();
+        reader.read_to_end(&mut payload).unwrap();
+        assert_eq!(payload, bytes);
+        assert!(std::fs::metadata(&fifo).unwrap().file_type().is_fifo());
+        assert_eq!(std::fs::metadata(&fifo).unwrap().ino(), inode);
+        payloads.push(payload);
+    }
+    assert_eq!(payloads[0], payloads[1]);
+}
+
 #[test]
 fn unedited_video_copy_normalizes_its_origin_without_losing_frames() {
     let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
