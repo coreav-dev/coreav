@@ -2474,6 +2474,8 @@ jobs:
           path: ${{ runner.temp }}/coreav-oracle-bin
           key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
       - run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Test AV1 frame ownership and worker protocol
+        run: cargo test -p coreav-transcode --features svt-av1 --lib --test av1 --test av1_timeline --test av1_process --test contracts --locked
       - name: Build the opt-in sandboxed AV1 CLI
         env:
           SVT_AV1_PREFIX: ${{ runner.temp }}/svt-av1

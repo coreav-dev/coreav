@@ -5,8 +5,10 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import shlex
 import sys
 import tempfile
+import tomllib
 import unittest
 from unittest.mock import patch
 
@@ -19,6 +21,18 @@ SPEC.loader.exec_module(CHECK)
 
 
 class Correctness(unittest.TestCase):
+    def test_documented_checks_include_feature_gated_process_targets(self):
+        manifest = tomllib.loads((ROOT / 'crates/coreav-transcode/Cargo.toml').read_text())
+        required = {entry['name'] for entry in manifest['test']
+                    if 'svt-av1' in entry.get('required-features', [])}
+        doc = (ROOT / 'docs/design/encoders/svt-av1.md').read_text()
+        commands = [shlex.split(line) for line in doc.splitlines()
+                    if line.startswith('cargo test -p coreav-transcode ')]
+        self.assertEqual(len(commands), 1)
+        command = commands[0]
+        targets = {command[index + 1] for index, value in enumerate(command) if value == '--test'}
+        self.assertTrue(required <= targets, f'Add --test for missing targets: {required - targets}')
+
     def fixture(self, mutation=None, moving=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

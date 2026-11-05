@@ -30,7 +30,7 @@ The crate is a workspace member and uses the root lockfile. Its local lint confi
 cargo fmt --manifest-path crates/coreav-backend-svt-av1/Cargo.toml --check
 cargo clippy --manifest-path crates/coreav-backend-svt-av1/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path crates/coreav-backend-svt-av1/Cargo.toml --locked
-cargo test -p coreav-transcode --features svt-av1 --test av1 --test contracts --locked
+cargo test -p coreav-transcode --features svt-av1 --lib --test av1 --test av1_timeline --test av1_process --test contracts --locked
 cargo deny --all-features --manifest-path crates/coreav-backend-svt-av1/fuzz/Cargo.toml check licenses
 ```
 
