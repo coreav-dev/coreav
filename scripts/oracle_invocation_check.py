@@ -12,7 +12,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
 HISTORICAL_BOUNDARY = 'docs/measurements'
-HISTORICAL_RECORD = 'test-support/oracle-historical-records.json'
+HISTORICAL_RECORD = 'docs/design/oracle-historical-records.json'
 
 
 def historical_records(root, record):
@@ -103,6 +103,12 @@ class PythonSites:
                         self.process_modules.add(item.asname or item.name)
                     if item.name == 'test_oracle':
                         self.owners.add((item.asname or item.name) + '.require')
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                arguments = [*node.args.posonlyargs, *node.args.args]
+                for argument, default in zip(arguments[len(arguments) - len(node.args.defaults):], node.args.defaults):
+                    name = ast.unparse(default)
+                    if name in self.process_names or name.split('.', 1)[0] in self.process_modules and name.rsplit('.', 1)[-1] in PROCESS:
+                        self.process_names.add(argument.arg)
         for _ in range(len(list(ast.walk(self.tree)))):
             before = len(self.process_names)
             for node in ast.walk(self.tree):
@@ -124,7 +130,7 @@ class PythonSites:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             if 'literal:' + node.value in state:
                 return state['literal:' + node.value]
-            return 'oracle' if ROLE.search(Path(node.value).name) else 'other'
+            return 'oracle' if ROLE.search(Path(node.value).name) else 'other' if Path(node.value).name in OTHER else 'unknown'
         if isinstance(node, (ast.List, ast.Tuple)):
             if not node.elts:
                 return 'argv:other'
@@ -159,7 +165,10 @@ class PythonSites:
             expression = ast.unparse(node)
         tag = self.value(node, state).removeprefix('argv:')
         if tag == 'other':
-            return
+            if ROLE.search(ast.unparse(node)):
+                tag = 'oracle'
+            else:
+                return
         key = (node.lineno, scope, expression)
         self.sites[key] = dict(path=self.path, line=node.lineno, scope=scope, kind=kind,
                                program=expression, status='qualified' if tag == 'verified' else 'unproven',
@@ -172,8 +181,13 @@ class PythonSites:
             process = (name in self.process_names or name.split('.', 1)[0] in self.process_modules
                        and (leaf in PROCESS or leaf.startswith(('exec', 'spawn', 'posix_spawn')) or leaf in ('system', 'popen', 'create_subprocess_exec',
                                                                                   'create_subprocess_shell')))
-            if process and node.args:
-                self.add(node.args[0], state, scope, 'process')
+            if process:
+                argument = node.args[0] if node.args else next(
+                    (keyword.value for keyword in node.keywords if keyword.arg in ('args', 'cmd', None)), node.func)
+                self.add(argument, state, scope, 'process')
+                for keyword in node.keywords:
+                    if keyword.arg == 'executable':
+                        self.add(keyword.value, state, scope, 'executable-override')
             if name in ('eval', 'exec', 'compile') and node.args:
                 self.add(node.args[0], {}, scope, 'generated-execution')
             if isinstance(node.func, ast.Attribute) and node.func.attr == 'update':
@@ -249,7 +263,7 @@ class PythonSites:
         for node in ast.walk(self.tree):
             if not isinstance(node, ast.Constant) or not isinstance(node.value, str) or '\n' not in node.value:
                 continue
-            if ROLE.search(node.value) and any(token in node.value for token in ('subprocess.', 'Command::new', '#!/bin/sh', '#!/bin/bash')):
+            if ROLE.search(node.value):
                 self.sites[(node.lineno, 'embedded', '')] = dict(path=self.path, line=node.lineno, scope='embedded',
                     kind='embedded-source', program='<generated program requires a separate boundary proof>',
                     status='unproven', role='opaque')
@@ -275,7 +289,9 @@ def shell_sites(text, path, offset=0):
         first = tokens[0]
         if first in ('echo', 'printf', 'export'):
             continue
-        oracle = bool(ROLE.search(first)) and not first.endswith(('.py', '.sh', '.rs', '.json'))
+        interpreter = first in ('bash', 'sh', 'python', 'python3', 'ruby', 'node', 'exec', 'eval', 'env', 'sudo', 'taskset')
+        oracle = (bool(ROLE.search(first)) and not first.endswith(('.py', '.sh', '.rs', '.json'))
+                  or interpreter and bool(ROLE.search(source)))
         dynamic = first.startswith(('$', '"$')) and '=' not in first
         if oracle or dynamic:
             found.append(dict(path=path, line=line, scope='<shell>', kind='shell', program=source.strip(),
@@ -337,6 +353,92 @@ puts JSON.generate(rows)
     return sites
 
 
+def delegated_python_sites(root, paths):
+    modules = {}
+    by_name = {}
+    for path in paths:
+        tree = ast.parse((root / path).read_text())
+        collector = PythonSites((root / path).read_text(), path)
+        functions = {}
+        aliases = {}
+        imports = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                functions.setdefault(node.name, []).append(node)
+            elif isinstance(node, ast.Assign) and isinstance(node.value, (ast.Name, ast.Attribute)):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        aliases[target.id] = node.value
+            elif isinstance(node, ast.Import):
+                for item in node.names:
+                    imports[item.asname or item.name.split('.')[0]] = (item.name, None)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                for item in node.names:
+                    imports[item.asname or item.name] = (node.module, item.name)
+        modules[path] = (tree, collector, functions, aliases, imports)
+        by_name.setdefault(Path(path).stem, set()).add(path)
+
+    def resolve(path, function, seen):
+        name = ast.unparse(function)
+        if name in seen:
+            return set()
+        seen = {*seen, name}
+        _, _, functions, aliases, imports = modules[path]
+        if isinstance(function, ast.Name):
+            if function.id in aliases:
+                return resolve(path, aliases[function.id], seen)
+            if function.id in functions:
+                return {(path, function.id)}
+            imported = imports.get(function.id)
+            if not imported or imported[1] is None:
+                return set()
+            module, symbol = imported
+        elif isinstance(function, ast.Attribute):
+            if isinstance(function.value, ast.Name) and function.value.id in ('self', 'cls'):
+                return {(path, function.attr)} if function.attr in functions else set()
+            base = name.split('.')[0]
+            imported = imports.get(base)
+            if not imported:
+                return set()
+            module, _ = imported
+            symbol = function.attr
+        else:
+            return set()
+        candidates = by_name.get(module.rsplit('.', 1)[-1], set())
+        return {(candidate, symbol) for candidate in candidates if symbol in modules[candidate][2]}
+
+    edges = {}
+    relays = set()
+    for path, (_, collector, functions, _, _) in modules.items():
+        for name, definitions in functions.items():
+            identity = (path, name)
+            edges[identity] = set()
+            for definition in definitions:
+                for node in ast.walk(definition):
+                    if not isinstance(node, ast.Call):
+                        continue
+                    call = ast.unparse(node.func)
+                    leaf = call.rsplit('.', 1)[-1]
+                    if call in collector.process_names or call.split('.', 1)[0] in collector.process_modules and (
+                            leaf in PROCESS or leaf.startswith(('exec', 'spawn', 'posix_spawn')) or
+                            leaf in ('system', 'popen', 'create_subprocess_exec', 'create_subprocess_shell')):
+                        relays.add(identity)
+                    edges[identity].update(resolve(path, node.func, set()))
+    while True:
+        reached = {identity for identity, children in edges.items() if children & relays}
+        if reached <= relays:
+            break
+        relays.update(reached)
+    found = []
+    for path, (tree, _, _, _, _) in modules.items():
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and resolve(path, node.func, set()) & relays:
+                found.append(dict(path=path, line=node.lineno, scope='<delegated>', kind='delegated',
+                                  program=ast.unparse(node.func), status='unclassified',
+                                  role='oracle' if ROLE.search(ast.unparse(node)) else 'opaque'))
+    return found
+
+
 def inventory(root):
     paths = sorted(set(filter(None, subprocess.check_output(
         ['git', '-C', str(root), 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], text=True).split('\0'))))
@@ -355,6 +457,10 @@ def inventory(root):
             found.extend(shell_sites(file.read_text(), path))
         elif file.suffix in ('.yml', '.yaml'):
             found.extend(workflow_sites(file.read_text(), path))
+    python = [path for path in paths if path.endswith('.py') and path not in historical
+              and path not in BOOTSTRAP and path not in ('scripts/oracle_invocation_check.py',
+                                                        'scripts/tests/test_oracle_invocation_check.py')]
+    found.extend(delegated_python_sites(root, python))
     rust = [path for path in paths if path.endswith('.rs') and path not in historical]
     aliases = {'Command'}
     for path in rust:
@@ -371,10 +477,17 @@ def inventory(root):
             found.append(dict(path=path, line=source[:source.index('test-support/oracle.rs')].count('\n') + 1,
                               scope='<adapter>', kind='deployment', program='<test adapter in a deployed tool>',
                               status='unproven', role='oracle'))
+    javascript_aliases = set()
+    for path in paths:
+        if path.endswith(('.js', '.mjs', '.cjs', '.ts', '.tsx')) and path not in historical:
+            source = (root / path).read_text()
+            javascript_aliases.update(re.findall(r'\b(?:spawnSync|spawn|execFileSync|execFile|execSync|exec)\s+as\s+(\w+)', source))
+            javascript_aliases.update(re.findall(r'\b(\w+)\s*=\s*(?:\w+\.)?(?:spawnSync|spawn|execFileSync|execFile|execSync|exec)\b', source))
+    javascript_functions = r'(?:^|\.)(?:spawn|spawnSync|execFile|execFileSync|execSync|exec|' + '|'.join(re.escape(name) for name in sorted(javascript_aliases)) + r')$'
     for language, suffixes in (('JavaScript', ('.js', '.mjs', '.cjs')), ('TypeScript', ('.ts',)), ('Tsx', ('.tsx',))):
         selected = [path for path in paths if path.endswith(suffixes) and path not in historical]
         found.extend(structural_sites(root, selected, language, '$FUNCTION($PROGRAM, $$$ARGS)', 'PROGRAM',
-                     lambda item: bool(re.search(r'(?:^|\.)(?:spawn|spawnSync|execFile|execFileSync|execSync)$',
+                     lambda item: bool(re.search(javascript_functions,
                                                 item['metaVariables']['single']['FUNCTION']['text']))))
     for site in found:
         site['owner_path_hint'] = site['status'] == 'qualified'

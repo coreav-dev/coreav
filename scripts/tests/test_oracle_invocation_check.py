@@ -78,6 +78,12 @@ class Discovery(unittest.TestCase):
         self.assertEqual(len(sites), 1)
         self.assertEqual(sites[0]['program'], 'ffmpeg -encoders')
 
+    def test_an_oracle_hidden_behind_a_shell_interpreter_is_discovered(self):
+        sites = check.PythonSites('import subprocess\nsubprocess.run(["bash", "-c", "ffmpeg -version"])\n',
+                                  'consumer.py').collect()
+        self.assertTrue(sites)
+        self.assertEqual(sites[0]['role'], 'oracle')
+
     def test_namespaced_rust_constructor_is_discovered(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -99,6 +105,31 @@ class Discovery(unittest.TestCase):
                                   'consumer.py').collect()
         self.assertTrue(sites)
         self.assertEqual(sites[0]['role'], 'opaque')
+
+    def test_a_default_process_callable_is_discovered(self):
+        sites = check.PythonSites('import subprocess\ndef capture(command, launch=subprocess.run):\n    launch(command)\n',
+                                  'consumer.py').collect()
+        self.assertTrue(sites)
+        self.assertEqual(sites[0]['role'], 'opaque')
+
+    def test_renamed_literal_executable_is_not_assumed_non_oracle(self):
+        sites = check.PythonSites('import subprocess\nsubprocess.run(["renamed-program", "-version"])\n',
+                                  'consumer.py').collect()
+        self.assertTrue(sites)
+        self.assertEqual(sites[0]['role'], 'opaque')
+
+    def test_keyword_argv_and_actual_executable_override_are_discovered(self):
+        sites = check.PythonSites('import subprocess\nsubprocess.run(args=command, executable=override)\n',
+                                  'consumer.py').collect()
+        self.assertEqual({site['kind'] for site in sites}, {'process', 'executable-override'})
+
+    def test_a_delegated_caller_without_a_process_constructor_is_discovered(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'helper.py').write_text('import subprocess\ndef capture(command):\n    subprocess.run(command)\n')
+            (root / 'caller.py').write_text('from helper import capture as launch\nlaunch(command)\n')
+            sites = check.delegated_python_sites(root, ['helper.py', 'caller.py'])
+            self.assertTrue(any(site['path'] == 'caller.py' and site['program'] == 'launch' for site in sites))
 
     def test_workflow_environment_fields_are_not_commands(self):
         source = 'steps:\n  - run: |\n      ffprobe -version\n    env:\n      COREAV_FFMPEG: /bin/ffmpeg\n'
