@@ -2463,6 +2463,7 @@ fn run_join(args: &JoinArgs) -> ExitCode {
         video: VideoChoice::First,
         audio,
         placement: Placement::AfterVideo,
+        compatibility: None,
     };
     // The output may name none of the inputs; `write_output` checks the
     // first, and whether the output exists.

@@ -11,16 +11,18 @@
 //! timeline. Edits of inputs that meet exactly are merged, so the segments
 //! of a split join back into one edit per track.
 
+mod avc;
+
 use crate::audio;
+use crate::boxes::Node;
 use crate::clip::{
-    Scaled, Timeline, gapless, media_duration, movie_timescale, select_audio, select_video,
-    video_sample_entry,
+    Scaled, Timeline, gapless, movie_timescale, select_audio, select_video, video_sample_entry,
 };
 use crate::copy::{COPY_BUFFER, Shared, Window};
-use crate::m4a::{audio_sample_entry, unsupported};
+use crate::m4a::{audio_sample_entry, audio_sample_entry_with_config, unsupported};
 use crate::moov::{
-    EditEntry, Media, MovieBox, Ties, TrackBox, TrackFlags, UNIT_RATE, ftyp, interleave, language,
-    overflow, rescale, write_head,
+    CopiedBox, EditEntry, Media, MovieBox, Ties, TrackBox, TrackFlags, UNIT_RATE,
+    edited_decode_start, ftyp, ftyp_minor, interleave, language, overflow, rescale, write_head,
 };
 use crate::rational::{add, ceil, int, lt, max, min, round, scale, sub, to_i64, to_u64};
 use crate::tables::Tables;
@@ -33,6 +35,7 @@ use coreav_isobmff::{
     Allowlist, Budget, Codec, Error, LimitKind, Limits, Movie, Packets, Rational, Source, Track,
     probe,
 };
+use std::borrow::Cow;
 use std::io::Write;
 
 /// Output track IDs, as in a clip.
@@ -107,6 +110,34 @@ pub fn join_mp4<S: Source, W: Write>(
     }
     let tv = first.video.timescale;
     let ta = first.audio.as_ref().map(|a| a.track.timescale);
+    let compatibility = options.compatibility.as_ref();
+    if compatibility.is_some() {
+        for (input, (movie, pick)) in movies.iter().zip(&picks).enumerate() {
+            if movie.tracks.iter().any(|track| {
+                track.kind == coreav_isobmff::TrackKind::Audio
+                    && std::iter::once(&track.description)
+                        .chain(&track.later_descriptions)
+                        .any(|description| description.codec == Codec::Aac)
+                    && track.edits.iter().any(|edit| edit.media_time > 0)
+            }) {
+                return Err(at(
+                    input,
+                    unsupported("a concat input with a positive AAC edit offset"),
+                ));
+            }
+            if pick.video.edits.len() > 1
+                || pick
+                    .audio
+                    .as_ref()
+                    .is_some_and(|audio| audio.track.edits.len() > 1)
+            {
+                return Err(at(
+                    input,
+                    unsupported("a join of files whose tracks have several edits"),
+                ));
+            }
+        }
+    }
 
     // Listing 1: each input's samples and presentation.
     let mut spans = Vec::new();
@@ -163,8 +194,14 @@ pub fn join_mp4<S: Source, W: Write>(
     let layout = place(&spans, tv, ta, &options.placement).map_err(JoinError::Output)?;
 
     // Listing 2: the output tables.
-    let mut video_tables = Tables::new(tv, limits.max_table_bytes);
-    let mut audio_tables = ta.map(|ta| Tables::new(ta, limits.max_table_bytes));
+    let chunk_bytes = if compatibility.is_some() && ta.is_some() {
+        0
+    } else {
+        u64::MAX
+    };
+    let mut video_tables = Tables::with_chunk_bytes(tv, limits.max_table_bytes, chunk_bytes);
+    let mut audio_tables =
+        ta.map(|ta| Tables::with_chunk_bytes(ta, limits.max_table_bytes, chunk_bytes));
     for (input, ((movie, pick), budget)) in movies.iter().zip(&picks).zip(&mut budgets).enumerate()
     {
         let source = sources
@@ -210,17 +247,28 @@ pub fn join_mp4<S: Source, W: Write>(
     }
 
     // The file head.
-    let last = movies
-        .len()
-        .checked_sub(1)
-        .and_then(|i| movies.get(i).zip(picks.get(i)))
-        .ok_or(JoinError::NoInputs)?;
     let video_edits = edits(&layout.video, tv, tm).map_err(JoinError::Output)?;
-    let video_media = media_duration(last.0, last.1.video, &video_tables, true)
-        .map_err(JoinError::Output)?
-        .max(media_end(&video_edits, tv, tm).map_err(JoinError::Output)?);
+    let video_media = video_tables.duration;
     let video_duration = track_duration(&video_edits);
+    if compatibility.is_some() && ta.is_some() {
+        video_tables.decode_start =
+            edited_decode_start(&video_edits, tv, tm).map_err(JoinError::Output)?;
+    }
     let first_movie = movies.first().ok_or(JoinError::NoInputs)?;
+    let mut video_entry = first.video_entry.clone();
+    let source = sources.first().ok_or(JoinError::NoInputs)?;
+    let metadata = crate::scan::scan(&mut Shared(source), limits).map_err(|e| at(0, e))?;
+    if let Some(name) = metadata
+        .traks
+        .get(first.video.stream_index)
+        .and_then(|track| track.compressor_name)
+    {
+        video_entry
+            .get_mut(54..86)
+            .ok_or_else(|| JoinError::Output(overflow()))?
+            .copy_from_slice(&name);
+    }
+    Shared(source).release();
     let mut tracks = vec![TrackBox {
         handler_name: None,
         track_id: VIDEO_ID,
@@ -238,27 +286,19 @@ pub fn join_mp4<S: Source, W: Write>(
         media_duration: video_media,
         duration: video_duration,
         edits: video_edits.into(),
-        stsd: first.video_entry.clone(),
+        stsd: video_entry,
         tables: &video_tables,
         extra: Vec::new(),
         stbl_extra: Vec::new(),
     }];
     let mut movie_duration = video_duration;
     let mut audio_edit_count = 0;
-    if let (Some(a), Some(tables), Some(ta)) = (first.audio.as_ref(), audio_tables.as_ref(), ta) {
+    if let (Some(a), Some(tables), Some(ta)) = (first.audio.as_ref(), audio_tables.as_mut(), ta) {
         let mut audio_edits = edits(&layout.audio, ta, tm).map_err(JoinError::Output)?;
         if audio_edits.iter().all(|e| e.media_time < 0) {
             return Err(at(0, unsupported("no input presents its audio")));
         }
-        let last_audio = last
-            .1
-            .audio
-            .as_ref()
-            .map(|l| l.track)
-            .ok_or(JoinError::NoInputs)?;
-        let media = media_duration(last.0, last_audio, tables, true)
-            .map_err(JoinError::Output)?
-            .max(media_end(&audio_edits, ta, tm).map_err(JoinError::Output)?);
+        let media = tables.duration;
         // As in a clip, an edit that presents all of the media from its
         // start is left out.
         if let [only] = audio_edits.as_slice() {
@@ -274,6 +314,15 @@ pub fn join_mp4<S: Source, W: Write>(
             track_duration(&audio_edits)
         };
         audio_edit_count = audio_edits.len();
+        if compatibility.is_some() {
+            if audio_edit_count > 1 {
+                return Err(JoinError::Output(unsupported(
+                    "a concat output that needs several audio edits",
+                )));
+            }
+            tables.decode_start =
+                edited_decode_start(&audio_edits, ta, tm).map_err(JoinError::Output)?;
+        }
         movie_duration = movie_duration.max(duration);
         tracks.push(TrackBox {
             handler_name: None,
@@ -289,27 +338,58 @@ pub fn join_mp4<S: Source, W: Write>(
             media_duration: media,
             duration,
             edits: audio_edits.into(),
-            stsd: a.entry.clone(),
+            stsd: joined_audio_entry(&picks, &spans, tables).map_err(JoinError::Output)?,
             tables,
             extra: Vec::new(),
             stbl_extra: Vec::new(),
         });
     }
     let video_edit_count = tracks.first().map_or(0, |t| t.edits.len());
+    let avc_width = if compatibility.is_some() && first.video.description.codec == Codec::H264 {
+        Some(
+            avc::length_size(
+                &first
+                    .video
+                    .description
+                    .codec_config
+                    .as_ref()
+                    .ok_or_else(|| JoinError::Output(unsupported("AVC without a configuration")))?
+                    .data,
+            )
+            .map_err(JoinError::Output)?,
+        )
+    } else {
+        None
+    };
     let brands: Vec<&[u8; 4]> = match first.video.description.codec {
         Codec::H264 => vec![b"isom", b"mp42", b"avc1"],
         Codec::Av1 => vec![b"isom", b"mp42", b"av01"],
         _ => vec![b"isom", b"mp42"],
     };
+    let file_type = if compatibility.is_some() && avc_width.is_some() {
+        ftyp_minor(b"isom", 512, &[b"isom", b"iso2", b"avc1", b"mp41"])
+    } else {
+        ftyp(b"isom", &brands)
+    };
+    let extra = compatibility
+        .map(|options| encoder_item(&options.muxer_encoder))
+        .transpose()
+        .map_err(JoinError::Output)?;
     let (data_start, data_bytes) = write_head(
         &mut out,
-        ftyp(b"isom", &brands),
+        file_type,
         &MovieBox {
             timescale: tm,
             created: first_movie.creation_time,
             modified: None,
             duration: movie_duration,
-            extra: Vec::new(),
+            extra: extra
+                .into_iter()
+                .map(|payload| CopiedBox {
+                    kind: *b"udta",
+                    payload: Cow::Owned(payload),
+                })
+                .collect(),
         },
         tracks,
         Ties::TrackOrder,
@@ -376,6 +456,7 @@ pub fn join_mp4<S: Source, W: Write>(
         }
     };
     let mut window = Window::new(COPY_BUFFER);
+    let mut avc_work = vec![0u64; sources.len()];
     let mut current = None;
     interleave(
         layout_tables,
@@ -399,13 +480,28 @@ pub fn join_mp4<S: Source, W: Write>(
                 let source = sources
                     .get(input)
                     .ok_or_else(|| JoinError::Output(overflow()))?;
-                window
-                    .copy(&mut Shared(source), offset, size, &mut out)
-                    .map_err(|e| match e {
-                        // The output failed, not the input.
-                        ExtractError::Write(kind) => JoinError::Write(kind),
-                        e => at_extract(input, e),
-                    })?;
+                let copied = if let (0, Some(width)) = (track, avc_width) {
+                    let work = avc_work
+                        .get_mut(input)
+                        .ok_or_else(|| JoinError::Output(overflow()))?;
+                    let mut sample =
+                        avc::Sample::new(&mut out, width, size, work, limits.max_sample_work);
+                    let copied = window.copy(&mut Shared(source), offset, size, &mut sample);
+                    if let Some(error) = sample.error {
+                        return Err(at(input, error));
+                    }
+                    if copied.is_ok() {
+                        sample.finish().map_err(|error| at(input, error))?;
+                    }
+                    copied
+                } else {
+                    window.copy(&mut Shared(source), offset, size, &mut out)
+                };
+                copied.map_err(|e| match e {
+                    // The output failed, not the input.
+                    ExtractError::Write(kind) => JoinError::Write(kind),
+                    e => at_extract(input, e),
+                })?;
             }
             Ok(())
         },
@@ -421,7 +517,11 @@ pub fn join_mp4<S: Source, W: Write>(
         .zip(&audio_budgets)
         .enumerate()
     {
-        if v.used().saturating_add(a.used()) > limit.max_sample_work {
+        if v.used()
+            .saturating_add(a.used())
+            .saturating_add(avc_work.get(input).copied().unwrap_or(0))
+            > limit.max_sample_work
+        {
             return Err(at(
                 input,
                 Error::LimitExceeded {
@@ -512,6 +612,158 @@ fn output(error: ExtractError) -> JoinError {
         // Only HLS indexes are read as such; a join writes none.
         ExtractError::InvalidIndex { reason } => JoinError::Output(unsupported(reason)),
     }
+}
+
+fn encoder_item(value: &str) -> Result<Vec<u8>, Error> {
+    let mut data = vec![0, 0, 0, 1, 0, 0, 0, 0];
+    data.extend_from_slice(value.as_bytes());
+    let item = Node::parent(b"\xa9too", vec![Node::leaf(b"data", data)]);
+    let mut body = vec![0; 4];
+    let mut handler = vec![0; 8];
+    handler.extend_from_slice(b"mdirappl");
+    handler.extend_from_slice(&[0; 9]);
+    Node::leaf(b"hdlr", handler)
+        .write(&mut body)
+        .map_err(|_| overflow())?;
+    Node::parent(b"ilst", vec![item])
+        .write(&mut body)
+        .map_err(|_| overflow())?;
+    let mut out = Vec::new();
+    Node::leaf(b"meta", body)
+        .write(&mut out)
+        .map_err(|_| overflow())?;
+    Ok(out)
+}
+
+fn joined_audio_entry(
+    picks: &[Pick<'_>],
+    spans: &[Spans<'_>],
+    tables: &Tables,
+) -> Result<Vec<u8>, Error> {
+    let first = picks
+        .first()
+        .and_then(|pick| pick.audio.as_ref())
+        .ok_or_else(overflow)?;
+    let description = &first.track.description;
+    if !matches!(description.codec, Codec::Flac | Codec::Alac) {
+        return Ok(first.entry.clone());
+    }
+    let mut config = description
+        .codec_config
+        .as_ref()
+        .ok_or_else(overflow)?
+        .data
+        .clone();
+    let configs = picks.iter().map(|pick| {
+        pick.audio
+            .as_ref()
+            .and_then(|audio| audio.track.description.codec_config.as_ref())
+            .map(|config| config.data.as_slice())
+            .ok_or_else(overflow)
+    });
+    match description.codec {
+        Codec::Flac => {
+            // RFC 9639 8.2 Table 3 describes the whole output stream, not input 1.
+            let mut bounds = [u32::MAX, 0, u32::MAX, 0];
+            for data in configs {
+                let data = data?;
+                for (index, (start, end)) in [(8, 10), (10, 12), (12, 15), (15, 18)]
+                    .into_iter()
+                    .enumerate()
+                {
+                    let value = data
+                        .get(start..end)
+                        .ok_or_else(overflow)?
+                        .iter()
+                        .fold(0u32, |value, byte| (value << 8) | u32::from(*byte));
+                    let bound = bounds.get_mut(index).ok_or_else(overflow)?;
+                    *bound = if index % 2 == 0 {
+                        (*bound).min(value)
+                    } else {
+                        (*bound).max(value)
+                    };
+                }
+            }
+            let rate = description.configured_sample_rate.ok_or_else(overflow)?;
+            for sample in 0..tables.samples() {
+                let size = tables.size(sample).ok_or_else(overflow)?;
+                if let Some(minimum) = bounds.get_mut(2) {
+                    *minimum = (*minimum).min(size);
+                }
+                if let Some(maximum) = bounds.get_mut(3) {
+                    *maximum = (*maximum).max(size);
+                }
+            }
+            for span in spans.iter().take(spans.len().saturating_sub(1)) {
+                let tail = span
+                    .audio
+                    .as_ref()
+                    .ok_or_else(overflow)?
+                    .listed
+                    .last_duration;
+                let samples = u64::from(tail) * u64::from(rate);
+                if samples % u64::from(first.track.timescale) != 0 {
+                    return Err(unsupported("a FLAC block outside its sample clock"));
+                }
+                let samples = u32::try_from(samples / u64::from(first.track.timescale))
+                    .map_err(|_| overflow())?;
+                if samples < 16 {
+                    return Err(unsupported(
+                        "an internal FLAC block smaller than STREAMINFO permits",
+                    ));
+                }
+                if let Some(minimum) = bounds.first_mut() {
+                    *minimum = (*minimum).min(samples);
+                }
+            }
+            for (index, (start, end)) in [(8, 10), (10, 12), (12, 15), (15, 18)]
+                .into_iter()
+                .enumerate()
+            {
+                let value = bounds.get(index).ok_or_else(overflow)?.to_be_bytes();
+                let width = end - start;
+                config
+                    .get_mut(start..end)
+                    .ok_or_else(overflow)?
+                    .copy_from_slice(value.get(4 - width..).ok_or_else(overflow)?);
+            }
+            let total = u128::from(tables.duration) * u128::from(rate);
+            let scale = u128::from(first.track.timescale);
+            if total % scale != 0 || total / scale >= 1 << 36 {
+                return Err(unsupported(
+                    "a FLAC total outside STREAMINFO's sample count",
+                ));
+            }
+            let total = u64::try_from(total / scale).map_err(|_| overflow())?;
+            let field = config.get_mut(21..26).ok_or_else(overflow)?;
+            let high = field.first().copied().ok_or_else(overflow)? & 0xf0;
+            field.copy_from_slice(total.to_be_bytes().get(3..).ok_or_else(overflow)?);
+            *field.first_mut().ok_or_else(overflow)? |= high;
+            config.get_mut(26..42).ok_or_else(overflow)?.fill(0);
+        }
+        Codec::Alac => {
+            let mut maximum = 0u32;
+            for data in configs {
+                let data = data?;
+                let value = data
+                    .get(16..20)
+                    .and_then(|bytes| bytes.try_into().ok())
+                    .map(u32::from_be_bytes)
+                    .ok_or_else(overflow)?;
+                maximum = maximum.max(value);
+            }
+            for sample in 0..tables.samples() {
+                maximum = maximum.max(tables.size(sample).ok_or_else(overflow)?);
+            }
+            config
+                .get_mut(16..20)
+                .ok_or_else(overflow)?
+                .copy_from_slice(&maximum.to_be_bytes());
+            config.get_mut(20..24).ok_or_else(overflow)?.fill(0);
+        }
+        _ => {}
+    }
+    audio_sample_entry_with_config(first.track, &config)
 }
 
 fn table_limit() -> Error {
@@ -650,6 +902,15 @@ fn compare(first: &Pick<'_>, this: &Pick<'_>) -> Option<Mismatch> {
     let config = |d: &coreav_isobmff::SampleDescription| {
         d.codec_config.as_ref().map(|c| match &c.kind.0 {
             b"esds" => decoder_config(&c.data),
+            b"dfLa" => {
+                let mut decoding = audio::decoding_config(c);
+                if decoding.len() == 34 {
+                    if let Some(bounds) = decoding.get_mut(..4) {
+                        bounds.fill(0);
+                    }
+                }
+                decoding
+            }
             _ => audio::decoding_config(c),
         })
     };
@@ -732,6 +993,7 @@ struct Listed {
     samples: u64,
     duration: u64,
     first_dts: i64,
+    last_duration: u32,
 }
 
 /// A composition offset of this many ticks or more: a version 0 `ctts`
@@ -818,6 +1080,7 @@ fn video_span<'a, S: Source>(
         samples: 0,
         duration: 0,
         first_dts: 0,
+        last_duration: 0,
     };
     let mut starts_with_sync = false;
     let mut first_cts = None;
@@ -834,6 +1097,7 @@ fn video_span<'a, S: Source>(
     let mut next_dts = None;
     for packet in movie.packets(track.index, &mut *source, limits, budget)? {
         let packet = packet?;
+        listed.last_duration = packet.duration;
         if listed.samples == 0 {
             listed.first_dts = packet.dts;
             starts_with_sync = packet.keyframe;
@@ -969,11 +1233,13 @@ fn audio_span<'a, S: Source>(
         samples: 0,
         duration: 0,
         first_dts: 0,
+        last_duration: 0,
     };
     let mut presented: Option<(i64, i64)> = None;
     let mut next_dts: Option<i64> = None;
     for packet in movie.packets(track.index, &mut *source, limits, budget)? {
         let packet = packet?;
+        listed.last_duration = packet.duration;
         if packet.cts != packet.dts {
             return Err(unsupported("composition offsets in an audio track"));
         }
@@ -1336,21 +1602,6 @@ fn edits(pieces: &[Piece], timescale: u32, tm: u32) -> Result<Vec<EditEntry>, Er
         });
     }
     Ok(out)
-}
-
-/// The media time where the last media edit ends, in media ticks.
-fn media_end(edits: &[EditEntry], timescale: u32, tm: u32) -> Result<u64, Error> {
-    let mut end = 0u64;
-    for edit in edits.iter().filter(|e| e.media_time >= 0) {
-        let length = to_u64(ceil(scale(
-            Rational::from_int(i128::from(edit.duration)),
-            timescale,
-            tm,
-        )?)?)?;
-        let media = u64::try_from(edit.media_time).map_err(|_| overflow())?;
-        end = end.max(media.checked_add(length).ok_or_else(overflow)?);
-    }
-    Ok(end)
 }
 
 fn track_duration(edits: &[EditEntry]) -> u64 {

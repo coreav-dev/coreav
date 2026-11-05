@@ -199,6 +199,33 @@ pub(crate) enum Ties {
     SmallerFirst,
 }
 
+pub(crate) fn edited_decode_start(
+    edits: &[EditEntry],
+    media_timescale: u32,
+    movie_timescale: u32,
+) -> Result<i64, Error> {
+    let unsupported = |reason| Error::Unsupported { reason };
+    let (delay, media) = match edits {
+        [] => (0, None),
+        [media] if media.media_time >= 0 => (0, Some(media)),
+        [empty, media] if empty.media_time == -1 && media.media_time >= 0 => {
+            (empty.duration, Some(media))
+        }
+        _ => return Err(unsupported("packet ordering needs simple edits")),
+    };
+    if edits.iter().any(|edit| edit.rate != UNIT_RATE) {
+        return Err(unsupported("packet ordering needs unit-rate edits"));
+    }
+    let delay = u128::from(delay) * u128::from(media_timescale);
+    let clock = u128::from(movie_timescale);
+    if delay % clock != 0 {
+        return Err(unsupported("packet ordering needs an exact edit delay"));
+    }
+    let origin = i128::try_from(delay / clock).map_err(|_| overflow())?
+        - i128::from(media.map_or(0, |edit| edit.media_time));
+    i64::try_from(origin).map_err(|_| overflow())
+}
+
 /// Calls `f` with every chunk of every track, as `(track, chunk)`, in the
 /// order they are stored: by decode time in seconds, ties ordered by
 /// `ties`, so that the tracks alternate about once a second. One track's

@@ -11,6 +11,15 @@ use coreav_isobmff::{BufferedSource, FileSource, Source};
 use std::io::Write;
 use std::path::Path;
 
+pub(super) fn has_unpreserved_format_metadata(report: &Report) -> bool {
+    report.format_tags.iter().any(|(key, _)| {
+        !matches!(
+            key.to_ascii_lowercase().as_str(),
+            "encoder" | "major_brand" | "minor_version" | "compatible_brands"
+        )
+    })
+}
+
 pub(super) fn plan(
     command: &Command,
     report: &Report,
@@ -121,12 +130,7 @@ pub(super) fn plan(
     }
     if matches!(command.muxer, Muxer::Wav | Muxer::Flac)
         && command.map_metadata == MapMetadata::Default
-        && report.format_tags.iter().any(|(key, _)| {
-            !matches!(
-                key.to_ascii_lowercase().as_str(),
-                "encoder" | "major_brand" | "minor_version" | "compatible_brands"
-            )
-        })
+        && has_unpreserved_format_metadata(report)
     {
         return Err(Refusal::not_native(if flac {
             "copying metadata to FLAC (use -map_metadata -1)"

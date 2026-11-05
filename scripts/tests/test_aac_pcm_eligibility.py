@@ -1,6 +1,7 @@
 import array
 import copy
 import importlib.util
+import struct
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -13,6 +14,25 @@ SPEC.loader.exec_module(qualification)
 
 
 class PcmQualification(unittest.TestCase):
+    def test_whole_wav_comparison_covers_framing_and_both_qualified_payloads(self):
+        def wave(pcm, info=b''):
+            body = b'WAVEfmt ' + struct.pack('<IHHIIHH', 16, 1, 1, 48000, 96000, 2, 16)
+            body += info + b'data' + struct.pack('<I', len(pcm)) + pcm
+            return b'RIFF' + struct.pack('<I', len(body)) + body
+
+        a, b = b'\x01\x00\x02\x00', b'\x02\x00\x03\x00'
+        info = b'LIST' + struct.pack('<I', 4) + b'INFO'
+        qualification.compare_wav(wave(a, info), wave(b, info), a, b, 1, 48000)
+        with self.assertRaisesRegex(ValueError, 'framing or metadata'):
+            qualification.compare_wav(wave(a), wave(b, info), a, b, 1, 48000)
+        for actual, reference in [(wave(b, info), wave(b, info)),
+                                  (wave(a, info), wave(a, info)),
+                                  (wave(a[:-2], info), wave(b, info))]:
+            with self.assertRaisesRegex(ValueError, 'qualified PCM'):
+                qualification.compare_wav(actual, reference, a, b, 1, 48000)
+        with self.assertRaisesRegex(ValueError, 'RIFF extent'):
+            qualification.compare_wav(wave(a, info) + b'X', wave(b, info), a, b, 1, 48000)
+
     def test_pns_timeline_uses_explicit_priming_and_checked_terminal_padding(self):
         metadata = {'packets': 2, 'frames': [{'offset': 100}, {'offset': 200}],
                     'no_edits': False, 'media_duration': 2048, 'gapless_end': None}
