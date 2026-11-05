@@ -163,6 +163,84 @@ fn audio_bearing_input_seek_plans_complete_samples_before_writing() {
         ));
         assert!(output.is_empty());
     }
+    let mut failures = 0;
+    let mut successes = 0;
+    for work in [64, 128, 256, 512, 1024, 2048, 4096] {
+        let mut output = Vec::new();
+        match run(
+            &Limits {
+                max_sample_work: work,
+                ..Limits::default()
+            },
+            &mut output,
+        ) {
+            Ok(_) => {
+                assert!(!output.is_empty());
+                successes += 1;
+            }
+            Err(ExtractError::Source(Error::LimitExceeded { .. })) => {
+                assert!(output.is_empty(), "work limit {work} failed after writing");
+                failures += 1;
+            }
+            other => panic!("unexpected planning result: {other:?}"),
+        }
+    }
+    assert!(failures > 0 && successes > 0);
+    let input = probe(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(&Limits::default());
+    let at = input
+        .packets(
+            0,
+            SliceSource::new(&source),
+            &Limits::default(),
+            &mut budget,
+        )
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .offset;
+    let mut output = Vec::new();
+    let failed = clip_mp4_input_seek(
+        FailingSeekSource {
+            data: SliceSource::new(&source),
+            at,
+        },
+        &Limits::default(),
+        &Allowlist::default(),
+        &request,
+        &mut output,
+    );
+    assert_eq!(
+        failed,
+        Err(ExtractError::Source(Error::Io(
+            std::io::ErrorKind::PermissionDenied
+        )))
+    );
+    assert!(output.is_empty());
+}
+
+struct FailingSeekSource<'a> {
+    data: SliceSource<'a>,
+    at: u64,
+}
+
+impl Source for FailingSeekSource<'_> {
+    fn len(&mut self) -> Result<u64, Error> {
+        self.data.len()
+    }
+
+    fn read_exact_at(&mut self, offset: u64, bytes: &mut [u8]) -> Result<(), Error> {
+        if offset <= self.at && self.at < offset + bytes.len() as u64 {
+            return Err(Error::Io(std::io::ErrorKind::PermissionDenied));
+        }
+        self.data.read_exact_at(offset, bytes)
+    }
 }
 
 #[test]

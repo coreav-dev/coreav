@@ -2,7 +2,7 @@
 
 ## Goal and scope
 
-Support a bounded `-ss S -i INPUT -c copy -t D OUTPUT.mp4` path with one H.264 `avc1` video track and one AAC audio track. The output-side `-to D` spelling reaches the same interval. The existing input-seek writer refuses selected audio because native clipping's snapped origin and presentation-end trimming do not model this packet-copy operation. This plan precedes implementation. Refs coreav-dev/coreav#25.
+Support a bounded `-ss S -i INPUT -c copy -t D OUTPUT.mp4` path with one H.264 `avc1` video track and one AAC-LC audio track. The output-side `-to D` spelling reaches the same interval. Previously the input-seek writer refused selected audio because native clipping's snapped origin and presentation-end trimming do not model this packet-copy operation. The first commit records this plan before its implementation. Refs coreav-dev/coreav#25.
 
 Keep native clip, video-only input seeks, output-side seeking, ordinary remux and concat unchanged. Use the existing compatibility entry point, without changing its public signature or CLI dispatch. Other codecs, fragments, multiple or empty edits, nonzero source presentation origins and unqualified metadata remain outside this extension. The first admitted subset has constant video durations, nonnegative composition offsets and bounds exactly representable in both selected media clocks. Existing limits are unchanged.
 
@@ -30,7 +30,11 @@ Build the new path's tables through existing chunk-policy APIs so copied packets
 
 Keep AAC roll serialization with its existing owner, preserving every current caller's bytes. `Track.handler_name` and the bounded writer scan provide the metadata and group locations required for admission. Omitted or over-cap metadata cannot prove absence.
 
-No edits to `mux.rs`, `tables.rs`, concat, raw-audio planning, `ffmpeg/mod.rs`, oracle pins, frozen fixtures, command rosters, judging rules or baselines are authorized. Stop and coordinate before changing any of them. Do not narrow admission merely to preserve an obsolete refusal expectation or alter a frozen required-refusal witness.
+The implementation qualifies complete zero-origin source edits against their composition spans, constant video durations and unique composition times. A fallible vector of timestamps is sorted to establish uniqueness; its storage is charged to `max_table_bytes`, including its overlap with output tables during construction. The first retained video sample must present before every later retained sample, and its selected access point must independently start decoding. AAC has no composition offsets, and a fractional video-to-audio clock conversion refuses if an AAC boundary could change the selected start after rounding. Source groups are absent or the complete one-entry roll-minus-one form. Custom handlers, track tags, omitted metadata and non-unit audio presentation volume refuse. The pin normalizes that volume to unity, so copying a different stored volume would change playback despite equal PCM.
+
+Output tables use one packet per chunk and the existing edited-DTS scheduler. AAC membership covers every copied sample, rather than the replacement encoder's separate initial-roll exclusion. Before emission, the planner reserves a complete source-listing work allowance as an upper bound for the copy prefix. The existing atomic output owner still protects the destination against later source or output failures.
+
+Keep `mux.rs`, `tables.rs`, concat, raw-audio planning, `ffmpeg/mod.rs`, oracle pins, frozen fixtures, command rosters, judging rules and baselines unchanged. Current development fixture expectations are separate from the registered candidate snapshot: only the C18 third-command cells for `hls_h264.mp4` and `hls_long_gop.mp4` change from required refusal to required native success. `closed_gop_input_seek_witnesses_match_complete_outputs` generates both unchanged fixture recipes and compares complete records, pixels, AAC PCM and independent ISO layout/presentation checks. The other fifteen required-refusal cells remain; the registered snapshot, frozen-source list and judging material do not change.
 
 ## Verification
 

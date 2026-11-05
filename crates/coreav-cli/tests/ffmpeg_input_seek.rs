@@ -262,6 +262,11 @@ mod iso {
                 "complete presentation span"
             );
             let tkhd = child(bytes, track, b"tkhd");
+            let volume_at = tkhd.body + if bytes[tkhd.body] == 0 { 36 } else { 48 };
+            assert_eq!(
+                u16::from_be_bytes(bytes[volume_at..volume_at + 2].try_into().unwrap()),
+                if index == 0 { 0 } else { 256 }
+            );
             let track_duration = if bytes[tkhd.body] == 0 {
                 u64::from(u32_at(bytes, tkhd.body + 20))
             } else {
@@ -384,6 +389,136 @@ mod iso {
     }
 }
 
+fn exact_copy(
+    ffmpeg: &Path,
+    ffprobe: &Path,
+    args: &[&str],
+    output: &Path,
+    reference: &Path,
+    existing: bool,
+) -> Vec<u8> {
+    let oracle = Command::new(ffmpeg)
+        .args(["-nostdin", "-v", "error"])
+        .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+        .args(args)
+        .arg(reference)
+        .output()
+        .unwrap();
+    assert!(
+        oracle.status.success(),
+        "{args:?}: {}",
+        String::from_utf8_lossy(&oracle.stderr)
+    );
+    if existing {
+        std::fs::write(output, b"old output").unwrap();
+    }
+    let entries = std::fs::read_dir(output.parent().unwrap()).unwrap().count();
+    let result = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .arg("ffmpeg")
+        .args(args)
+        .arg(output)
+        .env("COREAV_STRICT_SAFE", "1")
+        .env("COREAV_FALLBACK", output.with_extension("missing"))
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{args:?}: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(result.stdout.is_empty() && result.stderr.is_empty());
+    assert_eq!(
+        std::fs::read_dir(output.parent().unwrap()).unwrap().count(),
+        entries + usize::from(!existing)
+    );
+    assert_eq!(
+        snapshot(output, ffprobe),
+        snapshot(reference, ffprobe),
+        "{args:?}"
+    );
+    assert_eq!(
+        pixels(output, ffmpeg),
+        pixels(reference, ffmpeg),
+        "{args:?}"
+    );
+    assert_eq!(pcm(output, ffmpeg), pcm(reference, ffmpeg), "{args:?}");
+    let bytes = std::fs::read(output).unwrap();
+    iso::validate(&bytes);
+    iso::validate(&std::fs::read(reference).unwrap());
+    bytes
+}
+
+#[test]
+fn closed_gop_input_seek_witnesses_match_complete_outputs() {
+    let pair = test_oracle::require();
+    let ffmpeg = pair.ffmpeg();
+    let owner = FixtureDir(
+        Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join(format!("ffmpeg-input-seek-c18-{}", std::process::id())),
+    );
+    std::fs::create_dir(&owner.0).unwrap();
+    for (name, parameters) in [
+        (
+            "hls_h264.mp4",
+            "keyint=50:min-keyint=50:scenecut=0:bframes=3:b-pyramid=normal",
+        ),
+        ("hls_long_gop.mp4", "keyint=125:min-keyint=125:scenecut=0"),
+    ] {
+        let input = owner.0.join(name);
+        let generated = Command::new(ffmpeg)
+            .args([
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=320x240:rate=25:duration=20",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=20:sample_rate=48000",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-x264-params",
+                parameters,
+                "-c:a",
+                "aac",
+                "-shortest",
+            ])
+            .arg(&input)
+            .output()
+            .unwrap();
+        assert!(
+            generated.status.success(),
+            "{}",
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        let output = owner.0.join("native.mp4");
+        let reference = owner.0.join("reference.mp4");
+        let args = [
+            "-ss",
+            "00:00:09",
+            "-i",
+            input.to_str().unwrap(),
+            "-t",
+            "00:00:03",
+            "-vcodec",
+            "copy",
+            "-acodec",
+            "copy",
+            "-y",
+        ];
+        for existing in [false, true] {
+            exact_copy(ffmpeg, pair.ffprobe(), &args, &output, &reference, existing);
+            std::fs::remove_file(&output).unwrap();
+        }
+    }
+}
+
 #[test]
 fn audio_bearing_input_seek_matches_complete_packets_and_presented_samples() {
     let pair = test_oracle::require();
@@ -460,44 +595,8 @@ fn audio_bearing_input_seek_matches_complete_packets_and_presented_samples() {
                             bound,
                             "1.25",
                         ];
-                        let oracle = Command::new(ffmpeg)
-                            .args(["-nostdin", "-v", "error"])
-                            .args(
-                                include_str!("../../../scripts/oracle-audio-args.txt")
-                                    .split_whitespace(),
-                            )
-                            .args(args)
-                            .arg(&reference)
-                            .output()
-                            .unwrap();
-                        assert!(
-                            oracle.status.success(),
-                            "{}",
-                            String::from_utf8_lossy(&oracle.stderr)
-                        );
-                        if existing {
-                            std::fs::write(&output, b"old output").unwrap();
-                        }
-                        let result = Command::new(env!("CARGO_BIN_EXE_coreav"))
-                            .arg("ffmpeg")
-                            .args(args)
-                            .arg(&output)
-                            .env("COREAV_STRICT_SAFE", "1")
-                            .env("COREAV_FALLBACK", owner.0.join("missing-fallback"))
-                            .output()
-                            .unwrap();
-                        assert!(
-                            result.status.success(),
-                            "{}",
-                            String::from_utf8_lossy(&result.stderr)
-                        );
-                        assert!(result.stdout.is_empty() && result.stderr.is_empty());
-                        assert_eq!(snapshot(&output, &ffprobe), snapshot(&reference, &ffprobe));
-                        assert_eq!(pixels(&output, ffmpeg), pixels(&reference, ffmpeg));
-                        assert_eq!(pcm(&output, ffmpeg), pcm(&reference, ffmpeg));
-                        let bytes = std::fs::read(&output).unwrap();
-                        iso::validate(&bytes);
-                        iso::validate(&std::fs::read(&reference).unwrap());
+                        let bytes =
+                            exact_copy(ffmpeg, &ffprobe, &args, &output, &reference, existing);
                         if rate == "24"
                             && bframes == "2"
                             && seek == "0.5"
@@ -733,6 +832,35 @@ fn input_seek_copy_keeps_only_exact_packet_timelines() {
         .unwrap();
     assert!(result.status.success());
     check(&tagged, "0.5", &[], &["-an", "-t", "1"], false);
+    check(&tagged, "0.5", &[], &["-t", "1"], false);
+    let custom_handler = dir.join("audio-handler.mp4");
+    let made = Command::new(&ffmpeg)
+        .args(["-nostdin", "-v", "error", "-i"])
+        .arg(inter)
+        .args([
+            "-c",
+            "copy",
+            "-metadata:s:a:0",
+            "handler_name=Unpreserved audio handler",
+        ])
+        .arg(&custom_handler)
+        .output()
+        .unwrap();
+    assert!(made.status.success());
+    check(&custom_handler, "0.5", &[], &["-t", "1"], false);
+    let volume = dir.join("audio-volume.mp4");
+    let mut bytes = std::fs::read(inter).unwrap();
+    let tkhd = bytes
+        .windows(4)
+        .enumerate()
+        .filter(|(_, kind)| *kind == b"tkhd")
+        .nth(1)
+        .unwrap()
+        .0;
+    assert_eq!(bytes[tkhd + 4], 0);
+    bytes[tkhd + 40..tkhd + 42].copy_from_slice(&128u16.to_be_bytes());
+    std::fs::write(&volume, bytes).unwrap();
+    check(&volume, "0.5", &[], &["-t", "1"], false);
     for (scale, source, seek, native) in [
         ("1000", inter, "0.5", false),
         ("8000", inter, "0.5", false),

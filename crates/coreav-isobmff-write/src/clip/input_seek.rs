@@ -206,7 +206,7 @@ fn audio_start<S: Source>(
         end = next.ok_or_else(overflow)?;
         first.get_or_insert(packet.sample);
         let time = i128::from(packet.dts.checked_sub(media).ok_or_else(overflow)?) * denominator;
-        if target % denominator != 0 && time.abs_diff(target) <= denominator as u128 {
+        if target % denominator != 0 && time > target && time - target < denominator {
             return Err(unqualified());
         }
         if time <= target {
@@ -398,10 +398,12 @@ fn groups<S: Source>(
     if description != membership {
         return Err(unqualified());
     }
-    Ok((
-        v.flags.ok_or_else(unqualified)?,
-        a.flags.ok_or_else(unqualified)?,
-    ))
+    let video_flags = v.flags.ok_or_else(unqualified)?;
+    let audio_flags = a.flags.ok_or_else(unqualified)?;
+    if audio_flags.volume != TrackFlags::DEFAULT.volume {
+        return Err(unqualified());
+    }
+    Ok((video_flags, audio_flags))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -630,4 +632,53 @@ pub(super) fn copy_av<S: Source, W: Write>(
         left_out: Vec::new(),
         boxes_left_out: video.description.other_boxes.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+
+    #[test]
+    fn composition_authority_requires_complete_unique_positive_intervals() {
+        let packet = |dts, cts| Packet {
+            sample: 0,
+            offset: 0,
+            size: 1,
+            dts,
+            cts,
+            duration: 2,
+            keyframe: true,
+            pts: None,
+            presentation_dts: None,
+            presented: true,
+        };
+        for (times, valid) in [
+            ([(0, 2), (2, 6), (4, 4)], true),
+            ([(0, 2), (2, 6), (4, 6)], false),
+            ([(0, 500), (2, 4), (4, 6)], true),
+        ] {
+            let mut proof = Composition::new(3, 24).unwrap();
+            for (dts, cts) in times {
+                proof.push(&packet(dts, cts)).unwrap();
+            }
+            assert_eq!(proof.finish().is_ok(), valid);
+        }
+        let mut proof = Composition::new(2, 16).unwrap();
+        proof.push(&packet(0, 2)).unwrap();
+        assert!(proof.push(&packet(3, 4)).is_err());
+        assert!(proof.finish().is_err());
+        assert!(Composition::new(3, 23).is_err());
+        assert!(Composition::new(1, 8).unwrap().push(&packet(2, 1)).is_err());
+        assert!(
+            Composition::new(1, 8)
+                .unwrap()
+                .push(&Packet {
+                    duration: 0,
+                    ..packet(0, 0)
+                })
+                .is_err()
+        );
+    }
 }
