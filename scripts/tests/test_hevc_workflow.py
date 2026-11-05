@@ -29,6 +29,7 @@ class HevcWorkflow(unittest.TestCase):
         for line in workflow.splitlines():
             if line.strip().startswith('paths:'):
                 self.assertIn('scripts/hevc_decode.py', json.loads(line.split(':', 1)[1]))
+                self.assertIn('scripts/test_oracle.py', json.loads(line.split(':', 1)[1]))
         step = workflow.split('- name: Check complete scalar conformance output\n', 1)[1]
         command = step.split('run: |\n', 1)[1].split('\n      - ', 1)[0]
         arguments = shlex.split(command.replace('\\\n', ''))
