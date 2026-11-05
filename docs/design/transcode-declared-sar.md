@@ -26,6 +26,12 @@ This plan is committed before code changes or new media verification. Implementa
 
 ## Development controls and retained limitations
 
+### Legacy comparison boundary
+
+The legacy encoder comparison retains its fixed reference command and exact equality for unaffected requests. An exception requires a valid source container declaration and successful unscaled encoding. It verifies only the new reduced `pasp`, the exact H.264 VUI `aspect_ratio_info` bit span, and the lengths and chunk offsets those bytes force. The audited SPS parser supplies that bit boundary; no second SPS parser is introduced. All remaining SPS bits, AVC configuration, sample-entry headers, other boxes and the complete `mdat` payload remain byte-identical. Both outputs must also decode to identical complete video bytes through the qualified oracle.
+
+The summary may differ only in `video.sample_aspect` and `output.bytes`. Each byte count must equal its actual file length, and its delta must equal exactly the structurally verified SAR signalling growth. Every other summary byte, exit code and stderr remains exact. Unsupported layouts fail closed. Oracle-free mutation tests must reject non-SAR payload, header, parameter-set, offset, summary and diagnostic changes with a named field. This is a current development gate, not a change to any registered measurement roster, frozen reference, historical result or tolerance.
+
 The integration control uses independent 96 by 64, seven-frame inputs at 10 fps, with declared square, non-square and absent ratios. It checks the pipeline's summary and `pasp` separately from the encoder's VUI. Declared-source, unscaled outputs use the unchanged exact decoded-output comparator; absence controls verify that CoreAV does not add a declaration.
 
 Separate before/after controls at 12 fps retain their original output clocks and complete scaled file bytes. Their seven-frame default FFmpeg reference has duration 7164 ticks, while CoreAV preserves the input's 7168 ticks at time base 1/12288. That existing timing difference is not repaired or counted here. The timestamped FFmpeg encoder worker also retains its existing square VUI default, including when the pipeline does not state a ratio or supplies another ratio through the container. The native x264 encoder follows the requested VUI. Neither existing worker behavior is changed to make this SAR fix pass.
