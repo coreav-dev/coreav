@@ -552,6 +552,9 @@ fn verifier_work_and_allocation_ceilings_are_inclusive() {
     }
 }
 
+#[path = "../../../../test-support/oracle.rs"]
+mod test_oracle;
+
 struct Fixture(PathBuf);
 
 impl Drop for Fixture {
@@ -566,38 +569,7 @@ fn generated(bframes: bool) -> Option<&'static [u8]> {
     let cache = if bframes { &REORDERED } else { &PLAIN };
     cache
         .get_or_init(|| {
-            let default = PathBuf::from("/opt/coreav-oracle-bin/ffmpeg");
-            let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| {
-                    if default.is_file() {
-                        return default.clone();
-                    }
-                    std::env::var_os("HOME")
-                        .map(PathBuf::from)
-                        .map(|home| home.join(".local/share/coreav-encoders/ffmpeg"))
-                        .filter(|local| local.is_file())
-                        .unwrap_or(default)
-                });
-            if !ffmpeg.is_file() {
-                assert!(
-                    std::env::var_os("CI").is_none()
-                        && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-                    "the pinned black-box FFmpeg is required"
-                );
-                return None;
-            }
-            let pin = include_str!("../../../../scripts/oracle-ffmpeg.env");
-            let build = pin
-                .lines()
-                .find_map(|line| line.strip_prefix("BUILD="))
-                .unwrap();
-            let version = Command::new(&ffmpeg).arg("-version").output().unwrap();
-            assert!(version.status.success());
-            assert!(
-                String::from_utf8_lossy(&version.stdout)
-                    .starts_with(&format!("ffmpeg version {build}"))
-            );
+            let ffmpeg = test_oracle::require().ffmpeg();
             let fixture = Fixture(
                 std::env::temp_dir()
                     .join(format!("coreav-ts-{}-{bframes}.mp4", std::process::id())),
