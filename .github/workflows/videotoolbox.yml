@@ -9,6 +9,7 @@ on:
       - crates/coreav-backend-apple/**
       - crates/coreav-h264/**
       - crates/coreav-hevc/**
+      - crates/coreav-kernels-hevc/**
       - crates/coreav-kernels-h264/**
       - crates/coreav-aac/**
       - Cargo.toml
@@ -28,6 +29,7 @@ on:
       - crates/coreav-backend-apple/**
       - crates/coreav-h264/**
       - crates/coreav-hevc/**
+      - crates/coreav-kernels-hevc/**
       - crates/coreav-kernels-h264/**
       - crates/coreav-aac/**
       - Cargo.toml

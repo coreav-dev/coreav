@@ -58,8 +58,14 @@ dependencies = [
 name = "coreav-hevc"
 version = "0.0.1"
 dependencies = [
+ "coreav-kernels-hevc",
+ "md-5",
  "sha2",
 ]
+
+[[package]]
+name = "coreav-kernels-hevc"
+version = "0.0.1"
 
 [[package]]
 name = "cpufeatures"
@@ -152,6 +158,16 @@ checksum = "a9fd2f41a1cba099f79a0b6b6c35656cf7c03351a7bae8ff0f28f25270f929d2"
 dependencies = [
  "arbitrary",
  "cc",
+]
+
+[[package]]
+name = "md-5"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
+dependencies = [
+ "cfg-if",
+ "digest",
 ]
 
 [[package]]
