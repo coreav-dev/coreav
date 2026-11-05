@@ -1212,6 +1212,10 @@ jobs:
             --manifest-path "$RUNNER_TEMP/coreav-legacy-source/Cargo.toml" \
             -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
             --target-dir "$RUNNER_TEMP/coreav-legacy-target"
+      - name: Build and test the disposable operator-only helper fixture
+        run: |
+          sudo apt-get install -y --no-install-recommends nasm pkg-config
+          bash scripts/build-x264-helper-fixture.sh "$RUNNER_TEMP/coreav-helper-fixture"
       - name: coreav transcode on the fixtures, with both encoders
         env:
           COREAV_REQUIRE_FFMPEG: '1'
@@ -1220,8 +1224,10 @@ jobs:
           COREAV_X264: ${{ runner.temp }}/coreav-x264/x264
           COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
           COREAV_LEGACY_TRANSCODE: ${{ runner.temp }}/coreav-legacy-target/release/coreav
+          COREAV_TEST_X264_SHM_HELPER: ${{ runner.temp }}/coreav-helper-fixture/coreav-x264-shm
+          COREAV_REQUIRE_X264_HELPER: '1'
         run: |
-          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test transcode --test frame_handoff --test decoder_host \
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test transcode --test frame_handoff --test decoder_host --test shared_encoder \
             --target-dir target/fallback
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
             --test legacy_encoders --target-dir target/fallback

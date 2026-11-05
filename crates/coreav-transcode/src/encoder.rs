@@ -20,6 +20,10 @@
 //! - a keeper, which owns the process and kills its process group at the
 //!   deadline, on an error, or when the encoder is dropped.
 //!
+//! The explicitly selected Linux [`EncoderProgram::X264Shared`] helper
+//! instead receives sealed, immutable frame files and a control protocol.
+//! Its encoded bytes pass through the same sink and process lifecycle.
+//!
 //! Every wait of the caller ends at the deadline. A sink that refuses
 //! bytes ends the encode with its error and kills the encoder.
 
@@ -29,7 +33,7 @@ use std::io::{self, Read, Write};
 #[cfg(unix)]
 use std::os::fd::{AsFd, OwnedFd};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, ExitStatus};
+use std::process::{Child, ChildStderr, ChildStdin, ExitStatus};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Condvar, Mutex};
@@ -40,11 +44,16 @@ use coreav_frame::{Chroma, ColorInfo, Picture, PixelFormat, Pixels};
 use coreav_worker::exec;
 use coreav_worker::{ExecLauncher, HugePages, SandboxLimits};
 
+#[cfg(target_os = "linux")]
+mod shared_input;
+
 /// The encoder program.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EncoderProgram {
     /// An `x264` command-line program.
     X264(PathBuf),
+    /// An explicitly selected, operator-built shared-memory x264 helper.
+    X264Shared(PathBuf),
     /// An `ffmpeg` program built with libx264, run as `ffmpeg -c:v
     /// libx264`.
     Ffmpeg(PathBuf),
@@ -54,14 +63,14 @@ impl EncoderProgram {
     /// The program's path.
     pub fn path(&self) -> &Path {
         match self {
-            Self::X264(path) | Self::Ffmpeg(path) => path,
+            Self::X264(path) | Self::X264Shared(path) | Self::Ffmpeg(path) => path,
         }
     }
 
     /// `x264` or `ffmpeg`, for messages and summaries.
     pub fn name(&self) -> &'static str {
         match self {
-            Self::X264(_) => "x264",
+            Self::X264(_) | Self::X264Shared(_) => "x264",
             Self::Ffmpeg(_) => "ffmpeg",
         }
     }
@@ -71,6 +80,13 @@ impl EncoderProgram {
     pub fn args(&self, settings: &EncoderSettings) -> Result<Vec<String>, Error> {
         match self {
             Self::X264(_) => x264_args(settings),
+            #[cfg(target_os = "linux")]
+            Self::X264Shared(_) => shared_input::args(settings),
+            #[cfg(not(target_os = "linux"))]
+            Self::X264Shared(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "the shared-memory x264 helper requires Linux",
+            )),
             Self::Ffmpeg(_) => ffmpeg_args(settings),
         }
     }
@@ -81,7 +97,9 @@ impl EncoderProgram {
     /// (`docs/measurements/transcode-x264-10bit.md`, "Huge pages").
     pub fn huge_pages(&self, format: PixelFormat) -> HugePages {
         match (self, format) {
-            (Self::X264(_), PixelFormat::Yuv { depth, .. }) if depth > 8 => HugePages::Off,
+            (Self::X264(_) | Self::X264Shared(_), PixelFormat::Yuv { depth, .. }) if depth > 8 => {
+                HugePages::Off
+            }
             _ => HugePages::Kept,
         }
     }
@@ -106,7 +124,9 @@ pub enum EncoderChoice {
 /// `ffmpeg` on `PATH`, as for the decode fallback
 /// ([`coreav_worker::find_ffmpeg`]). A variable set to something that is not
 /// a file finds nothing, not the `PATH` program. `Auto` takes `x264` when
-/// there is one and `ffmpeg` otherwise. A named path (with a `/`, or on
+/// there is one and `ffmpeg` otherwise. Explicit `X264` selection without
+/// `--x264` uses `COREAV_X264_SHM_HELPER` when configured; `Auto` ignores it.
+/// A named path (with a `/`, or on
 /// Windows a `/` or `\`) is taken as given, and a wrong one fails when
 /// the encoder starts, with its path in the message; a bare name is looked
 /// for on `PATH`, and finds nothing when it is not there.
@@ -137,6 +157,15 @@ fn find_encoder_in(
         Some(bare) => on_path(&bare.to_string_lossy(), env),
         None => find_program(variable, name, env),
     };
+    let helper = if choice == EncoderChoice::X264 && x264.is_none() {
+        env("COREAV_X264_SHM_HELPER").map(PathBuf::from)
+    } else {
+        None
+    };
+    if let Some(helper) = helper {
+        return (helper.is_absolute() && helper.is_file())
+            .then_some(EncoderProgram::X264Shared(helper));
+    }
     let x264 = || pick(&x264, "COREAV_X264", "x264").map(EncoderProgram::X264);
     let ffmpeg = || pick(&ffmpeg, "COREAV_FFMPEG", "ffmpeg").map(EncoderProgram::Ffmpeg);
     match choice {
@@ -775,6 +804,10 @@ struct Queue {
     stopped: bool,
     /// Frames written whole to the encoder's input.
     written: u64,
+    #[cfg(target_os = "linux")]
+    pending_snapshot: Option<u64>,
+    #[cfg(target_os = "linux")]
+    acknowledged_snapshot: u64,
 }
 
 impl Shared {
@@ -1057,6 +1090,26 @@ impl<S: Sink> Encoder<S> {
             limits,
             deadline,
         );
+        #[cfg(target_os = "linux")]
+        let process = if matches!(program, EncoderProgram::X264Shared(_)) {
+            let settings = settings.clone();
+            Process::spawn_using(
+                name,
+                "frames",
+                Start {
+                    command,
+                    program: program.path(),
+                    deadline,
+                    sink,
+                    keep_alive: None,
+                },
+                move |stdin, shared| shared_input::write_frames(stdin, shared, &settings, deadline),
+                true,
+            )?
+        } else {
+            Process::spawn(name, "frames", command, program.path(), deadline, sink)?
+        };
+        #[cfg(not(target_os = "linux"))]
         let process = Process::spawn(name, "frames", command, program.path(), deadline, sink)?;
         Ok(Self {
             process,
@@ -1234,6 +1287,7 @@ impl<S: Sink> Process<S> {
                 let pipe = None;
                 let _ = write_frames(stdin, shared, pipe);
             },
+            false,
         )
     }
 
@@ -1268,6 +1322,7 @@ impl<S: Sink> Process<S> {
                     shared.stop();
                 }
             },
+            false,
         )
     }
 
@@ -1276,6 +1331,7 @@ impl<S: Sink> Process<S> {
         unit: &'static str,
         start: Start<'_, S>,
         write: impl FnOnce(ChildStdin, &Shared) + Send + 'static,
+        helper: bool,
     ) -> Result<Self, Error> {
         let Start {
             mut command,
@@ -1341,7 +1397,22 @@ impl<S: Sink> Process<S> {
             let shared = Arc::clone(&shared);
             let keeper = keeper.clone();
             spawn_thread("coreav-encoder-reader", move || {
-                let outcome = read_output(stdout, sink, &shared, &keeper);
+                #[cfg(target_os = "linux")]
+                let outcome = if helper {
+                    read_output(
+                        shared_input::Output::new(stdout, &shared, deadline),
+                        sink,
+                        &shared,
+                        &keeper,
+                    )
+                } else {
+                    read_output(stdout, sink, &shared, &keeper)
+                };
+                #[cfg(not(target_os = "linux"))]
+                let outcome = {
+                    let _ = helper;
+                    read_output(stdout, sink, &shared, &keeper)
+                };
                 let _ = reader_tx.send(outcome);
             })
         });
@@ -1697,7 +1768,7 @@ impl Chunk {
         #[cfg(unix)]
         if let (Pixels::Shared(picture), Some(pipe)) = (pixels, pipe) {
             out.flush()?;
-            if picture.memory.write_to_pipe(pipe.as_fd())? {
+            if picture.memory.write_to_fd(pipe.as_fd())? {
                 return Ok(());
             }
         }
@@ -1816,7 +1887,7 @@ fn write_frames(mut stdin: impl Write, shared: &Shared, pipe: Option<Pipe>) -> b
 /// Hands the encoder's output to `sink` until it ends. A sink error is
 /// recorded, stops the writer and kills the encoder.
 fn read_output<S: Sink>(
-    mut stdout: ChildStdout,
+    mut stdout: impl Read,
     mut sink: S,
     shared: &Shared,
     keeper: &Sender<()>,
@@ -1830,9 +1901,6 @@ fn read_output<S: Sink>(
                     break Err(Error::new(ErrorKind::Backend, "short read"));
                 };
                 if let Err(e) = sink.write(bytes) {
-                    shared.record(e.clone());
-                    shared.stop();
-                    let _ = keeper.send(());
                     break Err(e);
                 }
             }
@@ -1845,6 +1913,11 @@ fn read_output<S: Sink>(
             }
         }
     };
+    if let Err(error) = &result {
+        shared.record(error.clone());
+        shared.stop();
+        let _ = keeper.send(());
+    }
     shared.output_ended.store(true, Ordering::SeqCst);
     (sink, result)
 }
@@ -1876,6 +1949,39 @@ mod tests {
     use coreav_frame::{Plane, SharedMemory, SharedPicture};
 
     use super::*;
+
+    #[test]
+    fn the_shared_helper_requires_explicit_selection_and_never_overrides_a_named_pipe_program() {
+        let helper = std::env::current_exe().unwrap();
+        let env = |name: &str| match name {
+            "COREAV_X264_SHM_HELPER" => Some(helper.clone().into_os_string()),
+            "COREAV_X264" => Some(helper.clone().into_os_string()),
+            _ => None,
+        };
+        assert_eq!(
+            find_encoder_in(EncoderChoice::X264, None, None, &env),
+            Some(EncoderProgram::X264Shared(helper.clone()))
+        );
+        assert_eq!(
+            find_encoder_in(EncoderChoice::Auto, None, None, &env),
+            Some(EncoderProgram::X264(helper.clone()))
+        );
+        assert_eq!(
+            find_encoder_in(EncoderChoice::X264, Some(helper.clone()), None, &env),
+            Some(EncoderProgram::X264(helper))
+        );
+        for invalid in ["/no/shared/helper", "Cargo.toml"] {
+            let missing = |name: &str| match name {
+                "COREAV_X264_SHM_HELPER" => Some(OsString::from(invalid)),
+                "COREAV_X264" => Some(std::env::current_exe().unwrap().into_os_string()),
+                _ => None,
+            };
+            assert_eq!(
+                find_encoder_in(EncoderChoice::X264, None, None, &missing),
+                None
+            );
+        }
+    }
 
     struct Packed(Vec<u8>);
 

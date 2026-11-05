@@ -550,7 +550,7 @@ fn execute<S: Source, W: Write>(
     // decoder leaves one out (docs/design/transcode.md).
     let timecodes = match &prepared {
         PreparedVideo::H264 {
-            program: EncoderProgram::X264(_),
+            program: EncoderProgram::X264(_) | EncoderProgram::X264Shared(_),
             presented,
             ..
         } => {

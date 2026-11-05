@@ -242,7 +242,7 @@ fn shared_frame_pipe() {
             panic!("the shared input must go directly to the pipe")
         }
         #[cfg(unix)]
-        fn write_to_pipe(&self, pipe: std::os::fd::BorrowedFd<'_>) -> std::io::Result<bool> {
+        fn write_to_fd(&self, pipe: std::os::fd::BorrowedFd<'_>) -> std::io::Result<bool> {
             use std::io::Write;
             let mut file = File::from(pipe.try_clone_to_owned()?);
             file.write_all(&self.bytes)?;

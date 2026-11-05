@@ -1114,6 +1114,7 @@ fn run_transcode(
                     coreav_transcode::encoder::EncoderProgram::X264(path) => {
                         selected.x264 = Some(path);
                     }
+                    coreav_transcode::encoder::EncoderProgram::X264Shared(_) => {}
                     coreav_transcode::encoder::EncoderProgram::Ffmpeg(path) => {
                         selected.ffmpeg = Some(path);
                     }

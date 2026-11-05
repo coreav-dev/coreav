@@ -309,8 +309,8 @@ dependencies = [
  "coreav-avi",
  "coreav-backend-dav1d",
  "coreav-backend-h264",
- "coreav-backend-svt-av1",
  "coreav-backend-libvpx",
+ "coreav-backend-svt-av1",
  "coreav-backend-vp9",
  "coreav-decode",
  "coreav-frame",
@@ -558,6 +558,7 @@ dependencies = [
  "coreav-mkv",
  "coreav-thumbnail",
  "coreav-worker",
+ "rustix",
  "serde",
  "sha2",
 ]
