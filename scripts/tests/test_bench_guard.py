@@ -59,7 +59,7 @@ class InstructionTolerance(unittest.TestCase):
 class FfmpegGuard(unittest.TestCase):
     def test_required_refusals_are_only_the_two_approved_commands(self):
         self.assertEqual(bench_guard.REQUIRED_REFUSALS,
-                         {"ffmpeg-C02-join", "ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"})
+                         {"ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"})
         self.assertEqual(bench_guard.CASES["ffmpeg-C02-join"],
                          ("video.mp4", ["ffmpeg", "-f", "concat", "-i", "{inputs:concat}",
                                         "-c", "copy", "{out}/out.mp4"]))

@@ -7,6 +7,8 @@
 use std::num::NonZeroU64;
 
 use coreav_decode::{Error, ErrorKind};
+#[cfg(feature = "svt-av1")]
+use coreav_frame::Pixels;
 use coreav_frame::{Picture, PixelFormat};
 
 use crate::timing::{SampleTime, sample_times};
@@ -113,17 +115,53 @@ impl Submissions {
     /// Checks a frame before assigning its identity. Times increase strictly.
     /// A failed submission leaves the recorded times unchanged.
     pub fn submit(&mut self, picture: Picture, pts: i64) -> Result<SubmittedFrame, Error> {
-        if (
+        let id = self.admit(
             picture.width(),
             picture.height(),
             picture.format(),
-            picture.packed_len(),
-        ) != (
-            self.layout.width,
-            self.layout.height,
-            self.layout.format,
-            self.layout.bytes,
-        ) {
+            Some(picture.packed_len()),
+            pts,
+        )?;
+        Ok(SubmittedFrame { id, pts, picture })
+    }
+
+    #[cfg(feature = "svt-av1")]
+    pub(crate) fn submit_pixels(&mut self, pixels: &Pixels, pts: i64) -> Result<FrameId, Error> {
+        match pixels {
+            Pixels::Cpu(picture) => self.admit(
+                picture.width(),
+                picture.height(),
+                picture.format(),
+                Some(picture.packed_len()),
+                pts,
+            ),
+            Pixels::Shared(picture) => self.admit(
+                picture.width,
+                picture.height,
+                picture.format,
+                picture.packed_len(),
+                pts,
+            ),
+            Pixels::Cuda(_) => Err(invalid("submitted frame is in device memory")),
+        }
+    }
+
+    fn admit(
+        &mut self,
+        width: u32,
+        height: u32,
+        format: PixelFormat,
+        bytes: Option<usize>,
+        pts: i64,
+    ) -> Result<FrameId, Error> {
+        if (width, height, format, bytes)
+            != (
+                self.layout.width,
+                self.layout.height,
+                self.layout.format,
+                Some(self.layout.bytes),
+            )
+        {
             return Err(invalid("submitted frame differs from the encoder layout"));
         }
         if self.times.last().is_some_and(|last| pts <= *last) {
@@ -138,11 +176,7 @@ impl Submissions {
             .try_reserve(1)
             .map_err(|_| limit("cannot store submitted frame time"))?;
         self.times.push(pts);
-        Ok(SubmittedFrame {
-            id: FrameId(index),
-            pts,
-            picture,
-        })
+        Ok(FrameId(index))
     }
 }
 

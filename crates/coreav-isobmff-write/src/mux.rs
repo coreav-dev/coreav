@@ -417,34 +417,11 @@ impl Muxer {
         self.written = true;
         for track in &mut self.tracks {
             if self.packet_order {
-                let (delay, media) = match track.header.edits.as_slice() {
-                    [] => (0, None),
-                    [media] if media.media_time >= 0 => (0, Some(media)),
-                    [empty, media] if empty.media_time == -1 && media.media_time >= 0 => {
-                        (empty.duration, Some(media))
-                    }
-                    _ => return Err(invalid("packet ordering needs simple edits").into()),
-                };
-                if track
-                    .header
-                    .edits
-                    .iter()
-                    .any(|edit| edit.rate != Edit::UNIT_RATE)
-                {
-                    return Err(invalid("packet ordering needs unit-rate edits").into());
-                }
-                let delay = u128::from(delay) * u128::from(track.header.timescale);
-                let clock = u128::from(self.movie.timescale);
-                if delay % clock != 0 {
-                    return Err(Error::Unsupported {
-                        reason: "packet ordering needs an exact edit delay",
-                    }
-                    .into());
-                }
-                let delay = i128::try_from(delay / clock).map_err(|_| overflow())?;
-                let origin = delay - i128::from(media.map_or(0, |edit| edit.media_time));
-                track.tables.decode_start = i64::try_from(origin)
-                    .map_err(|_| invalid("packet ordering needs a signed 64-bit decode origin"))?;
+                track.tables.decode_start = crate::moov::edited_decode_start(
+                    &track.header.edits,
+                    track.header.timescale,
+                    self.movie.timescale,
+                )?;
             }
             track.tables.finish();
         }
@@ -673,10 +650,60 @@ pub fn avc1_sample_entry(
             "the avcC payload is not an AVCDecoderConfigurationRecord",
         ));
     }
-    let mut children = vec![RawBox {
-        kind: FourCc(*b"avcC"),
-        payload: avcc.to_vec(),
-    }];
+    codec_sample_entry(
+        FourCc(*b"avc1"),
+        width,
+        height,
+        RawBox {
+            kind: FourCc(*b"avcC"),
+            payload: avcc.to_vec(),
+        },
+        pixel_aspect,
+        colour,
+    )
+}
+
+/// An AV1 `av01` visual sample entry (AV1 ISOBMFF binding 2.2 and 2.3).
+/// `width` and `height` are the sequence header's maximum frame dimensions.
+/// The supplied `av1c` is copied into its `av1C` child, followed by optional
+/// `colr` and `pasp` boxes as for [`avc1_sample_entry`].
+///
+/// Checks the configuration marker, version and minimum record length.
+/// The caller validates its remaining fields, configuration OBUs and geometry.
+pub fn av01_sample_entry(
+    width: u16,
+    height: u16,
+    av1c: &[u8],
+    pixel_aspect: Option<(u32, u32)>,
+    colour: Option<Nclx>,
+) -> Result<Vec<u8>, Error> {
+    if av1c.len() < 4 || av1c.first() != Some(&0x81) {
+        return Err(invalid(
+            "the av1C payload is not an AV1CodecConfigurationRecord",
+        ));
+    }
+    codec_sample_entry(
+        FourCc(*b"av01"),
+        width,
+        height,
+        RawBox {
+            kind: FourCc(*b"av1C"),
+            payload: av1c.to_vec(),
+        },
+        pixel_aspect,
+        colour,
+    )
+}
+
+fn codec_sample_entry(
+    kind: FourCc,
+    width: u16,
+    height: u16,
+    configuration: RawBox,
+    pixel_aspect: Option<(u32, u32)>,
+    colour: Option<Nclx>,
+) -> Result<Vec<u8>, Error> {
+    let mut children = vec![configuration];
     if let Some(c) = colour {
         let mut nclx = b"nclx".to_vec();
         for code in [c.primaries, c.transfer, c.matrix] {
@@ -699,7 +726,7 @@ pub fn avc1_sample_entry(
             payload: pasp,
         });
     }
-    visual_sample_entry(FourCc(*b"avc1"), width, height, &[0; 32], 0x0018, &children)
+    visual_sample_entry(kind, width, height, &[0; 32], 0x0018, &children)
 }
 
 /// An ISO version 0 audio sample entry (ISO/IEC 14496-12 12.2.3): the
@@ -814,6 +841,64 @@ mod tests {
             sample_table_boxes: Vec::new(),
             boxes: Vec::new(),
         }
+    }
+
+    #[test]
+    fn codec_entries_preserve_configuration_colour_aspect_and_avc_bytes() {
+        let avcc = [1, 0x64, 0, 0x1f, 0xff, 0xe0, 0];
+        let av1c = [0x81, 0, 0x0c, 0];
+        let colour = Nclx {
+            primaries: 1,
+            transfer: 1,
+            matrix: 1,
+            full_range: true,
+        };
+        for (kind, config_kind, config, entry) in [
+            (
+                *b"avc1",
+                *b"avcC",
+                avcc.as_slice(),
+                avc1_sample_entry(64, 80, &avcc, Some((4, 3)), Some(colour)).unwrap(),
+            ),
+            (
+                *b"av01",
+                *b"av1C",
+                av1c.as_slice(),
+                av01_sample_entry(64, 80, &av1c, Some((4, 3)), Some(colour)).unwrap(),
+            ),
+        ] {
+            let expected = visual_sample_entry(
+                FourCc(kind),
+                64,
+                80,
+                &[0; 32],
+                0x18,
+                &[
+                    RawBox {
+                        kind: FourCc(config_kind),
+                        payload: config.to_vec(),
+                    },
+                    RawBox {
+                        kind: FourCc(*b"colr"),
+                        payload: b"nclx\0\x01\0\x01\0\x01\x80".to_vec(),
+                    },
+                    RawBox {
+                        kind: FourCc(*b"pasp"),
+                        payload: vec![0, 0, 0, 4, 0, 0, 0, 3],
+                    },
+                ],
+            )
+            .unwrap();
+            assert_eq!(entry, expected);
+        }
+        for length in 0..4 {
+            assert!(av01_sample_entry(64, 80, &av1c[..length], None, None).is_err());
+        }
+        for first in [0, 1, 0x80, 0x82, 0xff] {
+            assert!(av01_sample_entry(64, 80, &[first, 0, 0x0c, 0], None, None).is_err());
+        }
+        assert!(av01_sample_entry(64, 80, &av1c, Some((0, 1)), None).is_err());
+        assert!(av01_sample_entry(64, 80, &av1c, Some((1, 0)), None).is_err());
     }
 
     #[test]

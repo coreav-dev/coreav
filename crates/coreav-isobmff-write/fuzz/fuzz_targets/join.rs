@@ -59,6 +59,7 @@ fuzz_target!(|data: &[u8]| {
             Some(at) if audio & 4 != 0 => Placement::At(vec![Rational::from_int(0), at]),
             _ => Placement::AfterVideo,
         },
+        compatibility: None,
     };
     let mut out = Vec::new();
     let Ok(summary) = join_mp4(

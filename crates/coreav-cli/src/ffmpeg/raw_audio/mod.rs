@@ -50,6 +50,7 @@ pub struct Plan {
     channels: exact::ChannelPlan,
     output_rate: u32,
     output_format: SampleFormat,
+    wav_metadata: bool,
 }
 
 pub(super) fn legacy(command: &Command, report: &Report, selected: &[usize]) -> bool {
@@ -308,6 +309,9 @@ pub(super) fn plan(
         channels: channel_plan,
         output_rate,
         output_format,
+        wav_metadata: report.chapters.is_empty()
+            && (command.map_metadata != MapMetadata::Default
+                || !super::pcm::has_unpreserved_format_metadata(report)),
     })
 }
 
@@ -709,13 +713,28 @@ pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value,
             .checked_mul(u64::from(summary.output.channels) * summary.output.format.bytes() as u64)
             .filter(|bytes| coreav_audio::wav::fits(*bytes))
             .ok_or_else(|| Refusal::not_native("WAV output exceeds its size fields"))?;
-        Some(coreav_audio::wav::header(
-            summary.output.format,
-            summary.output.channels,
-            summary.output.sample_rate,
-            summary.output.channel_mask,
-            (!args::stdout(&command.output)).then_some(bytes),
-        ))
+        let length = (!args::stdout(&command.output)).then_some(bytes);
+        let tagged = if plan.eligibility == DecoderEligibilityKind::DecodeTolerance
+            && summary.output.format == SampleFormat::S16
+            && plan.wav_metadata
+        {
+            match wav::output_header(summary.output.sample_rate, summary.output.channels, length) {
+                Ok(header) => Some(header),
+                Err(Error::Unsupported(_)) => None,
+                Err(error) => return Err(prestart(error)),
+            }
+        } else {
+            None
+        };
+        Some(tagged.unwrap_or_else(|| {
+            coreav_audio::wav::header(
+                summary.output.format,
+                summary.output.channels,
+                summary.output.sample_rate,
+                summary.output.channel_mask,
+                length,
+            )
+        }))
     } else {
         None
     };

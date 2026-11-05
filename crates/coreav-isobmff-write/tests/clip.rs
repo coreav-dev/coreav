@@ -749,6 +749,7 @@ fn an_hevc_window_that_leaves_no_picture_is_refused_by_every_writer() {
             video: VideoChoice::First,
             audio: JoinAudio::First,
             placement: Placement::AfterVideo,
+            compatibility: None,
         },
         &mut out,
     )

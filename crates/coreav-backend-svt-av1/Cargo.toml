@@ -8,11 +8,12 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/coreav-dev/coreav"
 publish = false
 
-[workspace]
-resolver = "3"
+[features]
+default = []
+native = []
 
 [lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 missing_docs = "warn"
 
 [lints.clippy]

@@ -158,6 +158,33 @@ class SvtNativeWorkflow(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(output.read_text(), 'version=1.75.9\n')
 
+    def test_native_backend_uses_the_installed_pin_despite_a_stable_override(self):
+        step = next(s for s in self.job['steps'] if s.get('name') == 'Test the native Rust backend')
+        for target in (row['target'] for row in self.job['strategy']['matrix']['include']):
+            for failure in (0, 23):
+                with self.subTest(target=target, failure=failure), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    (root / 'scripts').mkdir()
+                    (root / 'scripts/rust-dist.env').write_text('RUST_DIST_TOOLCHAIN=1.75.9\n')
+                    (root / 'rust-toolchain.toml').write_text('[toolchain]\nchannel="stable"\n')
+                    cargo = root / 'cargo'
+                    cargo.write_text(
+                        '#!/bin/bash\nset -euo pipefail\n'
+                        '[[ "$1" == +1.75.9 ]] || exit 19\n'
+                        '[[ "$*" == "+1.75.9 test --locked -p coreav-backend-svt-av1 --features native --target $TARGET" ]]\n'
+                        '[[ "$SVT_AV1_PREFIX" == "$RUNNER_TEMP/svt-av1" ]]\n'
+                        '[[ "$(printenv "$LINKER_KEY")" == "$COMPILER" ]]\n'
+                        'exit "$FAILURE"\n')
+                    cargo.chmod(0o755)
+                    result = subprocess.run(['bash', '-c', step['run']], cwd=root,
+                                            env={**os.environ, 'PATH': str(root) + os.pathsep + os.environ['PATH'],
+                                                 'RUSTUP_TOOLCHAIN': 'stable', 'TARGET': target,
+                                                 'RUNNER_TEMP': str(root), 'FAILURE': str(failure),
+                                                 'LINKER_KEY': 'CARGO_TARGET_' + target.upper().replace('-', '_') + '_LINKER',
+                                                 'COMPILER': 'musl-gcc' if 'linux' in target else 'clang'},
+                                            capture_output=True, text=True, timeout=10)
+                    self.assertEqual(result.returncode, failure, result.stderr)
+
     def test_rust_link_follows_licences_and_propagates_each_failure(self):
         step = next(s for s in self.job['steps'] if s.get('id') == 'rust-link')
         licenses = next(s for s in self.job['steps'] if s.get('id') == 'native-licenses')

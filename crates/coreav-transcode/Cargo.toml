@@ -18,6 +18,7 @@ coreav-isobmff-write = { path = "../coreav-isobmff-write" }
 coreav-mkv = { path = "../coreav-mkv" }
 coreav-thumbnail = { path = "../coreav-thumbnail" }
 coreav-worker = { path = "../coreav-worker" }
+coreav-backend-svt-av1 = { path = "../coreav-backend-svt-av1", optional = true }
 sha2 = { version = "0.10", optional = true }
 serde = { workspace = true, optional = true }
 
@@ -25,10 +26,17 @@ serde = { workspace = true, optional = true }
 # AAC LC decoding in `coreav-audio`, including sources of audio encodes.
 aac = ["coreav-audio/aac"]
 input-capture = ["dep:sha2", "dep:serde"]
+svt-av1 = ["dep:coreav-backend-svt-av1"]
+svt-av1-native = ["svt-av1", "coreav-backend-svt-av1/native"]
 
 [[test]]
 name = "sandboxed"
 # Its `main` is also the sandbox launcher the tests start (`EXEC_ARG`).
+harness = false
+
+[[test]]
+name = "av1_process"
+required-features = ["svt-av1"]
 harness = false
 
 [lints]
