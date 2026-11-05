@@ -1274,6 +1274,9 @@ def corpus_record(item, path, directory, oracle_bin, *, intra=None):
             record['admission'] = 'first independent IRAP validated; full decode not established'
     except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
         record.update(status='blocked', reason=type(error).__name__)
+        report = directory / item['sha256'] / 'intra.json'
+        if intra and item['partition'] == 'development' and report.exists():
+            record['intra'] = read_json(report)
     return record
 
 
@@ -1286,6 +1289,16 @@ def corpus_result(records):
     selected = [r for r in records if 'intra' in r]
     if selected:
         result['development_intra'] = dict(expected=26, completed=sum(r['intra'].get('complete') is True for r in selected))
+        stages = ('extract_first_picture', 'headers', 'oracle', 'reconstruction', 'comparison', 'complete')
+        result['development_intra']['stages'] = {stage: sum(r['intra'].get('stage') == stage for r in selected) for stage in stages}
+        refusals = collections.Counter()
+        for record in selected:
+            refusal = record['intra'].get('native_refusal', {})
+            reason = refusal.get('reason')
+            if (refusal.get('kind') == 'refusal' and refusal.get('category') in ('invalid_data', 'limit', 'unsupported')
+                    and isinstance(reason, str) and re.fullmatch('[a-z0-9_]{1,80}', reason)):
+                refusals[reason] += 1
+        result['development_intra']['native_refusals'] = dict(refusals)
         result['complete'] &= len(selected) == 26 and result['development_intra']['completed'] == 26
     return result
 

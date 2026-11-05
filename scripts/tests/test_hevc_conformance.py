@@ -946,6 +946,22 @@ class Conformance(unittest.TestCase):
             with self.assertRaises(ValueError):
                 runner.child([], self.root / 'invalid', 'limits', file_limit=limit)
 
+    def test_development_failure_aggregates_keep_the_denominator_and_omit_arbitrary_diagnostics(self):
+        records = [dict(partition='development' if i < 26 else 'held-out-partition', profile='Main',
+                        bit_depth=8, status='inspected') for i in range(54)]
+        for record in records[:26]:
+            record['intra'] = dict(complete=True, stage='complete')
+        records[0].update(status='blocked', intra=dict(complete=False, stage='reconstruction',
+            native_refusal=dict(kind='refusal', category='invalid_data', reason='intra_context')))
+        result = runner.corpus_result(records)
+        self.assertFalse(result['complete'])
+        self.assertEqual(result['development_intra']['expected'], 26)
+        self.assertEqual(result['development_intra']['completed'], 25)
+        self.assertEqual(result['development_intra']['stages']['reconstruction'], 1)
+        self.assertEqual(result['development_intra']['native_refusals'], dict(intra_context=1))
+        records[0]['intra']['native_refusal']['reason'] = 'untrusted diagnostic / canary'
+        self.assertNotIn('canary', json.dumps(runner.corpus_result(records)['development_intra']))
+
 
 class AnchoredPictures(unittest.TestCase):
     def setUp(self):

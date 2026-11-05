@@ -85,6 +85,41 @@ class Packing(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'coded_component_mismatch'):
                 runner.compare_picture(bytes([raw[0] ^ 1]) + raw[1:], metadata, dict(reference=reference), None)
 
+    def test_failure_diagnostics_require_complete_anchored_output_and_remove_raw_oracle_bytes(self):
+        for depth in (8, 10):
+            raw, metadata, candidate, oracle = self.picture(depth)
+            metadata['ctb_log2'] = 4
+            base = 0 if depth == 8 else 512
+            values = [base + v for v in (2, 3, 8, 9, 51, 81)]
+            expected = bytes(values) if depth == 8 else b''.join(struct.pack('<H', v) for v in values)
+            with tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                output, stderr, native = root / 'oracle.raw', root / 'oracle.stderr', root / 'native.u16le'
+                changed = bytearray(raw)
+                changed[4] ^= 1
+                native.write_bytes(changed)
+                stderr.write_text('frame=1\ndup_frames=0\ndrop_frames=0\nprogress=end\n')
+                stream = dict(test='unit', frames=[dict(pix_fmt='yuv420p' if depth == 8 else 'yuv420p10le')],
+                              record=dict(reference_frames=[candidate['reference']], reference_packing=dict(md5=oracle['md5'])))
+                output.write_bytes(expected)
+                with mock.patch.object(runner.harness, 'child', return_value=(0, output, stderr)) as child:
+                    report = runner.diagnose_picture(root / 'ffmpeg', root / 'original.hevc', root,
+                                                     stream, candidate, native, metadata)
+                    command = child.call_args.args[0]
+                    self.assertNotIn('-frames:v', command)
+                    self.assertNotIn('-vf', command)
+                self.assertEqual(report['changed_samples'], [1, 0, 0])
+                self.assertEqual(report['first_differences'], [dict(component=0, x=2, y=0, delta=1)])
+                self.assertFalse(output.exists())
+                self.assertEqual(native.read_bytes(), changed)
+                output.write_bytes(expected)
+                stream['record']['reference_packing']['md5'] = 'f' * 32
+                with mock.patch.object(runner.harness, 'child', return_value=(0, output, stderr)), \
+                        self.assertRaisesRegex(ValueError, 'whole_reference'):
+                    runner.diagnose_picture(root / 'ffmpeg', root / 'original.hevc', root,
+                                            stream, candidate, native, metadata)
+                self.assertFalse(output.exists())
+
 
 class Census(unittest.TestCase):
     def setUp(self):
