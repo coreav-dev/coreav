@@ -16,7 +16,10 @@ pub(super) use avc::summary as avc_summary;
 mod hevc;
 #[cfg(test)]
 pub(super) use hevc::tests::fixture_record as hevc_test_record;
-pub(super) use hevc::{slice_selects as hevc_slice_selects, summary_config as hevc_summary_config};
+pub(super) use hevc::{
+    SUMMARY_PREFIX_BYTES as HEVC_SUMMARY_PREFIX_BYTES, slice_selects as hevc_slice_selects,
+    summary_config as hevc_summary_config,
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Aspect {

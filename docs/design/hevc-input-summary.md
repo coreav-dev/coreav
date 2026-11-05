@@ -2,7 +2,7 @@
 
 ## Goal
 
-Qualify native input summaries for a narrow video-only `hev1` MP4 layout. The current CLI refuses this layout even when its structured report and the same stream stored as `hvc1` agree with the pinned FFmpeg 9.0.2. Commit this plan before implementation and review it first.
+Qualify native input summaries for a narrow video-only `hev1` MP4 layout. Require a video handler at common track admission, before video-specific dispatch; a video sample-entry code alone cannot establish that scope. The current CLI refuses this layout even when its structured report and the same stream stored as `hvc1` agree with the pinned FFmpeg 9.0.2. Commit this plan before implementation and review it first.
 
 The complete diagnostic must match the pinned executable, with empty standard output and the established exit status for each command. The existing deliberate version-banner suppression remains. Unsupported input must refuse before any summary bytes or use the existing original-argument fallback. This is not decoder work.
 
@@ -22,7 +22,7 @@ Use ITU-T H.265 clauses 7.3.1.2, 7.3.2.1 through 7.3.2.3, 7.3.5, 7.3.6.1 and the
 
 Keep configuration and slice-prefix validation inside the CLI video metadata owner. Reuse the SPS reader and the existing strict emulation-prevention owner rather than copying either grammar. Keep the ordinary SPS wrapper's result unchanged for structured reports and `hvc1`.
 
-The ISO adapter performs a summary-only bounded sample walk through the existing packet iterator and source. Read a fixed-size prefix per NAL, use checked extents, and charge sample and NAL visits against an explicit bounded counter. Source and iterator failures cannot become successful completeness. No full frame allocation, decoder dependency, unsafe code, new public API or modified resource limit is needed. Whole-track header inspection has an intentional extra read cost for this newly admitted summary; structured probes do not perform it.
+The ISO adapter performs a summary-only bounded sample walk through the existing packet iterator and source. Validate the original twelve-byte NAL prefix through the shared strict emulation-prevention owner. Only a terminal escape may read one extra source byte, and that lookahead does not enter slice-selector parsing or extend qualification. Use checked extents and charge sample and NAL visits against an explicit bounded counter. Source and iterator failures, including a lookahead read failure, cannot become successful completeness. No full frame allocation, decoder dependency, unsafe code, new public API or modified resource limit is needed. Whole-track header inspection has an intentional extra read cost for this newly admitted summary; structured probes do not perform it.
 
 ## Verification
 

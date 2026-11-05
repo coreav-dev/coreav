@@ -206,3 +206,109 @@ fn structured_purpose_retains_the_old_report_without_a_census_read() {
         Err(Failure::Library(Error::Io(std::io::ErrorKind::Other)))
     ));
 }
+
+#[test]
+fn only_video_handlers_can_qualify_hev1_summaries() {
+    for handler in [
+        b"vide", b"sbtl", b"subt", b"text", b"soun", b"meta", b"abcd",
+    ] {
+        let (mut bytes, _) = movie(&[sample(20), sample(1)]);
+        let at = bytes.windows(4).position(|bytes| bytes == b"hdlr").unwrap();
+        bytes[at + 12..at + 16].copy_from_slice(handler);
+        let probed = probe(
+            &mut SliceSource::new(&bytes),
+            bytes.len() as u64,
+            "generated.mp4",
+            &Limits::default(),
+            super::super::Purpose::Summary,
+        )
+        .map_err(|error| error.to_json())
+        .unwrap();
+        assert_eq!(
+            matches!(
+                probed.report.summary,
+                super::super::SummaryEvidence::Complete { .. }
+            ),
+            handler == b"vide",
+            "{handler:?}"
+        );
+    }
+}
+
+struct CensusReads<'a> {
+    source: SliceSource<'a>,
+    reads: Vec<(u64, usize)>,
+    fail: Option<u64>,
+}
+
+impl Source for CensusReads<'_> {
+    fn len(&mut self) -> Result<u64, Error> {
+        self.source.len()
+    }
+    fn read_exact_at(&mut self, offset: u64, buffer: &mut [u8]) -> Result<(), Error> {
+        self.reads.push((offset, buffer.len()));
+        if self.fail == Some(offset) {
+            return Err(Error::Io(std::io::ErrorKind::Other));
+        }
+        self.source.read_exact_at(offset, buffer)
+    }
+}
+
+#[test]
+fn terminal_escape_lookahead_is_conditional_bounded_and_propagates_io_errors() {
+    for terminal in [false, true] {
+        for continuation in [0, 1, 2, 3, 4] {
+            let mut nal = vec![0x55; video::HEVC_SUMMARY_PREFIX_BYTES];
+            nal[..3].copy_from_slice(&[40, 1, 0xa0]);
+            if terminal {
+                nal[9..12].copy_from_slice(&[0, 0, 3]);
+            } else {
+                nal[10..12].copy_from_slice(&[0, 0]);
+            }
+            nal.extend([continuation, 0x80]);
+            let mut sample = (nal.len() as u32).to_be_bytes().to_vec();
+            sample.extend(nal);
+            let (bytes, movie) = movie(&[sample.clone()]);
+            let offset = {
+                let mut source = SliceSource::new(&bytes);
+                let mut budget = Budget::new(&Limits::default());
+                let mut packets = movie
+                    .packets(0, &mut source, &Limits::default(), &mut budget)
+                    .unwrap();
+                packets.next().unwrap().unwrap().offset
+            };
+            let mut source = CensusReads {
+                source: SliceSource::new(&bytes),
+                reads: Vec::new(),
+                fail: None,
+            };
+            assert_eq!(
+                hevc_summary_authority(&movie, &movie.tracks[0], &mut source, &Limits::default())
+                    .unwrap(),
+                !terminal || continuation <= 3
+            );
+            let reads: Vec<_> = source
+                .reads
+                .iter()
+                .copied()
+                .filter(|(at, _)| *at >= offset && *at < offset + sample.len() as u64)
+                .collect();
+            assert_eq!(
+                reads,
+                if terminal {
+                    vec![(offset, 16), (offset + 16, 1)]
+                } else {
+                    vec![(offset, 16)]
+                }
+            );
+            source.fail = Some(offset + 16);
+            let result =
+                hevc_summary_authority(&movie, &movie.tracks[0], &mut source, &Limits::default());
+            if terminal {
+                assert!(matches!(result, Err(Error::Io(std::io::ErrorKind::Other))));
+            } else {
+                assert!(result.unwrap());
+            }
+        }
+    }
+}

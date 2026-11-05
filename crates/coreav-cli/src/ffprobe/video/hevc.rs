@@ -1,5 +1,7 @@
 use super::{Bits, HevcSpsFacts, hevc_sps_read, strict_rbsp, u16_at};
 
+pub(crate) const SUMMARY_PREFIX_BYTES: usize = 12;
+
 pub(crate) struct HevcConfig {
     pps_id: u32,
 }
@@ -196,7 +198,20 @@ pub(crate) fn slice_selects(config: &HevcConfig, prefix: &[u8]) -> Option<bool> 
     if !matches!(kind, 0..=1 | 6..=9 | 16..=21) {
         return None;
     }
-    let data = super::rbsp(prefix, 2);
+    let window = prefix.get(..prefix.len().min(SUMMARY_PREFIX_BYTES))?;
+    let terminal = window.ends_with(&[0, 0, 3]);
+    let validated = if terminal {
+        if *prefix.get(window.len())? > 3 {
+            return None;
+        }
+        prefix.get(..window.len().checked_add(1)?)?
+    } else {
+        window
+    };
+    let mut data = strict_rbsp(validated, 2)?;
+    if terminal {
+        data.pop()?;
+    }
     let mut b = Bits::new(&data);
     if !b.flag()? {
         return None;
@@ -524,6 +539,42 @@ pub(super) mod tests {
                 slice_selects(&config, &[kind << 1, 1, 0xc0]).is_none(),
                 "type {kind}"
             );
+        }
+    }
+
+    #[test]
+    fn malformed_slice_prefix_escapes_do_not_establish_pps_authority() {
+        let config = summary_config(&fixture_record()).unwrap();
+        for prefix in [
+            &[40, 1, 0xa0, 0, 0, 3, 4][..],
+            &[40, 1, 0xa0, 0, 0, 0],
+            &[40, 1, 0xa0, 0, 0, 3],
+        ] {
+            assert!(slice_selects(&config, prefix).is_none(), "{prefix:?}");
+        }
+    }
+
+    #[test]
+    fn only_a_terminal_escape_can_use_one_byte_beyond_the_qualification_window() {
+        let config = summary_config(&fixture_record()).unwrap();
+        let mut prefix = vec![0x55; SUMMARY_PREFIX_BYTES];
+        prefix[..3].copy_from_slice(&[40, 1, 0xa0]);
+        prefix[SUMMARY_PREFIX_BYTES - 3..].copy_from_slice(&[0, 0, 3]);
+        assert!(slice_selects(&config, &prefix).is_none());
+        for continuation in 0..=255 {
+            let mut continued = prefix.clone();
+            continued.push(continuation);
+            assert_eq!(
+                slice_selects(&config, &continued),
+                (continuation <= 3).then_some(true)
+            );
+        }
+        prefix[SUMMARY_PREFIX_BYTES - 3] = 0x55;
+        prefix[SUMMARY_PREFIX_BYTES - 2..].copy_from_slice(&[0, 0]);
+        for continuation in [0, 3, 4, 255] {
+            let mut continued = prefix.clone();
+            continued.push(continuation);
+            assert_eq!(slice_selects(&config, &continued), Some(true));
         }
     }
 

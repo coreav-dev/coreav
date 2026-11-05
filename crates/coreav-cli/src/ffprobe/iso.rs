@@ -484,6 +484,7 @@ pub(super) fn probe<S: Source>(
             && !track.external_data
             && unwrapped.is_none()
             && !matches!(&track.description.fourcc.0, b"avc3" | b"MAC3" | b"MAC6")
+            && (track.description.fourcc.0 != *b"hev1" || track.kind == TrackKind::Video)
             && track.description.codec != Codec::Av1
             && !track
                 .description
@@ -1213,12 +1214,32 @@ fn hevc_summary_authority<S: Source>(
             if packet.size < 7 {
                 return Ok(false);
             }
-            let mut bytes = [0u8; 16];
-            let read = usize::try_from(packet.size.min(16)).unwrap_or(0);
-            let Some(prefix) = bytes.get_mut(..read) else {
+            const PREFIX: usize = 4 + video::HEVC_SUMMARY_PREFIX_BYTES;
+            let mut bytes = [0u8; PREFIX + 1];
+            let mut read = usize::try_from(packet.size).unwrap_or(0).min(PREFIX);
+            let terminal = {
+                let Some(prefix) = bytes.get_mut(..read) else {
+                    return Ok(false);
+                };
+                packets.source_mut().read_exact_at(packet.offset, prefix)?;
+                read == PREFIX && prefix.ends_with(&[0, 0, 3])
+            };
+            if terminal && u64::from(packet.size) > read as u64 {
+                let Some(offset) = packet.offset.checked_add(read as u64) else {
+                    return Ok(false);
+                };
+                let Some(end) = read.checked_add(1) else {
+                    return Ok(false);
+                };
+                let Some(lookahead) = bytes.get_mut(read..end) else {
+                    return Ok(false);
+                };
+                packets.source_mut().read_exact_at(offset, lookahead)?;
+                read = end;
+            }
+            let Some(prefix) = bytes.get(..read) else {
                 return Ok(false);
             };
-            packets.source_mut().read_exact_at(packet.offset, prefix)?;
             let [a, b, c, d, ..] = prefix else {
                 return Ok(false);
             };
