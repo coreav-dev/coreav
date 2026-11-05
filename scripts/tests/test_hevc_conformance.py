@@ -928,8 +928,9 @@ class Conformance(unittest.TestCase):
             path.write_bytes(b'abc')
             return path
 
-        def inspect(item, path, out, oracle_bin, *, intra=None):
+        def inspect(item, path, out, oracle_bin, *, intra=None, complete=None):
             self.assertIsNone(intra)
+            self.assertIsNone(complete)
             self.assertEqual(path.read_bytes(), b'abc')
             return dict(item, status='inspected')
 
