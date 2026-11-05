@@ -43,6 +43,14 @@ Before adding a helper, test a bounded larger pipe with an external diagnostic w
 
 The [compressed profile observations](../measurements/transcode-frame-handoff/phase-b-profile.json.gz) retain executable hashes, per-thread observations and function-level sample rows. No encoder or decoder source lines were requested or retained.
 
+### Pipe capacity diagnostic
+
+The wrapper confirms 65,536-byte input pipes and enlarges them to 1,048,576 bytes before execing the unchanged encoder. All eighteen completed calls succeed and all nine paired output files match. The median enlarged/default ratios are 1.0058 for VP9 with FFmpeg, 0.9954 for ordinary AV1 with FFmpeg and 1.0109 for the 10-bit AV1 x264 outlier. Within-cell ranges span 0.74–2.73% of their medians. There is no consistent improvement, so do not implement the larger-pipe change. The [diagnostic capture](../measurements/transcode-frame-handoff/phase-b-pipe-capacity.json.gz) retains all completed calls.
+
+One earlier attempt stopped because the harness expected successful encoder stderr in CLI output, where it is retained internally instead. The corrected wrapper asserts pipe sizes before exec. That tooling failure supplies no speed result.
+
+The next candidate removes the active copy into the pipe instead of tuning its capacity. Linux `vmsplice` can loan the checked shared-memory pages to the existing separately installed encoder's pipe, without another binary or a GPL dependency. Returning from `vmsplice` is not consumption. A successful frame write must retain its lease until the pipe reports no unread bytes, with reader-close detection while waiting. No Rust view of concurrently writable storage is formed and no page ownership is gifted. Check the syscall ownership contract and adversarial cases before adopting this candidate. Keep synchronous copying if the page-loan path cannot preserve the existing isolation and cancellation properties.
+
 ## Verification and reference capture
 
 Run targeted ownership, hostile-process and complete-file identity tests, including the pinned FFmpeg and x264 programs. Add unsafe-site inventory rows for any new unsafe. Run the similarity guard against its main allowlist and the normal required CI checks.
