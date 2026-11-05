@@ -59,7 +59,10 @@ class InstructionTolerance(unittest.TestCase):
 class FfmpegGuard(unittest.TestCase):
     def test_required_refusals_are_only_the_two_approved_commands(self):
         self.assertEqual(bench_guard.REQUIRED_REFUSALS,
-                         {"ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"})
+                         {"ffmpeg-C02-join", "ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"})
+        self.assertEqual(bench_guard.CASES["ffmpeg-C02-join"],
+                         ("video.mp4", ["ffmpeg", "-f", "concat", "-i", "{inputs:concat}",
+                                        "-c", "copy", "{out}/out.mp4"]))
         self.assertEqual(bench_guard.CASES["ffmpeg-C18-clip-input"],
                          ("basic.mp4", ["ffmpeg", "-ss", "0.5", "-i", "{}", "-to", "1.5",
                                         "-c", "copy", "{out}/out.mp4"]))
@@ -120,6 +123,7 @@ class FfmpegGuard(unittest.TestCase):
                 with patch.multiple(bench_guard, CASES=cases, URL_CASES={}), \
                      patch.object(bench_guard, "derive"), patch.object(bench_guard, "generate", return_value={}), \
                      patch.object(bench_guard, "craft", return_value={}), \
+                     patch.object(bench_guard, "inputs_of", return_value=[str(work / "inputs.ffconcat")]), \
                      patch.object(bench_guard, "required_refusal", return_value=error) as checked, \
                      patch.object(bench_guard, "instructions", return_value=(100, None)) as counted, \
                      contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
@@ -127,7 +131,7 @@ class FfmpegGuard(unittest.TestCase):
                                                    {name: {} for name in cases}, {}, work)
                 self.assertEqual(result, 1 if error else 0)
                 self.assertEqual(counted.call_count, 1)
-                self.assertEqual(checked.call_count, 2)
+                self.assertEqual(checked.call_count, len(cases))
                 report = json.loads(args.write.read_text())
                 self.assertEqual(report["cases"], {})
                 self.assertEqual(set(report["required_refusals"]), set() if error else set(cases))
