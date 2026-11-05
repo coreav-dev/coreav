@@ -1,0 +1,768 @@
+{
+  "version": 1,
+  "purpose": "reference_preparation_only_not_a_CoreAV_G2_verdict",
+  "oracle": {
+    "ffmpeg": {
+      "sha256": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d",
+      "version_pin": "scripts/oracle-ffmpeg.env:BUILD",
+      "version_suffix": "-20260930 Copyright (c) 2000-2026 the FFmpeg developers"
+    },
+    "ffprobe": {
+      "sha256": "a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb",
+      "version_pin": "scripts/oracle-ffmpeg.env:BUILD",
+      "version_suffix": "-20260930 Copyright (c) 2007-2026 the FFmpeg developers"
+    }
+  },
+  "geometry": {
+    "width": 64,
+    "height": 64,
+    "depth": 10,
+    "chroma": "4:2:0",
+    "pictures": 2,
+    "crop": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "pixel_format": "yuv420p10le"
+  },
+  "recipes": [
+    {
+      "id": "main10-ctu16-tu4",
+      "ctu": 16,
+      "max_tu": 4,
+      "scaling_list": false,
+      "transquant_bypass": false,
+      "content_delta": 0,
+      "command": [
+        "{ffmpeg}",
+        "-nostdin",
+        "-hide_banner",
+        "-cpuflags",
+        "0",
+        "-filter_threads",
+        "1",
+        "-filter_complex_threads",
+        "1",
+        "-threads",
+        "1",
+        "-f",
+        "lavfi",
+        "-i",
+        "nullsrc=s=64x64:r=1,format=yuv420p10le,geq=lum=mod(X*17+Y*29+N*37+0\\,1024):cb=mod(X*11+Y*23+N*13+0\\,1024):cr=mod(X*31+Y*7+N*19+0\\,1024)",
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "2",
+        "-an",
+        "-c:v",
+        "libx265",
+        "-profile:v",
+        "main10",
+        "-preset",
+        "medium",
+        "-threads",
+        "1",
+        "-forced-idr",
+        "1",
+        "-force_key_frames",
+        "expr:gte(t,n_forced)",
+        "-x265-params",
+        "asm=0:pools=none:frame-threads=1:wpp=0:keyint=16:min-keyint=1:bframes=0:rc-lookahead=0:scenecut=0:open-gop=0:repeat-headers=1:hash=1:sao=0:no-deblock=1:min-cu-size=8:tu-intra-depth=3:tskip=1:ctu=16:max-tu-size=4:scaling-list=off:qp=18",
+        "-f",
+        "hevc",
+        "-y",
+        "{bitstream}"
+      ]
+    },
+    {
+      "id": "main10-ctu32-tu16",
+      "ctu": 32,
+      "max_tu": 16,
+      "scaling_list": true,
+      "transquant_bypass": false,
+      "content_delta": 0,
+      "command": [
+        "{ffmpeg}",
+        "-nostdin",
+        "-hide_banner",
+        "-cpuflags",
+        "0",
+        "-filter_threads",
+        "1",
+        "-filter_complex_threads",
+        "1",
+        "-threads",
+        "1",
+        "-f",
+        "lavfi",
+        "-i",
+        "nullsrc=s=64x64:r=1,format=yuv420p10le,geq=lum=mod(X*17+Y*29+N*37+0\\,1024):cb=mod(X*11+Y*23+N*13+0\\,1024):cr=mod(X*31+Y*7+N*19+0\\,1024)",
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "2",
+        "-an",
+        "-c:v",
+        "libx265",
+        "-profile:v",
+        "main10",
+        "-preset",
+        "medium",
+        "-threads",
+        "1",
+        "-forced-idr",
+        "1",
+        "-force_key_frames",
+        "expr:gte(t,n_forced)",
+        "-x265-params",
+        "asm=0:pools=none:frame-threads=1:wpp=0:keyint=16:min-keyint=1:bframes=0:rc-lookahead=0:scenecut=0:open-gop=0:repeat-headers=1:hash=1:sao=0:no-deblock=1:min-cu-size=8:tu-intra-depth=3:tskip=1:ctu=32:max-tu-size=16:scaling-list=default:qp=18",
+        "-f",
+        "hevc",
+        "-y",
+        "{bitstream}"
+      ]
+    },
+    {
+      "id": "main10-bypass",
+      "ctu": 64,
+      "max_tu": 32,
+      "scaling_list": true,
+      "transquant_bypass": true,
+      "content_delta": 0,
+      "command": [
+        "{ffmpeg}",
+        "-nostdin",
+        "-hide_banner",
+        "-cpuflags",
+        "0",
+        "-filter_threads",
+        "1",
+        "-filter_complex_threads",
+        "1",
+        "-threads",
+        "1",
+        "-f",
+        "lavfi",
+        "-i",
+        "nullsrc=s=64x64:r=1,format=yuv420p10le,geq=lum=mod(X*17+Y*29+N*37+0\\,1024):cb=mod(X*11+Y*23+N*13+0\\,1024):cr=mod(X*31+Y*7+N*19+0\\,1024)",
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "2",
+        "-an",
+        "-c:v",
+        "libx265",
+        "-profile:v",
+        "main10",
+        "-preset",
+        "medium",
+        "-threads",
+        "1",
+        "-forced-idr",
+        "1",
+        "-force_key_frames",
+        "expr:gte(t,n_forced)",
+        "-x265-params",
+        "asm=0:pools=none:frame-threads=1:wpp=0:keyint=16:min-keyint=1:bframes=0:rc-lookahead=0:scenecut=0:open-gop=0:repeat-headers=1:hash=1:sao=0:no-deblock=1:min-cu-size=8:tu-intra-depth=3:tskip=1:ctu=64:max-tu-size=32:scaling-list=default:lossless=1",
+        "-f",
+        "hevc",
+        "-y",
+        "{bitstream}"
+      ]
+    },
+    {
+      "id": "main10-bypass-changed",
+      "ctu": 64,
+      "max_tu": 32,
+      "scaling_list": true,
+      "transquant_bypass": true,
+      "content_delta": 1,
+      "command": [
+        "{ffmpeg}",
+        "-nostdin",
+        "-hide_banner",
+        "-cpuflags",
+        "0",
+        "-filter_threads",
+        "1",
+        "-filter_complex_threads",
+        "1",
+        "-threads",
+        "1",
+        "-f",
+        "lavfi",
+        "-i",
+        "nullsrc=s=64x64:r=1,format=yuv420p10le,geq=lum=mod(X*17+Y*29+N*37+1\\,1024):cb=mod(X*11+Y*23+N*13+1\\,1024):cr=mod(X*31+Y*7+N*19+1\\,1024)",
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "2",
+        "-an",
+        "-c:v",
+        "libx265",
+        "-profile:v",
+        "main10",
+        "-preset",
+        "medium",
+        "-threads",
+        "1",
+        "-forced-idr",
+        "1",
+        "-force_key_frames",
+        "expr:gte(t,n_forced)",
+        "-x265-params",
+        "asm=0:pools=none:frame-threads=1:wpp=0:keyint=16:min-keyint=1:bframes=0:rc-lookahead=0:scenecut=0:open-gop=0:repeat-headers=1:hash=1:sao=0:no-deblock=1:min-cu-size=8:tu-intra-depth=3:tskip=1:ctu=64:max-tu-size=32:scaling-list=default:lossless=1",
+        "-f",
+        "hevc",
+        "-y",
+        "{bitstream}"
+      ]
+    }
+  ],
+  "decode_command": [
+    "{ffmpeg}",
+    "-nostdin",
+    "-v",
+    "error",
+    "-cpuflags",
+    "0",
+    "-threads",
+    "1",
+    "-noautorotate",
+    "-flags",
+    "unaligned",
+    "-c:v",
+    "hevc",
+    "-i",
+    "{bitstream}",
+    "-map",
+    "0:v:0",
+    "-fps_mode",
+    "passthrough",
+    "-noautoscale",
+    "-threads",
+    "1",
+    "-pix_fmt",
+    "yuv420p10le",
+    "-f",
+    "rawvideo",
+    "-y",
+    "{raw}"
+  ],
+  "fixtures": [
+    {
+      "id": "main10-ctu16-tu4",
+      "bitstream_bytes": 7470,
+      "bitstream_sha256": "2fe86d52ab736e4aea1baa5af766af033fdd71cbe16a17e9e66ddc48415a1ab7",
+      "encoder_version": "4.3+49-020d7054",
+      "syntax": {
+        "general_profile_idc": 2,
+        "general_profile_compatibility_flag[2]": 1,
+        "pic_width_in_luma_samples": 64,
+        "pic_height_in_luma_samples": 64,
+        "conformance_window_flag": 0,
+        "bit_depth_luma_minus8": 2,
+        "bit_depth_chroma_minus8": 2,
+        "log2_min_luma_coding_block_size_minus3": 0,
+        "log2_diff_max_min_luma_coding_block_size": 1,
+        "log2_min_luma_transform_block_size_minus2": 0,
+        "log2_diff_max_min_luma_transform_block_size": 0,
+        "sample_adaptive_offset_enabled_flag": 0,
+        "pcm_enabled_flag": 0,
+        "scaling_list_enabled_flag": 0,
+        "sps_scaling_list_data_present_flag": null,
+        "pps_scaling_list_data_present_flag": 0,
+        "transform_skip_enabled_flag": 1,
+        "transquant_bypass_enabled_flag": 0,
+        "pps_deblocking_filter_disabled_flag": 1,
+        "slice_type": 2
+      },
+      "raw": {
+        "bytes": 24576,
+        "sha256": "d3b2db4bc002e6388b5b7c73364c6ab7f9a759a71eb5d4f194fb7a9ae043500a",
+        "whole_visible_yuv_md5": "b1375b33e1302e52c47bfd3875dedeec",
+        "pictures": [
+          {
+            "visible_yuv_md5": "8fd8b13046392b69be930390f3975247",
+            "coded_component_md5": [
+              "cb1ba8f2ec7515b5bbf467f9a97b91a8",
+              "9633149819e6ac6338e040e19027c591",
+              "dcbe32f5ac9408295915cdc8d992b65c"
+            ],
+            "sample_proof": [
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 3063,
+                "nonzero_low_two_bits": 3062
+              },
+              {
+                "min": 6,
+                "max": 1019,
+                "above_255": 874,
+                "nonzero_low_two_bits": 773
+              },
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 787,
+                "nonzero_low_two_bits": 775
+              }
+            ]
+          },
+          {
+            "visible_yuv_md5": "2ff5535f6fe06d6bdf7245b57ec3d183",
+            "coded_component_md5": [
+              "b63ae137bb685449fa1a3d6875575694",
+              "76093c371df00986800e355f96b514b1",
+              "cba7d777259e68cf53e8ff5149d6f9f0"
+            ],
+            "sample_proof": [
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 3068,
+                "nonzero_low_two_bits": 3117
+              },
+              {
+                "min": 12,
+                "max": 1019,
+                "above_255": 885,
+                "nonzero_low_two_bits": 793
+              },
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 793,
+                "nonzero_low_two_bits": 760
+              }
+            ]
+          }
+        ]
+      },
+      "decoded_picture_hash_sei_md5": [
+        [
+          "cb1ba8f2ec7515b5bbf467f9a97b91a8",
+          "9633149819e6ac6338e040e19027c591",
+          "dcbe32f5ac9408295915cdc8d992b65c"
+        ],
+        [
+          "b63ae137bb685449fa1a3d6875575694",
+          "76093c371df00986800e355f96b514b1",
+          "cba7d777259e68cf53e8ff5149d6f9f0"
+        ]
+      ]
+    },
+    {
+      "id": "main10-ctu32-tu16",
+      "bitstream_bytes": 6940,
+      "bitstream_sha256": "fb810c44931ead2b00c9a21e8e71b4f65b21239c5f49c30924b233aab018c6bc",
+      "encoder_version": "4.3+49-020d7054",
+      "syntax": {
+        "general_profile_idc": 2,
+        "general_profile_compatibility_flag[2]": 1,
+        "pic_width_in_luma_samples": 64,
+        "pic_height_in_luma_samples": 64,
+        "conformance_window_flag": 0,
+        "bit_depth_luma_minus8": 2,
+        "bit_depth_chroma_minus8": 2,
+        "log2_min_luma_coding_block_size_minus3": 0,
+        "log2_diff_max_min_luma_coding_block_size": 2,
+        "log2_min_luma_transform_block_size_minus2": 0,
+        "log2_diff_max_min_luma_transform_block_size": 2,
+        "sample_adaptive_offset_enabled_flag": 0,
+        "pcm_enabled_flag": 0,
+        "scaling_list_enabled_flag": 1,
+        "sps_scaling_list_data_present_flag": 0,
+        "pps_scaling_list_data_present_flag": 0,
+        "transform_skip_enabled_flag": 1,
+        "transquant_bypass_enabled_flag": 0,
+        "pps_deblocking_filter_disabled_flag": 1,
+        "slice_type": 2
+      },
+      "raw": {
+        "bytes": 24576,
+        "sha256": "4bf05e0ac7d6a6d2e4b82fa68ae5b6cb220e003eaf1770500c0d59f01b2a6900",
+        "whole_visible_yuv_md5": "0f1ccadf4242882284897fa0b15def6b",
+        "pictures": [
+          {
+            "visible_yuv_md5": "6448c5e6581c1b95e9556bf3510e1a78",
+            "coded_component_md5": [
+              "55c4af972569f62d9d3edc4b32716e87",
+              "e2ed936292124fe3e12b10a5e2a56040",
+              "b2604c48b7707f471b1b208078c479cd"
+            ],
+            "sample_proof": [
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 3067,
+                "nonzero_low_two_bits": 3068
+              },
+              {
+                "min": 4,
+                "max": 1022,
+                "above_255": 874,
+                "nonzero_low_two_bits": 770
+              },
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 785,
+                "nonzero_low_two_bits": 764
+              }
+            ]
+          },
+          {
+            "visible_yuv_md5": "1055b37a2484407578cb1ff8d77038b5",
+            "coded_component_md5": [
+              "c437b7144970fea9a6769fa9730fa974",
+              "31bc0380cd0cdb12a7d5250cb76ee766",
+              "adda354d7f5757731f9eb410a7d42158"
+            ],
+            "sample_proof": [
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 3068,
+                "nonzero_low_two_bits": 3065
+              },
+              {
+                "min": 14,
+                "max": 1023,
+                "above_255": 884,
+                "nonzero_low_two_bits": 769
+              },
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 789,
+                "nonzero_low_two_bits": 761
+              }
+            ]
+          }
+        ]
+      },
+      "decoded_picture_hash_sei_md5": [
+        [
+          "55c4af972569f62d9d3edc4b32716e87",
+          "e2ed936292124fe3e12b10a5e2a56040",
+          "b2604c48b7707f471b1b208078c479cd"
+        ],
+        [
+          "c437b7144970fea9a6769fa9730fa974",
+          "31bc0380cd0cdb12a7d5250cb76ee766",
+          "adda354d7f5757731f9eb410a7d42158"
+        ]
+      ]
+    },
+    {
+      "id": "main10-bypass",
+      "bitstream_bytes": 16842,
+      "bitstream_sha256": "1e3fba4822359e126953b5d409dd768af2560f939ae22dc9caae30ffceecc375",
+      "encoder_version": "4.3+49-020d7054",
+      "syntax": {
+        "general_profile_idc": 2,
+        "general_profile_compatibility_flag[2]": 1,
+        "pic_width_in_luma_samples": 64,
+        "pic_height_in_luma_samples": 64,
+        "conformance_window_flag": 0,
+        "bit_depth_luma_minus8": 2,
+        "bit_depth_chroma_minus8": 2,
+        "log2_min_luma_coding_block_size_minus3": 0,
+        "log2_diff_max_min_luma_coding_block_size": 3,
+        "log2_min_luma_transform_block_size_minus2": 0,
+        "log2_diff_max_min_luma_transform_block_size": 3,
+        "sample_adaptive_offset_enabled_flag": 0,
+        "pcm_enabled_flag": 0,
+        "scaling_list_enabled_flag": 1,
+        "sps_scaling_list_data_present_flag": 0,
+        "pps_scaling_list_data_present_flag": 0,
+        "transform_skip_enabled_flag": 1,
+        "transquant_bypass_enabled_flag": 1,
+        "pps_deblocking_filter_disabled_flag": 1,
+        "slice_type": 2
+      },
+      "raw": {
+        "bytes": 24576,
+        "sha256": "9223b73014ad5a93643ec0498c7bc0e59b4911099a33974d9b4141898b625601",
+        "whole_visible_yuv_md5": "1c1eda47420221f7c6896a45cf5effa2",
+        "pictures": [
+          {
+            "visible_yuv_md5": "ba45d432aef701a40e70f77915d7d577",
+            "coded_component_md5": [
+              "961a6474c118caddc662931096ae7e61",
+              "8f91ea352c1de596d2d117c2242ced98",
+              "3acbdad9385d143f9a8993f5ec02c2ed"
+            ],
+            "sample_proof": [
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 3066,
+                "nonzero_low_two_bits": 3072
+              },
+              {
+                "min": 0,
+                "max": 1021,
+                "above_255": 873,
+                "nonzero_low_two_bits": 768
+              },
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 787,
+                "nonzero_low_two_bits": 768
+              }
+            ]
+          },
+          {
+            "visible_yuv_md5": "32e6bac0af33d0136c131e86112dce44",
+            "coded_component_md5": [
+              "dbd7ba0e7b55e2f4db163fb1e0bdbfd8",
+              "957133fe8a62244d5ad3fd108a72f089",
+              "3462e0b2dc10e768c3f0086e04236c44"
+            ],
+            "sample_proof": [
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 3073,
+                "nonzero_low_two_bits": 3072
+              },
+              {
+                "min": 9,
+                "max": 1023,
+                "above_255": 885,
+                "nonzero_low_two_bits": 768
+              },
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 791,
+                "nonzero_low_two_bits": 768
+              }
+            ]
+          }
+        ]
+      },
+      "decoded_picture_hash_sei_md5": [
+        [
+          "961a6474c118caddc662931096ae7e61",
+          "8f91ea352c1de596d2d117c2242ced98",
+          "3acbdad9385d143f9a8993f5ec02c2ed"
+        ],
+        [
+          "dbd7ba0e7b55e2f4db163fb1e0bdbfd8",
+          "957133fe8a62244d5ad3fd108a72f089",
+          "3462e0b2dc10e768c3f0086e04236c44"
+        ]
+      ]
+    },
+    {
+      "id": "main10-bypass-changed",
+      "bitstream_bytes": 16847,
+      "bitstream_sha256": "34f99b0a9e7f1e79e394f412d2b7705c1667b95a7e798c5a62d6e5aaff14cc06",
+      "encoder_version": "4.3+49-020d7054",
+      "syntax": {
+        "general_profile_idc": 2,
+        "general_profile_compatibility_flag[2]": 1,
+        "pic_width_in_luma_samples": 64,
+        "pic_height_in_luma_samples": 64,
+        "conformance_window_flag": 0,
+        "bit_depth_luma_minus8": 2,
+        "bit_depth_chroma_minus8": 2,
+        "log2_min_luma_coding_block_size_minus3": 0,
+        "log2_diff_max_min_luma_coding_block_size": 3,
+        "log2_min_luma_transform_block_size_minus2": 0,
+        "log2_diff_max_min_luma_transform_block_size": 3,
+        "sample_adaptive_offset_enabled_flag": 0,
+        "pcm_enabled_flag": 0,
+        "scaling_list_enabled_flag": 1,
+        "sps_scaling_list_data_present_flag": 0,
+        "pps_scaling_list_data_present_flag": 0,
+        "transform_skip_enabled_flag": 1,
+        "transquant_bypass_enabled_flag": 1,
+        "pps_deblocking_filter_disabled_flag": 1,
+        "slice_type": 2
+      },
+      "raw": {
+        "bytes": 24576,
+        "sha256": "f3a3a377ca5f8a007ea581fa0d137cbb5ceccc535f94ee265d14762e43c810de",
+        "whole_visible_yuv_md5": "26200dfbe752f8254e37268a6cb40e5b",
+        "pictures": [
+          {
+            "visible_yuv_md5": "2a1c9bcece9018ddd854f9f745cca6c4",
+            "coded_component_md5": [
+              "50862043f9775da904358a9fcdd1212e",
+              "8fd817f7abf50e6b7e72172de1181f8c",
+              "4c9e9e0138ea997534dae65c71c9b9a9"
+            ],
+            "sample_proof": [
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 3067,
+                "nonzero_low_two_bits": 3072
+              },
+              {
+                "min": 1,
+                "max": 1022,
+                "above_255": 874,
+                "nonzero_low_two_bits": 768
+              },
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 787,
+                "nonzero_low_two_bits": 768
+              }
+            ]
+          },
+          {
+            "visible_yuv_md5": "5ca73b19935f804ddd59a2c7ac191056",
+            "coded_component_md5": [
+              "e4f5e4bce5f2de5f58a8ed9b14229d6f",
+              "58b97adf82addc6e6336a7c151173a37",
+              "7c8c10a9774dfe6073f9e29f23a5bcea"
+            ],
+            "sample_proof": [
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 3072,
+                "nonzero_low_two_bits": 3072
+              },
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 885,
+                "nonzero_low_two_bits": 768
+              },
+              {
+                "min": 0,
+                "max": 1023,
+                "above_255": 791,
+                "nonzero_low_two_bits": 768
+              }
+            ]
+          }
+        ]
+      },
+      "decoded_picture_hash_sei_md5": [
+        [
+          "50862043f9775da904358a9fcdd1212e",
+          "8fd817f7abf50e6b7e72172de1181f8c",
+          "4c9e9e0138ea997534dae65c71c9b9a9"
+        ],
+        [
+          "e4f5e4bce5f2de5f58a8ed9b14229d6f",
+          "58b97adf82addc6e6336a7c151173a37",
+          "7c8c10a9774dfe6073f9e29f23a5bcea"
+        ]
+      ]
+    }
+  ],
+  "pcm": {
+    "status": "no_PCM_fixture_from_tested_parameters",
+    "attempts": [
+      {
+        "parameter": "pcm=1",
+        "diagnostic": "Unknown option: pcm.",
+        "command": [
+          "{ffmpeg}",
+          "-nostdin",
+          "-hide_banner",
+          "-cpuflags",
+          "0",
+          "-filter_threads",
+          "1",
+          "-filter_complex_threads",
+          "1",
+          "-threads",
+          "1",
+          "-f",
+          "lavfi",
+          "-i",
+          "nullsrc=s=64x64:r=1,format=yuv420p10le,geq=lum=mod(X*17+Y*29+N*37+0\\,1024):cb=mod(X*11+Y*23+N*13+0\\,1024):cr=mod(X*31+Y*7+N*19+0\\,1024)",
+          "-map",
+          "0:v:0",
+          "-frames:v",
+          "2",
+          "-an",
+          "-c:v",
+          "libx265",
+          "-profile:v",
+          "main10",
+          "-preset",
+          "medium",
+          "-threads",
+          "1",
+          "-forced-idr",
+          "1",
+          "-force_key_frames",
+          "expr:gte(t,n_forced)",
+          "-x265-params",
+          "asm=0:pools=none:frame-threads=1:wpp=0:keyint=16:min-keyint=1:bframes=0:rc-lookahead=0:scenecut=0:open-gop=0:repeat-headers=1:hash=1:sao=0:no-deblock=1:min-cu-size=8:tu-intra-depth=3:tskip=1:ctu=16:max-tu-size=4:scaling-list=off:qp=18:pcm=1",
+          "-f",
+          "hevc",
+          "-y",
+          "{bitstream}"
+        ]
+      },
+      {
+        "parameter": "ipcm=1",
+        "diagnostic": "Unknown option: ipcm.",
+        "command": [
+          "{ffmpeg}",
+          "-nostdin",
+          "-hide_banner",
+          "-cpuflags",
+          "0",
+          "-filter_threads",
+          "1",
+          "-filter_complex_threads",
+          "1",
+          "-threads",
+          "1",
+          "-f",
+          "lavfi",
+          "-i",
+          "nullsrc=s=64x64:r=1,format=yuv420p10le,geq=lum=mod(X*17+Y*29+N*37+0\\,1024):cb=mod(X*11+Y*23+N*13+0\\,1024):cr=mod(X*31+Y*7+N*19+0\\,1024)",
+          "-map",
+          "0:v:0",
+          "-frames:v",
+          "2",
+          "-an",
+          "-c:v",
+          "libx265",
+          "-profile:v",
+          "main10",
+          "-preset",
+          "medium",
+          "-threads",
+          "1",
+          "-forced-idr",
+          "1",
+          "-force_key_frames",
+          "expr:gte(t,n_forced)",
+          "-x265-params",
+          "asm=0:pools=none:frame-threads=1:wpp=0:keyint=16:min-keyint=1:bframes=0:rc-lookahead=0:scenecut=0:open-gop=0:repeat-headers=1:hash=1:sao=0:no-deblock=1:min-cu-size=8:tu-intra-depth=3:tskip=1:ctu=16:max-tu-size=4:scaling-list=off:qp=18:ipcm=1",
+          "-f",
+          "hevc",
+          "-y",
+          "{bitstream}"
+        ]
+      }
+    ]
+  },
+  "controls": {
+    "two_generations_identical": true,
+    "crossed_component_hashes_rejected": true,
+    "changed_10bit_content_changes_decoded_bytes": true,
+    "altered_raw_rejected": true,
+    "altered_SEI_hash_rejected": true
+  }
+}

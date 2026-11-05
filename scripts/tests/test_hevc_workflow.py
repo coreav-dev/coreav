@@ -1,0 +1,66 @@
+import json
+import pathlib
+import shlex
+import subprocess
+import sys
+import tempfile
+import textwrap
+import unittest
+
+
+class HevcWorkflow(unittest.TestCase):
+    def test_documented_census_prepares_and_consumes_synthetic_references(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        readme = (root / 'bench/hevc-conformance/README.md').read_text()
+        script = readme.split('```sh\n', 1)[1].split('```', 1)[0]
+        commands = [shlex.split(line) for line in script.replace('\\\n', '').splitlines()
+                    if line.strip()]
+        verify = next((args for args in commands if 'scripts/hevc_fixture.py' in args), None)
+        self.assertIsNotNone(verify, 'Verify synthetic references before running the full census')
+        self.assertIn('verify', verify)
+        run = next(args for args in commands if 'scripts/hevc_conformance.py' in args
+                   and 'run' in args)
+        self.assertLess(commands.index(verify), commands.index(run))
+        self.assertIn('--synthetic-data', run, 'Pass verified synthetic references to the census')
+        self.assertEqual(verify[verify.index('--output') + 1],
+                         run[run.index('--synthetic-data') + 1])
+
+    def test_agent_scopes_name_hevc_rules(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        index = (root / 'AGENTS.md').read_text().splitlines()
+        for area, subjects in (('compat-corpus', ('HEVC conformance census', 'oracle preparation')),
+                               ('codecs', ('HEVC decoding',))):
+            path = f'docs/agents/{area}.md'
+            intro = (root / path).read_text().split('\n\n')[1]
+            scope = next(line for line in index if line.startswith(f'| [{path}]'))
+            for location, text in (('area introduction', intro), ('AGENTS.md scope', scope)):
+                for subject in subjects:
+                    with self.subTest(area=area, location=location, subject=subject):
+                        self.assertIn(subject, text, f'Name {subject} in the {area} {location}')
+
+    def test_public_profile_projection_omits_per_file_records(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        step = workflow.split('- name: Retain only aggregate profile counts publicly\n', 1)[1]
+        script = textwrap.dedent(step.split("<<'PY'\n", 1)[1].split('\n          PY', 1)[0])
+        with tempfile.TemporaryDirectory() as directory:
+            temp = pathlib.Path(directory)
+            (temp / 'private').mkdir()
+            record = dict(roster_sha256='a' * 64, complete=True,
+                          counts=[dict(partition='development', profile='Main', bit_depth=8,
+                                       status='inspected', files=1)],
+                          files=[dict(source='private-canary', url='private-canary')])
+            source = temp / 'private/corpus-census.json'
+            source.write_text(json.dumps(record))
+            subprocess.run([sys.executable, '-I', '-', str(temp)], input=script, text=True,
+                           check=True, capture_output=True, timeout=10)
+            text = (temp / 'profile-summary.json').read_text()
+            summary = json.loads(text)
+            self.assertNotIn('private-canary', text)
+            self.assertEqual(summary['files'], 1)
+            self.assertEqual(set(summary), {'roster_sha256', 'complete', 'counts', 'files'})
+            self.assertEqual(json.loads(source.read_text()), record)
+
+
+if __name__ == '__main__':
+    unittest.main()
