@@ -281,6 +281,7 @@ class ExactPredicate(unittest.TestCase):
             programs = {'$FFMPEG': 'ffmpeg', '$FFPROBE': 'ffprobe'}
             with mock.patch.object(decoded_output, 'probe', return_value=description), \
                  mock.patch.object(decoded_output, 'compare', return_value=('verified', 'exact')), \
+                 mock.patch.object(decoded_output, 'invoke', return_value=(1, b'', b'no packet evidence')), \
                  mock.patch.object(run, 'packet_rows', side_effect=[[(0, 'one')], [(0, 'two')]]):
                 self.assertEqual(run.compare_outputs(command, base, programs, {}, base), 'different')
 
