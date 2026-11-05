@@ -115,6 +115,8 @@ pub(crate) struct SliceSyntax {
     pub cabac_init: bool,
     pub sao: [bool; 2],
     pub deblock_disabled: bool,
+    pub deblock_offsets: [i32; 2],
+    pub loop_filter_slices: bool,
 }
 
 impl SliceSyntax {
@@ -137,6 +139,12 @@ impl SliceSyntax {
             deblock_disabled: header
                 .deblock_disabled
                 .ok_or(Error::InvalidData("missing_deblock_flag"))?,
+            deblock_offsets: header
+                .deblock_offsets
+                .ok_or(Error::InvalidData("missing_deblock_offsets"))?,
+            loop_filter_slices: header
+                .loop_filter_slices
+                .ok_or(Error::InvalidData("missing_loop_filter_flag"))?,
         })
     }
 }

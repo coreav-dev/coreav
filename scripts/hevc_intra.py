@@ -9,6 +9,7 @@ Its output is coded planar Y/Cb/Cr, little-endian u16 at both supported depths.
 import argparse
 import collections
 import hashlib
+import io
 import json
 import pathlib
 import struct
@@ -23,11 +24,14 @@ COUNTERS = ('ctus', 'coding_units', 'transform_units', 'nonzero_transform_units'
             'transform_skips', 'transquant_bypass_units', 'pcm_units', 'dependent_segments',
             'tile_restarts', 'wpp_restarts', 'qp_deltas', 'nonzero_qp_deltas',
             'scaling_list_blocks', 'sign_hidden_groups', 'dst_blocks', 'bins',
-            'picture_hashes', 'reserved_hashes', 'memory_bytes')
-ARRAY_COUNTERS = {'luma_modes': 35, 'chroma_modes': 35, 'dct_blocks': 4}
+            'picture_hashes', 'reserved_hashes', 'memory_bytes', 'sao_merges')
+ARRAY_COUNTERS = {'luma_modes': 35, 'chroma_modes': 35, 'dct_blocks': 4,
+                  'deblock_edges': 3, 'deblock_changed_samples': 3,
+                  'sao_blocks': 3, 'sao_changed_samples': 3}
 SERIAL_COUNTERS = {'tiles': 'tile_restarts', 'wpp': 'wpp_restarts',
                    'dependent_segments': 'dependent_segments'}
-INPUT_CAP = 256 << 20
+INPUT_CAP = 4 << 30
+NAL_CAP = 16 << 20
 
 
 def require(condition, reason):
@@ -49,17 +53,18 @@ def selected_hashes(rows, target):
     return defined, reserved
 
 
-def stream_targets(source, record, native, directory, test, source_kind):
+def stream_targets(source, record, native, directory, test, source_kind, filters=False):
     require(0 < source.stat().st_size <= harness.BITSTREAM_CAP
             and harness.digest(source) == record['sha256'], 'candidate_source_identity')
     summary, pictures, outputs = harness.native_rows(native, source.read_bytes())
     eligible_coded = {index for index, picture in enumerate(pictures)
-                      if picture['all_intra'] and picture['filters_disabled']}
-    stored = [row for row in record.get('intra_candidates', []) if row['gate'] == 'G2']
+                      if picture['all_intra'] and (filters or picture['filters_disabled'])}
+    stored = [row for row in record.get('intra_candidates', []) if filters or row['gate'] == 'G2']
     if not eligible_coded:
         require(not stored, 'unexpected_g2_candidate')
         return None
-    require(eligible_coded <= {output['picture_index'] for output in outputs},
+    nonoutput = eligible_coded - {output['picture_index'] for output in outputs}
+    require(not nonoutput or filters and test == 'OPFLAG_B' and nonoutput == {39, 73},
             'eligible_coded_output_absent')
     eligible = [(index, output, pictures[output['picture_index']])
                 for index, output in enumerate(outputs) if output['picture_index'] in eligible_coded]
@@ -70,7 +75,7 @@ def stream_targets(source, record, native, directory, test, source_kind):
     require(record['reference_count']['value'] == len(outputs)
             and record.get('output_order_checked_by_packet_positions') is True,
             'candidate_output_mapping')
-    expected = [row for row in harness.coverage(pictures, outputs, references) if row['gate'] == 'G2']
+    expected = [row for row in harness.coverage(pictures, outputs, references) if filters or row['gate'] == 'G2']
     require(stored == expected and len(stored) == len(eligible), 'candidate_census_disagrees')
     rows = [json.loads(line, object_pairs_hook=harness.unique_object)
             for line in native.read_text().splitlines()]
@@ -84,6 +89,31 @@ def stream_targets(source, record, native, directory, test, source_kind):
         targets.append(dict(candidate=dict(test=test, stream_sha256=record['sha256'],
                                           source_kind=source_kind, **candidate),
                             picture=picture, hashes=selected_hashes(rows, candidate['picture_index'])))
+    for index in sorted(nonoutput):
+        picture = pictures[index]
+        hashes = selected_hashes(rows, index)
+        require(hashes[0] == 1, 'nonoutput_sei_reference_missing')
+        current, reference = None, None
+        for row in rows:
+            if row.get('kind') != 'nal':
+                continue
+            if row['nal_type'] < 32 and row.get('first_slice_segment_in_pic_flag'):
+                current = row['picture_index']
+            if row['nal_type'] == 40 and current == index and row.get('picture_hash'):
+                require(reference is None, 'nonoutput_sei_reference_duplicate')
+                reference = row.get('picture_hash_reference')
+        require(isinstance(reference, dict) and reference.get('algorithm') == 'md5'
+                and isinstance(reference.get('components'), list) and len(reference['components']) == 3
+                and all(isinstance(c, list) and len(c) == 16
+                        and all(harness.integer(v) and v < 256 for v in c)
+                        for c in reference['components']), 'nonoutput_sei_reference_invalid')
+        candidate = dict(test=test, stream_sha256=record['sha256'], source_kind=source_kind,
+                         picture_index=index, bit_depth=picture['bit_depth'], gate='G3',
+                         tiles=picture['tiles'], wpp=picture['wpp'],
+                         dependent_segments=picture['dependent_segments'],
+                         reference=dict(source_scope='coded-picture reference (SEI), not output',
+                                        algorithm='md5', coded_component_md5=[bytes(c).hex() for c in reference['components']]))
+        targets.append(dict(candidate=candidate, picture=picture, hashes=hashes))
     return dict(source=source, record=record, summary=summary, frames=frames,
                 targets=targets, directory=directory, test=test, rows=rows)
 
@@ -109,7 +139,7 @@ def candidates(args, census):
             directory = args.out / 'g1' / case['test'] / member['sha256']
             item = stream_targets(args.data / case['test'] / member['path'], record,
                                   directory / 'native.stdout', directory,
-                                  case['test'], 'published_conformance')
+                                  case['test'], 'published_conformance', getattr(args, 'filters', False))
             if item:
                 streams.append(item)
     synthetic = census['synthetic_census']
@@ -122,12 +152,17 @@ def candidates(args, census):
         identity = recipe['id']
         directory = args.out / 'g1' / 'synthetic' / identity
         item = stream_targets(args.synthetic_data / 'run-1' / (identity + '.hevc'), record,
-                              directory / 'native.stdout', directory, record['test'], 'synthetic')
+                              directory / 'native.stdout', directory, record['test'], 'synthetic', getattr(args, 'filters', False))
         require(item is not None, 'synthetic_g2_absent')
         streams.append(item)
-    expected = [row for row in census['intra_candidates'] if row['gate'] == 'G2']
+    expected = [row for row in census['intra_candidates'] if getattr(args, 'filters', False) or row['gate'] == 'G2']
     actual = [target['candidate'] for stream in streams for target in stream['targets']]
-    require(actual and actual == expected, 'complete_g2_denominator')
+    output_actual = [row for row in actual if row['reference'].get('source_scope') != 'coded-picture reference (SEI), not output']
+    require(actual and output_actual == expected, 'complete_g2_denominator')
+    if getattr(args, 'filters', False):
+        require([(row['test'], row['picture_index']) for row in actual
+                 if row['reference'].get('source_scope') == 'coded-picture reference (SEI), not output']
+                == [('OPFLAG_B', 39), ('OPFLAG_B', 73)], 'nonoutput_denominator')
     require({row['bit_depth'] for row in actual} == {8, 10}, 'g2_depth_denominator')
     return streams
 
@@ -153,8 +188,9 @@ def validate_metadata(metadata, target, stream, source, memory, bins):
             and metadata.get('nals') == stream['summary']['nals']
             and metadata.get('pictures') == stream['summary']['pictures']
             and metadata.get('input_byte_limit') == INPUT_CAP
+            and metadata.get('max_nal_bytes') == NAL_CAP
             and harness.integer(metadata.get('caller_input_capacity_bytes'))
-            and source.stat().st_size <= metadata['caller_input_capacity_bytes'] <= INPUT_CAP,
+            and 0 < metadata['caller_input_capacity_bytes'] <= NAL_CAP + 65536 + 8,
             'native_input_completion')
     require(metadata.get('max_memory_bytes') == memory and metadata.get('max_bins') == bins,
             'native_budget_identity')
@@ -179,6 +215,16 @@ def validate_metadata(metadata, target, stream, source, memory, bins):
     for key, length in ARRAY_COUNTERS.items():
         require(isinstance(stats.get(key), list) and len(stats[key]) == length
                 and all(harness.integer(value) for value in stats[key]), 'native_effective_arrays')
+    require(stats['sao_merges'] <= ctus, 'native_sao_merge_count')
+    for component in range(3):
+        scale = 1 if component == 0 else 2
+        require(stats['sao_blocks'][component] <= ctus
+                and stats['sao_changed_samples'][component] <= (width // scale) * (height // scale)
+                and stats['deblock_changed_samples'][component] <= stats['deblock_edges'][component] * (24 if component == 0 else 8),
+                'native_filter_counters')
+    if expected['filters_disabled']:
+        require(not stats['sao_merges'] and not any(stats['deblock_edges']) and not any(stats['sao_blocks']),
+                'unfiltered_picture_filter_work')
     require(sum(stats['dct_blocks']) + stats['dst_blocks'] <= stats['nonzero_transform_units'],
             'native_transform_counters')
     crop = metadata['conformance_window']
@@ -194,8 +240,9 @@ def packed_picture(raw, metadata):
             'native_raw_format')
     geometry = [(width, height)] + [((width + 1) // 2, (height + 1) // 2)] * 2
     require(metadata['planes'] == [dict(width=w, height=h) for w, h in geometry], 'native_raw_planes')
+    size = raw.stat().st_size if isinstance(raw, pathlib.Path) else len(raw)
     require(harness.integer(metadata['output_bytes'])
-            and len(raw) == metadata['output_bytes'] == sum(w * h * 2 for w, h in geometry),
+            and size == metadata['output_bytes'] == sum(w * h * 2 for w, h in geometry),
             'native_raw_size')
     crop = metadata['conformance_window']
     require(len(crop) == 4 and all(harness.integer(value) for value in crop)
@@ -203,32 +250,36 @@ def packed_picture(raw, metadata):
             and height - 2 * (crop[2] + crop[3]) == metadata['height'] > 0, 'native_raw_crop')
     whole = hashlib.md5()
     coded_hashes, visible_hashes, proof = [], [], []
-    offset, visible_bytes = 0, 0
-    for component, (w, h) in enumerate(geometry):
-        plane = memoryview(raw)[offset:offset + w * h * 2]
-        offset += len(plane)
-        minimum, maximum, above_255, low_bits = 1 << depth, 0, 0, 0
-        for (sample,) in struct.iter_unpack('<H', plane):
-            require(sample < 1 << depth, 'native_sample_range')
-            minimum, maximum = min(minimum, sample), max(maximum, sample)
-            above_255 += sample > 255
-            low_bits += bool(sample & 3)
-        packed = bytes(plane[::2]) if depth == 8 else plane
-        coded_hashes.append(hashlib.md5(packed).hexdigest())
-        sample_bytes = 1 if depth == 8 else 2
-        scale = 2 if component == 0 else 1
-        left, top = crop[0] * scale, crop[2] * scale
-        visible_width = metadata['width'] if component == 0 else (metadata['width'] + 1) // 2
-        visible_height = metadata['height'] if component == 0 else (metadata['height'] + 1) // 2
-        visible = hashlib.md5()
-        for y in range(top, top + visible_height):
-            row = packed[(y * w + left) * sample_bytes:(y * w + left + visible_width) * sample_bytes]
-            require(len(row) == visible_width * sample_bytes, 'native_crop_row')
-            visible.update(row)
-            whole.update(row)
-            visible_bytes += len(row)
-        visible_hashes.append(visible.hexdigest())
-        proof.append(dict(min=minimum, max=maximum, above_255=above_255, nonzero_low_two_bits=low_bits))
+    visible_bytes = 0
+    with raw.open('rb') if isinstance(raw, pathlib.Path) else io.BytesIO(raw) as source:
+        for component, (w, h) in enumerate(geometry):
+            minimum, maximum, above_255, low_bits = 1 << depth, 0, 0, 0
+            sample_bytes = 1 if depth == 8 else 2
+            scale = 2 if component == 0 else 1
+            left, top = crop[0] * scale, crop[2] * scale
+            visible_width = metadata['width'] if component == 0 else (metadata['width'] + 1) // 2
+            visible_height = metadata['height'] if component == 0 else (metadata['height'] + 1) // 2
+            visible, coded = hashlib.md5(), hashlib.md5()
+            for y in range(h):
+                row = source.read(w * 2)
+                require(len(row) == w * 2, 'native_raw_size')
+                for (sample,) in struct.iter_unpack('<H', row):
+                    require(sample < 1 << depth, 'native_sample_range')
+                    minimum, maximum = min(minimum, sample), max(maximum, sample)
+                    above_255 += sample > 255
+                    low_bits += bool(sample & 3)
+                packed = row[::2] if depth == 8 else row
+                coded.update(packed)
+                if top <= y < top + visible_height:
+                    selected = packed[left * sample_bytes:(left + visible_width) * sample_bytes]
+                    require(len(selected) == visible_width * sample_bytes, 'native_crop_row')
+                    visible.update(selected)
+                    whole.update(selected)
+                    visible_bytes += len(selected)
+            coded_hashes.append(coded.hexdigest())
+            visible_hashes.append(visible.hexdigest())
+            proof.append(dict(min=minimum, max=maximum, above_255=above_255, nonzero_low_two_bits=low_bits))
+        require(not source.read(1), 'native_raw_size')
     return dict(bytes=visible_bytes, md5=whole.hexdigest(), coded_component_md5=coded_hashes,
                 visible_component_md5=visible_hashes, sample_proof=proof)
 
@@ -236,6 +287,10 @@ def packed_picture(raw, metadata):
 def compare_picture(raw, metadata, candidate, oracle):
     result = packed_picture(raw, metadata)
     reference = candidate['reference']
+    if reference.get('source_scope') == 'coded-picture reference (SEI), not output':
+        require('output_index' not in reference and oracle is None, 'nonoutput_mapping_invented')
+        require(result['coded_component_md5'] == reference['coded_component_md5'], 'coded_component_mismatch')
+        return result
     require(result['bytes'] == reference['bytes'] == oracle['bytes']
             and result['md5'] == reference['md5'] == oracle['md5'], 'native_reference_mismatch')
     if 'coded_component_md5' in reference:
@@ -330,6 +385,78 @@ def aggregate(candidates, results):
                 coverage_gaps=gaps, serial_effective_coverage_complete=not gaps)
 
 
+def diagnose_picture(binary, source, directory, stream, candidate, native, metadata):
+    references = stream['record']['reference_frames']
+    total = sum(row['bytes'] for row in references)
+    if 'output_index' not in candidate['reference'] or total >= harness.CAPTURE_CAP:
+        return dict(available=False, reason='no_bounded_output_reference')
+    visible_bytes = sum(((metadata['width'] + scale - 1) // scale)
+                        * ((metadata['height'] + scale - 1) // scale) for scale in (1, 2, 2))
+    visible_bytes *= 2 if metadata['bit_depth'] == 10 else 1
+    if visible_bytes != candidate['reference']['bytes']:
+        return dict(available=False, reason='different_output_geometry')
+    formats = {frame['pix_fmt'] for frame in stream['frames']}
+    require(len(formats) == 1, 'diagnostic_packing')
+    command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc',
+               '-c:v', 'hevc', *harness.HEVC_DECODE_INPUT, *harness.AUDIO_DECODE_INPUT,
+               '-i', source, '-map', '0:v:0',
+               '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
+               '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'rawvideo', '-']
+    code, raw, stderr = harness.child(command, directory, 'diagnostic-raw')
+    try:
+        require(code == 0 and raw.stat().st_size == total, 'diagnostic_oracle_size')
+        progress = []
+        for line in harness.stderr_lines(stderr):
+            item = harness.stderr_line(line, stream['test'], 'diagnostic', exit_code=code)
+            if harness.progress_line(item):
+                item['kind'] = 'progress'
+            progress.append(item)
+        require(int(harness.reference_progress(progress)[-1]['frame']) == len(references), 'diagnostic_oracle_count')
+        whole, selected = hashlib.md5(), None
+        with raw.open('rb') as frames:
+            for index, reference in enumerate(references):
+                frame = frames.read(reference['bytes'])
+                require(hashlib.md5(frame).hexdigest() == reference['md5'], 'diagnostic_frame_reference')
+                whole.update(frame)
+                if index == candidate['reference']['output_index']:
+                    selected = frame
+            require(not frames.read(1), 'diagnostic_oracle_size')
+        require(whole.hexdigest() == stream['record']['reference_packing']['md5'] and selected is not None,
+                'diagnostic_whole_reference')
+        changed, first, ctus = [0, 0, 0], [], collections.Counter()
+        oracle_offset = 0
+        sample_bytes = 1 if metadata['bit_depth'] == 8 else 2
+        with native.open('rb') as image:
+            for component in range(3):
+                scale = 1 if component == 0 else 2
+                width, height = metadata['coded_width'] // scale, metadata['coded_height'] // scale
+                visible_width = (metadata['width'] + scale - 1) // scale
+                visible_height = (metadata['height'] + scale - 1) // scale
+                left, top = metadata['conformance_window'][0] * 2 // scale, metadata['conformance_window'][2] * 2 // scale
+                for y in range(height):
+                    row = image.read(width * 2)
+                    require(len(row) == width * 2, 'diagnostic_native_size')
+                    if not top <= y < top + visible_height:
+                        continue
+                    begin = oracle_offset + (y - top) * visible_width * sample_bytes
+                    expected = selected[begin:begin + visible_width * sample_bytes]
+                    values = ((v,) for v in expected) if sample_bytes == 1 else struct.iter_unpack('<H', expected)
+                    for x, ((actual,), (wanted,)) in enumerate(zip(struct.iter_unpack('<H', row[left * 2:(left + visible_width) * 2]), values)):
+                        if actual != wanted:
+                            changed[component] += 1
+                            lx, ly = (x + left) * scale, y * scale
+                            ctus[lx >> metadata['ctb_log2'], ly >> metadata['ctb_log2']] += 1
+                            if len(first) < 16:
+                                first.append(dict(component=component, x=lx, y=ly, delta=actual - wanted))
+                oracle_offset += visible_width * visible_height * sample_bytes
+            require(not image.read(1), 'diagnostic_native_size')
+        return dict(available=True, oracle_complete=True, oracle_whole_md5=whole.hexdigest(),
+                    changed_samples=changed, first_differences=first,
+                    ctu_differences=[dict(x=x, y=y, samples=n) for (x,y),n in sorted(ctus.items())])
+    finally:
+        raw.unlink(missing_ok=True)
+
+
 def run(args):
     require(sys.platform == 'linux', 'linux_actions_required')
     require(0 < args.max_memory_bytes <= 4 << 30 and 0 < args.max_bins < 1 << 64, 'driver_budgets')
@@ -338,7 +465,7 @@ def run(args):
                       native=harness.digest(args.native), synthetic_registration=harness.digest(fixture.REGISTRATION),
                       acquisition=harness.digest(args.data / 'acquisition.json'))
     oracle_identity = {name: harness.digest(args.oracle_bin / name) for name in ('ffmpeg', 'ffprobe')}
-    result = dict(complete=False, gate='G2', stage='g1', identities=identities, results=[])
+    result = dict(complete=False, gate='G3' if args.filters else 'G2', stage='g1', identities=identities, results=[])
     try:
         options = argparse.Namespace(**vars(args))
         options.out = args.out / 'g1'
@@ -365,23 +492,40 @@ def run(args):
                 directory.mkdir(parents=True, exist_ok=True)
                 oracle_source, _ = harness.hevc_oracle_input.prepare(case, source, directory, harness)
             oracle = oracle_frames(args.oracle_bin / 'ffmpeg', oracle_source, directory, stream)
+            diagnosed = False
             for target in stream['targets']:
                 candidate = target['candidate']
                 selected = candidate['picture_index']
                 output = directory / (str(selected) + '.u16le')
-                code, stdout, _ = harness.child(native_command(args.native, source, selected, output,
-                    args.max_memory_bytes, args.max_bins), directory, 'native-' + str(selected))
-                require(code == 0 and stdout.stat().st_size < harness.TEXT_CAP, 'native_failed')
-                lines = stdout.read_text().splitlines()
-                require(len(lines) == 1, 'native_metadata_count')
-                metadata = json.loads(lines[0], object_pairs_hook=harness.unique_object)
-                validate_metadata(metadata, target, stream, source, args.max_memory_bytes, args.max_bins)
-                require(output.stat().st_size < harness.CAPTURE_CAP, 'native_raw_limit')
-                comparison = compare_picture(output.read_bytes(), metadata, candidate,
-                                             oracle[candidate['reference']['output_index']])
-                result['results'].append(dict(complete=True, candidate=candidate, metadata=metadata,
-                                              comparison=comparison))
-                output.unlink()
+                entry = dict(complete=False, candidate=candidate, stage='native')
+                try:
+                    code, stdout, _ = harness.child(native_command(args.native, source, selected, output,
+                        args.max_memory_bytes, args.max_bins), directory, 'native-' + str(selected),
+                        file_limit=max(harness.CAPTURE_CAP, args.max_memory_bytes))
+                    require(code == 0 and stdout.stat().st_size < harness.TEXT_CAP, 'native_failed')
+                    lines = stdout.read_text().splitlines()
+                    require(len(lines) == 1, 'native_metadata_count')
+                    metadata = json.loads(lines[0], object_pairs_hook=harness.unique_object)
+                    entry.update(stage='metadata', metadata=metadata)
+                    validate_metadata(metadata, target, stream, source, args.max_memory_bytes, args.max_bins)
+                    require(output.stat().st_size < args.max_memory_bytes, 'native_raw_limit')
+                    reference = candidate['reference']
+                    entry['stage'] = 'comparison'
+                    entry['comparison'] = compare_picture(output, metadata, candidate,
+                        oracle[reference['output_index']] if 'output_index' in reference else None)
+                    entry.update(complete=True, stage='complete')
+                except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
+                    entry['error_type'] = type(error).__name__
+                    if entry['stage'] == 'comparison' and not diagnosed:
+                        diagnosed = True
+                        try:
+                            entry['diagnostic'] = diagnose_picture(args.oracle_bin / 'ffmpeg', oracle_source,
+                                directory, stream, candidate, output, metadata)
+                        except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as diagnostic_error:
+                            entry['diagnostic'] = dict(available=False, error_type=type(diagnostic_error).__name__)
+                finally:
+                    output.unlink(missing_ok=True)
+                    result['results'].append(entry)
             stream['controls'] = negative_controls(args, stream, directory / 'controls')
             require(harness.digest(source) == stream['record']['sha256'], 'candidate_source_changed')
         require(harness.digest(args.registration) == identities['registration']
@@ -391,12 +535,88 @@ def run(args):
                 and harness.digest(args.data / 'acquisition.json') == identities['acquisition']
                 and all(harness.digest(args.oracle_bin / name) == value for name, value in oracle_identity.items()),
                 'run_identity_changed')
-        result.update(aggregate(denominator, result['results']), stage='complete',
-                      negative_controls=[dict(test=stream['test'], source_sha256=stream['record']['sha256'],
-                                              controls=stream['controls']) for stream in streams])
+        result['stage'] = 'aggregate'
+        result['negative_controls'] = [dict(test=stream['test'], source_sha256=stream['record']['sha256'],
+                                           controls=stream['controls']) for stream in streams]
+        result.update(aggregate(denominator, result['results']), stage='complete')
+        if args.filters:
+            result['gate'] = 'G3'
+            result['coverage_gaps'].append('unproved at 10-bit: tiles/dependent segments, no official candidate')
+            result['serial_effective_coverage_complete'] = False
+            g2 = [row for row in denominator if row['gate'] == 'G2']
+            result['g2_regression'] = aggregate(g2, [row for row in result['results'] if row['candidate']['gate'] == 'G2'])
     finally:
         harness.write_json(args.out / 'result.json', result)
     return result
+
+
+def development_picture(item, source, directory, oracle_bin, *, native, parser, max_memory_bytes, max_bins):
+    require(item['partition'] == 'development' and source.stat().st_size == item['size']
+            and harness.digest(source) == item['sha256'], 'development_source_identity')
+    require(parser and 0 < max_memory_bytes <= 4 << 30 and 0 < max_bins < 1 << 64, 'development_options')
+    directory.mkdir(parents=True, exist_ok=True)
+    prefix, output = directory / 'first-irap.hevc', directory / 'first-irap.u16le'
+    report = dict(complete=False, stage='extract_first_picture', source_sha256=item['sha256'],
+                  source_bytes=item['size'], native_sha256=harness.digest(native), parser_sha256=harness.digest(parser),
+                  oracle={name: harness.digest(oracle_bin / name) for name in ('ffmpeg', 'ffprobe')})
+    try:
+        code, _, _ = harness.child([oracle_bin / 'ffmpeg', '-nostdin', '-v', 'error', '-i', source,
+            '-map', '0:v:0', '-c:v', 'copy', '-bsf:v', 'hevc_mp4toannexb', '-frames:v', '1',
+            '-f', 'hevc', '-y', prefix], directory, 'extract-first-picture')
+        require(code == 0 and 0 < prefix.stat().st_size <= harness.BITSTREAM_CAP, 'development_prefix_failed')
+        report.update(stage='headers', prefix_sha256=harness.digest(prefix), prefix_bytes=prefix.stat().st_size)
+        code, stdout, _ = harness.child([parser, prefix], directory, 'headers')
+        require(code == 0 and stdout.stat().st_size < harness.TEXT_CAP, 'development_headers_failed')
+        summary, pictures, outputs = harness.native_rows(stdout, prefix.read_bytes())
+        require(len(pictures) == len(outputs) == 1 and outputs[0]['picture_index'] == 0
+                and pictures[0]['all_intra'] and 16 <= pictures[0]['nal_type'] <= 23, 'development_first_independent_irap')
+        picture = pictures[0]
+        rows = [json.loads(line, object_pairs_hook=harness.unique_object) for line in stdout.read_text().splitlines()]
+        hashes = selected_hashes(rows, 0)
+        report['stage'] = 'oracle'
+        frames = harness.probe(oracle_bin / 'ffprobe', prefix, directory, frames=True)['frames']
+        require(len(frames) == 1 and frames[0]['pict_type'] == 'I' and frames[0]['key_frame'] == 1,
+                'development_oracle_irap')
+        oracle = harness.oracle_frames(oracle_bin / 'ffmpeg', prefix, directory, frames, item['sha256'])
+        candidate = dict(picture_index=0, gate='G3', source_kind='development_first_independent_irap',
+                         stream_sha256=report['prefix_sha256'], source_sha256=item['sha256'],
+                         bit_depth=picture['bit_depth'], tiles=picture['tiles'], wpp=picture['wpp'],
+                         dependent_segments=picture['dependent_segments'],
+                         reference=dict(output_index=0, source_scope='development_first_irap_oracle', **oracle[0]))
+        target = dict(candidate=candidate, picture=picture, hashes=hashes)
+        stream = dict(source=prefix, summary=summary, rows=rows, targets=[target])
+        report.update(stage='reconstruction', candidate=candidate)
+        code, stdout, stderr = harness.child(native_command(native, prefix, 0, output, max_memory_bytes, max_bins),
+            directory, 'native', file_limit=max(harness.CAPTURE_CAP, max_memory_bytes))
+        if code != 0 and stderr.stat().st_size < harness.TEXT_CAP:
+            report['native_refusal'] = harness.read_json(stderr)
+        require(code == 0 and stdout.stat().st_size < harness.TEXT_CAP, 'development_native_failed')
+        metadata = harness.read_json(stdout)
+        validate_metadata(metadata, target, stream, prefix, max_memory_bytes, max_bins)
+        report.update(stage='comparison', metadata=metadata)
+        try:
+            report['comparison'] = compare_picture(output, metadata, candidate, oracle[0])
+        except ValueError:
+            diagnostic_stream = dict(test='development_first_irap', frames=frames,
+                                     record=dict(reference_frames=oracle, reference_packing=oracle[0]))
+            report['diagnostic'] = diagnose_picture(oracle_bin / 'ffmpeg', prefix, directory,
+                                                     diagnostic_stream, candidate, output, metadata)
+            report['native_packing'] = packed_picture(output, metadata)
+            report['source_first_frame'] = harness.oracle_frames(
+                oracle_bin / 'ffmpeg', source, directory,
+                [dict(frames[0], width=metadata['width'], height=metadata['height'])],
+                item['sha256'], first_picture=True)[0]
+            raise
+        require(harness.digest(prefix) == report['prefix_sha256'] and harness.digest(source) == item['sha256']
+                and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
+                and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),
+                'development_identity_changed')
+        report.update(complete=True, stage='complete')
+        return report
+    finally:
+        harness.write_json(directory / 'intra.json', report)
+        prefix.unlink(missing_ok=True)
+        output.unlink(missing_ok=True)
 
 
 def main():
@@ -406,6 +626,7 @@ def main():
         parser.add_argument('--' + name, required=True, type=pathlib.Path)
     parser.add_argument('--max-memory-bytes', required=True, type=int)
     parser.add_argument('--max-bins', required=True, type=int)
+    parser.add_argument('--filters', action='store_true', help='Include original filtered intra and non-output SEI references')
     args = parser.parse_args()
     try:
         result = run(args)

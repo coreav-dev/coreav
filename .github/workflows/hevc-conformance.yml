@@ -76,11 +76,11 @@ jobs:
             --data "$RUNNER_TEMP/hevc-data" --out "$RUNNER_TEMP/hevc-intra" \
             --parser "$PWD/target/release/examples/headers" --oracle-bin "$RUNNER_TEMP/oracle" \
             --native "$PWD/target/release/examples/intra" --synthetic-data "$RUNNER_TEMP/hevc-synthetic" \
-            --max-memory-bytes 268435456 --max-bins 268435456
+            --max-memory-bytes 268435456 --max-bins 268435456 --filters
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: hevc-g2
+          name: hevc-intra
           path: |
             ${{ runner.temp }}/archives.pinned.json
             ${{ runner.temp }}/hevc-data/acquisition.json
@@ -98,6 +98,10 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example intra
       - name: Install the pinned binary oracle
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Inspect all fixed files with isolated metadata subprocesses
@@ -110,7 +114,8 @@ jobs:
           set -euo pipefail
           umask 077
           python3 -I scripts/hevc_conformance.py corpus-online --dest "$RUNNER_TEMP/media" \
-            --out "$RUNNER_TEMP/private" --oracle-bin "$RUNNER_TEMP/oracle"
+            --out "$RUNNER_TEMP/private" --oracle-bin "$RUNNER_TEMP/oracle" \
+            --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/intra"
       - name: Retain only aggregate profile counts publicly
         if: always()
         run: |
@@ -122,6 +127,8 @@ jobs:
               data = json.loads(source.read_text())
               summary = {key: data[key] for key in ('roster_sha256', 'complete', 'counts')}
               summary['files'] = len(data['files'])
+              if 'development_intra' in data:
+                  summary['development_intra'] = data['development_intra']
               (root / 'profile-summary.json').write_text(json.dumps(summary, indent=2) + '\n')
           PY
       - name: Seal private census records
@@ -134,7 +141,7 @@ jobs:
           mkdir -p sealed
           openssl rand -hex -out key.txt 32
           openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
-          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/tools/compat-corpus/evidence-public.pem" \
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/bench/hevc-conformance/evidence-public.pem" \
             -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
           shred -u key.txt records.tgz
           rm -rf private
