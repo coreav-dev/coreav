@@ -300,6 +300,7 @@ name = "coreav-cli"
 version = "0.0.1"
 dependencies = [
  "clap",
+ "coreav-aac",
  "coreav-audio",
  "coreav-avi",
  "coreav-backend-dav1d",
