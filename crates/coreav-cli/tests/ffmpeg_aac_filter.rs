@@ -8,6 +8,9 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[path = "support/concat_output.rs"]
+mod concat_output;
+
 struct FixtureDir(PathBuf);
 
 impl Drop for FixtureDir {
@@ -72,7 +75,7 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
     let list = dir.join("concat.txt");
     std::fs::write(&list, "file 'first.mp4'\nfile 'second.mp4'\n").unwrap();
     let bin = env!("CARGO_BIN_EXE_coreav");
-    let check_plain = |args: &[&str], output: &Path, reference: &Path| {
+    let check_plain = |args: &[&str], output: &Path, reference: &Path, case: &str| {
         for existing in [false, true] {
             if existing {
                 std::fs::write(output, b"existing output").unwrap();
@@ -93,39 +96,21 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
                 .env_remove("COREAV_FALLBACK_ACTIVE")
                 .output()
                 .unwrap();
-            assert_eq!(strict.status.code(), Some(4));
-            assert!(
+            assert_eq!(
+                strict.status.code(),
+                Some(0),
+                "{}",
                 String::from_utf8_lossy(&strict.stderr)
-                    .contains("H.264 concat packet conversion that CoreAV cannot copy exactly")
             );
             assert!(strict.stdout.is_empty());
-            assert_eq!(std::fs::read_dir(dir).unwrap().count(), entries);
-            if existing {
-                assert_eq!(std::fs::read(output).unwrap(), b"existing output");
-            } else {
-                assert!(!output.exists());
-            }
-            let fallback = Command::new(bin)
-                .args(["ffmpeg", "-y"])
-                .args(args)
-                .arg(output)
-                .env("COREAV_FALLBACK", &ffmpeg)
-                .env_remove("COREAV_STRICT_SAFE")
-                .env_remove("COREAV_FALLBACK_ACTIVE")
-                .output()
-                .unwrap();
-            assert_eq!(fallback.status.code(), pin.status.code());
-            assert_eq!(fallback.stdout, pin.stdout);
-            assert_eq!(output.exists(), reference.exists());
+            assert!(pin.status.success());
+            let list = Path::new(args.windows(2).find(|args| args[0] == "-i").unwrap()[1]);
+            concat_output::compare(&ffmpeg, &ffprobe, output, reference, list, case);
             assert_eq!(
                 std::fs::read_dir(dir).unwrap().count(),
                 entries + usize::from(!existing && output.exists())
             );
             if output.exists() {
-                assert_eq!(
-                    std::fs::read(output).unwrap(),
-                    std::fs::read(reference).unwrap()
-                );
                 std::fs::remove_file(output).unwrap();
             }
             if reference.exists() {
@@ -181,7 +166,16 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
             std::fs::read(&reference).unwrap(),
             std::fs::read(&plain_reference).unwrap()
         );
-        check_plain(&plain, &ordinary, &plain_reference);
+        check_plain(
+            &plain,
+            &ordinary,
+            &plain_reference,
+            if video_only {
+                "filter-video"
+            } else {
+                "filter-av"
+            },
+        );
         for existing in [false, true] {
             if existing {
                 std::fs::write(&output, b"existing output").unwrap();
@@ -309,6 +303,11 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
             ],
             &dir.join(format!("{name}-native.mp4")),
             &dir.join(format!("{name}-reference.mp4")),
+            if name == "alac" {
+                "filter-alac"
+            } else {
+                "filter-transport-like"
+            },
         );
     }
     let output = dir.join("refused output.mp4");

@@ -20,11 +20,10 @@ with the given ffprobe and ffmpeg, used as black boxes:
   output's audio packets are the source's twice;
 - every output decodes without an error.
 
-All four H.264 compatibility concat cases must refuse, preserve the
-destination and use byte-identical pinned fallback. AC-3 and E-AC-3 retain
-their earlier multi-edit reason; FLAC and ALAC require the H.264 packet
-conversion reason. These are refusals, not native passes. Their native
-join cases retain all of the packet and decode checks above.
+AC-3 and E-AC-3 compatibility concat cases refuse, preserve the
+destination and use byte-identical pinned fallback for their multi-edit
+timelines. FLAC and ALAC concat run natively and retain all packet and
+decode checks above, with their complete output checked separately.
 
 Clips, segments and joins change the edit lists, so their packets are
 compared with edit lists ignored. The binaries are black boxes; no
@@ -94,12 +93,9 @@ EXPECTED = {
 }
 
 CONCAT_REASON = b"coreav ffmpeg: not supported by coreav ffmpeg: a concat output that needs several audio edits"
-CONCAT_H264_REASON = b"coreav ffmpeg: not supported by coreav ffmpeg: H.264 concat packet conversion that CoreAV cannot copy exactly"
 CONCAT_REFUSALS = {
     "av_ac3.mp4": CONCAT_REASON,
     "av_eac3.mp4": CONCAT_REASON,
-    "av_flac.mp4": CONCAT_H264_REASON,
-    "av_alac.mp4": CONCAT_H264_REASON,
 }
 
 

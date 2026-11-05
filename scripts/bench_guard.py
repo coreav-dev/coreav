@@ -309,7 +309,7 @@ STATS = re.compile(r'^\{"remote_stats":(\{.*\})\}$', re.MULTILINE)
 REFS = re.compile(r"^==\d+== I\s+refs:\s+([\d,]+)\s*$", re.MULTILINE)
 
 
-REQUIRED_REFUSALS = {"ffmpeg-C02-join", "ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"}
+REQUIRED_REFUSALS = {"ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"}
 
 
 def required_refusal(coreav, command):
