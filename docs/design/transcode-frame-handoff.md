@@ -55,7 +55,17 @@ Linux `vmsplice` can loan shared-memory pages into the existing encoder pipe wit
 
 A 4,096-byte local counterexample confirms this. After `vmsplice`, `tee` and a complete read of the original pipe, `FIONREAD` reports zero. Overwriting the source mapping changes all 4,096 bytes subsequently read from the second pipe. No page ownership was gifted. The [observation](../measurements/transcode-frame-handoff/phase-b-page-loan.json) records those counts. Reader-close checks and a shorter polling interval cannot revoke forwarded page references.
 
-Reject this design and retain synchronous `writev`. No production change or new unsafe site remains. A shared-memory encoder helper needs an explicit acknowledgement protocol and an encoder API that avoids the existing programs' pipe input. Its installation, licensing and distribution boundary must satisfy the encoder policy before implementation. The full sixteen-input main/candidate comparison has not run because no candidate has been accepted.
+Reject loans of decoder-writable pages. A shared-memory encoder helper instead needs an immutable snapshot and an explicit acknowledgement protocol. The full sixteen-input main/candidate comparison has not run yet.
+
+## Selected helper design
+
+The [operator-only exception in record 0042](encoder-backends.md) permits a separate executable outside every CoreAV artifact and build graph. The pipe-fed paths remain unchanged. The operator explicitly supplies `COREAV_X264_SHM_HELPER` and selects the x264 encoder. An explicit `--x264` still names the pipe program and takes precedence.
+
+For each frame, the parent copies checked packed rows into a fresh anonymous file using the same raw `writev` copy boundary as the pipe path. It adds write, grow, shrink and final seals before sending a descriptor on the helper's control pipe, then releases the decoder's frame. The helper opens only the snapshot read-only, verifies its seals and exact size, maps it read-only and calls libx264. Its acknowledgement releases the parent's file handle. Neither process ever makes the snapshot writable again or reuses it for another frame.
+
+A reusable ring was considered but rejected because immutable per-frame files make early or dishonest acknowledgements harmless to the contents of retained mappings and forwarded pipe references. Only one snapshot is in flight from the writer. The existing bounded input queue, process limits, keeper and deadline remain. The helper's bounded stdout framing separates acknowledgements from encoded bytes; the latter still pass through the existing Annex B validator and muxer. Unknown messages, wrong sequences, short frames or invalid seals fail the job.
+
+This removes the pipe's pixel payload and encoder-side raw input read. It keeps one trusted copy out of decoder-writable storage rather than allowing those pages to cross the next boundary. Test sealed-snapshot immutability after decoder reuse, hostile protocol messages and process exits, then require complete-file identity before reporting speed. [The helper protocol](../../tools/x264-shm-helper/README.md) defines the wire fields.
 
 ## Verification and reference capture
 
