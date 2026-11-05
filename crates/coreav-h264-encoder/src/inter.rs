@@ -80,14 +80,28 @@ fn predict(
     let ix = (mx * 16 / scale + x) as i32 + part.mv.x.div_euclid(divisor) - margin;
     let iy = (my * 16 / scale + y) as i32 + part.mv.y.div_euclid(divisor) - margin;
     let mut window = [0; 21 * 21];
-    for j in 0..height + extra {
-        for i in 0..width + extra {
-            *window.get_mut(j * 21 + i).ok_or(Error::Internal)? =
-                reference.sample(ix + i as i32, iy + j as i32)?;
+    let src = if ix >= 0
+        && iy >= 0
+        && ix as usize + width + extra <= reference.width
+        && iy as usize + height + extra <= reference.height
+    {
+        Block::new(
+            &reference.data,
+            iy as usize * reference.width + ix as usize,
+            reference.width,
+            width + extra,
+            height + extra,
+        )
+        .map_err(|_| Error::Internal)?
+    } else {
+        for j in 0..height + extra {
+            for i in 0..width + extra {
+                *window.get_mut(j * 21 + i).ok_or(Error::Internal)? =
+                    reference.sample(ix + i as i32, iy + j as i32)?;
+            }
         }
-    }
-    let src =
-        Block::new(&window, 0, 21, width + extra, height + extra).map_err(|_| Error::Internal)?;
+        Block::new(&window, 0, 21, width + extra, height + extra).map_err(|_| Error::Internal)?
+    };
     let dst = BlockMut::new(&mut tile.0, Tile::at(x, y), STRIDE, width, height)
         .map_err(|_| Error::Internal)?;
     let (xf, yf) = (
@@ -202,18 +216,32 @@ impl Search<'_> {
         let mut sad = 0u64;
         if mv.x % 4 == 0 && mv.y % 4 == 0 {
             for y in part.y..part.y + part.height {
-                for x in part.x..part.x + part.width {
-                    let original = *self
-                        .decision
-                        .source
-                        .0
-                        .get(Tile::at(x, y))
+                let ix = (self.mx * 16 + part.x) as i32 + mv.x / 4;
+                let iy = (self.my * 16 + y) as i32 + mv.y / 4;
+                let at = Tile::at(part.x, y);
+                let original = self
+                    .decision
+                    .source
+                    .0
+                    .get(at..at + part.width)
+                    .ok_or(Error::Internal)?;
+                if ix >= 0
+                    && iy >= 0
+                    && ix as usize + part.width <= reference.width
+                    && (iy as usize) < reference.height
+                {
+                    let start = iy as usize * reference.width + ix as usize;
+                    let predicted = reference
+                        .data
+                        .get(start..start + part.width)
                         .ok_or(Error::Internal)?;
-                    let predicted = reference.sample(
-                        (self.mx * 16 + x) as i32 + mv.x / 4,
-                        (self.my * 16 + y) as i32 + mv.y / 4,
-                    )?;
-                    sad += u64::from((i32::from(original) - i32::from(predicted)).unsigned_abs());
+                    for (&a, &b) in original.iter().zip(predicted) {
+                        sad += u64::from(a.abs_diff(b));
+                    }
+                } else {
+                    for (x, &a) in original.iter().enumerate() {
+                        sad += u64::from(a.abs_diff(reference.sample(ix + x as i32, iy)?));
+                    }
                 }
             }
         } else {
@@ -542,6 +570,8 @@ impl Search<'_> {
         end: usize,
         refusal: &mut Error,
     ) -> Result<Option<Candidate>> {
+        #[cfg(test)]
+        tests::SEARCHES.with(|count| count.set(count.get() + 1));
         let mut result = None;
         for index in start..end {
             let mut grid = [None; 16];
@@ -581,7 +611,14 @@ impl Search<'_> {
                 skip.skip = true;
                 skip.parts.first_mut().ok_or(Error::Internal)?.mv = mv;
                 match self.evaluate(skip) {
-                    Ok(c) => consider(best, c),
+                    Ok(c) => {
+                        let exact =
+                            c.key.cost == (1u64 << (self.decision.qp / 3)) * c.key.bits as u64;
+                        consider(best, c);
+                        if exact {
+                            return Ok(());
+                        }
+                    }
                     Err(Error::Coefficient | Error::Syntax) => {}
                     Err(Error::MacroblockLimit) => *refusal = Error::MacroblockLimit,
                     Err(e) => return Err(e),
@@ -650,6 +687,193 @@ impl Search<'_> {
 mod tests {
     use super::*;
     use crate::{Colour, Gop, Limits, Settings};
+
+    std::thread_local! {
+        pub(super) static SEARCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    #[test]
+    fn exact_skip_avoids_search_only_when_every_component_matches() {
+        let reference = [
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+        ];
+        for qp in [10, 16, 28, 40, 51] {
+            for changed in 0..4 {
+                let mut source = Tile([0; STRIDE * 18]);
+                let mut csources = [Tile([0; STRIDE * 18]), Tile([0; STRIDE * 18])];
+                if changed == 1 {
+                    source.0[Tile::at(7, 7)] = 1;
+                } else if changed > 1 {
+                    csources[changed - 2].0[Tile::at(3, 3)] = 1;
+                }
+                let decision = Decision {
+                    source: &source,
+                    csources: &csources,
+                    context: MbContext {
+                        top: None,
+                        left: None,
+                        p_slice: true,
+                    },
+                    qp,
+                    pending_skip: 7,
+                };
+                let search = Search {
+                    reference: &reference,
+                    decision: &decision,
+                    border: Border::default(),
+                    mx: 0,
+                    my: 0,
+                    previous: 0,
+                };
+                let mut best = None;
+                SEARCHES.with(|count| count.set(0));
+                search
+                    .candidates(&mut best, &mut Error::Coefficient)
+                    .unwrap();
+                let count = SEARCHES.with(|count| count.get());
+                assert_eq!(count == 0, changed == 0);
+                if changed == 0 {
+                    let best = best.unwrap();
+                    assert!(best.inter.unwrap().skip);
+                    assert_eq!(best.luma.tile.error(&source, 0, 0, 16).unwrap(), 0);
+                    for (actual, expected) in best.chroma.tiles.iter().zip(&csources) {
+                        assert_eq!(actual.error(expected, 0, 0, 8).unwrap(), 0);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn direct_reference_regions_match_sampled_windows_at_every_phase_and_edge() {
+        let mut reference = FramePlane::new(48, 48).unwrap();
+        for (p, v) in reference.data.iter_mut().enumerate() {
+            *v = ((p * 197 + p / 48 * 31) % 256) as u8;
+        }
+        for chroma in [false, true] {
+            let (scale, divisor, margin, extra) = if chroma { (2, 8, 0, 1) } else { (1, 4, 2, 5) };
+            for size in [4, 8, 16] {
+                for origin in [0, 1, 2] {
+                    for base in [-64, -8, 0, 8, 64] {
+                        for xf in 0..divisor {
+                            for yf in 0..divisor {
+                                let part = Part {
+                                    width: size,
+                                    height: size,
+                                    mv: Mv {
+                                        x: base + xf,
+                                        y: -base + yf,
+                                    },
+                                    ..Part::default()
+                                };
+                                let mut actual = Tile::empty();
+                                predict(&reference, &mut actual, part, origin, origin, chroma)
+                                    .unwrap();
+                                let (ix, iy) = (
+                                    (origin * 16 / scale) as i32 + part.mv.x.div_euclid(divisor)
+                                        - margin,
+                                    (origin * 16 / scale) as i32 + part.mv.y.div_euclid(divisor)
+                                        - margin,
+                                );
+                                let n = size / scale;
+                                let mut window = [0; 21 * 21];
+                                for y in 0..n + extra {
+                                    for x in 0..n + extra {
+                                        window[y * 21 + x] =
+                                            reference.sample(ix + x as i32, iy + y as i32).unwrap();
+                                    }
+                                }
+                                let mut expected = Tile::empty();
+                                let src = Block::new(&window, 0, 21, n + extra, n + extra).unwrap();
+                                let dst =
+                                    BlockMut::new(&mut expected.0, Tile::at(0, 0), STRIDE, n, n)
+                                        .unwrap();
+                                if chroma {
+                                    Scalar.chroma_mc(dst, src, xf as u8, yf as u8);
+                                } else {
+                                    Scalar.luma_mc(dst, src, xf as u8, yf as u8);
+                                }
+                                assert_eq!(actual.0, expected.0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn integer_scores_match_sampled_sad_for_rectangles_and_outlying_seeds() {
+        let mut reference = [
+            FramePlane::new(48, 48).unwrap(),
+            FramePlane::new(24, 24).unwrap(),
+            FramePlane::new(24, 24).unwrap(),
+        ];
+        for (p, v) in reference[0].data.iter_mut().enumerate() {
+            *v = ((p * 197 + p / 48 * 31) % 256) as u8;
+        }
+        let mut source = Tile::empty();
+        for (p, v) in source.0.iter_mut().enumerate() {
+            *v = (p % 256) as u8;
+        }
+        let csources = [Tile::empty(), Tile::empty()];
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context: MbContext {
+                top: None,
+                left: None,
+                p_slice: true,
+            },
+            qp: 28,
+            pending_skip: 0,
+        };
+        for (width, height) in [(4, 4), (4, 8), (8, 4), (16, 8), (8, 16), (16, 16)] {
+            let part = Part {
+                width,
+                height,
+                ..Part::default()
+            };
+            for origin in [0, 1, 2] {
+                let search = Search {
+                    reference: &reference,
+                    decision: &decision,
+                    border: Border::default(),
+                    mx: origin,
+                    my: origin,
+                    previous: 0,
+                };
+                for x in [-8192, -64, -4, 0, 4, 64, 8188] {
+                    for y in [-2048, -64, -4, 0, 4, 64, 2044] {
+                        let mv = Mv { x, y };
+                        let predictor = Mv { x: -3, y: 7 };
+                        let mut bits = Bits::count();
+                        mv.difference(predictor).unwrap().write(&mut bits).unwrap();
+                        let mut sad = 0u64;
+                        for j in 0..height {
+                            for i in 0..width {
+                                let b = reference[0]
+                                    .sample(
+                                        (origin * 16 + i) as i32 + x / 4,
+                                        (origin * 16 + j) as i32 + y / 4,
+                                    )
+                                    .unwrap();
+                                sad += u64::from(source.0[Tile::at(i, j)].abs_diff(b));
+                            }
+                        }
+                        assert_eq!(
+                            search
+                                .score(part, mv, predictor, &mut Motions::new())
+                                .unwrap(),
+                            Some((sad + (1 << (28 / 6)) * bits.len as u64, bits.len, mv))
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn cheap_finalists_keep_protected_seeds_and_deterministic_ties() {
