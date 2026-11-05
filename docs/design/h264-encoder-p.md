@@ -109,6 +109,52 @@ This is the first commit of the P-picture layer. The normative rules and search 
 
 No rate-control or CABAC implementation belongs in this layer. Its completion requires the exact-head guard against the main allowlist, not only a proposed allowlist preview. The layer remains unmerged until its independent review and the external stage-gate decision are complete.
 
+## Pre-study search-efficiency design
+
+This is a proposal, not implemented behavior. Our bounded-build profile identifies partition search, prediction access, cheap scoring, finalist evaluation, and transform arithmetic as targets. Their inclusive costs overlap. The design below comes from that profile, the specification, and first principles, before studying other encoders.
+
+Keep fixed QP, the existing coding tools, safe scalar Rust, and all normative admission and transactional failure rules. Areas 1 and 3 may change selected modes and bytes. Areas 2, 4, and 5 must preserve complete candidate costs, refusals, and reconstruction for identical inputs. Keep the current bounded search as the comparison arm.
+
+### 1. Partition pruning and early skip
+
+Study question: Which inexpensive evidence justifies omitting partition searches without losing useful motion boundaries or residual coding choices?
+
+Our design tests normative P_Skip and whole-macroblock motion first. Start with an early-skip experiment restricted to admissible skip with zero Y, Cb, and Cr distortion, rather than a content-independent error threshold. Otherwise rank split layouts by prediction error plus motion cost before full RDO. Retain the whole layout and the best ranked split family, and refine a subgroup only when its cheap score improves on its unsplit parent. Keep an admissible intra fallback. These are heuristic selection policies, not proofs of optimal RDO cost. Compare their bitrate and quality against searching every admitted layout. Clauses 8.4.1 and A.3.1 still determine legal prediction and motion counts.
+
+### 2. Padded reference access and interpolation reuse
+
+Study question: When does reusing edge extension and fractional samples save more work than the extra storage and cache traffic cost?
+
+Our design copies an edge-replicated block window once per local search region and validates its geometry before row access. Share that window across probes and finalists. Derive horizontal, vertical, and diagonal half-sample results lazily within the window, then form quarter-sample predictions with clause 8.4.2.2.1's rounding and clipping order. Keep intermediate precision where the specification requires it. Key reuse by reference identity, region, component, and phase. Keep caches bounded and fallible, discard them on reference replacement, and use the existing sampled path for valid vectors outside the cached region. Begin with local windows rather than extra full-picture planes. Chroma retains clause 8.4.2.2.2's separate interpolation.
+
+### 3. Cheaper motion scoring and early termination
+
+Study question: Which predictor ordering and prediction-cost metric retain good RDO finalists with fewer probes and pixel operations?
+
+Our design orders the existing zero, predictor, and rounded-predictor seeds before the bounded spatial pattern. Compute signed Exp-Golomb motion length arithmetically, with equality tests against the existing bit counter. Accumulate SAD by rows and stop an ordinary probe only when its partial SAD plus motion cost strictly exceeds the current retained-candidate cutoff. Equality must still respect deterministic ties. Protected zero and predictor candidates remain eligible for full RDO. Compare the current SAD ranking with a small SATD reranking stage before fractional refinement, without treating either metric as a lower bound on final RDO. Keep the current probe and finalist caps until measurements justify changing them.
+
+### 4. Incremental finalist evaluation
+
+Study question: Which candidate dependencies permit exact reuse beyond the existing per-partition unchanged-region cache?
+
+Our design retains selected block predictions, transforms, levels, and distortion in macroblock-local state. A trial replaces only affected blocks and invalidates dependent motion differences, coefficient-neighbour counts, and syntax costs. Recompute coupled chroma DC and every reconstruction it changes. Initially keep the complete shared syntax traversal for final counting and MacroblockLimit admission. Reuse syntax fragments only after identifying all their neighbour dependencies and proving equality with complete counting. Keep trial changes private until selection, and preserve uncached evaluation as a test oracle for every partition shape and refusal path. Clauses 8.4, 8.5, 9.2, and A.3.1 remain the contract.
+
+### 5. Transform and quantization arithmetic
+
+Study question: How much generic arithmetic can be removed while retaining exact levels, inverse samples, and coefficient-range refusals?
+
+Our design factors each fixed integer basis into row and column operations rather than evaluating every two-dimensional basis product. Precompute quantization denominators and inverse scales for the picture's luma and mapped chroma QPs. Preserve the current signed rounding, tie behavior, separate DC handling, intermediate precision, and range checks. A zero-block shortcut must establish that every relevant level, including coupled DC, is zero. Compare specialized scalar results with the generic transform and quantizer across all QPs, boundary coefficients, and refusal cases. Clause 8.5 governs normative inverse reconstruction. Changing the quantizer's quality policy is separate from this arithmetic rewrite.
+
+### Comparison and isolation
+
+Measure each area separately before combining it. Report actual probes and full trials beside full encode time, complete reconstruction agreement, bitrate, PSNR, and SSIM on identical inputs and settings. A heuristic need not preserve the previous bitstream, but every output must pass the unchanged conformance and rollback checks. Exact rewrites must also match their complete-evaluation reference. Adopt a studied technique only after comparing it with this design in the same run. No SIMD, unsafe code, rate control, or default-build change belongs here.
+
+### Prior art
+
+The reviewed [search-efficiency technique note](../technique-notes/h264-encoder-speed.md) compares this design with x264 core 165 at `0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee` (GPL-2.0-or-later) and OpenH264 v2.7.0 at `1bca62311e447fd9c39fc93de2c4b96cd5ce971c` (BSD-2-Clause). It supplies prose about avoided work, not code or measured optimization results. The implementation session uses that note without opening either source. The independently derived choices above remain the starting arm; competing note-derived choices require same-run measurements before adoption.
+
+The implementation context has read no other encoder source and accepts no unreviewed study report. A separate study compares this committed design with pinned implementations. Its independently reviewed, committed prose note is the only source-derived input a fresh implementation context may receive.
+
 ## Next design-only slice
 
 The [picture-budget proposal](h264-encoder-rate-control.md) defines the next design-only slice after inter conformance. It separates a target-rate policy from normative QP and buffer constraints, defines failure and flush behavior, and proposes synthetic acceptance checks before any implementation. CABAC, adaptive quantisation, lookahead, and any quality or speed acceptance method remain separate work.
