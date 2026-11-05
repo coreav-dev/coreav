@@ -119,54 +119,77 @@ class PackageFilters(unittest.TestCase):
                 self.assertTrue(self.selected([path])['ci'])
 
     def test_wasm_reports_installed_package_and_memory_failures(self):
+        script = 'puts JSON.generate(Psych.load_file(ARGV[0])["jobs"])'
+        jobs = json.loads(subprocess.check_output(
+            ['ruby', '-rjson', '-rpsych', '-e', script,
+             str(ROOT / '.github/workflows/wasm.yml')], text=True))
+        module = jobs['wasm-module']
+        reporter_job = jobs['wasm-failure']
+        self.assertEqual(reporter_job['needs'], 'wasm-module')
+        self.assertNotIn('concurrency', reporter_job,
+                         'a shared reporter group can discard a different gate class during a burst')
+        self.assertEqual(reporter_job['permissions']['issues'], 'write')
+        self.assertNotIn('issues', module.get('permissions', {}))
+        reporter = next(step for step in reporter_job['steps']
+                        if step.get('name') == 'Record a release-blocking failure')
+        self.assertEqual(reporter['env']['GATE_OUTCOMES'],
+                         '${{ needs.wasm-module.outputs.gate-outcomes }}')
+        gate_names = ['Verify the installed package', 'Judge the registered memory gates',
+                      'Verify the installed H.264 package',
+                      'Preflight the installed thumbnail profile']
+        gate_ids = [next(step['id'] for step in module['steps']
+                         if step.get('name') == name) for name in gate_names]
+        evaluate = r'''
+const assert = require('node:assert/strict');
+const config = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+const condition = new Function('needs', 'github', 'always', `return (${config.condition.replaceAll('needs.wasm-module', 'needs["wasm-module"]')});`);
+const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
+const execute = new AsyncFunction('github', 'context', 'require', config.script);
+(async () => {
+  for (const [event, ref, eligible] of [['push', 'refs/heads/main', true], ['workflow_dispatch', 'refs/heads/candidate', true],
+    ['push', 'refs/heads/topic', false], ['pull_request', 'refs/pull/1/merge', false], ['merge_group', 'refs/heads/gh-readonly-queue/main/test', false]]) {
+    for (const name of config.gates) for (const outcome of ['failure', 'success', 'skipped', 'cancelled']) {
+      const outcomes = Object.fromEntries(config.gates.map(id => [id, 'skipped']));
+      outcomes[name] = outcome;
+      process.env.GATE_OUTCOMES = config.output.replace(/\$\{\{ steps\.([a-z_0-9]+)\.outcome \}\}/g, (_, id) => outcomes[id]);
+      assert.deepEqual(JSON.parse(process.env.GATE_OUTCOMES), outcomes);
+      const calls = [];
+      const github = { rest: { issues: { listForRepo() {}, create: async issue => {
+        calls.push(issue);
+        return { data: { ...issue, number: 500, user: { login: 'github-actions[bot]' } } };
+      } } }, paginate: async () => [] };
+      const context = { repo: { owner: 'coreav-dev', repo: 'coreav' }, eventName: event, ref, sha: 'a'.repeat(40), runId: 123 };
+      const result = outcome === 'failure' ? 'failure' : outcome;
+      const selected = condition({ 'wasm-module': { result } }, { event_name: event, ref }, () => true);
+      assert.equal(selected, eligible && outcome === 'failure');
+      if (selected) await execute(github, context, require);
+      assert.equal(calls.length, eligible && outcome === 'failure' ? 1 : 0, event + ' ' + name + ' ' + outcome);
+    }
+  }
+  process.env.GATE_OUTCOMES = JSON.stringify(Object.fromEntries(config.gates.map(id => [id, 'skipped'])));
+  const github = { paginate: () => assert.fail('an earlier failure must not file a gate blocker') };
+  await execute(github, { repo: { owner: 'coreav-dev', repo: 'coreav' }, eventName: 'push', ref: 'refs/heads/main' }, require);
+})().catch(error => { console.error(error); process.exitCode = 1; });
+'''
+        result = subprocess.run(['node', '-e', evaluate], input=json.dumps({
+            'condition': reporter_job['if'],
+            'output': module['outputs']['gate-outcomes'],
+            'script': reporter['with']['script'],
+            'gates': gate_ids,
+        }), text=True, capture_output=True, cwd=ROOT)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_wasm_contract_installs_the_real_runtime_before_example_tests(self):
         script = ('puts JSON.generate(Psych.load_file(ARGV[0])'
-                  '["jobs"]["wasm-module"]["steps"])')
+                  '["jobs"]["wasm-contract"]["steps"])')
         steps = json.loads(subprocess.check_output(
             ['ruby', '-rjson', '-rpsych', '-e', script,
              str(ROOT / '.github/workflows/wasm.yml')], text=True))
-        installed = next(step for step in steps
-                         if step.get('name') == 'Verify the installed package')
-        examples = next(step for step in steps
-                        if step.get('name') == 'Judge the registered memory gates')
-        installed_h264 = next(step for step in steps
-                              if step.get('name') == 'Verify the installed H.264 package')
-        thumbnails = next(step for step in steps
-                          if step.get('name') == 'Preflight the installed thumbnail profile')
-        reporter = next(step for step in steps
-                        if step.get('name') == 'Record a release-blocking failure')
-        evaluate = '''
-const assert = require('node:assert/strict');
-const config = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
-const condition = new Function('steps', 'failure', `return (${config.condition});`);
-for (const [name, installed, examples, failed, expected] of [
-  ['failed package with skipped memory must report', 'failure', 'skipped', true, true],
-  ['failed memory must report', 'success', 'failure', true, true],
-  ['successful checks must not report', 'success', 'success', false, false],
-  ['earlier failure with both checks skipped must not report', 'skipped', 'skipped', true, false],
-  ['cancellation still requires manual reporting', 'cancelled', 'skipped', false, false]
-]) {
-  const steps = { [config.installed]: { outcome: installed }, [config.examples]: { outcome: examples },
-    [config.installedH264]: { outcome: 'skipped' }, [config.thumbnails]: { outcome: 'skipped' } };
-  assert.equal(condition(steps, () => failed), expected, name);
-}
-for (const name of [config.installedH264, config.thumbnails]) {
-  const steps = Object.fromEntries([config.installed, config.examples, config.installedH264, config.thumbnails].map(id => [id, { outcome: 'skipped' }]));
-  steps[name].outcome = 'failure';
-  assert.equal(condition(steps, () => true), true, name + ' failure must report');
-  steps[name].outcome = 'success';
-  assert.equal(condition(steps, () => false), false);
-  steps[name].outcome = 'cancelled';
-  assert.equal(condition(steps, () => false), false);
-}
-'''
-        result = subprocess.run(['node', '-e', evaluate], input=json.dumps({
-            'condition': reporter['if'],
-            'installed': installed.get('id', 'unidentified_installed'),
-            'examples': examples['id'],
-            'installedH264': installed_h264['id'],
-            'thumbnails': thumbnails['id'],
-        }), text=True, capture_output=True)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        commands = [step.get('run', '') for step in steps]
+        testing = commands.index('npm test --prefix packages/wasm/examples')
+        self.assertIn('npm ci --ignore-scripts --no-audit --no-fund --prefix packages/wasm/examples',
+                      commands[:testing],
+                      'install the example lockfile before running its real workerd regression')
 
     def test_mixed_changes_and_renames_keep_native_validation(self):
         for paths in (['packages/wasm/src/node.js', 'packages/cli/lib/main.js'],
