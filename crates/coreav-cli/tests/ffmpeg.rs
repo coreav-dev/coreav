@@ -2825,6 +2825,189 @@ fn raw_s16_fifo_refuses_and_preserves_exact_pinned_fallback() {
     assert_eq!(payloads[0], payloads[1]);
 }
 
+#[cfg(unix)]
+#[test]
+fn raw_s16_linked_outputs_refuse_and_fall_back_through_the_target() {
+    use std::os::unix::fs::{MetadataExt, symlink};
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("raw-s16-links");
+    let source = dir.join("source.s16");
+    let bytes = [0u8, 128, 0, 0, 255, 127];
+    std::fs::write(&source, bytes).unwrap();
+    for (kind, flag) in [
+        ("symlink", "-y"),
+        ("dangling", "-y"),
+        ("dangling", "-n"),
+        ("hardlink", "-y"),
+    ] {
+        for fallback in [false, true] {
+            let tag = format!("{kind}-{flag}-{fallback}");
+            let target = dir.join(format!("{tag}-target.s16"));
+            let destination = dir.join(format!("{tag}.s16"));
+            if kind != "dangling" {
+                std::fs::write(&target, b"preserve target").unwrap();
+            }
+            if kind == "hardlink" {
+                std::fs::hard_link(&target, &destination).unwrap();
+            } else {
+                symlink(&target, &destination).unwrap();
+            }
+            let args = [
+                flag,
+                "-f",
+                "s16le",
+                "-ar",
+                "48000",
+                "-ac",
+                "1",
+                "-i",
+                source.to_str().unwrap(),
+                "-f",
+                "s16le",
+                destination.to_str().unwrap(),
+            ];
+            let inode = std::fs::symlink_metadata(&destination).unwrap().ino();
+            let entries = std::fs::read_dir(&dir).unwrap().count();
+            let refused = Command::new(bin())
+                .args(["--strict-safe", "ffmpeg"])
+                .args(args)
+                .output()
+                .unwrap();
+            assert_eq!(refused.status.code(), Some(4), "{refused:?}");
+            assert!(refused.stdout.is_empty());
+            assert_eq!(
+                std::fs::symlink_metadata(&destination).unwrap().ino(),
+                inode
+            );
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+            if kind == "dangling" {
+                assert!(!target.exists());
+            } else {
+                assert_eq!(std::fs::read(&target).unwrap(), b"preserve target");
+            }
+            let mut command = if fallback {
+                let mut command = Command::new(bin());
+                command.arg("ffmpeg");
+                command.env("COREAV_FALLBACK", &pin);
+                command.env_remove("COREAV_STRICT_SAFE");
+                command.env_remove("COREAV_FALLBACK_ACTIVE");
+                command
+            } else {
+                Command::new(&pin)
+            };
+            let result = command.args(args).output().unwrap();
+            assert!(result.status.success(), "{result:?}");
+            assert!(result.stdout.is_empty());
+            assert_eq!(
+                std::fs::symlink_metadata(&destination).unwrap().ino(),
+                inode
+            );
+            assert_eq!(destination.is_symlink(), kind != "hardlink");
+            assert_eq!(std::fs::read(&destination).unwrap(), bytes);
+            assert_eq!(std::fs::read(target).unwrap(), bytes);
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn raw_s16_unwritable_targets_preserve_the_pinned_exit_status() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("raw-s16-unwritable");
+    let source = dir.join("source.s16");
+    let bytes = [0u8, 128, 0, 0, 255, 127];
+    std::fs::write(&source, bytes).unwrap();
+    for dangling in [false, true] {
+        for flag in ["-y", "-n"] {
+            let mut outcomes = Vec::new();
+            for fallback in [false, true] {
+                let tag = format!("{dangling}-{flag}-{fallback}");
+                let target = if dangling {
+                    dir.join(format!("{tag}-missing/target.s16"))
+                } else {
+                    dir.join(format!("{tag}-target.s16"))
+                };
+                let destination = if dangling {
+                    let link = dir.join(format!("{tag}-link.s16"));
+                    symlink(&target, &link).unwrap();
+                    link
+                } else {
+                    std::fs::write(&target, b"preserve").unwrap();
+                    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o444))
+                        .unwrap();
+                    target.clone()
+                };
+                let args = [
+                    flag,
+                    "-f",
+                    "s16le",
+                    "-ar",
+                    "48000",
+                    "-ac",
+                    "1",
+                    "-i",
+                    source.to_str().unwrap(),
+                    "-f",
+                    "s16le",
+                    destination.to_str().unwrap(),
+                ];
+                let inode = std::fs::symlink_metadata(&destination).unwrap().ino();
+                let entries = std::fs::read_dir(&dir).unwrap().count();
+                let strict = Command::new(bin())
+                    .args(["--strict-safe", "ffmpeg"])
+                    .args(args)
+                    .output()
+                    .unwrap();
+                assert_eq!(strict.status.code(), Some(4), "{strict:?}");
+                assert!(strict.stdout.is_empty());
+                assert_eq!(
+                    std::fs::symlink_metadata(&destination).unwrap().ino(),
+                    inode
+                );
+                assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+                if !dangling {
+                    assert_eq!(std::fs::read(&target).unwrap(), b"preserve");
+                }
+                let mut command = if fallback {
+                    let mut command = Command::new(bin());
+                    command.arg("ffmpeg");
+                    command.env("COREAV_FALLBACK", &pin);
+                    command.env_remove("COREAV_STRICT_SAFE");
+                    command.env_remove("COREAV_FALLBACK_ACTIVE");
+                    command
+                } else {
+                    Command::new(&pin)
+                };
+                let result = command.args(args).output().unwrap();
+                assert!(result.stdout.is_empty());
+                assert_eq!(
+                    std::fs::symlink_metadata(&destination).unwrap().ino(),
+                    inode
+                );
+                let payload = if dangling {
+                    assert!(!target.exists());
+                    None
+                } else {
+                    let payload = std::fs::read(&target).unwrap();
+                    if !result.status.success() || flag == "-n" {
+                        assert_eq!(payload, b"preserve");
+                    } else {
+                        assert_eq!(payload, bytes);
+                    }
+                    Some(payload)
+                };
+                outcomes.push((result.status.code(), payload));
+            }
+            assert_eq!(outcomes[0], outcomes[1], "dangling={dangling}, {flag}");
+        }
+    }
+}
+
 #[test]
 fn unedited_video_copy_normalizes_its_origin_without_losing_frames() {
     let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {

@@ -148,14 +148,12 @@ pub fn refuse(input: &Path, output: &Path, force: bool) -> Option<String> {
     if std::fs::symlink_metadata(output).is_ok_and(|m| m.is_dir()) {
         return Some(format!("{} is a directory", output.display()));
     }
-    if check_regular_file(output)
-        .is_err_and(|error| error.kind() == std::io::ErrorKind::Unsupported)
-    {
-        return Some(format!("{} is not a regular file", output.display()));
+    if let Some(message) = input_alias(input, output) {
+        return Some(message);
     }
-    if same_file(input, output) {
+    if check_regular_file(output).is_err() {
         return Some(format!(
-            "{} is the input file; write the output to another path",
+            "{} cannot be replaced atomically",
             output.display()
         ));
     }
@@ -168,16 +166,45 @@ pub fn refuse(input: &Path, output: &Path, force: bool) -> Option<String> {
     None
 }
 
+pub(crate) fn input_alias(input: &Path, output: &Path) -> Option<String> {
+    same_file(input, output).then(|| {
+        format!(
+            "{} is the input file; write the output to another path",
+            output.display()
+        )
+    })
+}
+
 pub(crate) fn check_regular_file(path: &Path) -> std::io::Result<()> {
-    match std::fs::metadata(path) {
-        Ok(metadata) if !metadata.is_file() => Err(std::io::Error::new(
+    let metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    if !metadata.is_file() {
+        return Err(std::io::Error::new(
             std::io::ErrorKind::Unsupported,
             "output destination is not a regular file",
-        )),
-        Ok(_) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
+        ));
     }
+    if metadata.permissions().readonly() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "output destination is not writable",
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if metadata.nlink() > 1 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "output destination has multiple links",
+            ));
+        }
+        rustix::fs::access(path, rustix::fs::Access::WRITE_OK).map_err(std::io::Error::from)?;
+    }
+    Ok(())
 }
 
 /// Whether two paths name the same existing file (the same path, a link to
@@ -306,7 +333,7 @@ pub fn to_file_patched<T>(
 }
 
 /// Moves the written `temporary` file to `path`. With `force` it replaces
-/// a regular file (a symbolic link to one is replaced, not written through) and
+/// an admitted writable regular file and
 /// keeps the replaced file's permissions. Without it, the move is a hard
 /// link, which fails rather than replace a file created at `path` after
 /// the command checked it ([`refuse`]); a file system without hard links
@@ -504,7 +531,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn a_link_to_a_regular_output_is_still_replaced_without_touching_its_target() {
+    fn a_link_to_a_regular_output_is_refused_without_touching_its_target() {
         use std::os::unix::fs::symlink;
         let dir = scratch("regular-link");
         let target = dir.join("target");
@@ -515,10 +542,39 @@ mod tests {
             out.write_all(b"output")
                 .map_err(|error| WriteFailure::output(&error))
         });
-        assert!(result.is_ok());
-        assert!(!path.is_symlink());
-        assert_eq!(std::fs::read(path).unwrap(), b"output");
+        assert!(result.is_err());
+        assert!(path.is_symlink());
+        assert_eq!(std::fs::read(path).unwrap(), b"target");
         assert_eq!(std::fs::read(target).unwrap(), b"target");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_only_outputs_are_preserved_before_staging_and_publication() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let dir = scratch("read-only");
+        let path = dir.join("output");
+        std::fs::write(&path, b"preserve").unwrap();
+        let inode = std::fs::metadata(&path).unwrap().ino();
+        for late in [false, true] {
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+            if !late {
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+            }
+            let mut ran = false;
+            let result = to_file(&path, true, |out| {
+                ran = true;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+                out.write_all(b"replace")
+                    .map_err(|error| WriteFailure::output(&error))
+            });
+            assert!(result.is_err());
+            assert_eq!(ran, late);
+            assert_eq!(std::fs::metadata(&path).unwrap().ino(), inode);
+            assert_eq!(std::fs::read(&path).unwrap(), b"preserve");
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+        }
         std::fs::remove_dir_all(dir).unwrap();
     }
 
