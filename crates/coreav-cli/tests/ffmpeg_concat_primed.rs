@@ -8,6 +8,8 @@
 
 #[path = "support/concat_presentation.rs"]
 mod concat_presentation;
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
 
 use concat_presentation::Oracle;
 use std::path::{Path, PathBuf};
@@ -28,31 +30,12 @@ fn fixture(name: &str) -> FixtureDir {
     FixtureDir(path)
 }
 
-fn oracle() -> Option<Oracle> {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
-    if !ffmpeg.is_file() || !ffprobe.is_file() {
-        assert!(
-            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-            "set COREAV_FFMPEG to the pinned oracle"
-        );
-        return None;
+fn oracle() -> Oracle {
+    let pair = test_oracle::require();
+    Oracle {
+        ffmpeg: pair.ffmpeg().to_path_buf(),
+        ffprobe: pair.ffprobe().to_path_buf(),
     }
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let verified = Command::new("python3")
-        .arg(root.join("scripts/oracle_pin.py"))
-        .arg("--verify-bin")
-        .arg(ffmpeg.parent().unwrap())
-        .output()
-        .unwrap();
-    assert!(
-        verified.status.success(),
-        "{}",
-        String::from_utf8_lossy(&verified.stderr)
-    );
-    Some(Oracle { ffmpeg, ffprobe })
 }
 
 fn native(
@@ -93,9 +76,7 @@ fn native(
 
 #[test]
 fn twelve_primed_concat_recipes_preserve_continuous_presentation() {
-    let Some(oracle) = oracle() else {
-        return;
-    };
+    let oracle = oracle();
     let owner = fixture("ffmpeg-concat-primed-presentation");
     let dir = &owner.0;
     for (channels, duration, samples) in [
@@ -192,9 +173,7 @@ fn twelve_primed_concat_recipes_preserve_continuous_presentation() {
 
 #[test]
 fn rate_mixed_later_idr_and_aud_controls_qualify_separately() {
-    let Some(oracle) = oracle() else {
-        return;
-    };
+    let oracle = oracle();
     let owner = fixture("ffmpeg-concat-primed-controls");
     let dir = &owner.0;
     for (name, rate, options) in [
