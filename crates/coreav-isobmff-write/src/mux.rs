@@ -181,10 +181,17 @@ struct MuxTrack {
     tables: Tables,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Chunking {
+    Interleaved,
+    Packets,
+    Contiguous,
+}
+
 /// Writes an MP4 file whose samples are copied from elsewhere; see the
 /// [module documentation](self).
 pub struct Muxer {
-    packet_order: bool,
+    chunking: Chunking,
     file_type: FileType,
     movie: MovieHeader,
     tracks: Vec<MuxTrack>,
@@ -202,7 +209,7 @@ impl Muxer {
             return Err(invalid("movie timescale 0"));
         }
         Ok(Self {
-            packet_order: false,
+            chunking: Chunking::Interleaved,
             file_type,
             movie,
             tracks: Vec::new(),
@@ -225,7 +232,24 @@ impl Muxer {
         if !self.tracks.is_empty() {
             return Err(invalid("packet ordering must precede tracks"));
         }
-        self.packet_order = true;
+        if self.chunking == Chunking::Contiguous {
+            return Err(invalid("packet ordering conflicts with contiguous audio"));
+        }
+        self.chunking = Chunking::Packets;
+        Ok(())
+    }
+
+    /// Stores one audio track in one contiguous chunk. Select before adding
+    /// tracks; incompatible modes, video and additional tracks are refused.
+    /// `write_head` refuses an empty track or tables requiring several chunks.
+    pub fn contiguous_audio_chunks(&mut self) -> Result<(), Error> {
+        self.open()?;
+        if !self.tracks.is_empty() || self.chunking != Chunking::Interleaved {
+            return Err(invalid(
+                "contiguous audio must precede tracks and other chunk modes",
+            ));
+        }
+        self.chunking = Chunking::Contiguous;
         Ok(())
     }
 
@@ -248,9 +272,19 @@ impl Muxer {
                 offset: 0,
             });
         }
+        if self.chunking == Chunking::Contiguous
+            && (!self.tracks.is_empty() || !matches!(header.media, TrackMedia::Audio { .. }))
+        {
+            return Err(invalid("contiguous chunks require exactly one audio track"));
+        }
         self.tracks.try_reserve(1).map_err(|_| table_limit())?;
-        let chunk_bytes = if self.packet_order { 0 } else { CHUNK_BYTES };
-        let tables = Tables::with_chunk_bytes(header.timescale, self.table_limit, chunk_bytes);
+        let tables = match self.chunking {
+            Chunking::Interleaved => {
+                Tables::with_chunk_bytes(header.timescale, self.table_limit, CHUNK_BYTES)
+            }
+            Chunking::Packets => Tables::with_chunk_bytes(header.timescale, self.table_limit, 0),
+            Chunking::Contiguous => Tables::contiguous(header.timescale, self.table_limit),
+        };
         self.tracks.push(MuxTrack { header, tables });
         Ok(self.tracks.len().saturating_sub(1))
     }
@@ -414,9 +448,14 @@ impl Muxer {
     /// 4 GiB (`co64`).
     pub fn write_head<W: Write>(&mut self, out: &mut W) -> Result<Head, ExtractError> {
         self.open()?;
+        if self.chunking == Chunking::Contiguous
+            && !matches!(self.tracks.as_slice(), [track] if track.tables.chunk_count() == 1)
+        {
+            return Err(invalid("contiguous audio requires one nonempty chunk").into());
+        }
         self.written = true;
         for track in &mut self.tracks {
-            if self.packet_order {
+            if self.chunking == Chunking::Packets {
                 track.tables.decode_start = crate::moov::edited_decode_start(
                     &track.header.edits,
                     track.header.timescale,
@@ -509,7 +548,7 @@ impl Muxer {
                 extra: copied(&self.movie.boxes),
             },
             boxes,
-            if self.packet_order {
+            if self.chunking == Chunking::Packets {
                 Ties::TrackOrder
             } else {
                 Ties::SmallerFirst
@@ -538,7 +577,7 @@ impl Muxer {
             .try_reserve_exact(self.tracks.len())
             .map_err(|_| E::from(table_limit()))?;
         tables.extend(self.tracks.iter().map(|t| &t.tables));
-        let ties = if self.packet_order {
+        let ties = if self.chunking == Chunking::Packets {
             Ties::TrackOrder
         } else {
             Ties::SmallerFirst
@@ -1178,6 +1217,216 @@ mod tests {
         assert_eq!(&out[udta + 4..udta + 8], b"\0\0\0\x0c");
     }
 
+    fn pcm_muxer(contiguous: bool, limits: &Limits) -> Muxer {
+        let mut muxer = Muxer::new(
+            FileType {
+                major: FourCc(*b"isom"),
+                minor: 512,
+                compatible: vec![FourCc(*b"isom"), FourCc(*b"iso2"), FourCc(*b"mp41")],
+            },
+            MovieHeader {
+                timescale: 48_000,
+                creation_time: 0,
+                boxes: Vec::new(),
+            },
+            limits,
+        )
+        .unwrap();
+        if contiguous {
+            muxer.contiguous_audio_chunks().unwrap();
+        }
+        muxer
+    }
+
+    fn pcm_header() -> TrackHeader {
+        let mut h = header(
+            TrackMedia::Audio { volume: 0x0100 },
+            audio_sample_entry(
+                FourCc(*b"ipcm"),
+                1,
+                16,
+                48_000,
+                &[RawBox {
+                    kind: FourCc(*b"pcmC"),
+                    payload: vec![0, 0, 0, 0, 1, 16],
+                }],
+            )
+            .unwrap(),
+        );
+        h.timescale = 48_000;
+        h
+    }
+
+    #[test]
+    fn contiguous_audio_changes_only_chunk_tables_and_keeps_the_complete_extent() {
+        fn leaves(mut bytes: &[u8], out: &mut Vec<([u8; 4], Vec<u8>)>) {
+            while !bytes.is_empty() {
+                let size = u32::from_be_bytes(bytes[..4].try_into().unwrap()) as usize;
+                let kind: [u8; 4] = bytes[4..8].try_into().unwrap();
+                let end = size.min(bytes.len());
+                match &kind {
+                    b"moov" | b"trak" | b"mdia" | b"minf" | b"stbl" | b"edts" => {
+                        leaves(&bytes[8..end], out);
+                    }
+                    b"stsc" | b"stco" => {}
+                    _ => out.push((kind, bytes[..end].to_vec())),
+                }
+                bytes = &bytes[end..];
+            }
+        }
+        let limits = Limits::default();
+        let mut heads = Vec::new();
+        for contiguous in [false, true] {
+            let mut muxer = pcm_muxer(contiguous, &limits);
+            let track = muxer.add_track(pcm_header()).unwrap();
+            for _ in 0..52_800 {
+                muxer
+                    .push_sample(
+                        track,
+                        Sample {
+                            size: 2,
+                            duration: 1,
+                            sync: true,
+                            composition_offset: 0,
+                        },
+                    )
+                    .unwrap();
+            }
+            let mut bytes = Vec::new();
+            let head = muxer.write_head(&mut bytes).unwrap();
+            assert_eq!(head.data_bytes, 105_600);
+            assert_eq!(head.data_start, bytes.len() as u64);
+            assert_eq!(muxer.duration(track), Some(52_800));
+            let mut chunks = Vec::new();
+            muxer
+                .for_each_chunk(|track, count| -> Result<(), Error> {
+                    chunks.push((track, count));
+                    Ok(())
+                })
+                .unwrap();
+            assert_eq!(
+                chunks,
+                if contiguous {
+                    vec![(0, 52_800)]
+                } else {
+                    vec![(0, 48_000), (0, 4800)]
+                }
+            );
+            if contiguous {
+                let stsc = bytes.windows(4).position(|w| w == b"stsc").unwrap();
+                assert_eq!(
+                    &bytes[stsc + 4..stsc + 24],
+                    &[0u32, 1, 1, 52_800, 1].map(u32::to_be_bytes).concat()
+                );
+                let stco = bytes.windows(4).position(|w| w == b"stco").unwrap();
+                assert_eq!(
+                    &bytes[stco + 4..stco + 16],
+                    &[0u32, 1, head.data_start as u32]
+                        .map(u32::to_be_bytes)
+                        .concat()
+                );
+            }
+            let mut unchanged = Vec::new();
+            leaves(&bytes, &mut unchanged);
+            heads.push(unchanged);
+            bytes.resize(head.total() as usize, 0x31);
+            let movie = probe(SliceSource::new(&bytes), &limits, &Allowlist::default()).unwrap();
+            assert_eq!(movie.timescale, 48_000);
+            assert_eq!(movie.tracks[0].timescale, 48_000);
+            let mut budget = Budget::new(&limits);
+            let mut count = 0;
+            let mut end = head.data_start;
+            for packet in movie
+                .packets(
+                    movie.tracks[0].index,
+                    SliceSource::new(&bytes),
+                    &limits,
+                    &mut budget,
+                )
+                .unwrap()
+            {
+                let packet = packet.unwrap();
+                assert_eq!(packet.offset, end);
+                assert_eq!(packet.duration, 1);
+                assert_eq!(packet.size, 2);
+                end += 2;
+                count += 1;
+            }
+            assert_eq!(count, 52_800);
+            assert_eq!(end, head.total());
+        }
+        assert_eq!(heads[0], heads[1]);
+    }
+
+    #[test]
+    fn contiguous_audio_refuses_incompatible_state_before_writing() {
+        let limits = Limits::default();
+        let mut muxer = pcm_muxer(false, &limits);
+        muxer.add_track(pcm_header()).unwrap();
+        assert!(muxer.contiguous_audio_chunks().is_err());
+        let mut muxer = pcm_muxer(false, &limits);
+        muxer.interleave_packets().unwrap();
+        assert!(muxer.contiguous_audio_chunks().is_err());
+        let mut muxer = pcm_muxer(true, &limits);
+        assert!(muxer.interleave_packets().is_err());
+        assert!(muxer.contiguous_audio_chunks().is_err());
+        let mut bytes = Vec::new();
+        assert!(muxer.write_head(&mut bytes).is_err());
+        assert!(bytes.is_empty());
+        let mut video = pcm_header();
+        video.media = TrackMedia::Video {
+            matrix: crate::moov::UNITY,
+            width: 1,
+            height: 1,
+        };
+        assert!(muxer.add_track(video).is_err());
+        muxer.add_track(pcm_header()).unwrap();
+        assert!(muxer.add_track(pcm_header()).is_err());
+        assert!(muxer.write_head(&mut bytes).is_err());
+        assert!(bytes.is_empty());
+        assert!(muxer.pop_track().is_some());
+        let track = muxer.add_track(pcm_header()).unwrap();
+        muxer
+            .push_sample(
+                track,
+                Sample {
+                    size: 2,
+                    duration: 1,
+                    sync: true,
+                    composition_offset: 0,
+                },
+            )
+            .unwrap();
+        muxer.write_head(&mut bytes).unwrap();
+        assert!(muxer.contiguous_audio_chunks().is_err());
+        assert!(muxer.add_track(pcm_header()).is_err());
+    }
+
+    #[test]
+    fn contiguous_audio_keeps_table_limits() {
+        let limits = Limits {
+            max_table_bytes: 27,
+            ..Limits::default()
+        };
+        let mut muxer = pcm_muxer(true, &limits);
+        let track = muxer.add_track(pcm_header()).unwrap();
+        assert!(matches!(
+            muxer.push_sample(
+                track,
+                Sample {
+                    size: 2,
+                    duration: 1,
+                    sync: true,
+                    composition_offset: 0
+                }
+            ),
+            Err(Error::LimitExceeded {
+                limit: LimitKind::TableBytes,
+                ..
+            })
+        ));
+    }
+
     fn default_byte_fixture(mode: u8) -> (Vec<u8>, Head, Vec<(usize, u32)>) {
         let mut muxer = Muxer::new(
             FileType {
@@ -1259,7 +1508,8 @@ mod tests {
 
     #[test]
     fn default_headers_and_chunk_order_are_byte_identical() {
-        let expected: [(&str, Head, &[(usize, u32)]); 3] = [
+        type ExpectedLayout = (&'static str, Head, &'static [(usize, u32)]);
+        let expected: [ExpectedLayout; 3] = [
             (
                 concat!(
                     "000000186674797069736f6d0000020069736f6d69736f320000048b6d6f6f760000006c6d7668640000000000000000",
