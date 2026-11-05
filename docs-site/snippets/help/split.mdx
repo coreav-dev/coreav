@@ -14,6 +14,6 @@ Options:
       --audio <STREAM|none>  The audio stream index, or `none` (default: the first audio stream)
       --allow <CODEC>        Codecs to accept, comma separated, as for `coreav probe`
       --strict               Reject the whole file when a stream's codec is not allowed
-      --force                Overwrite segment files that exist (a symbolic link is replaced, not written through; a new file keeps the old one's permissions)
+      --force                Overwrite existing writable regular files (symbolic links and multiply-linked Unix files are refused; a replaced file keeps its permissions)
   -h, --help                 Print help
 ```

@@ -4,6 +4,7 @@ Documentation-site prose, schema wording, and design-note updates.
 
 | Rule | Enforced by |
 |---|---|
+| Native `--force` help describes admitted regular-file overwrite rather than symbolic-link replacement | `FORCE_HELP` in `coreav-cli/src/main.rs` owns the wording; `every_native_force_flag_uses_the_shared_destination_help` builds each deferred command and names the shared attribute to restore for any missing consumer. `docs_site` compares generated snippets with actual help. A boolean flag type cannot constrain help metadata or a runtime destination's filesystem type |
 | HEVC plan scope distinguishes 8-bit Main from 8- or 10-bit Main10 | Not enforced: review of the plan against the existing profile/depth admission contract. Runtime tests already reject invalid profile/depth combinations; a type cannot establish the meaning of prose |
 | Algebraic acceptance examples identify each abstract cost separately from complete emitted data | Not enforced: design review. State successive costs as separate values, not a comma-grouped scalar. Prose cannot establish that an abstract cost is a realizable codec output; complete emitted-data accounting needs its own acceptance check |
 | The full HEVC census command prepares and consumes its required synthetic references | `test_documented_census_prepares_and_consumes_synthetic_references` parses the published commands and requires fixture verification before census execution with the same output directory. The workflow already owns the executable gate; types cannot establish a documented shell command's arguments |

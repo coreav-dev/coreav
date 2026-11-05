@@ -9,6 +9,6 @@ Arguments:
 
 Options:
       --stream <STREAM>  The subtitle stream index (default: the first text stream that is not a chapter track)
-      --force            Overwrite OUTPUT if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+      --force            Overwrite existing writable regular files (symbolic links and multiply-linked Unix files are refused; a replaced file keeps its permissions)
   -h, --help             Print help
 ```
