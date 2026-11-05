@@ -240,10 +240,11 @@ class MainPlan(unittest.TestCase):
             self.assertIn('check', plan['ci'])
             self.assertIn('isobmff-writers', plan['ci'])
             self.assertIn('transcode-compat-shard', plan['ci'])
+            self.assertIn('svt-av1', plan['ci'])
             self.assertIn('linux-x86_64', plan['python'])
             self.assertIn('package', plan['npm'])
             self.assertNotIn('main-cache', plan['ci'])
-        self.assertEqual(sum(sum(jobs.values()) for jobs in main.values()), 34)
+        self.assertEqual(sum(sum(jobs.values()) for jobs in main.values()), 35)
         self.assertNotIn('conformance-arm64', group['ci'])
 
     def test_documentation_only_main_keeps_the_eight_lightweight_jobs(self):
@@ -253,7 +254,7 @@ class MainPlan(unittest.TestCase):
     def test_representative_non_h264_merge_drops_from_28_to_10_jobs(self):
         counts = [sum(sum(jobs.values()) for jobs in self.plan('push', reused, h264=False).values())
                   for reused in (False, True)]
-        self.assertEqual(counts, [28, 10])
+        self.assertEqual(counts, [29, 10])
 
     def test_concurrency_never_cancels_or_joins_merge_groups(self):
         for name, workflow in self.workflows.items():

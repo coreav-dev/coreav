@@ -55,7 +55,9 @@ thumbnail-summary = ["dep:coreav-thumbnail"]
 # re-encoded to H.264 by an operator-provided x264 or ffmpeg, which this
 # program runs under the sandbox launcher `thumbnail` brings. A decoder
 # backend feature turns it on.
-transcode = ["thumbnail", "dep:coreav-transcode"]
+transcode = ["thumbnail", "dep:coreav-transcode", "coreav-transcode/svt-av1"]
+svt-av1 = ["transcode"]
+svt-av1-native = ["svt-av1", "coreav-transcode/svt-av1-native", "dep:coreav-backend-svt-av1", "coreav-backend-svt-av1/native"]
 input-capture = ["transcode", "coreav-transcode/input-capture", "dep:sha2"]
 # dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
 # the system's libdav1d.
@@ -97,6 +99,7 @@ coreav-decode = { path = "../coreav-decode" }
 coreav-frame = { path = "../coreav-frame", optional = true }
 coreav-thumbnail = { path = "../coreav-thumbnail", optional = true, default-features = false }
 coreav-transcode = { path = "../coreav-transcode", optional = true }
+coreav-backend-svt-av1 = { path = "../coreav-backend-svt-av1", optional = true }
 coreav-backend-h264 = { path = "../coreav-backend-h264", optional = true }
 coreav-backend-vp9 = { path = "../coreav-backend-vp9", optional = true }
 coreav-backend-dav1d = { path = "../coreav-backend-dav1d", optional = true, features = ["dav1d"] }

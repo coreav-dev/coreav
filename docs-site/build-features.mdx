@@ -27,13 +27,28 @@ Each backend feature adds [`coreav thumbnail`](/commands/thumbnail) and [`coreav
 | `libvpx` | VP8 and VP9, with libvpx in the sandboxed worker | The system's libvpx with decoder ABI version 12, as in libvpx 1.14, found with `pkg-config` |
 | `native-h264` | H.264, with CoreAV's own decoder in the `coreav` process | Nothing else. Read the patent note below. |
 
-When a build has more than one backend, CoreAV picks one for each stream from those that support it, and `coreav thumbnail` reports which one decoded the frame. `coreav transcode` also needs an encoder program at run time: an `x264` program, or an `ffmpeg` program built with libx264. In [strict-safe mode](/strict-safe#what-strict-safe-mode-covers) no `ffmpeg` program runs, so `ffmpeg-fallback` decodes nothing there and the encoder must be an `x264` program.
+When a build has more than one backend, CoreAV picks one for each stream from those that support it, and `coreav thumbnail` reports which one decoded the frame. The default H.264 output of `coreav transcode` also needs an encoder program at run time: an `x264` program, or an `ffmpeg` program built with libx264. In [strict-safe mode](/strict-safe#what-strict-safe-mode-covers) no `ffmpeg` program runs, so `ffmpeg-fallback` decodes nothing there and H.264 encoding requires an `x264` program.
 
 For example, to build with dav1d and the FFmpeg fallback:
 
 ```sh
 cargo install --locked --path crates/coreav-cli --profile dist --features dav1d,ffmpeg-fallback
 ```
+
+## Experimental AV1 encoder
+
+`coreav transcode --video av1` uses a built-in SVT-AV1 worker, not an encoder found on PATH. These features are separate from input decoding:
+
+| Feature | What it adds |
+|---|---|
+| `svt-av1` | The transcode command and safe AV1 adapters, but no native encoder. The `transcode` feature already includes these adapters. |
+| `svt-av1-native` | The native SVT-AV1 worker, linked only against the verified pinned static recipe installation named by `SVT_AV1_PREFIX`. |
+
+Neither feature decodes input. A decoder backend is still required. The native backend supports x86-64 and AArch64 on Linux with musl, and on macOS. Windows and glibc targets are unsupported. A system library, dynamic library or runtime download cannot replace the pinned installation.
+
+The [SVT-AV1 design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/encoders/svt-av1.md#static-library-build) describes the recipe and target requirements. A distribution that includes SVT-AV1 must carry its complete copyright, licence and patent notices, as described by the [native notice checks](https://github.com/coreav-dev/coreav/blob/main/docs/release/notices.md#native-svt-av1-notice-checks).
+
+Neither release feature set below selects `svt-av1-native` automatically. Native Unix full packages can opt in with `COREAV_SVT_AV1=1`; the package script builds the pinned library and includes its notices. For example: `COREAV_SVT_AV1=1 packages/cli/scripts/platform.sh linux-x64 x86_64-unknown-linux-musl full`. This requires a native host with the recipe's build tools, including `musl-gcc` on Linux.
 
 ## Release builds
 
