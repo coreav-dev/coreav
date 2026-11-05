@@ -1397,6 +1397,60 @@ fn dropped_non_aac_edits_keep_video_concat_native() {
         .is_ok()
     );
     assert_eq!(std::fs::read(output).unwrap(), native);
+
+    struct InspectionFailure {
+        bytes: Vec<u8>,
+        inspections: usize,
+    }
+    impl coreav_isobmff::Source for InspectionFailure {
+        fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+            self.inspections += 1;
+            if self.inspections == 2 {
+                return Err(coreav_isobmff::Error::Unsupported {
+                    reason: "a failed source inspection",
+                });
+            }
+            Ok(self.bytes.len() as u64)
+        }
+        fn read_exact_at(
+            &mut self,
+            offset: u64,
+            buf: &mut [u8],
+        ) -> Result<(), coreav_isobmff::Error> {
+            coreav_isobmff::Source::read_exact_at(
+                &mut coreav_isobmff::SliceSource::new(&self.bytes),
+                offset,
+                buf,
+            )
+        }
+    }
+    let mut out = Vec::new();
+    let error = coreav_isobmff_write::concat_mp4(
+        vec![InspectionFailure {
+            bytes: std::fs::read(dir.join("source.mp4")).unwrap(),
+            inspections: 0,
+        }],
+        &Default::default(),
+        &Default::default(),
+        &coreav_isobmff_write::ConcatOptions {
+            video: coreav_isobmff_write::VideoChoice::First,
+            audio: coreav_isobmff_write::JoinAudio::None,
+            files: vec![coreav_isobmff_write::ConcatFile {
+                slot: coreav_isobmff::Rational::from_int(0),
+                start: coreav_isobmff::Rational::from_int(0),
+            }],
+        },
+        &mut out,
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        coreav_isobmff_write::JoinError::Inspection {
+            input: 0,
+            error: coreav_isobmff::Error::Unsupported { .. }
+        }
+    ));
+    assert!(out.is_empty());
 }
 
 #[cfg(unix)]

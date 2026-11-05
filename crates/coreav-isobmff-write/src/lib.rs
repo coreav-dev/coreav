@@ -915,6 +915,14 @@ impl fmt::Display for Mismatch {
 pub enum JoinError {
     /// No input was given.
     NoInputs,
+    /// Listing re-probe failed for a concat input accepted by the copy probe.
+    /// This is terminal, even when the parser names an unsupported structure.
+    Inspection {
+        /// The input whose hidden audio descriptions could not be inspected.
+        input: usize,
+        /// The original parser or source error.
+        error: Error,
+    },
     /// An input (0-based) cannot be read, or cannot be joined on its own:
     /// the errors a clip of it would give, and joining's own (a video that
     /// does not start with a sync sample, say).
@@ -945,6 +953,7 @@ impl fmt::Display for JoinError {
             Self::Mismatch { input, mismatch } => {
                 write!(f, "input {input} cannot be joined to the first: {mismatch}")
             }
+            Self::Inspection { input, error } => write!(f, "input {input} inspection: {error}"),
             Self::Output(error) => write!(f, "output: {error}"),
             Self::Write(kind) => write!(f, "write error: {kind}"),
         }

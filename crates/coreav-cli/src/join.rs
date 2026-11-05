@@ -40,6 +40,10 @@ impl JoinFailure {
                 let failure = WriteFailure::from(error.clone());
                 (failure.to_json(), failure.is_io(), Some(*input))
             }
+            JoinError::Inspection { input, error } => {
+                let failure = Failure::library(error.clone());
+                (failure.to_json(), failure.is_io(), Some(*input))
+            }
             JoinError::Mismatch { input, .. } => {
                 (object("incompatible_inputs", ""), false, Some(*input))
             }
@@ -213,6 +217,24 @@ mod tests {
     use super::*;
     use coreav_isobmff::{Codec, FourCc};
     use coreav_isobmff_write::{ClipTrack, LeftOut, LeftOutReason};
+
+    #[test]
+    fn inspection_failures_are_terminal_even_for_unsupported_parser_structures() {
+        let error = Error::Unsupported {
+            reason: "an unreadable hidden description",
+        };
+        let inspection = JoinFailure::new(&JoinError::Inspection {
+            input: 1,
+            error: error.clone(),
+        });
+        assert!(inspection.not_native.is_none());
+        assert_eq!(inspection.json.get("input"), Some(&json!(1)));
+        let eligibility = JoinFailure::new(&JoinError::Input {
+            input: 1,
+            error: ExtractError::Source(error),
+        });
+        assert!(eligibility.not_native.is_some());
+    }
 
     #[test]
     fn the_streamed_summary_is_the_whole_document_pretty_printed() {

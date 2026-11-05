@@ -158,7 +158,7 @@ fn join<S: Source, W: Write>(
                 .any(|track| track.kind == coreav_isobmff::TrackKind::Audio)
             {
                 let listing = probe(Shared(source), limits, &Allowlist::listing())
-                    .map_err(|e| at(input, e))?;
+                    .map_err(|error| JoinError::Inspection { input, error })?;
                 packet_copy |= concat::positive_aac(&listing);
             }
         }
