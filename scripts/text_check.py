@@ -1117,8 +1117,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--coreav", required=True)
     parser.add_argument("--media", required=True)
-    parser.add_argument("--ffprobe", default="ffprobe")
-    parser.add_argument("--ffmpeg", default="ffmpeg")
+    parser.add_argument("--ffprobe")
+    parser.add_argument("--ffmpeg")
     parser.add_argument("--mediainfo")
     parser.add_argument("--kd-overlay", help="known-divergences.json from scripts/oracle_kd.py")
     parser.add_argument("--require-several-edits", action="store_true",

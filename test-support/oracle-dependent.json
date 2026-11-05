@@ -45,8 +45,10 @@
     "vp9_hosting_preserves_complete_pixels"
   ],
   "crates/coreav-cli/tests/ffmpeg.rs": [
+    "av1_video_concat_compares_every_exposed_sample_entry_field_and_packet_byte",
     "concat_audio_gaps_are_refused_with_exact_pinned_fallback",
     "contributing_inputs_preserve_complete_packet_order_and_decoded_output",
+    "copied_video_aac_encoding_preserves_destinations_and_exact_fallback",
     "copied_video_reconstructs_conflicting_declared_media_durations",
     "copied_video_refuses_a_later_sample_before_its_first_composition",
     "cover_selections_agree_with_the_pinned_ffmpeg",
@@ -58,6 +60,7 @@
     "ordinary_copy_refuses_trimmed_simple_edits",
     "picture_by_picture_selections_agree_with_the_pinned_ffmpeg",
     "plain_extraction_metadata_agrees_with_the_pinned_ffmpeg",
+    "primed_aac_concat_refuses_and_preserves_complete_pinned_fallback",
     "raw_s16_fifo_refuses_and_preserves_exact_pinned_fallback",
     "raw_s16_linked_outputs_refuse_and_fall_back_through_the_target",
     "raw_s16_unwritable_targets_preserve_the_pinned_exit_status",
@@ -65,10 +68,18 @@
     "stripped_metadata_agrees_with_the_pinned_ffmpeg",
     "the_0_1_0_commands_on_the_fixtures",
     "unedited_audiovisual_concat_matches_the_pinned_ffmpeg",
-    "unedited_video_copy_normalizes_its_origin_without_losing_frames"
+    "unedited_video_copy_normalizes_its_origin_without_losing_frames",
+    "unqualified_primed_aac_concat_preserves_outputs_and_real_fallback"
   ],
   "crates/coreav-cli/tests/ffmpeg_aac_filter.rs": [
     "aac_filter_is_an_exact_concat_identity_or_preserved_fallback"
+  ],
+  "crates/coreav-cli/tests/ffmpeg_flac.rs": [
+    "complete_raw_bytes_match_the_pin_for_files_stdout_and_stdin",
+    "invalid_reconstructed_ranges_refuse_before_any_output",
+    "pinned_encoded_frames_and_zero_md5_use_complete_exact_output",
+    "unsupported_sources_refuse_and_replay_the_real_fallback",
+    "valid_reconstructed_range_boundaries_match_complete_pinned_bytes"
   ],
   "crates/coreav-cli/tests/ffmpeg_frames.rs": [
     "dropping_frames_matches_the_oracles_raw_samples",
@@ -100,9 +111,29 @@
     "matroska_default_video_encoder_matches_the_explicit_selection",
     "unsupported_webm_codecs_and_trimming_leave_no_output"
   ],
+  "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs": [
+    "aac_copy_is_exactly_clocked_or_preserved_fallback",
+    "one_tick_source_changes_refuse_without_changing_fallback",
+    "unselected_aac_and_iso_copy_keep_their_native_paths"
+  ],
+  "crates/coreav-cli/tests/ffmpeg_mpegts.rs": [
+    "automatic_and_explicit_avc_copy_keep_every_packet_clock_and_frame",
+    "short_transport_outputs_keep_the_qualified_three_sample_boundary",
+    "unqualified_transport_options_and_sources_preserve_destinations_and_fallback"
+  ],
+  "crates/coreav-cli/tests/ffmpeg_pcm.rs": [
+    "aac_raw_output_refuses_with_exact_pinned_fallback"
+  ],
+  "crates/coreav-cli/tests/ffmpeg_wav.rs": [
+    "integer_wav_output_matches_complete_pinned_files",
+    "wave_wav_stdout_refuses_without_literal_files_and_matches_fallback"
+  ],
   "crates/coreav-cli/tests/ffprobe_format_span.rs": [
     "format_output_counts_all_cover_picture_streams",
     "output_span_does_not_change_copy_planning_or_trimmed_bytes"
+  ],
+  "crates/coreav-cli/tests/ffprobe_stdin.rs": [
+    "structured_stdin_and_complete_pinned_replay"
   ],
   "crates/coreav-cli/tests/legacy_encoders.rs": [
     "legacy_encoder_choices_keep_media_summaries_errors_and_exit_codes"
@@ -164,6 +195,15 @@
     "resolution_change_fixture_matches_ffmpeg_scale",
     "test_pictures_match_ffmpeg_scale"
   ],
+  "crates/coreav-isobmff-write/src/ts_output/tests.rs": [
+    "ts_output::tests::preparation_limits_refuse_instead_of_returning_partial_output",
+    "ts_output::tests::preparation_nal_and_converted_access_unit_limits_include_the_boundary",
+    "ts_output::tests::preparation_planning_table_metadata_and_work_ceiling_edges_preserve_output",
+    "ts_output::tests::preparation_refuses_noncanonical_avc_configuration_and_parameter_set_headers",
+    "ts_output::tests::preparation_refuses_parser_readable_cadence_and_composition_mutations",
+    "ts_output::tests::preparation_rejects_first_and_late_malformed_samples_before_sealing",
+    "ts_output::tests::sealed_preparation_owns_bytes_and_propagates_capture_and_sink_failures"
+  ],
   "crates/coreav-isobmff-write/tests/replace.rs": [
     "fixtures_present_as_the_plain_remux"
   ],
@@ -178,9 +218,6 @@
     "sample_aspect_ratio_comes_out_as_asked",
     "the_minimum_gop_length_is_the_one_x264_chooses",
     "thirty_frames_come_out"
-  ],
-  "crates/coreav-transcode/tests/sandboxed.rs": [
-    "real encoders through the launcher"
   ],
   "crates/coreav-transcode/tests/encoders.rs": [
     "ffmpeg_libx264_high10",
@@ -198,6 +235,9 @@
     "x264_sixteen_b_frames",
     "x264_ultrafast"
   ],
+  "crates/coreav-transcode/tests/sandboxed.rs": [
+    "real encoders through the launcher"
+  ],
   "crates/coreav-worker/tests/ffmpeg.rs": [
     "fallback_through_the_worker_matches_ffmpeg",
     "frames_come_while_no_packet_does",
@@ -208,12 +248,5 @@
   "tools/decode-oracle/tests/stream.rs": [
     "a_stream_outside_the_decoder_fails_at_open_with_exit_1",
     "frames_equal_framemd5"
-  ],
-  "crates/coreav-cli/tests/ffmpeg_pcm.rs": [
-    "aac_raw_output_refuses_with_exact_pinned_fallback"
-  ],
-  "crates/coreav-cli/tests/ffmpeg_wav.rs": [
-    "integer_wav_output_matches_complete_pinned_files",
-    "wave_wav_stdout_refuses_without_literal_files_and_matches_fallback"
   ]
 }

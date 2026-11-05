@@ -441,6 +441,8 @@ def main():
     if args.command == 'select':
         if not args.work or not args.selection:
             p.error('select needs --work and --selection')
+        qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+        args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
         return select(args)
     if args.command == 'summarize':
         if not args.out:

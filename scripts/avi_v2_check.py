@@ -10,7 +10,6 @@ import types
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'tools/compat-corpus'), str(ROOT / 'scripts')]
 import encode_breadth as v2
-import oracle_pin
 import test_oracle
 
 
@@ -25,10 +24,8 @@ def main():
     opts = parser.parse_args()
     for name in ('coreav', 'ffmpeg', 'ffprobe', 'x264', 'fixtures', 'work'):
         setattr(opts, name, getattr(opts, name).resolve())
-    problems = list(test_oracle.verify_bin(opts.ffmpeg.parent))
-    if problems:
-        raise RuntimeError('\n'.join(problems))
-    assert opts.ffprobe.parent == opts.ffmpeg.parent
+    qualified = test_oracle.require(opts.ffmpeg, opts.ffprobe)
+    opts.ffmpeg, opts.ffprobe = qualified.ffmpeg, qualified.ffprobe
     artifacts = [json.loads(line) for line in opts.build_log.read_text().splitlines() if line.startswith('{')]
     opts.harness, = [a['executable'] for a in artifacts if a.get('reason') == 'compiler-artifact'
                     and a.get('target', {}).get('name') == 'ffmpeg' and a.get('executable')]

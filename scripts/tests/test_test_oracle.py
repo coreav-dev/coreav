@@ -1,6 +1,8 @@
 """Oracle-free Linux owner/cache contracts using banner-only stand-ins."""
 import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -150,6 +152,166 @@ class Qualification(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines(),
                          [str(self.root / 'ffmpeg'), str(self.root / 'ffprobe')])
 
+    def test_rust_adapter_embeds_the_complete_owner_support_set(self):
+        source = (ROOT / 'test-support/oracle.rs').read_text()
+        embedded = set(re.findall(r'"/../../scripts/([^\"]+)"', source))
+        self.assertEqual(embedded, set(test_oracle.SUPPORT))
+        root = self.root / 'embedded'
+        test_oracle.bundle(root, [])
+        self.assertEqual({path.name for path in (root / 'scripts').iterdir()}, embedded)
+
+    @unittest.skipUnless(shutil.which('rustc'), 'Rust adapter compiler is not installed')
+    def test_rust_adapter_qualifies_without_build_sources_and_retains_both_results(self):
+        build = self.root / 'build'
+        manifest = build / 'crates/probe'
+        manifest.mkdir(parents=True)
+        test_oracle.bundle(build, [])
+        shutil.copy(ROOT / 'test-support/oracle.rs', manifest / 'oracle.rs')
+        source = manifest / 'main.rs'
+        source.write_text('mod oracle;\nfn main() {\n'
+                          'let mode = std::env::args().nth(1).unwrap();\n'
+                          'if mode == "native" { return; }\n'
+                          'for _ in 0..2 {\n'
+                          'let result = oracle::try_require();\n'
+                          'assert_eq!(result.is_ok(), mode == "valid");\n'
+                          'if let Err(error) = result { assert!(error.contains("stage=oracle_qualification")); }\n'
+                          '}\n}\n')
+        binary = self.root / 'relocated'
+        made = subprocess.run(['rustc', '--edition=2024', str(source), '-o', str(binary)],
+                              env=dict(os.environ, CARGO_MANIFEST_DIR=str(manifest)),
+                              capture_output=True, text=True, timeout=60)
+        self.assertEqual(made.returncode, 0, made.stderr)
+        shutil.rmtree(build)
+        temporary = self.root / 'support'
+        temporary.mkdir()
+        for mode in ('valid', 'invalid', 'native'):
+            with self.subTest(mode=mode):
+                self.pair(self.root, version=self.build if mode == 'valid' else '0.0.0')
+                self.log.unlink(missing_ok=True)
+                env = dict(os.environ, COREAV_FFMPEG=str(self.root / 'ffmpeg'),
+                           COREAV_FFPROBE=str(self.root / 'ffprobe'), TMPDIR=str(temporary))
+                if mode == 'native':
+                    env['PATH'] = '/nonexistent'
+                done = subprocess.run([str(binary), mode], env=env, capture_output=True,
+                                      text=True, timeout=30)
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertEqual(list(temporary.iterdir()), [])
+                if mode == 'native':
+                    self.assertFalse(self.log.exists())
+                else:
+                    self.assertCountEqual(self.log.read_text().splitlines(), ['ffmpeg', 'ffprobe'])
+
+    def test_avi_drivers_reject_each_different_selected_file_before_work(self):
+        marker = self.root / 'unqualified.called'
+        selected = self.root / 'other'
+        selected.write_text(f'#!/bin/sh\ntouch "{marker}"\necho wrong\n')
+        selected.chmod(0o700)
+        for driver in ('avi_fixture_check.py', 'avi_v2_check.py'):
+            for role in ('ffmpeg', 'ffprobe'):
+                with self.subTest(driver=driver, role=role):
+                    command = [sys.executable, '-I', str(ROOT / 'scripts' / driver), '--coreav', 'missing',
+                               '--ffmpeg', str(selected if role == 'ffmpeg' else self.root / 'ffmpeg'),
+                               '--ffprobe', str(selected if role == 'ffprobe' else self.root / 'ffprobe'),
+                               '--work', str(self.root / 'uncreated')]
+                    if driver == 'avi_v2_check.py':
+                        command += ['--x264', 'missing', '--build-log', 'missing', '--fixtures', 'missing']
+                    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn('stage=oracle_qualification', result.stderr)
+                    self.assertFalse(marker.exists())
+                    self.assertFalse((self.root / 'uncreated').exists())
+
+    def test_probe_only_entry_points_derive_the_sibling_after_path_resolution(self):
+        shadow = self.root / 'shadow'
+        shadow.mkdir()
+        (shadow / 'ffmpeg').write_text('#!/bin/sh\necho "ffmpeg version 0.0.0"\n')
+        (shadow / 'ffmpeg').chmod(0o700)
+        self.child('import importlib.util, os\n'
+                   'from pathlib import Path\nfrom unittest.mock import patch\n'
+                   'root = Path(sys.argv[2])\nrepo = Path(sys.argv[1]).parent\n'
+                   'require = owner.require\n'
+                   'os.environ["PATH"] = str(root / "shadow") + os.pathsep + str(root) + os.pathsep + os.environ["PATH"]\n'
+                   'cases = [("scripts/policy_check.py", ["--coreav", "missing", "--policy", "missing"]),\n'
+                   '         ("tools/compat-corpus/frames.py", ["--coreav", "missing", "--media", "missing"]),\n'
+                   '         ("scripts/ts_speed.py", ["--coreav", "missing", "--null", "missing", "--lav", "missing", "--report", "missing", "missing"])]\n'
+                   'for index, (path, args) in enumerate(cases):\n'
+                   '    spec = importlib.util.spec_from_file_location("driver" + str(index), repo / path)\n'
+                   '    driver = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(driver)\n'
+                   '    def inspect_selected(ffmpeg, ffprobe):\n'
+                   '        pair = require(ffmpeg, ffprobe)\n'
+                   '        assert pair.ffmpeg == root / "ffmpeg"\n'
+                   '        assert pair.ffprobe == root / "ffprobe"\n'
+                   '        raise StopIteration\n'
+                   '    sys.argv = [path, *args, "--ffprobe", "ffprobe"]\n'
+                   '    with patch.object(driver.test_oracle, "require", side_effect=inspect_selected):\n'
+                   '        try: driver.main()\n'
+                   '        except StopIteration: pass\n'
+                   '        else: raise AssertionError("selection boundary was not reached")\n')
+
+    def test_remux_checker_runs_only_the_retained_pair(self):
+        (self.root / 'ffprobe').write_text('#!/bin/sh\n' +
+            f'echo ffprobe >> "{self.log}"\n' +
+            f'if [ "$1" = "-version" ]; then echo "ffprobe version {self.build}"; exit; fi\n' +
+            'echo \'{"format":{"format_name":"mp4"},"streams":[]}\'\n')
+        shadow = self.root / 'shadow'
+        shadow.mkdir()
+        (shadow / 'ffprobe').write_text('#!/bin/sh\nexit 99\n')
+        (shadow / 'ffprobe').chmod(0o700)
+        self.child('from pathlib import Path\nimport os\n'
+                   'root = Path(sys.argv[2])\n'
+                   'sys.path.insert(0, str(Path(sys.argv[1]).parent / "tools/mkv-adapter"))\n'
+                   'import remux_corpus as driver\n'
+                   'os.environ["PATH"] = str(root / "shadow") + os.pathsep + os.environ["PATH"]\n'
+                   'pair = owner.require()\n'
+                   'output = root / "output.mp4"\n'
+                   'output.write_bytes(b"".join((8).to_bytes(4, "big") + kind for kind in (b"ftyp", b"moov", b"mdat")))\n'
+                   'result = driver.check_with_oracle(output, output, {"streams": []}, None, pair)\n'
+                   'assert result["ok"], result\n')
+        self.assertCountEqual(self.log.read_text().splitlines(), ['ffmpeg', 'ffprobe', 'ffprobe', 'ffprobe'])
+
+    def test_omitted_cli_selectors_honor_the_configured_pair_over_path(self):
+        shadow = self.root / 'shadow'
+        self.pair(shadow, version='0.0.0')
+        self.child('import importlib.util, os\nfrom pathlib import Path\nfrom unittest.mock import patch\n'
+                   'root = Path(sys.argv[2])\nrepo = Path(sys.argv[1]).parent\nrequire = owner.require\n'
+                   'os.environ["PATH"] = str(root / "shadow") + os.pathsep + os.environ["PATH"]\n'
+                   'cases = [("text_check", ["--coreav", "missing", "--media", "missing"]),\n'
+                   '         ("audio_copy_check", ["--coreav", "missing", "--work", "missing"]),\n'
+                   '         ("oracle", ["capture", "missing", "missing"]),\n'
+                   '         ("thumbnail_oracle", ["--coreav", "missing", "--decode-oracle", "missing"]),\n'
+                   '         ("exact_skip_check", ["--decode-oracle", "missing"]),\n'
+                   '         ("seek_check", ["--decode-oracle", "missing"])]\n'
+                   'for name, args in cases:\n'
+                   '    spec = importlib.util.spec_from_file_location("driver_" + name, repo / "scripts" / (name + ".py"))\n'
+                   '    driver = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(driver)\n'
+                   '    def inspect_selected(ffmpeg=None, ffprobe=None):\n'
+                   '        pair = require(ffmpeg, ffprobe)\n'
+                   '        assert pair.ffmpeg == root / "ffmpeg"\n'
+                   '        assert pair.ffprobe == root / "ffprobe"\n'
+                   '        raise StopIteration\n'
+                   '    sys.argv = [name, *args]\n'
+                   '    with patch.object(driver.test_oracle, "require", side_effect=inspect_selected):\n'
+                   '        try: driver.main()\n'
+                   '        except StopIteration: pass\n'
+                   '        else: raise AssertionError("selection boundary was not reached")\n')
+
+    def test_transcode_select_qualifies_and_retains_the_pair_before_dispatch(self):
+        self.child('from pathlib import Path\n'
+                   'from unittest.mock import patch\n'
+                   'import transcode_speed\n'
+                   'root = Path(sys.argv[2])\n'
+                   'sys.argv = ["transcode_speed.py", "select", "--work", str(root / "work"),\n'
+                   '            "--selection", str(root / "selection"), "--ffmpeg", str(root / "ffmpeg"),\n'
+                   '            "--ffprobe", str(root / "ffprobe")]\n'
+                   'def inspect_selected(args):\n'
+                   '    assert args.ffmpeg == str(root / "ffmpeg")\n'
+                   '    assert args.ffprobe == str(root / "ffprobe")\n'
+                   '    assert owner.require().ffmpeg == root / "ffmpeg"\n'
+                   '    return 0\n'
+                   'with patch.object(transcode_speed, "select", side_effect=inspect_selected) as run:\n'
+                   '    assert transcode_speed.main() == 0\n'
+                   '    assert run.call_count == 1\n')
+
     def test_vp9_main_retains_the_qualified_path_pair_despite_cwd_shadowing(self):
         shadow = self.root / 'shadow'
         self.pair(shadow, version='0.0.0')
@@ -176,6 +338,10 @@ class Qualification(unittest.TestCase):
         ffmpeg, ffprobe = str(self.root / 'ffmpeg'), str(self.root / 'ffprobe')
         output = str(self.root / 'uncreated')
         commands = (
+            ('scripts/h264_parity_gcp.py', '--out', output, '--es-dir', 'missing', '--decoder', 'base=missing',
+             '--ffmpeg', ffmpeg, '--gate-stream', 'missing', '--null-arm', 'base'),
+            ('scripts/transcode_speed.py', 'select', '--ffmpeg', ffmpeg, '--ffprobe', ffprobe,
+             '--work', output, '--selection', output + '.json'),
             ('scripts/h264_agreement.py', '--ffmpeg', ffmpeg, 'missing.h264'),
             ('scripts/h264_modes_identity.py', '--streams', 'missing', '--generate', ffmpeg),
             ('scripts/h264_speed.py', '--ffmpeg', ffmpeg, 'missing.h264'),

@@ -5,8 +5,8 @@
     "scripts/oracle-ffmpeg.env": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
     "scripts/oracle_pin.py": "b221378b054a6e6bae92051ae4e4e4fa1add451213f28e888825fa6e43f2f909",
     "scripts/oracle_pin_macos.py": "70c0f515b3a58cf6b6d2d11938b537b2e8824f0fafbfe6ab9578669c1d857879",
-    "scripts/test_oracle.py": "ba9bc428dae34681fa5b9c3f80863479c6fc0c0f45f267ec009d7d97ea004510",
-    "test-support/oracle.rs": "bda841d4ac18d3cb12d417ff29b1fbc0a5f083a2838e06b1d4b6e92a67c679c2"
+    "scripts/test_oracle.py": "e16c34d603508ece64cb5e05ae926426080f44cb1031a49089213c663671db99",
+    "test-support/oracle.rs": "211e259aecbff14c6b0d0246f0157e90935be97fa2a7dd0e0d15c24686530230"
   },
   "frozen": {
     ".github/workflows/compat-0.1.0.yml": "b979061433995d3a504edddac660216fefbdef556080967f7facf76c89eb1a80",
@@ -15,7 +15,7 @@
     "bench/audio-decode/oracle.py": "6999bc89af9f0ffb4dade872e30b2b0ba7342648b32e22aaeeca50936316b32a",
     "bench/audio-decode/receipts.py": "bec504c954c8750df703116325e37ea21c2844696df68e23856495bf95a18783",
     "bench/audio-decode/run.py": "516120decdaf44a5e206c5e57da485ad15d3f9aa010422daa027508bb2ef6112",
-    "crates/coreav-cli/tests/ffmpeg.rs": "15e49cefc43240d732903b37874a0fda544065777e331200cfe2ad6182eebefc",
+    "crates/coreav-cli/tests/ffmpeg.rs": "b241c0478ec19fc8ae6fd67e9443dcfdced286b920c8af1ef2293e95924c19aa",
     "crates/coreav-isobmff/tests/common/fragments.rs": "a9e161349e40328ca2b95ffa593aff35af0e1739648d74fc0767100cda3f0b89",
     "crates/coreav-isobmff/tests/common/mod.rs": "fcd4b45894250821d93290d802d8324dfc8cbc1b27c56980a6a6075955744d71",
     "crates/coreav-isobmff/tests/common/sound.rs": "7db44a00ee6bc2671517fdf5e8bb8b31b25ac224c856b04948aed5bb1875ef03",
@@ -1379,20 +1379,6 @@
       "verdict": "qualified-via-owner"
     },
     {
-      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
-      "id": "rust-compiled-target",
-      "kinds": [
-        "Rust"
-      ],
-      "lines": [
-        27,
-        612
-      ],
-      "path": "crates/coreav-cli/tests/transcode_selection.rs",
-      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
-      "verdict": "excluded"
-    },
-    {
       "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
       "id": "rust-owner-return",
       "kinds": [
@@ -1510,92 +1496,6 @@
       "path": "packages/cli/test/release-clips.sh",
       "pattern": "(?s)ffmpeg(?:\\s.*)?",
       "verdict": "confirmed-bypass"
-    },
-    {
-      "evidence": "main() at lines 89-94 verifies opts.ffmpeg.parent, then passes the originally selected executable into the direct runner and video_equal. Neither basename nor selected-file identity is checked.",
-      "id": "python-parent-directory-only",
-      "kinds": [
-        "command"
-      ],
-      "lines": [
-        79
-      ],
-      "path": "scripts/avi_fixture_check.py",
-      "pattern": "(?s)ffmpeg",
-      "verdict": "confirmed-bypass"
-    },
-    {
-      "evidence": "main() at lines 89-94 verifies opts.ffmpeg.parent, then passes the originally selected executable into the direct runner and video_equal. Neither basename nor selected-file identity is checked.",
-      "id": "python-parent-directory-only",
-      "kinds": [
-        "command"
-      ],
-      "lines": [
-        102,
-        107,
-        129,
-        132
-      ],
-      "path": "scripts/avi_fixture_check.py",
-      "pattern": "(?s)opts\\.ffmpeg",
-      "verdict": "confirmed-bypass"
-    },
-    {
-      "evidence": "main() at lines 89-94 verifies opts.ffmpeg.parent, then passes the originally selected executable into the direct runner and video_equal. Neither basename nor selected-file identity is checked.",
-      "id": "python-parent-directory-only",
-      "kinds": [
-        "delegated"
-      ],
-      "lines": [
-        79,
-        102,
-        107,
-        129,
-        132
-      ],
-      "path": "scripts/avi_fixture_check.py",
-      "pattern": "(?s)run",
-      "verdict": "confirmed-bypass"
-    },
-    {
-      "evidence": "main() at lines 25-31 verifies a directory and parent equality, not the requested files. Lines 42-65 forward those unchecked selections to the unchanged evaluator.",
-      "id": "python-parent-directory-forwarding",
-      "kinds": [
-        "delegated"
-      ],
-      "lines": [
-        65
-      ],
-      "path": "scripts/avi_v2_check.py",
-      "pattern": "(?s)v2\\.evaluate",
-      "verdict": "confirmed-bypass"
-    },
-    {
-      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
-      "id": "python-owner-return",
-      "kinds": [
-        "command"
-      ],
-      "lines": [
-        336
-      ],
-      "path": "scripts/bench_guard.py",
-      "pattern": "(?s)pin",
-      "verdict": "qualified-via-owner"
-    },
-    {
-      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
-      "id": "python-owner-return",
-      "kinds": [
-        "command"
-      ],
-      "lines": [
-        399,
-        428
-      ],
-      "path": "scripts/bench_guard.py",
-      "pattern": "(?s)str\\(test_oracle\\.require\\(\\)\\.ffmpeg\\)",
-      "verdict": "qualified-via-owner"
     },
     {
       "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
@@ -1721,23 +1621,10 @@
       "path": "scripts/stsd_craft.py",
       "pattern": "(?s)ffmpeg",
       "verdict": "qualified-via-owner"
-    },
-    {
-      "evidence": "The select branch returns at lines 441-444 before require() at 452. select() forwards the unqualified selectors through child_env and make_prober at 84-86.",
-      "id": "python-prequalification-dispatch",
-      "kinds": [
-        "delegated"
-      ],
-      "lines": [
-        444
-      ],
-      "path": "scripts/transcode_speed.py",
-      "pattern": "(?s)select",
-      "verdict": "confirmed-bypass"
     }
   ],
   "schema": 1,
-  "source_snapshot_sha256": "23237aed907a55f36637ccea64304a4c04eb5c2e0c439f7c0b511e337584d3cb",
+  "source_snapshot_sha256": "b81605c40a50b3231bc6e688a8503a078f1e2848f64143407d8ad66c5b991c3d",
   "sources": {
     "crates/coreav-audio/tests/flac_encode.rs": "6b63b16444965850c74da0651859128602a9093fe487a15865f8a82093bf6880",
     "crates/coreav-backend-dav1d/tests/decode.rs": "9094fa0b3a4957d348e9b92420c658fda930329cac3b9c2da17e5c3248e0e791",
@@ -1776,18 +1663,13 @@
     "crates/coreav-cli/tests/strict_safe.rs": "a75f3d5c6a22eee49b44cefd43931f1199515218603f7126d62198a232db7699",
     "crates/coreav-cli/tests/strict_safe_limit.rs": "0b11d217aea687a5d7e81a9d85cb8703fd0d8092c6d660c29ece8559e5cfc895",
     "crates/coreav-cli/tests/thumbnail.rs": "3740eda708acee2bdb0f3ea4a0ac5819c80927c4bc361e3210d5acbe7d85279e",
-    "crates/coreav-cli/tests/transcode_selection.rs": "ee9deecabf5a4a2715ea8ece168ff89af163ecb3a31fc2598bc7a6ae1de294c6",
     "crates/coreav-isobmff-write/tests/replace.rs": "c704b6600421661b444eed3c4ad88efcbda2d41636d10fedcac15b0be5268991",
     "crates/coreav-worker/tests/ffmpeg.rs": "48ca0fb6ab070e47c3a8ea3f4d9f626b2c9696ef031b5225cef87010ba250d92",
     "packages/cli/test/release-clips.sh": "870efad502950d8dbb9a3f88c8672a2c10d610dcada7fb8dfe5dbc12e29c37c1",
-    "scripts/avi_fixture_check.py": "0d87de769e2678e9f1299a1b8667a785ed0a9943443c2f5ee4f9a4fec8fcf97e",
-    "scripts/avi_v2_check.py": "731fb170c38f8694cbbefc9914f9f40836b3558651a45dda85bcc8ef9f2f74e1",
-    "scripts/bench_guard.py": "9906ca0e4d376bc5fde262d17297d699b5802212a293ff6676d588bdd4e03250",
     "scripts/gen-fixtures-mkv.sh": "2edfdf356a214c97fc24c9e445892beaf9bd9e339d9fd519f100a800b1f05010",
     "scripts/gen-fixtures-ts.sh": "d7f797724e4521b1a4840ce41953cfb5f1fd8e4b79a0266feacbf325bf4d5551",
     "scripts/gen-fixtures.sh": "baa6378c62602ce2332f2d1138766965eaa979737864a29737cd4d92b16ab6cb",
     "scripts/oracle-ffprobe.sh": "8ffb1e92747b2f7e5d668e9f70074b90ca99347fbfdbb2723aead2a536970ac5",
-    "scripts/stsd_craft.py": "4d683dd4fd8048ac1140d13cfafdfb18f57ebf314fe1a10b8a81770e8184402b",
-    "scripts/transcode_speed.py": "3084a9ba86a8834ef693c38843384b4b3e32b32fb017c709d3aed07990c425bc"
+    "scripts/stsd_craft.py": "4d683dd4fd8048ac1140d13cfafdfb18f57ebf314fe1a10b8a81770e8184402b"
   }
 }

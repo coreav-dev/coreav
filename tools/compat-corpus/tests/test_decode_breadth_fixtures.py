@@ -134,7 +134,8 @@ class UnconvertedReference(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.ffmpeg = str(test_oracle.require(PROGRAMS['ffmpeg'], PROGRAMS['ffprobe']).ffmpeg)
+        oracle = test_oracle.require(PROGRAMS['ffmpeg'], PROGRAMS['ffprobe'])
+        cls.ffmpeg, cls.ffprobe = str(oracle.ffmpeg), str(oracle.ffprobe)
         cls.dir = pathlib.Path(tempfile.mkdtemp(prefix='decode-breadth-unconverted-'))
         (cls.dir / 'gconv').mkdir()
         cls.env = {'PATH': os.environ.get('PATH', ''), 'HOME': os.environ.get('HOME', ''),
@@ -231,7 +232,7 @@ class UnconvertedReference(unittest.TestCase):
 
 
     def pix_fmt(self, path):
-        done = subprocess.run([PROGRAMS['ffprobe'], '-v', 'error', '-select_streams', 'v:0', '-show_entries',
+        done = subprocess.run([self.ffprobe, '-v', 'error', '-select_streams', 'v:0', '-show_entries',
                                'stream=pix_fmt', '-of', 'csv=p=0', str(path)], capture_output=True, text=True,
                               env=self.env)
         self.assertEqual(done.returncode, 0, done.stderr)
@@ -242,8 +243,6 @@ class UnconvertedReference(unittest.TestCase):
         is still converted to the first frame's format without alpha. That path is taken only where ffprobe lists
         an alpha format: VP9 and VP8 with alpha are listed without it, while an alpha codec where the change is
         converted, ProRes, is in group other, which misses as codec_not_in_build before any MD5 is compared."""
-        if not PROGRAMS['ffprobe']:
-            self.skipTest('COREAV_FFPROBE is not set')
         for name, encoder in (('vp9', ['-c:v', 'libvpx-vp9']), ('vp8', ['-c:v', 'libvpx'])):
             path = self.dir / f'{name}_alpha.webm'
             self.ff(*self.source(64, 48, 0), '-pix_fmt', 'yuva420p', *encoder, '-auto-alt-ref', '0', str(path))

@@ -69,17 +69,17 @@ def main():
     parser.add_argument('--coreav', default=str(ROOT / 'target' / 'release' / 'coreav'))
     parser.add_argument('--adapter', default=str(ROOT / 'target' / 'release' / 'mkv-adapter'))
     args = parser.parse_args()
-    test_oracle.require('ffmpeg', 'ffprobe')
+    oracle = test_oracle.require()
     files = sorted(p for d in args.media for p in pathlib.Path(d).iterdir()
                    if p.suffix in ('.mkv', '.webm'))
     rows = []
     for path in files:
         rows.append({
             'size': path.stat().st_size,
-            'ffprobe_probe': timed(['ffprobe', '-v', 'error', '-of', 'json', '-show_format', '-show_streams',
+            'ffprobe_probe': timed([str(oracle.ffprobe), '-v', 'error', '-of', 'json', '-show_format', '-show_streams',
                                     str(path)], args.repeat),
             'coreav_probe': timed([args.coreav, 'probe', str(path)], args.repeat),
-            'ffprobe_demux': timed(['ffprobe', '-v', 'error', '-count_packets', '-show_entries',
+            'ffprobe_demux': timed([str(oracle.ffprobe), '-v', 'error', '-count_packets', '-show_entries',
                                     'stream=nb_read_packets', '-of', 'csv=p=0', str(path)], args.repeat),
             'coreav_demux': timed([args.adapter, 'count', str(path)], args.repeat),
         })

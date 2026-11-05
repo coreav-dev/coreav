@@ -171,7 +171,7 @@ def kill(proc):
 
 def ffprobe(path):
     p = subprocess.run(
-        [str(test_oracle.require('ffmpeg', 'ffprobe').ffprobe), "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path)],
+        [str(test_oracle.require().ffprobe), "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path)],
         capture_output=True, text=True)
     info = {"exit": p.returncode, "stderr": p.stderr.strip()[:2000], "codecs": []}
     try:
@@ -241,7 +241,7 @@ def main():
     ap.add_argument("--chrome", default="google-chrome")
     ap.add_argument("--only", help="comma-separated config names to run")
     args = ap.parse_args()
-    test_oracle.require('ffmpeg', 'ffprobe')
+    test_oracle.require()
     args.out.mkdir(parents=True, exist_ok=True)
 
     matrix = MATRIX

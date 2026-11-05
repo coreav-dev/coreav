@@ -268,8 +268,8 @@ def cases(source, out):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--coreav", required=True)
-    parser.add_argument("--ffmpeg", default="ffmpeg")
-    parser.add_argument("--ffprobe", default="ffprobe")
+    parser.add_argument("--ffmpeg")
+    parser.add_argument("--ffprobe")
     parser.add_argument("--work", required=True, type=pathlib.Path)
     parser.add_argument("--report", type=pathlib.Path)
     tools = parser.parse_args()

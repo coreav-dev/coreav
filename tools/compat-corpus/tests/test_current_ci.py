@@ -347,12 +347,8 @@ class CopyMapping(unittest.TestCase):
 class PinnedOracle(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.ffmpeg, cls.ffprobe = shutil.which('ffmpeg'), shutil.which('ffprobe')
-        if not cls.ffmpeg or not cls.ffprobe:
-            raise AssertionError('fixture CI must install the pinned oracle')
-        problems = list(current_ci.test_oracle.verify_bin(pathlib.Path(cls.ffmpeg).parent))
-        if problems:
-            raise AssertionError(problems)
+        oracle = current_ci.test_oracle.require()
+        cls.ffmpeg, cls.ffprobe = str(oracle.ffmpeg), str(oracle.ffprobe)
         cls.env = {'PATH': os.environ.get('PATH', ''), 'GCONV_PATH': '/nonexistent/gconv'}
 
     def wav(self, path, samples, junk=False):

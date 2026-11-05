@@ -79,6 +79,7 @@ def failure(stage, kind, message, sent=3):
     return {'stage': stage, 'kind': kind, 'message': message, 'packets_sent': sent}
 
 
+@unittest.skipUnless(sys.platform == 'linux', 'Linux banner-only stand-in qualification')
 class Harness(unittest.TestCase):
     def setUp(self):
         self.dir = pathlib.Path(tempfile.mkdtemp(prefix='decode-breadth-'))

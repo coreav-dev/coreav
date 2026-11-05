@@ -124,6 +124,23 @@ def run_rusage(command, helper):
             'max_rss_kib': int(text) if text else None}, stdout, stderr
 
 
+def check_with_oracle(source, output, document, mediainfo, oracle):
+    with tempfile.TemporaryDirectory(prefix='remux-oracle-') as directory:
+        root = pathlib.Path(directory)
+        for name, program in (('ffmpeg', oracle.ffmpeg), ('ffprobe', oracle.ffprobe)):
+            (root / name).symlink_to(program)
+        summary = root / 'summary.json'
+        summary.write_text(json.dumps(document))
+        command = [sys.executable, '-I', str(checker.__file__), 'check', str(source), str(output), str(summary)]
+        if mediainfo:
+            command += ['--mediainfo', mediainfo]
+        env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ.get('PATH', ''))
+        done = subprocess.run(command, env=env, capture_output=True, timeout=TIMEOUT, check=False)
+        if done.returncode not in (0, 1):
+            raise RuntimeError('remux checker failed: ' + done.stderr.decode('utf-8', 'replace'))
+        return json.loads(done.stdout)
+
+
 def process(entry, args, env, endpoint, disk):
     out = pathlib.Path(args.out)
     name = entry['name']
@@ -175,14 +192,14 @@ def process(entry, args, env, endpoint, disk):
             record['dropped_additions'] = len(document['dropped_boxes']) + document['dropped_boxes_not_listed']
             record['truncated'] = document['source'].get('truncated_at') is not None
             record['output_bytes'] = document['output']['bytes']
-            result = checker.check(media, output, document, args.mediainfo)
+            result = check_with_oracle(media, output, document, args.mediainfo, args.oracle)
             record['check'] = {'ok': result['ok'], 'packets_ok': result['packets_ok'],
                                'packets_total': result['packets_total'],
                                'fields': sorted({p['field'] for p in result['problems']}),
                                'problems': result['problems'][:5]}
             output.unlink(missing_ok=True)
             # The same streams through FFmpeg, for time and memory only.
-            command = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(media)]
+            command = [str(args.oracle.ffmpeg), '-nostdin', '-v', 'error', '-y', '-i', str(media)]
             for stream in document['streams']:
                 command += ['-map', f"0:{stream['stream_index']}"]
             command += ['-c', 'copy', '-movflags', '+faststart', str(reference)]
@@ -208,7 +225,7 @@ def process(entry, args, env, endpoint, disk):
 
 
 def cmd_run(args):
-    test_oracle.require('ffmpeg', os.environ.get('FFPROBE', 'ffprobe'))
+    args.oracle = test_oracle.require(os.environ.get('FFMPEG'), os.environ.get('FFPROBE'))
     out = pathlib.Path(args.out)
     (out / 'runs').mkdir(parents=True, exist_ok=True)
     pathlib.Path(args.work).mkdir(parents=True, exist_ok=True)

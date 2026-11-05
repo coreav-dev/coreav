@@ -948,6 +948,7 @@ class Cli(Stubs):
             pathlib.Path(getattr(self.opts, name)).write_text(
                 f'#!{sys.executable}\nprint({name + " version " + build!r})\n')
 
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux banner-only stand-in qualification')
     def test_preflight_records_the_supplied_pinned_executables(self):
         self.pinned_stand_ins()
         program = ('import sys, json, types; sys.path.insert(0, sys.argv[1]); '

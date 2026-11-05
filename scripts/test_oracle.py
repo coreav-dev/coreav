@@ -28,7 +28,7 @@ class QualificationError(RuntimeError):
 _lock = threading.Lock()
 _selection = None
 _result = None
-SUPPORT = ('test_oracle.py', 'oracle_pin.py', 'oracle_pin_macos.py',
+SUPPORT = ('test_oracle.py', 'oracle_pin.py', 'oracle_pin_macos.py', 'oracle_audio.py',
            'oracle-ffmpeg.env', 'oracle-ffmpeg-macos.env', 'oracle-audio-args.txt')
 
 
@@ -63,7 +63,7 @@ def bundle(root, entries):
             shutil.copyfile(source.parent / relative, destination)
 
 
-def _path(value):
+def executable_path(value):
     value = os.fspath(value)
     if Path(value).name == value:
         value = shutil.which(value) or value
@@ -75,9 +75,9 @@ def require(ffmpeg=None, ffprobe=None):
     selected = ffmpeg if ffmpeg is not None else os.environ.get('COREAV_FFMPEG')
     if selected is None:
         selected = shutil.which('ffmpeg') or '/opt/coreav-oracle-bin/ffmpeg'
-    selected = _path(selected)
+    selected = executable_path(selected)
     probe = ffprobe if ffprobe is not None else os.environ.get('COREAV_FFPROBE')
-    probe = _path(probe) if probe is not None else selected.with_name('ffprobe')
+    probe = executable_path(probe) if probe is not None else selected.with_name('ffprobe')
     requested = (selected.resolve(), probe.resolve())
     with _lock:
         if _result is not None:

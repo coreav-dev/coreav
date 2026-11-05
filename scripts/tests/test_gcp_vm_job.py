@@ -271,6 +271,8 @@ class WrapperCollect(unittest.TestCase):
             cmds.append(cmd)
             return subprocess.CompletedProcess(cmd, rc)
         with mock.patch.object(sys, 'argv', ['h264_parity_gcp.py', *argv]), \
+                mock.patch.object(h264_parity_gcp.test_oracle, 'require', return_value=
+                                  h264_parity_gcp.test_oracle.Oracle(self.r / 'ff', self.r / 'ffprobe')), \
                 mock.patch.object(h264_parity_gcp.subprocess, 'run', run):
             return h264_parity_gcp.main(), cmds
 

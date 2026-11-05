@@ -97,8 +97,8 @@ def check(decode_oracle, path, ffprobe, times=1):
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--decode-oracle', required=True)
-    p.add_argument('--ffmpeg', default=shutil.which('ffmpeg'))
-    p.add_argument('--ffprobe', default=shutil.which('ffprobe'))
+    p.add_argument('--ffmpeg')
+    p.add_argument('--ffprobe')
     p.add_argument('--fixtures', type=pathlib.Path)
     p.add_argument('--times', type=int, default=1)
     p.add_argument('--matroska', action='store_true')

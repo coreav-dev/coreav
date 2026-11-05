@@ -102,7 +102,8 @@ def main():
     ap.add_argument('files', nargs='+')
     args = ap.parse_args()
     if args.ffprobe:
-        args.ffprobe = str(test_oracle.require(os.path.join(os.path.dirname(args.ffprobe), 'ffmpeg'), args.ffprobe).ffprobe)
+        probe = test_oracle.executable_path(args.ffprobe)
+        args.ffprobe = str(test_oracle.require(probe.with_name('ffmpeg'), probe).ffprobe)
     if (args.coreav_cli is None) != (args.ffprobe is None):
         ap.error('--coreav-cli and --ffprobe go together')
     if args.rounds < 1:

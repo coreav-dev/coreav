@@ -389,6 +389,9 @@ def main():
     missing = [n for n in ('out', 'es_dir', 'decoder', 'ffmpeg', 'gate_stream', 'null_arm') if getattr(args, n) is None]
     if missing:
         ap.error('the following arguments are required: ' + ', '.join('--' + n.replace('_', '-') for n in missing))
+    selected = test_oracle.executable_path(args.ffmpeg)
+    oracle = test_oracle.require(selected, selected.with_name('ffprobe'))
+    args.ffmpeg = str(oracle.ffmpeg)
     if args.one_thread_class:
         args.machine, args.usd_per_hour = MACHINE_1T, USD_PER_HOUR_1T
         if args.threads not in (None, 1):
@@ -475,7 +478,7 @@ def main():
         for n, path in args.decoders:
             shutil.copy(path, os.path.join(up, f'decode-{n}'))
         shutil.copy(args.ffmpeg, os.path.join(up, 'ffmpeg'))
-        shutil.copy(os.path.join(os.path.dirname(os.path.abspath(args.ffmpeg)), 'ffprobe'), os.path.join(up, 'ffprobe'))
+        shutil.copy(oracle.ffprobe, os.path.join(up, 'ffprobe'))
         shutil.copy(args.gate_stream, os.path.join(up, 'gate.h264'))
         test_oracle.bundle(up, ['h264_parity.py'])
         if args.one_thread_class:

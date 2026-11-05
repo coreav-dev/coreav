@@ -165,7 +165,7 @@ fn run(args: &[String]) -> Result<Value, String> {
     });
     worker.transfer = transfer;
     if !native && backend == WorkerBackend::Ffmpeg {
-        worker.ffmpeg = Some(test_oracle::require().ffmpeg().to_path_buf());
+        worker.ffmpeg = Some(test_oracle::try_require()?.ffmpeg().to_path_buf());
     }
     // The worker options' cap would otherwise hold the budget below it.
     if max_memory.is_some() {
@@ -191,7 +191,7 @@ fn run(args: &[String]) -> Result<Value, String> {
     } else if in_process && backend == WorkerBackend::Libvpx {
         in_process_libvpx(&stream, &options.decode_limits)?
     } else if in_process {
-        let program = test_oracle::require().ffmpeg().to_path_buf();
+        let program = test_oracle::try_require()?.ffmpeg().to_path_buf();
         let options = coreav_backend_ffmpeg::FfmpegOptions {
             program,
             threads: None,
@@ -334,7 +334,8 @@ fn run_thumbnail(args: &[String]) -> Result<Value, String> {
         backend,
         options: WorkerOptions {
             ffmpeg: (backend == WorkerBackend::Ffmpeg && !in_process)
-                .then(|| test_oracle::require().ffmpeg().to_path_buf()),
+                .then(|| test_oracle::try_require().map(|oracle| oracle.ffmpeg().to_path_buf()))
+                .transpose()?,
             ..WorkerOptions::new(WorkerCommand {
                 program,
                 args: vec![coreav_worker::WORKER_ARG.into()],

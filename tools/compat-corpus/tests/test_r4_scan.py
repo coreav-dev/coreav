@@ -49,6 +49,7 @@ if name == 'ffmpeg':
 '''
 
 
+@unittest.skipUnless(sys.platform == 'linux', 'Linux banner-only stand-in qualification')
 class Scan(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
