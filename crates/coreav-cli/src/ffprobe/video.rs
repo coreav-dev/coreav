@@ -11,6 +11,29 @@
 
 use coreav_isobmff::Color;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Aspect {
+    #[default]
+    Unverified,
+    Unspecified,
+    Ratio(u32, u32),
+}
+
+impl Aspect {
+    pub fn ratio(self) -> Option<(u32, u32)> {
+        match self {
+            Self::Ratio(num, den) => Some((num, den)),
+            Self::Unverified | Self::Unspecified => None,
+        }
+    }
+}
+
+impl From<Option<(u32, u32)>> for Aspect {
+    fn from(ratio: Option<(u32, u32)>) -> Self {
+        ratio.map_or(Self::Unverified, |(num, den)| Self::Ratio(num, den))
+    }
+}
+
 /// What the configuration says, as `ffprobe` names it. `None` is unknown.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct VideoInfo {
@@ -34,7 +57,7 @@ pub struct VideoInfo {
     /// where a picture lasts one).
     pub frame_rate: Option<(u64, u64)>,
     /// The sample aspect ratio the stream signals (ITU-T H.264 table E-1).
-    pub sar: Option<(u32, u32)>,
+    pub sar: Aspect,
     /// The profile and level named from the stream's own header, for a
     /// codec the container gives none of (MPEG-4 Part 2).
     pub profile: Option<(String, i64)>,
@@ -168,7 +191,21 @@ pub fn avc(avcc: &[u8], full_range: bool) -> Option<VideoInfo> {
     }
     let len = u16_at(avcc, 6)?;
     let nal = avcc.get(8..8 + len)?;
-    avc_sps(nal, full_range)
+    let mut info = avc_sps(nal, full_range)?;
+    if info.sar == Aspect::Unspecified {
+        let authority = avcc.first() == Some(&1)
+            && count == 1
+            && avcc.get(8 + len) == Some(&1)
+            && coreav_isobmff::avc_parameter_sets(avcc).is_some_and(|sets| {
+                matches!(sets.as_slice(), [sps, pps]
+                    if sps.first().is_some_and(|byte| byte & 0x9f == 7 && byte & 0x60 != 0)
+                    && pps.first().is_some_and(|byte| byte & 0x9f == 8 && byte & 0x60 != 0))
+            });
+        if !authority {
+            info.sar = Aspect::Unverified;
+        }
+    }
+    Some(info)
 }
 
 /// An H.264 sequence parameter set NAL unit, header included.
@@ -282,22 +319,28 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         ..VideoInfo::default()
     };
     if !b.flag()? {
+        info.sar = Aspect::Unspecified;
         return Some(info);
     }
     // VUI (E.1.1).
     if b.flag()? {
         let idc = b.bits(8)?;
-        info.sar = if idc == 255 {
+        info.sar = if idc == 0 {
+            Aspect::Unspecified
+        } else if idc == 255 {
             let w = b.bits(16)?;
             let h = b.bits(16)?;
-            (w > 0 && h > 0).then_some((w, h))
+            (w > 0 && h > 0).then_some((w, h)).into()
         } else {
             usize::try_from(idc)
                 .ok()
                 .and_then(|i| i.checked_sub(1))
                 .and_then(|i| SAR_TABLE.get(i))
                 .copied()
+                .into()
         };
+    } else {
+        info.sar = Aspect::Unspecified;
     }
     if b.flag()? {
         b.bit()?;
@@ -455,7 +498,7 @@ pub fn hevc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         h264_crop_left: None,
         h264_signal: None,
         frame_rate: None,
-        sar: None,
+        sar: Aspect::Unverified,
         profile: None,
         mpeg4_flags: None,
         color: None,
@@ -544,13 +587,14 @@ fn hevc_vui(
         info.sar = if idc == 255 {
             let w = b.bits(16)?;
             let h = b.bits(16)?;
-            (w > 0 && h > 0).then_some((w, h))
+            (w > 0 && h > 0).then_some((w, h)).into()
         } else {
             usize::try_from(idc)
                 .ok()
                 .and_then(|i| i.checked_sub(1))
                 .and_then(|i| SAR_TABLE.get(i))
                 .copied()
+                .into()
         };
     }
     if b.flag()? {
@@ -643,7 +687,7 @@ pub fn av1(av1c: &[u8]) -> Option<VideoInfo> {
         h264_crop_left: None,
         h264_signal: None,
         frame_rate: None,
-        sar: None,
+        sar: Aspect::Unverified,
         profile: None,
         mpeg4_flags: None,
         color: None,
@@ -677,7 +721,7 @@ pub fn vp(vpcc: &[u8]) -> Option<VideoInfo> {
         h264_crop_left: None,
         h264_signal: None,
         frame_rate: None,
-        sar: None,
+        sar: Aspect::Unverified,
         profile: None,
         mpeg4_flags: None,
         color: None,
@@ -751,7 +795,7 @@ pub fn prores(frame: &[u8]) -> Option<VideoInfo> {
         h264_crop_left: None,
         h264_signal: None,
         frame_rate: None,
-        sar: None,
+        sar: Aspect::Unverified,
         profile: None,
         mpeg4_flags: None,
         color: None,
@@ -769,7 +813,7 @@ pub fn mjpeg(frame: &[u8]) -> Option<VideoInfo> {
         has_b_frames: Some(0),
         chroma_location: Some("center"),
         bits_per_raw_sample: picture.bits,
-        sar: picture.aspect,
+        sar: picture.aspect.into(),
         profile: picture.profile.map(|name| (name.to_owned(), -99)),
         color: Some(Color {
             matrix: Some(5),
@@ -800,7 +844,7 @@ pub fn h263(frame: &[u8]) -> VideoInfo {
         pix_fmt: Some("yuv420p".to_owned()),
         has_b_frames: Some(0),
         chroma_location: Some("center"),
-        sar: sar(),
+        sar: sar().into(),
         ..VideoInfo::default()
     }
 }
@@ -869,7 +913,7 @@ pub fn dv(frame: &[u8], frame_bytes: u32) -> Option<VideoInfo> {
         pix_fmt: Some(pix_fmt.to_owned()),
         has_b_frames: Some(0),
         chroma_location: Some("topleft"),
-        sar,
+        sar: sar.into(),
         size,
         bit_rate: Some((bits + den / 2) / den),
         ..VideoInfo::default()
@@ -882,7 +926,7 @@ pub fn png(frame: &[u8]) -> Option<VideoInfo> {
     Some(VideoInfo {
         pix_fmt: picture.pix_fmt.map(str::to_owned),
         has_b_frames: Some(0),
-        sar: picture.aspect,
+        sar: picture.aspect.into(),
         color: Some(Color {
             matrix: Some(0),
             full_range: Some(true),
@@ -961,6 +1005,114 @@ mod tests {
         assert_eq!(avc(&[1, 100, 0, 30, 0xff, 0xe1], false), None);
         assert_eq!(hevc(&[1; 10], false), None);
         assert_eq!(av1(&[0x81]), None);
+    }
+
+    fn aspect_sps(vui: bool, aspect: Option<(u8, u16, u16)>) -> Vec<u8> {
+        fn bits(out: &mut Vec<bool>, value: u32, width: u32) {
+            out.extend((0..width).rev().map(|shift| value & (1 << shift) != 0));
+        }
+        fn ue(out: &mut Vec<bool>, value: u32) {
+            let code = value + 1;
+            let width = 32 - code.leading_zeros();
+            out.extend(std::iter::repeat_n(false, (width - 1) as usize));
+            bits(out, code, width);
+        }
+        let mut out = Vec::new();
+        bits(&mut out, 66, 8);
+        bits(&mut out, 0, 8);
+        bits(&mut out, 30, 8);
+        for value in [0, 0, 0, 0, 1] {
+            ue(&mut out, value);
+        }
+        out.push(false);
+        ue(&mut out, 3);
+        ue(&mut out, 2);
+        out.extend([true, true, false, vui]);
+        if vui {
+            out.push(aspect.is_some());
+            if let Some((idc, width, height)) = aspect {
+                bits(&mut out, u32::from(idc), 8);
+                if idc == 255 {
+                    bits(&mut out, u32::from(width), 16);
+                    bits(&mut out, u32::from(height), 16);
+                }
+            }
+            out.extend([false; 8]);
+        }
+        out.push(true);
+        out.resize(out.len().div_ceil(8) * 8, false);
+        let mut nal = vec![0x67];
+        nal.extend(out.chunks_exact(8).map(|byte| {
+            byte.iter()
+                .fold(0u8, |value, bit| (value << 1) | u8::from(*bit))
+        }));
+        nal
+    }
+
+    fn aspect_config(sps: &[u8], sps_count: u8, pps_count: u8) -> Vec<u8> {
+        let mut config = vec![1, 66, 0, 30, 0xff, 0xe0 | sps_count];
+        for _ in 0..sps_count {
+            config.extend_from_slice(&(sps.len() as u16).to_be_bytes());
+            config.extend_from_slice(sps);
+        }
+        config.push(pps_count);
+        for _ in 0..pps_count {
+            config.extend_from_slice(&[0, 4, 0x68, 0xce, 0x3c, 0x80]);
+        }
+        config
+    }
+
+    #[test]
+    fn avc_aspect_distinguishes_unspecified_from_unverified() {
+        for (vui, aspect) in [(false, None), (true, None), (true, Some((0, 0, 0)))] {
+            let config = aspect_config(&aspect_sps(vui, aspect), 1, 1);
+            let info = avc(&config, false).unwrap();
+            assert_eq!(info.sar, Aspect::Unspecified);
+            assert_eq!(info.sar.ratio(), None);
+        }
+        for (idc, width, height, expected) in [
+            (1, 0, 0, Aspect::Ratio(1, 1)),
+            (255, 4, 3, Aspect::Ratio(4, 3)),
+            (17, 0, 0, Aspect::Unverified),
+            (254, 0, 0, Aspect::Unverified),
+            (255, 0, 3, Aspect::Unverified),
+            (255, 4, 0, Aspect::Unverified),
+        ] {
+            let config = aspect_config(&aspect_sps(true, Some((idc, width, height))), 1, 1);
+            assert_eq!(avc(&config, false).unwrap().sar, expected);
+        }
+    }
+
+    #[test]
+    fn unspecified_avc_aspect_requires_complete_unambiguous_authority() {
+        let sps = aspect_sps(true, None);
+        let config = aspect_config(&sps, 1, 1);
+        for end in 0..config.len() {
+            assert_ne!(
+                avc(&config[..end], false).map(|info| info.sar),
+                Some(Aspect::Unspecified),
+                "truncation at {end}"
+            );
+        }
+        for (sps_count, pps_count) in [(2, 1), (1, 2), (1, 0)] {
+            assert_eq!(
+                avc(&aspect_config(&sps, sps_count, pps_count), false)
+                    .unwrap()
+                    .sar,
+                Aspect::Unverified
+            );
+        }
+        for (at, value) in [(0, 0), (8, 0xe7), (8, 0x07), (11 + sps.len(), 0xe8)] {
+            let mut malformed = config.clone();
+            if let Some(byte) = malformed.get_mut(at) {
+                *byte = value;
+            }
+            assert_ne!(
+                avc(&malformed, false).map(|info| info.sar),
+                Some(Aspect::Unspecified)
+            );
+        }
+        assert!(avc_sps(&sps[..2], false).is_none());
     }
 }
 #[test]

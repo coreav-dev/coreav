@@ -273,7 +273,7 @@ class Commands(unittest.TestCase):
             first = check.generate_fixtures(oracle, root, audio=True)
             second = check.generate_fixtures(oracle, root, audio=True)
             self.assertEqual(first, second)
-            self.assertEqual(len(first), 31)
+            self.assertEqual(len(first), 37)
             by_name = {fixture.name: fixture for fixture in first}
             for name in ("mov-pcm", "ts-av", "ts-audio", "ts-programs", "ts-mp2-unassigned", "mp4-fractional-rotation", "ts-offset", "mp4-split-utf8",
                          "mp4-fragmented", "mp4-irregular-clock", "mkv-large-track-title", "mkv-analysis-packet-cap"):

@@ -245,6 +245,16 @@ def generate_fixtures(oracle, directory, *, audio=False):
             fixtures.append(Fixture(name, path, native, structured_side_data))
 
         make("mp4-av", "mp4", av)
+        make("mp4-unspecified-aspect", "mp4", [*av, "-vf", "setsar=0"])
+        make("mov-unspecified-aspect", "mov", [*av, "-vf", "setsar=0"])
+        make("mp4-unspecified-codec-stream-aspect", "mp4", [
+            "-i", root / "mp4-unspecified-aspect.mp4", "-map", "0", "-c", "copy", "-aspect", "8:3"])
+        make("mp4-unspecified-aspect-irregular-clock", "mp4", [
+            *av, "-vf", "setsar=0", "-r", "30", "-video_track_timescale", "9999"], native=False)
+        make("mp4-unspecified-aspect-fragmented", "mp4", [
+            *av, "-vf", "setsar=0", "-movflags", "frag_keyframe+empty_moov"], native=False)
+        make("mp4-unspecified-aspect-avc3", "mp4", [
+            *av, "-vf", "setsar=0", "-tag:v", "avc3"], native=False)
         make("mov-pcm", "mov", [*video, *sound, "-map", "0:v", "-map", "1:a",
                                 *h264, "-c:a", "pcm_s16le"], native=False)
         make("mov-aac", "mov", av)

@@ -571,9 +571,14 @@ pub fn probe<S: Source>(
             ) =>
             {
                 info.as_ref()
-                    .and_then(|v| v.sar)
-                    .map_or(super::SummaryAspect::Unverified, |codec| {
-                        super::SummaryAspect::Complete { codec: Some(codec) }
+                    .map_or(super::SummaryAspect::Unverified, |v| match v.sar {
+                        video::Aspect::Ratio(num, den) => super::SummaryAspect::Complete {
+                            codec: Some((num, den)),
+                        },
+                        video::Aspect::Unspecified => {
+                            super::SummaryAspect::Complete { codec: None }
+                        }
+                        video::Aspect::Unverified => super::SummaryAspect::Unverified,
                     })
             }
             _ => super::SummaryAspect::Unverified,
@@ -1210,7 +1215,7 @@ fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<V
                             .and_then(super::mkv::video::mpeg4_profile)
                             .map(|(name, level)| (name.to_owned(), i64::from(level))),
                         mpeg4_flags: Some((m.quarter_sample, m.divx_packed)),
-                        sar: video::mpeg4_aspect(dsi),
+                        sar: video::mpeg4_aspect(dsi).into(),
                         color: m.color,
                         ..VideoInfo::default()
                     })
@@ -1458,7 +1463,7 @@ fn stream(
         e.push(("has_b_frames", has_b_frames.map_or(Value::Na, int)));
         // The container's ratio (`pasp`), else the one the stream signals.
         let header = header_aspect(track.presentation_size, &matrix, w, h);
-        let aspect = d.pixel_aspect.or(info.sar).or(header).or_else(|| {
+        let aspect = d.pixel_aspect.or(info.sar.ratio()).or(header).or_else(|| {
             (d.codec == Codec::Av1 && d.parameter_set_size.is_some()).then_some((1, 1))
         });
         let (sar, dar) = match (aspect, w, h) {
