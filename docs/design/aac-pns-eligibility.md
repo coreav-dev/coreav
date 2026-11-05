@@ -124,6 +124,16 @@ length. Preserve native `decode-audio` presentation behaviour.
   encoded-data and 16-MiB-per-packet limits; diagnostic storage is bounded
   separately and is never a production allocation.
 
+The presented listing must retain every stored packet in its original order
+and start at the first stored byte position. This keeps the same decoder
+initial state for the packet-domain and presented checks. The production
+preflight checks the first position and complete count; qualification checks
+every position against the stored table. Each decoder's complete presented
+F32 PCM must equal the metadata-predicted interval of its own untrimmed
+output. Explicit terminal discard metadata must agree with the independently
+computed end. These are identity checks within each decoder, not an alignment
+search or a comparison between independent noise realizations.
+
 ### Execution and retained evidence
 
 1. Prove analysis/synthesis against independently constructed basis and
@@ -151,3 +161,26 @@ length. Preserve native `decode-audio` presentation behaviour.
    commit. Require green CI, the similarity guard and independent review.
 
 No speed claim or default-build change is part of this work.
+
+## Qualification evidence
+
+The existing twelve development inputs give ten passes and two refusals.
+The refusals are a fragmented input and an input with TNS intersecting PNS.
+The newly admitted development input has three noise bands, exact 441,300
+presented samples per channel, maximum energy error 0.001171 dB for CoreAV
+and 0.000701 dB for the pin, and deterministic projection differences at
+most 2.385e-7 F32 and one S16 LSB.
+
+The unchanged registered command representative also qualifies: exact
+96,000 presented samples, 824 individual PNS bands, maximum energy errors
+0.008219 dB and 0.009058 dB, and projection differences at most 6.873e-8 F32
+and one S16 LSB. It includes short windows and shape changes. Command-shape
+counts remain separate from this qualification.
+
+Generated comparisons include independent mono/stereo PNS, and late-packet
+TNS, shared M/S noise and illegal-window refusals. Refused inputs preserve
+their destinations and replay through the actual pinned fallback. Complete
+raw file/stdout and WAV file/stdout output, format fields, per-decoder S16
+packing and exact presentation intervals are checked. No result belongs
+to an exact-output or ISO conformance count. Retained reports bind input,
+binary, diagnostic, qualifier, transform checker and oracle identities.

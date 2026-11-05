@@ -12,7 +12,7 @@ pub(super) enum Requirement {
     AacLc,
     OpusMapping0,
     SupportedMp4Timeline,
-    AacNoNoiseOrAllMsIntensity,
+    AacSeparablePnsOrNoNoise,
     FfmpegAacMp4Timeline,
 }
 
@@ -67,7 +67,8 @@ fn parse(text: &str, codec: Codec, container: &str) -> Option<Admission> {
                 || row.get("tolerance")?
                     != &serde_json::json!({
                         "f32_absolute": 0.0000152587890625, "s16_lsb": 1,
-                        "sample_count": "exact", "priming": "exact", "timeline": "exact", "feature": "aac"
+                        "sample_count": "exact", "priming": "exact", "timeline": "exact", "feature": "aac",
+                        "pns": {"energy_db": 0.1, "sample_domain": "non_pns_projection", "packing": "per_decoder_f32"}
                     }))
         {
             return None;
@@ -111,7 +112,7 @@ fn parse(text: &str, codec: Codec, container: &str) -> Option<Admission> {
                     "aac_lc" => Requirement::AacLc,
                     "opus_mapping0" => Requirement::OpusMapping0,
                     "supported_mp4_timeline" => Requirement::SupportedMp4Timeline,
-                    "aac_no_noise_or_all_ms_intensity" => Requirement::AacNoNoiseOrAllMsIntensity,
+                    "aac_separable_pns_or_no_noise" => Requirement::AacSeparablePnsOrNoNoise,
                     "ffmpeg_aac_mp4_timeline" => Requirement::FfmpegAacMp4Timeline,
                     _ => return None,
                 };
@@ -123,18 +124,22 @@ fn parse(text: &str, codec: Codec, container: &str) -> Option<Admission> {
                 }
                 requirements.push(requirement);
             }
+            if name == "aac"
+                && eligible
+                && presented
+                && (!tolerance
+                    || family != "mp4"
+                    || requirements
+                        != [
+                            Requirement::AacLc,
+                            Requirement::AacSeparablePnsOrNoNoise,
+                            Requirement::FfmpegAacMp4Timeline,
+                        ])
+            {
+                return None;
+            }
             if name == codec.name() && family == container && eligible && presented {
-                if name == "aac"
-                    && (!cfg!(feature = "aac")
-                        || !tolerance
-                        || family != "mp4"
-                        || requirements
-                            != [
-                                Requirement::AacLc,
-                                Requirement::AacNoNoiseOrAllMsIntensity,
-                                Requirement::FfmpegAacMp4Timeline,
-                            ])
-                {
+                if name == "aac" && !cfg!(feature = "aac") {
                     return None;
                 }
                 if name == "opus"
@@ -235,22 +240,98 @@ mod tests {
         for (field, value) in [
             ("f32_absolute", json!(0.0001)),
             ("s16_lsb", json!(2)),
+            ("s16_lsb", json!(true)),
+            ("s16_lsb", json!(1.0)),
+            ("sample_count", json!("approximate")),
+            ("priming", json!("approximate")),
             ("timeline", json!("approximate")),
             ("feature", json!("default")),
+            ("unknown", json!(true)),
         ] {
             let mut changed = record.clone();
             changed["decoders"][index]["tolerance"][field] = value;
             assert!(parse(&changed.to_string(), Codec::Mp3, "mp4").is_none());
         }
-        #[cfg(feature = "aac")]
         for requirements in [
             json!([]),
             json!(["aac_lc"]),
             json!(["aac_lc", "supported_mp4_timeline"]),
+            json!(["aac_lc", "ffmpeg_aac_mp4_timeline"]),
+            json!(["aac_separable_pns_or_no_noise", "ffmpeg_aac_mp4_timeline"]),
+            json!(["aac_lc", "aac_separable_pns_or_no_noise"]),
+            json!([
+                "aac_lc",
+                "aac_no_noise_or_all_ms_intensity",
+                "ffmpeg_aac_mp4_timeline"
+            ]),
+            json!([
+                "aac_lc",
+                "aac_separable_pns_or_no_noise",
+                "ffmpeg_aac_mp4_timeline",
+                "supported_mp4_timeline"
+            ]),
         ] {
             let mut changed = record.clone();
             changed["decoders"][index]["presentations"][0]["requirements"] = requirements;
+            assert!(parse(&changed.to_string(), Codec::Mp3, "mp4").is_none());
             assert!(parse(&changed.to_string(), Codec::Aac, "mp4").is_none());
+        }
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+    fn pns_contract_rejects_missing_changed_and_unknown_fields() {
+        let record: Value = serde_json::from_str(RECORD).unwrap();
+        let index = record["decoders"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|row| row["codec"] == "aac")
+            .unwrap();
+        assert_eq!(
+            record["decoders"][index]["tolerance"]["pns"],
+            json!({"energy_db": 0.1, "sample_domain": "non_pns_projection", "packing": "per_decoder_f32"})
+        );
+        for (field, value) in [
+            ("energy_db", json!(0.2)),
+            ("energy_db", json!(0.05)),
+            ("energy_db", json!("0.1")),
+            ("sample_domain", json!("complete_pcm")),
+            ("packing", json!("cross_decoder")),
+            ("unknown", json!(true)),
+        ] {
+            let mut changed = record.clone();
+            changed["decoders"][index]["tolerance"]["pns"][field] = value;
+            assert!(parse(&changed.to_string(), Codec::Mp3, "mp4").is_none());
+        }
+        for field in [
+            "f32_absolute",
+            "s16_lsb",
+            "sample_count",
+            "priming",
+            "timeline",
+            "feature",
+            "pns",
+        ] {
+            let mut changed = record.clone();
+            changed["decoders"][index]["tolerance"]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert!(parse(&changed.to_string(), Codec::Mp3, "mp4").is_none());
+        }
+        for field in ["energy_db", "sample_domain", "packing"] {
+            let mut changed = record.clone();
+            changed["decoders"][index]["tolerance"]["pns"]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert!(parse(&changed.to_string(), Codec::Mp3, "mp4").is_none());
+        }
+        for value in [Value::Null, json!([]), json!({}), json!(true)] {
+            let mut changed = record.clone();
+            changed["decoders"][index]["tolerance"]["pns"] = value;
+            assert!(parse(&changed.to_string(), Codec::Mp3, "mp4").is_none());
         }
     }
 

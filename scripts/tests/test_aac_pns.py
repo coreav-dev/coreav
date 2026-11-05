@@ -114,7 +114,12 @@ def noise_case(short=False, channels=1, padding=1, sf=80):
 
 class TransformControls(unittest.TestCase):
     def test_requirement_is_exactly_pinned_numpy(self):
-        self.assertEqual(SCRIPT.with_name('aac-pns-requirements.txt').read_text(), 'numpy==2.3.5\n')
+        requirement = SCRIPT.with_name('aac-pns-requirements.txt').read_text().replace('\\\n', ' ')
+        tokens = requirement.split()
+        self.assertEqual(tokens[0], 'numpy==2.3.5')
+        self.assertGreater(len(tokens), 1)
+        for digest in tokens[1:]:
+            self.assertRegex(digest, r'^--hash=sha256:[0-9a-f]{64}$')
 
     def test_sine_and_kbd_halves_match_independent_series(self):
         for size, shape in itertools.product((128, 1024), (0, 1)):
@@ -262,29 +267,30 @@ class ComparisonControls(unittest.TestCase):
     def test_projection_quantization_is_independent_rounded_and_clipped(self):
         values = np.array([-2, -1, -2.5 / 32768, -1.5 / 32768, -0.5 / 32768,
                            0.5 / 32768, 1.5 / 32768, 2.5 / 32768, 32767 / 32768, 1, 2])
-        np.testing.assert_array_equal(pns._s16(values), [-32768, -32768, -2, -2, 0,
+        np.testing.assert_array_equal(pns.quantize_s16(values), [-32768, -32768, -2, -2, 0,
                                                        0, 2, 2, 32767, 32767, 32767])
 
-    def test_energy_change_beyond_fixed_relative_bar_is_rejected_for_both_outputs(self):
-        for index in (0, 1):
+    def test_energy_change_beyond_fixed_db_bar_is_rejected_for_both_outputs(self):
+        for index, change in itertools.product((0, 1), (-0.11, 0.11)):
             native, oracle, metadata, diagnostic = noise_case()
             values = pns.analyse((native, oracle)[index], metadata['frames'])
-            values[0, 0, 16:32] *= math.sqrt(1 + 2 / 1024)
+            values[0, 0, 16:32] *= math.sqrt(10 ** (change / 10))
             changed = pns.synthesize(values, metadata['frames'])
             if index == 0:
                 native, diagnostic = changed, values.astype(np.float32)
             else:
                 oracle = changed
-            with self.subTest(index=index), self.assertRaisesRegex(ValueError, 'noise energy'):
+            with self.subTest(index=index, change=change), self.assertRaisesRegex(ValueError, 'noise energy'):
                 pns.compare(native, oracle, metadata, diagnostic)
 
-    def test_energy_change_inside_fixed_relative_bar_is_accepted(self):
-        native, oracle, metadata, diagnostic = noise_case()
-        values = pns.analyse(oracle, metadata['frames'])
-        values[0, 0, 16:32] *= math.sqrt(1 + 0.5 / 1024)
-        oracle = pns.synthesize(values, metadata['frames'])
-        result = pns.compare(native, oracle, metadata, diagnostic)
-        self.assertAlmostEqual(result['max_oracle_energy_relative_error'], 0.5 / 1024, places=6)
+    def test_energy_change_inside_fixed_db_bar_is_accepted(self):
+        for change in (-0.09, 0.09):
+            native, oracle, metadata, diagnostic = noise_case()
+            values = pns.analyse(oracle, metadata['frames'])
+            values[0, 0, 16:32] *= math.sqrt(10 ** (change / 10))
+            oracle = pns.synthesize(values, metadata['frames'])
+            result = pns.compare(native, oracle, metadata, diagnostic)
+            self.assertAlmostEqual(result['max_oracle_energy_db_error'], 0.09, places=6)
 
     def test_projection_bar_stays_at_two_to_the_minus_sixteen(self):
         frames = frames_for([0])

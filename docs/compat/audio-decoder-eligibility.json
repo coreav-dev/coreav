@@ -28,13 +28,13 @@
       "codec": "aac",
       "kind": "decode_tolerance",
       "decoder_eligible": true,
-      "tolerance": { "f32_absolute": 0.0000152587890625, "s16_lsb": 1, "sample_count": "exact", "priming": "exact", "timeline": "exact", "feature": "aac" },
+      "tolerance": { "f32_absolute": 0.0000152587890625, "s16_lsb": 1, "sample_count": "exact", "priming": "exact", "timeline": "exact", "feature": "aac", "pns": { "energy_db": 0.1, "sample_domain": "non_pns_projection", "packing": "per_decoder_f32" } },
       "presentations": [
-        { "container": "mp4", "eligible": true, "requirements": ["aac_lc", "aac_no_noise_or_all_ms_intensity", "ffmpeg_aac_mp4_timeline"] },
+        { "container": "mp4", "eligible": true, "requirements": ["aac_lc", "aac_separable_pns_or_no_noise", "ffmpeg_aac_mp4_timeline"] },
         { "container": "matroska", "eligible": false, "requirements": [] }
       ],
-      "evidence": "docs/design/aac-pcm-eligibility.md#adapter-scope",
-      "limitations": ["Compatible within decode tolerance, never exact-output or ISO conformance eligibility", "Only opt-in aac builds, mono/stereo LC, native rate and channels, nonfragmented registered MP4 timelines", "PNS and all-ones M/S intensity refuse before output", "At most 16384 packets and 64 MiB of encoded audio per pass", "HE-AAC/SBR and Matroska remain refused", "Not byte-identical to FFmpeg"]
+      "evidence": "docs/design/aac-pns-eligibility.md#plan",
+      "limitations": ["Compatible within decode tolerance, never exact-output or ISO conformance eligibility", "Only opt-in aac builds, mono/stereo LC, native rate and channels, nonfragmented registered MP4 timelines", "PNS requires separable bands with per-band energy within 0.1 dB; deterministic non-PNS projections retain the F32 and S16 sample bounds", "Complete PNS-containing PCM is not compared pointwise across decoders; each serialized S16 output is checked against its own F32 output", "TNS intersecting PNS, M/S-correlated PNS, intensity sourced from PNS, coupling in PNS streams and all-ones M/S intensity refuse before output", "Sample count, priming and timeline remain exact", "At most 16384 packets and 64 MiB of encoded audio per pass", "HE-AAC/SBR and Matroska remain refused", "Not byte-identical to FFmpeg"]
     }
   ]
 }

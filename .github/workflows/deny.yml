@@ -66,6 +66,7 @@ jobs:
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/parser"
           "$RUNNER_TEMP/parser/bin/pip" install --quiet --require-hashes -r scripts/pr-text-requirements.txt
+          "$RUNNER_TEMP/parser/bin/pip" install --quiet --only-binary=:all: --require-hashes -r scripts/aac-pns-requirements.txt
           echo "$RUNNER_TEMP/parser/bin" >> "$GITHUB_PATH"
       # The required checks and the workflows have to agree whatever a change
       # touches, and docs/design/ci-checks.md, which names them, is
@@ -144,6 +145,7 @@ jobs:
         if: steps.result.outputs.reuse != 'true'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
+          OPENBLAS_NUM_THREADS: '1'
         run: python3 -I -m unittest discover -s scripts/tests -p 'test_*.py'
       - name: Check Opus capacity before a new registration
         if: steps.result.outputs.reuse != 'true'

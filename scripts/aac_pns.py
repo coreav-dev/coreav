@@ -7,7 +7,9 @@ import numpy as np
 
 
 F32_EPS = 2 ** -16
-ENERGY_REL = 1 / 1024
+ENERGY_DB = 0.1
+ENERGY_LOW = 10 ** (-ENERGY_DB / 10)
+ENERGY_HIGH = 10 ** (ENERGY_DB / 10)
 FRAME_LENGTH = 1024
 MAX_PACKETS = 16384
 SCHEMA = 'coreav.aac-pns-diagnostic/1'
@@ -195,7 +197,8 @@ def _kernel_l1(sequence, old_shape, shape):
     return norms
 
 
-def _s16(pcm):
+def quantize_s16(pcm):
+    """Round and clip normalized samples independently of either decoder's serializer."""
     return np.rint(np.clip(pcm, -1, 32767 / 32768) * 32768).astype(np.int64)
 
 
@@ -226,6 +229,7 @@ def compare(native_pcm, oracle_pcm, metadata, native_spectra):
     maximum_bin = 0.0
     maximum_diagnostic = 0.0
     maximum_energy = [0.0, 0.0]
+    maximum_energy_db = [0.0, 0.0]
     band_count = 0
     noise_bins = 0
     short_windows = 0
@@ -249,10 +253,12 @@ def compare(native_pcm, oracle_pcm, metadata, native_spectra):
             for start, end, energy in bands:
                 for index, coefficients in enumerate((left, right)):
                     with np.errstate(over='ignore', invalid='ignore', divide='ignore'):
-                        relative = float(abs(np.sum(coefficients[start:end] ** 2) / energy - 1))
-                    if not math.isfinite(relative) or relative > ENERGY_REL:
+                        ratio = float(np.sum(coefficients[start:end] ** 2) / energy)
+                    if not math.isfinite(ratio) or not ENERGY_LOW <= ratio <= ENERGY_HIGH:
                         raise ValueError('per-window noise energy bound exceeded')
+                    relative = abs(ratio - 1)
                     maximum_energy[index] = max(maximum_energy[index], relative)
+                    maximum_energy_db[index] = max(maximum_energy_db[index], abs(10 * math.log10(ratio)))
             band_count += len(bands)
             noise_bins += int(np.count_nonzero(mask))
     maximum_reconstruction = 0.0
@@ -273,7 +279,7 @@ def compare(native_pcm, oracle_pcm, metadata, native_spectra):
     projection_error = float(np.max(np.abs(native_projection - oracle_projection)))
     if not math.isfinite(projection_error) or projection_error > F32_EPS:
         raise ValueError('non-noise projection F32 bound exceeded')
-    s16_error = int(np.max(np.abs(_s16(native_projection) - _s16(oracle_projection))))
+    s16_error = int(np.max(np.abs(quantize_s16(native_projection) - quantize_s16(oracle_projection))))
     if s16_error > 1:
         raise ValueError('non-noise projection S16 bound exceeded')
     return {
@@ -284,6 +290,8 @@ def compare(native_pcm, oracle_pcm, metadata, native_spectra):
         'max_native_diagnostic_error': maximum_diagnostic,
         'max_native_energy_relative_error': maximum_energy[0],
         'max_oracle_energy_relative_error': maximum_energy[1],
+        'max_native_energy_db_error': maximum_energy_db[0],
+        'max_oracle_energy_db_error': maximum_energy_db[1],
         'max_reconstruction_error': maximum_reconstruction,
         'max_projection_f32_error': projection_error, 'max_projection_s16_error': s16_error,
     }

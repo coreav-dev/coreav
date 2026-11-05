@@ -10,6 +10,7 @@ from pathlib import Path
 import struct
 import subprocess
 import sys
+import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
@@ -72,7 +73,88 @@ def wav(data, fmt, channels, rate):
     raise ValueError('missing WAVE data')
 
 
-def check(coreav, oracle, source, work):
+def pns_check(oracle, source, directory, metadata):
+    import numpy as np
+    import aac_pns
+
+    reference = run([oracle / 'ffmpeg', '-v', 'error', '-f', 'aac', *AUDIO_DECODE_INPUT,
+                     '-i', directory / 'packets.aac', '-c:a', 'pcm_f32le', '-f', 'f32le', '-'])
+    if reference.returncode or reference.stderr:
+        raise ValueError('untrimmed oracle failed or reported damage')
+    channels, packets = metadata['channels'], metadata['packets']
+    native_raw = np.fromfile(directory / 'native.f32', dtype='<f4').reshape(-1, channels)
+    oracle_raw = np.frombuffer(reference.stdout, dtype='<f4').reshape(-1, channels)
+    spectra = np.fromfile(directory / 'spectra.f32', dtype='<f4').reshape(packets, channels, 1024)
+    metrics = aac_pns.compare(native_raw, oracle_raw, metadata, spectra)
+    probe = run([oracle / 'ffprobe', '-v', 'error', '-select_streams', 'a:0',
+                 '-show_streams', '-show_packets', '-of', 'json', source])
+    if probe.returncode or probe.stderr:
+        raise ValueError('PNS presentation probe failed')
+    skip, count = presentation_interval(metadata, json.loads(probe.stdout))
+    metrics.update(presented_samples=count, leading_skip=skip,
+                   trailing_discard=packets * 1024 - skip - count)
+    return metrics, native_raw[skip:skip + count], oracle_raw[skip:skip + count]
+
+
+def presentation_interval(metadata, listing):
+    packets = metadata['packets']
+    listed = listing['packets']
+    if len(listed) != packets or any(int(packet['pos']) != frame['offset']
+                                    for packet, frame in zip(listed, metadata['frames'])):
+        raise ValueError('PNS presentation does not preserve the complete stored packet sequence')
+    skip = 0
+    discard = 0
+    for index, packet in enumerate(listed):
+        if int(packet['pts']) != int(packet['dts']) or int(packet['duration']) <= 0:
+            raise ValueError('unsupported PNS presentation clock')
+        for item in packet.get('side_data_list', []):
+            if item.get('side_data_type') != 'Skip Samples':
+                raise ValueError('unsupported PNS side data')
+            terminal = int(item.get('discard_padding', 0))
+            if terminal < 0 or terminal and index != len(listed) - 1:
+                raise ValueError('unsupported PNS padding placement')
+            if index == len(listed) - 1:
+                discard = terminal
+            value = int(item.get('skip_samples', 0))
+            if value < 0 or value and index != 0:
+                raise ValueError('unsupported PNS skip placement')
+            if index == 0:
+                skip = value
+    end = int(listing['streams'][0]['duration_ts'])
+    if metadata['no_edits']:
+        end = metadata['media_duration']
+        if metadata['gapless_end'] is not None:
+            end = min(end, metadata['gapless_end'])
+    last = listed[-1]
+    pts, duration = int(last['pts']), max(1024, int(last['duration']))
+    padding = max(0, duration - (end - pts)) if pts < end else 0
+    if discard and discard != padding:
+        raise ValueError('PNS padding disagrees with the independently predicted endpoint')
+    raw_count = packets * 1024
+    last_skip = max(0, skip - (raw_count - 1024))
+    count = raw_count - skip - min(padding, max(0, 1024 - last_skip))
+    if count <= 0 or skip < 0 or skip + count > raw_count:
+        raise ValueError('invalid PNS presentation extent')
+    return skip, count
+
+
+def check(coreav, oracle, source, work, diagnostic):
+    with tempfile.TemporaryDirectory(prefix='aac-diagnostic-', dir=work) as path:
+        directory = Path(path)
+        captured = run([diagnostic, source, directory])
+        metadata, pns = None, None
+        if captured.returncode == 0:
+            metadata = json.loads((directory / 'metadata.json').read_text())
+            noise = sum(len(channel['noise']) for frame in metadata['frames'] for channel in frame['channels'])
+            if noise and not metadata['unsafe']:
+                pns = pns_check(oracle, source, directory, metadata)
+        row = check_output(coreav, oracle, source, work, metadata, pns)
+        if captured.returncode:
+            row['diagnostic_refusal'] = captured.stderr.decode()[-500:].strip()
+        return row
+
+
+def check_output(coreav, oracle, source, work, metadata, pns):
     row = {'sha256': hashlib.sha256(source.read_bytes()).hexdigest(), 'formats': {}}
     probe = run([oracle / 'ffprobe', '-v', 'error', '-select_streams', 'a:0',
                  '-show_entries', 'stream=sample_rate,channels,profile', '-of', 'json', source])
@@ -81,6 +163,7 @@ def check(coreav, oracle, source, work):
     stream = json.loads(probe.stdout)['streams'][0]
     row.update(rate=int(stream['sample_rate']), channels=stream['channels'], profile=stream['profile'])
     refusal = None
+    floats = None
     for fmt, codec in [('f32', 'pcm_f32le'), ('s16', 'pcm_s16le')]:
         base = native(coreav, source, ['-map', '0:a:0', '-c:a', codec])
         actual = run([*base, '-f', fmt + 'le', 'pipe:'])
@@ -109,13 +192,44 @@ def check(coreav, oracle, source, work):
             continue
         if actual.returncode:
             raise ValueError('native command failed: ' + actual.stderr.decode()[-500:])
+        if metadata is None or 'all_ms_intensity' in metadata['unsafe'] or metadata['unsafe'] and any(
+                channel['noise'] for frame in metadata['frames'] for channel in frame['channels']):
+            raise ValueError('native command admitted unsupported diagnostic predicates')
         if refusal:
             raise ValueError('eligibility differs across formats')
         reference = run([oracle / 'ffmpeg', '-v', 'error', *AUDIO_DECODE_INPUT,
                          '-i', source, '-map', '0:a:0', '-c:a', codec, '-f', fmt + 'le', '-'])
         if reference.returncode or reference.stderr:
             raise ValueError('oracle decode failed or reported damage')
-        result = compare(actual.stdout, reference.stdout, fmt, row['channels'])
+        if pns is None:
+            result = compare(actual.stdout, reference.stdout, fmt, row['channels'])
+        else:
+            import numpy as np
+            import aac_pns
+            metrics, native_presented, oracle_presented = pns
+            count = metrics['presented_samples']
+            width = 4 if fmt == 'f32' else 2
+            if len(actual.stdout) != count * width * row['channels'] or len(reference.stdout) != len(actual.stdout):
+                raise ValueError('PNS complete presented sample counts differ')
+            if fmt == 'f32':
+                floats = [np.frombuffer(data, dtype='<f4').reshape(-1, row['channels'])
+                          for data in (actual.stdout, reference.stdout)]
+                if not np.array_equal(floats[0], native_presented) or not np.array_equal(floats[1], oracle_presented):
+                    raise ValueError('presented PCM does not equal its independently predicted untrimmed interval')
+                result = {'samples': count, 'domain': 'non_pns_projection',
+                          'max_error': metrics['max_projection_f32_error']}
+            else:
+                if floats is None:
+                    raise ValueError('missing complete F32 packing reference')
+                errors = [int(np.max(np.abs(np.frombuffer(data, dtype='<i2').reshape(-1, row['channels']).astype(np.int64)
+                                            - aac_pns.quantize_s16(values))))
+                          for data, values in zip((actual.stdout, reference.stdout), floats)]
+                if max(errors) > 1:
+                    raise ValueError('PNS S16 packing differs from its own F32 samples')
+                result = {'samples': count, 'domain': 'non_pns_projection',
+                          'max_error': metrics['max_projection_s16_error'],
+                          'native_packing_lsb': errors[0], 'oracle_packing_lsb': errors[1]}
+            row['pns'] = metrics
         destination = work / 'candidate.pcm'
         file_output = run([*base, '-y', '-f', fmt + 'le', destination])
         if file_output.returncode or destination.read_bytes() != actual.stdout:
@@ -123,16 +237,20 @@ def check(coreav, oracle, source, work):
         wave = run([*base, '-f', 'wav', 'pipe:'])
         if wave.returncode:
             raise ValueError('native WAV failed')
-        compare(wav(wave.stdout, fmt, row['channels'], row['rate']), reference.stdout, fmt, row['channels'])
+        if wav(wave.stdout, fmt, row['channels'], row['rate']) != actual.stdout:
+            raise ValueError('WAV stdout packing differs from complete raw output')
         wave_file = work / 'candidate.wav'
         wave = run([*base, '-y', '-f', 'wav', wave_file])
         if wave.returncode:
             raise ValueError('native WAV file failed')
-        compare(wav(wave_file.read_bytes(), fmt, row['channels'], row['rate']), reference.stdout, fmt, row['channels'])
+        if wav(wave_file.read_bytes(), fmt, row['channels'], row['rate']) != actual.stdout:
+            raise ValueError('WAV file packing differs from complete raw output')
         row['formats'][fmt] = result
     row['status'] = 'ineligible' if refusal else 'pass'
     if refusal:
         row['reason'] = refusal
+        if metadata is not None:
+            row['predicate_failures'] = metadata['unsafe']
     return row
 
 
@@ -234,7 +352,7 @@ def destination_checks(coreav, source, work):
             raise ValueError('FIFO destination was changed')
 
 
-def generate(oracle, work):
+def generate(oracle, work, diagnostic):
     paths = []
     for rate in (22050, 44100, 48000):
         for channels in (1, 2):
@@ -262,6 +380,18 @@ def generate(oracle, work):
     if encoded.returncode:
         raise ValueError('generated all-MS encode failed')
     paths.append(path)
+    with tempfile.TemporaryDirectory(prefix='pns-fixtures-', dir=work) as temporary:
+        fixtures = Path(temporary)
+        made = run([diagnostic, '--fixtures', fixtures])
+        if made.returncode:
+            raise ValueError('synthetic PNS packet construction failed')
+        for source in sorted(fixtures.glob('*.aac')):
+            target = work / (source.stem + '.m4a')
+            copied = run([oracle / 'ffmpeg', '-v', 'error', '-y', '-f', 'aac',
+                          '-i', source, '-c:a', 'copy', target])
+            if copied.returncode:
+                raise ValueError('synthetic PNS packet remux failed')
+            paths.append(target)
     return paths
 
 
@@ -271,6 +401,7 @@ def main():
     parser.add_argument('--oracle-dir', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--pns-diagnostic', type=Path, required=True)
     parser.add_argument('files', type=Path, nargs='*')
     args = parser.parse_args()
     args.out.unlink(missing_ok=True)
@@ -278,15 +409,16 @@ def main():
     if errors:
         raise ValueError('unverified pinned oracle')
     args.work.mkdir(parents=True, exist_ok=True)
-    files = args.files or generate(args.oracle_dir, args.work)
+    files = args.files or generate(args.oracle_dir, args.work, args.pns_diagnostic)
     if not args.files:
         destination_checks(args.coreav, args.work / 'tone-48000-1.m4a', args.work)
     rows = []
     for source in files:
         try:
-            row = check(args.coreav, args.oracle_dir, source, args.work)
-            expected = 'ineligible' if source.name in ('pns.m4a', 'all-ms-intensity.m4a',
-                                                       'noncanonical-gapless.m4a') else 'pass'
+            row = check(args.coreav, args.oracle_dir, source, args.work, args.pns_diagnostic)
+            expected = 'ineligible' if source.name in ('all-ms-intensity.m4a',
+                'noncanonical-gapless.m4a', 'pns-tns.m4a', 'pns-ms.m4a',
+                'pns-illegal-window.m4a') else 'pass'
             if not args.files and row['status'] != expected:
                 raise ValueError('generated fixture changed its expected eligibility')
         except (ValueError, subprocess.TimeoutExpired) as error:
@@ -299,6 +431,8 @@ def main():
         'oracle': load()['BUILD'],
         'binary_sha256': hashlib.sha256(args.coreav.read_bytes()).hexdigest(),
         'qualifier_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'pns_checker_sha256': hashlib.sha256(Path(__file__).with_name('aac_pns.py').read_bytes()).hexdigest(),
+        'diagnostic_sha256': hashlib.sha256(args.pns_diagnostic.read_bytes()).hexdigest(),
         'rows': rows}, indent=2) + '\n')
     return int(not rows or any(row['status'] == 'fail' for row in rows))
 

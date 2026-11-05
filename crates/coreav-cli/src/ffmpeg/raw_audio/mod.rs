@@ -589,7 +589,7 @@ fn packet_presentation(command: &Command, plan: &Plan, pass: &Pass) -> Result<()
                                     || decoded.stream.sample_rate != 48_000
                                     || !matches!(decoded.stream.channels, 1 | 2)
                             }
-                            record::Requirement::AacNoNoiseOrAllMsIntensity
+                            record::Requirement::AacSeparablePnsOrNoNoise
                             | record::Requirement::FfmpegAacMp4Timeline => true,
                         };
                     }
