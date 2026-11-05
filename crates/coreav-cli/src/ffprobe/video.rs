@@ -13,6 +13,10 @@ use coreav_isobmff::Color;
 
 mod avc;
 pub(super) use avc::summary as avc_summary;
+mod hevc;
+#[cfg(test)]
+pub(super) use hevc::tests::fixture_record as hevc_test_record;
+pub(super) use hevc::{slice_selects as hevc_slice_selects, summary_config as hevc_summary_config};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Aspect {
@@ -166,6 +170,30 @@ pub(super) fn rbsp(nal: &[u8], header: usize) -> Vec<u8> {
         out.push(b);
     }
     out
+}
+
+fn strict_rbsp(nal: &[u8], header: usize) -> Option<Vec<u8>> {
+    let mut out = Vec::new();
+    out.try_reserve_exact(nal.len()).ok()?;
+    let mut zeros = 0;
+    let mut bytes = nal.iter().skip(header).peekable();
+    while let Some(&byte) = bytes.next() {
+        if zeros == 2 {
+            if byte < 3 {
+                return None;
+            }
+            if byte == 3 {
+                if bytes.peek().is_none_or(|&&next| next > 3) {
+                    return None;
+                }
+                zeros = 0;
+                continue;
+            }
+        }
+        out.push(byte);
+        zeros = if byte == 0 { zeros + 1 } else { 0 };
+    }
+    Some(out)
 }
 
 fn u16_at(data: &[u8], at: usize) -> Option<usize> {
@@ -463,9 +491,30 @@ pub fn hevc(hvcc: &[u8], full_range: bool) -> Option<VideoInfo> {
 
 /// An H.265 sequence parameter set NAL unit, header included.
 pub fn hevc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
+    hevc_sps_read(nal, full_range).map(|(info, _)| info)
+}
+
+struct HevcSpsFacts {
+    vps: u32,
+    id: u32,
+    luma_depth: u32,
+    chroma_depth: u32,
+    min_cb_log2: u32,
+    cb_log2_diff: u32,
+    ordering: [u32; 3],
+    progressive: bool,
+    complete: bool,
+}
+
+enum HevcVui {
+    Absent,
+    Present(bool),
+}
+
+fn hevc_sps_read(nal: &[u8], full_range: bool) -> Option<(VideoInfo, HevcSpsFacts)> {
     let data = rbsp(nal, 2);
     let mut b = Bits::new(&data);
-    b.bits(4)?;
+    let vps = b.bits(4)?;
     let max_sub_layers_minus1 = b.bits(3)?;
     b.bit()?;
     // profile_tier_level (7.3.3).
@@ -493,7 +542,7 @@ pub fn hevc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
             b.bits(8)?;
         }
     }
-    b.ue()?;
+    let id = b.ue()?;
     let chroma_format = b.ue()?;
     if chroma_format == 3 {
         b.bit()?;
@@ -506,7 +555,7 @@ pub fn hevc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         }
     }
     let bit_depth = b.ue()?.checked_add(8)?;
-    b.ue()?;
+    let chroma_depth = b.ue()?;
     let log2_max_poc_lsb = b.ue()?.checked_add(4)?;
     if log2_max_poc_lsb > 16 {
         return None;
@@ -514,10 +563,12 @@ pub fn hevc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
     let ordering = b.flag()?;
     let first = if ordering { 0 } else { max_sub_layers_minus1 };
     let mut reorder = 0;
+    let mut ordering_values = [0; 3];
     for _ in first..=max_sub_layers_minus1 {
-        b.ue()?;
+        let buffering = b.ue()?;
         reorder = b.ue()?;
-        b.ue()?;
+        let latency = b.ue()?;
+        ordering_values = [buffering, reorder, latency];
     }
     let mut info = VideoInfo {
         pix_fmt: yuv(chroma_format, bit_depth, full_range),
@@ -537,10 +588,47 @@ pub fn hevc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         size: None,
         bit_rate: None,
     };
-    // What follows only adds the VUI's fields; a set that ends early
-    // keeps what was read.
-    let _ = hevc_vui(&mut b, log2_max_poc_lsb, chroma_format, &mut info);
-    Some(info)
+    let mut facts = HevcSpsFacts {
+        vps,
+        id,
+        luma_depth: bit_depth,
+        chroma_depth,
+        min_cb_log2: 0,
+        cb_log2_diff: 0,
+        ordering: ordering_values,
+        progressive: false,
+        complete: false,
+    };
+    facts.complete = hevc_vui(
+        &mut b,
+        log2_max_poc_lsb,
+        chroma_format,
+        &mut info,
+        &mut facts,
+    )
+    .and_then(|end| hevc_sps_end(&mut b, end))
+    .is_some();
+    Some((info, facts))
+}
+
+fn hevc_sps_end(b: &mut Bits<'_>, end: HevcVui) -> Option<()> {
+    if let HevcVui::Present(timing) = end {
+        if timing {
+            if b.flag()? {
+                b.ue()?;
+            }
+            if b.flag()? {
+                return None;
+            }
+        }
+        if b.flag()? {
+            return None;
+        }
+    }
+    if b.flag()? || !b.trailing() {
+        return None;
+    }
+    Some(())
 }
 
 /// The rest of an H.265 sequence parameter set up to and through the
@@ -550,8 +638,11 @@ fn hevc_vui(
     log2_max_poc_lsb: u32,
     chroma_format: u32,
     info: &mut VideoInfo,
-) -> Option<()> {
-    for _ in 0..6 {
+    facts: &mut HevcSpsFacts,
+) -> Option<HevcVui> {
+    facts.min_cb_log2 = b.ue()?.checked_add(3).unwrap_or(0);
+    facts.cb_log2_diff = b.ue()?;
+    for _ in 0..4 {
         b.ue()?;
     }
     if b.flag()? && b.flag()? {
@@ -612,7 +703,7 @@ fn hevc_vui(
     }
     b.bits(2)?;
     if !b.flag()? {
-        return Some(());
+        return Some(HevcVui::Absent);
     }
     if b.flag()? {
         let idc = b.bits(8)?;
@@ -645,20 +736,21 @@ fn hevc_vui(
             info.chroma_location = CHROMA_LOCATIONS.get(usize::try_from(top).ok()?).copied();
         }
     }
-    b.bits(3)?;
+    facts.progressive = b.bits(3)? == 0;
     if b.flag()? {
         for _ in 0..4 {
             b.ue()?;
         }
     }
-    if b.flag()? {
+    let timing = b.flag()?;
+    if timing {
         let units = b.bits(32)?;
         let scale = b.bits(32)?;
         if units > 0 && scale > 0 {
             info.frame_rate = Some((u64::from(scale), u64::from(units)));
         }
     }
-    Some(())
+    Some(HevcVui::Present(timing))
 }
 
 /// `scaling_list_data` (H.265 7.3.4).

@@ -1,31 +1,11 @@
-use super::{AvcSps, Bits, avc_sps_read};
+use super::{AvcSps, Bits, avc_sps_read, strict_rbsp};
 
 fn parameter_rbsp(nal: &[u8], kind: u8) -> Option<Vec<u8>> {
     let header = *nal.first()?;
     if header & 0x9f != kind || header & 0x60 == 0 {
         return None;
     }
-    let mut out = Vec::new();
-    out.try_reserve_exact(nal.len()).ok()?;
-    let mut zeros = 0;
-    let mut bytes = nal.iter().skip(1).peekable();
-    while let Some(&byte) = bytes.next() {
-        if zeros == 2 {
-            if byte < 3 {
-                return None;
-            }
-            if byte == 3 {
-                if bytes.peek().is_none_or(|&&next| next > 3) {
-                    return None;
-                }
-                zeros = 0;
-                continue;
-            }
-        }
-        out.push(byte);
-        zeros = if byte == 0 { zeros + 1 } else { 0 };
-    }
-    Some(out)
+    strict_rbsp(nal, 1)
 }
 
 fn pps(nal: &[u8], sps: &AvcSps) -> Option<u32> {
