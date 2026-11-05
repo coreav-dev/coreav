@@ -470,56 +470,6 @@
       "verdict": "excluded"
     },
     {
-      "evidence": "pin() at lines 118-137 verifies the parent directory but returns the originally selected file. A different executable in that valid directory remains selectable.",
-      "id": "rust-parent-directory-only",
-      "kinds": [
-        "Rust"
-      ],
-      "lines": [
-        154,
-        298,
-        326,
-        408,
-        497,
-        592
-      ],
-      "path": "crates/coreav-cli/tests/ffmpeg_flac.rs",
-      "pattern": "(?s)Command::new\\(\\&ffmpeg\\).*",
-      "verdict": "confirmed-bypass"
-    },
-    {
-      "evidence": "pin() at lines 118-137 verifies the parent directory but returns the originally selected file. A different executable in that valid directory remains selectable.",
-      "id": "rust-parent-directory-only",
-      "kinds": [
-        "Rust"
-      ],
-      "lines": [
-        154,
-        298,
-        326,
-        408,
-        497,
-        592
-      ],
-      "path": "crates/coreav-cli/tests/ffmpeg_flac.rs",
-      "pattern": "(?s)\\&ffmpeg",
-      "verdict": "confirmed-bypass"
-    },
-    {
-      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
-      "id": "rust-compiled-target",
-      "kinds": [
-        "Rust"
-      ],
-      "lines": [
-        75,
-        81
-      ],
-      "path": "crates/coreav-cli/tests/ffmpeg_flac.rs",
-      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
-      "verdict": "excluded"
-    },
-    {
       "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
       "id": "rust-compiled-target",
       "kinds": [
@@ -1624,7 +1574,7 @@
     }
   ],
   "schema": 1,
-  "source_snapshot_sha256": "5ba25fa418a30192433eed530ef204d1cc33f38183c9fe5cf6df46de63df11af",
+  "source_snapshot_sha256": "e4a311a9ff9fbc094ad79c710766ef6e7276a544cd82ce74c145d45a7cedef88",
   "sources": {
     "crates/coreav-audio/tests/flac_encode.rs": "6b63b16444965850c74da0651859128602a9093fe487a15865f8a82093bf6880",
     "crates/coreav-backend-dav1d/tests/decode.rs": "9094fa0b3a4957d348e9b92420c658fda930329cac3b9c2da17e5c3248e0e791",
@@ -1640,7 +1590,6 @@
     "crates/coreav-cli/tests/docs_site.rs": "bd3979d63545179b8066a2132a1d31e25b72af558a3c60cb34d144c280471db1",
     "crates/coreav-cli/tests/exec.rs": "8105821de01ac99e0096a40b0266de02411dd21f593d7b029d13d7c344209abe",
     "crates/coreav-cli/tests/fallback_windows.rs": "5c97b42c1b3d351c564ccf266d51f3ab36a604080f7c78d18ed0d21ee22ffb92",
-    "crates/coreav-cli/tests/ffmpeg_flac.rs": "bdd12fd98b9dda64c059ff142b8c73e550b5341438542f6db926985319237613",
     "crates/coreav-cli/tests/ffmpeg_frames.rs": "c14f50e8876d869a711b6b232c61f07412979dcb65ce3f458dfb7a3ec26aecab",
     "crates/coreav-cli/tests/ffmpeg_matroska.rs": "9cba9336b1f21b9199ac4c2167f7f4e8ee2172f7e7acf302445a6283e7b2cb4b",
     "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs": "2d72e6aed47edfdf3dc1a53a79b6489a7ecaee75e72e96d7cf5a33b78eceff60",
