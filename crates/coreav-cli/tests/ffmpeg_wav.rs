@@ -411,6 +411,82 @@ fn unregistered_wav_output_preserves_destinations() {
 }
 
 #[test]
+fn wave_wav_stdout_refuses_without_literal_files_and_matches_fallback() {
+    let dir = scratch("wav-stdout");
+    std::fs::write(dir.join("input.wav"), wav(1, 16, 1, &[0; 12])).unwrap();
+    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
+    if !ffmpeg.is_file() {
+        assert!(
+            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
+            "set COREAV_FFMPEG to the pin"
+        );
+    }
+    for destination in ["-", "pipe:1"] {
+        for existing in [false, true] {
+            if existing && cfg!(windows) && destination == "pipe:1" {
+                continue;
+            }
+            let literal = dir.join(destination);
+            if existing {
+                std::fs::write(&literal, b"preserve literal file").unwrap();
+            }
+            let entries = std::fs::read_dir(&dir).unwrap().count();
+            let refused = strict()
+                .current_dir(&dir)
+                .args(["-y", "-i", "input.wav", "-f", "wav", destination])
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .output()
+                .unwrap();
+            assert_eq!(refused.status.code(), Some(4), "{destination}: {refused:?}");
+            assert!(refused.stdout.is_empty());
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+            if existing {
+                assert_eq!(std::fs::read(&literal).unwrap(), b"preserve literal file");
+            } else {
+                assert!(!literal.exists());
+            }
+            if ffmpeg.is_file() {
+                let pin = Command::new(&ffmpeg)
+                    .current_dir(&dir)
+                    .args(["-nostdin", "-v", "error", "-y"])
+                    .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+                    .args(["-i", "input.wav", "-f", "wav", destination])
+                    .output()
+                    .unwrap();
+                assert!(
+                    pin.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&pin.stderr)
+                );
+                let fallback = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                    .current_dir(&dir)
+                    .args(["ffmpeg", "-y", "-i", "input.wav", "-f", "wav", destination])
+                    .env("COREAV_FALLBACK", &ffmpeg)
+                    .env_remove("COREAV_STRICT_SAFE")
+                    .env_remove("COREAV_FALLBACK_ACTIVE")
+                    .output()
+                    .unwrap();
+                assert_eq!(fallback.status.code(), pin.status.code());
+                assert_eq!(fallback.stdout, pin.stdout);
+                assert!(!fallback.stdout.is_empty());
+                assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+                if existing {
+                    assert_eq!(std::fs::read(&literal).unwrap(), b"preserve literal file");
+                } else {
+                    assert!(!literal.exists());
+                }
+            }
+            if existing {
+                std::fs::remove_file(literal).unwrap();
+            }
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn wav_files_and_encoded_stdin_preserve_packing_without_decoder_workers() {
     let dir = scratch("identity");
     let samples: Vec<u8> = [-32768i16, 32767, -1, 1, 17, -29]

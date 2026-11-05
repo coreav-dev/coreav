@@ -7,12 +7,14 @@ on:
     branches: [main]
     paths:
       - crates/coreav-backend-apple/**
+      - crates/coreav-hevc/**
       - crates/coreav-backend-svt-av1/**
       - .github/workflows/encoder-backends.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - crates/coreav-backend-apple/**
+      - crates/coreav-hevc/**
       - crates/coreav-backend-svt-av1/**
       - .github/workflows/encoder-backends.yml
   workflow_dispatch:

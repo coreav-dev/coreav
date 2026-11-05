@@ -60,6 +60,8 @@
 //! output descriptor, past `Stdout`'s line buffering; the documents and
 //! messages keep `Stdout` (`docs/design/cli-stdout.md`).
 
+const FORCE_HELP: &str = "Overwrite existing writable regular files (symbolic links and multiply-linked Unix files are refused; a replaced file keeps its permissions)";
+
 mod compat_cmd;
 mod fallback_cmd;
 
@@ -372,8 +374,7 @@ struct TranscodeArgs {
     #[arg(long, value_name = "SECONDS", default_value_t = 3600,
           value_parser = clap::value_parser!(u64).range(1..=604_800))]
     timeout: u64,
-    /// Overwrite OUTPUT if it exists.
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -432,8 +433,7 @@ struct ThumbnailArgs {
     #[arg(long, value_name = "SECONDS", default_value_t = 30,
           value_parser = clap::value_parser!(u64).range(1..=86_400))]
     timeout: u64,
-    /// Overwrite OUTPUT if it exists.
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -496,9 +496,7 @@ struct HlsIndexArgs {
     index: String,
     #[command(flatten)]
     tracks: HlsTrackArgs,
-    /// Overwrite INDEX if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -512,9 +510,7 @@ struct HlsGetArgs {
     name: String,
     /// Where to write it: a new file, or `-` for standard output.
     output: String,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -555,9 +551,7 @@ struct RemuxArgs {
     /// Reject the whole file when a stream's codec is not allowed.
     #[arg(long)]
     strict: bool,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -594,9 +588,7 @@ struct SplitArgs {
     /// Reject the whole file when a stream's codec is not allowed.
     #[arg(long)]
     strict: bool,
-    /// Overwrite segment files that exist (a symbolic link is replaced, not
-    /// written through; a new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -611,9 +603,7 @@ struct ExtractSubtitlesArgs {
     /// not a chapter track).
     #[arg(long, value_name = "STREAM")]
     stream: Option<usize>,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -642,8 +632,7 @@ struct JoinArgs {
     /// Reject an input when a stream's codec is not allowed.
     #[arg(long)]
     strict: bool,
-    /// Overwrite OUTPUT if it exists.
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -671,9 +660,7 @@ struct ExtractAudioArgs {
     /// Reject the whole file when a stream's codec is not allowed.
     #[arg(long)]
     strict: bool,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -707,9 +694,7 @@ struct DecodeAudioArgs {
     #[arg(long, value_name = "N",
           value_parser = clap::value_parser!(u16).range(1..=32))]
     channels: Option<u16>,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -738,9 +723,7 @@ struct ClipArgs {
     /// Reject the whole file when a stream's codec is not allowed.
     #[arg(long)]
     strict: bool,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -1385,6 +1368,7 @@ fn run_remux(args: &RemuxArgs, metadata: Metadata) -> ExitCode {
         }
     };
     let options = RemuxOptions {
+        interleave_packets: false,
         video_origin: None,
         rebuild_durations: false,
         streams: args.streams.clone(),
@@ -2274,4 +2258,39 @@ fn run_join(args: &JoinArgs) -> ExitCode {
         |out| join::run(&args.inputs, &options, &allowlist, out).map_err(WriteFailure::from),
         |summary, out| join::write_document(out, summary, &args.inputs),
     )
+}
+
+#[cfg(test)]
+mod force_help_tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    fn check(command: &mut clap::Command) -> usize {
+        command.build();
+        let mut count = 0;
+        for argument in command
+            .get_arguments()
+            .filter(|a| a.get_long() == Some("force"))
+        {
+            count += 1;
+            assert_eq!(
+                argument.get_help().map(ToString::to_string).as_deref(),
+                Some(FORCE_HELP),
+                "{} --force must use #[arg(long, help = FORCE_HELP)]",
+                command.get_name()
+            );
+        }
+        for child in command.get_subcommands_mut() {
+            count += check(child);
+        }
+        count
+    }
+
+    #[test]
+    fn every_native_force_flag_uses_the_shared_destination_help() {
+        assert!(
+            check(&mut Cli::command()) > 0,
+            "the command tree must expose native force flags"
+        );
+    }
 }

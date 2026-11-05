@@ -10,6 +10,20 @@ mod headers;
 static SERIAL: Mutex<()> = Mutex::new(());
 
 #[test]
+fn hevc_main_settings_are_hardware_only_and_preserve_exact_source_clock() {
+    let settings = Settings::hevc_main_bt709_limited(1920, 1080, 30_000, 1001, 6_000_000).unwrap();
+    assert_eq!(settings.codec(), Codec::Hevc);
+    assert_eq!(settings.hardware_policy(), HardwarePolicy::Require);
+    assert_eq!(settings.rate(), (30_000, 1001));
+    assert_eq!(settings.expected_frame_rate_hint(), 30);
+    assert_eq!(settings.bitrate(), 6_000_000);
+    assert_eq!(self::settings().codec(), Codec::H264);
+    assert!(Settings::hevc_main_bt709_limited(1921, 1080, 30, 1, 1_000_000).is_err());
+    assert!(Settings::hevc_main_bt709_limited(1920, 1080, 30, 0, 1_000_000).is_err());
+    assert!(Settings::hevc_main_bt709_limited(1920, 1080, 30, 1, 0).is_err());
+}
+
+#[test]
 fn external_encoder_identity_queries_reject_unbounded_labels_and_closed_controls() {
     let control = Control::new(Instant::now() + Duration::from_secs(10));
     for identifier in ["", "contains\0nul", &"a".repeat(4097), &"é".repeat(2049)] {
@@ -36,6 +50,7 @@ fn external_encoder_identity_queries_reject_unbounded_labels_and_closed_controls
 
 #[derive(Clone, Copy)]
 enum Mode {
+    Hardware,
     Immediate,
     Reverse,
     Overlap,
@@ -61,6 +76,8 @@ fn sample(pts: Time, duration: Time) -> RawSample {
     let slice = headers::Slice::default().nal();
     RawSample {
         bytes: headers::unit(&[&slice]),
+        vps: Vec::new(),
+        hvcc: Vec::new(),
         sps: headers::Sequence {
             vui: true,
             ..Default::default()
@@ -88,7 +105,9 @@ impl Backend for Fake {
         }
         Ok(Identity {
             encoder_id: Some("test encoder".into()),
-            hardware: if matches!(self.mode, Mode::UnknownHardware) {
+            hardware: if matches!(self.mode, Mode::Hardware) {
+                Hardware::Hardware
+            } else if matches!(self.mode, Mode::UnknownHardware) {
                 Hardware::Unknown
             } else {
                 Hardware::Software
@@ -210,6 +229,33 @@ fn submit(session: &mut Session<Fake>, id: i64) -> Result<(), Error> {
 }
 
 #[test]
+fn hevc_header_parsing_never_runs_on_the_small_native_callback_stack() {
+    let _serial = lock(&SERIAL);
+    let mut session = std::thread::Builder::new()
+        .stack_size(512 * 1024)
+        .spawn(|| {
+            let settings = Settings::hevc_main_bt709_limited(32, 32, 30, 1, 2_000_000).unwrap();
+            let mut session = Session::new(settings, limits(), control(), |key| {
+                Ok(Fake {
+                    key,
+                    mode: Mode::Hardware,
+                    pending: Vec::new(),
+                    closes: Arc::new(AtomicUsize::new(0)),
+                })
+            })
+            .unwrap();
+            submit(&mut session, 0).unwrap();
+            assert!(lock(&session.mailbox.inner).config.is_none());
+            session
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    assert!(matches!(session.pull(), Err(Error::HevcMetadata(_))));
+    assert!(session.pull().is_err());
+}
+
+#[test]
 fn reentrant_reverse_and_overlapping_callbacks_keep_source_order() {
     let _serial = lock(&SERIAL);
     for mode in [Mode::Immediate, Mode::Reverse, Mode::Overlap] {
@@ -226,7 +272,10 @@ fn reentrant_reverse_and_overlapping_callbacks_keep_source_order() {
         assert!(owner.pull().unwrap().is_none());
         let done = owner.complete().unwrap();
         assert_eq!(done.frames, 4);
-        assert_eq!(done.config.color(), Some(h264::Color::BT709_LIMITED));
+        let Configuration::H264(config) = done.config.as_ref() else {
+            panic!("unexpected codec")
+        };
+        assert_eq!(config.color(), Some(h264::Color::BT709_LIMITED));
         assert_eq!(closes.load(Ordering::Relaxed), 1);
     }
 }

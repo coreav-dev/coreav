@@ -1,6 +1,6 @@
 # H.264 encoder deblocking and P pictures
 
-Status: Deblocking implemented; P pictures remain planned. This extends the opt-in scalar [intra encoder](h264-encoder.md), not its evaluation protocol. There are no quality or speed claims. The existing all-IDR, fixed-QP, CAVLC path keeps deblocking disabled unless the caller explicitly enables it. No command-line product, default-build dependency, or evaluation input changes.
+Status: Deblocking implemented; P pictures are under conformance development. This extends the opt-in scalar [intra encoder](h264-encoder.md), not its evaluation protocol. There are no quality or speed claims. The existing all-IDR, fixed-QP, CAVLC path keeps deblocking disabled unless the caller explicitly enables it. No command-line product, default-build dependency, or evaluation input changes.
 
 ## Sources and delivery order
 
@@ -58,6 +58,8 @@ Before comparing candidate costs, admit partitions under clause A.3.1(m) and Tab
 
 The picture's tentative previous-count state starts from the last macroblock of the preceding successful picture, not zero. Every selected macroblock updates that tentative state. This enforces the bound for every consecutive pair in decoding order, including row transitions and the last-P/first-P picture boundary. Keep the preceding count until a successful IDR's intra macroblocks replace it with zero, which also conservatively covers an IDR boundary. Return the final count with the tentative picture and commit it only on complete access-unit success. Rejected candidates and failed frames cannot change the sequence's carried count.
 
+Also admit candidates under clause A.3.1(n)'s limit of 3,200 bits of `macroblock_layer` data. The syntax traversal shared by counting and emission owns this bound for intra and inter candidates. Count the complete macroblock syntax and residuals, but not the preceding `mb_skip_run`. Reject an over-budget candidate before cost comparison and retain representable alternatives. If none survive and at least one exceeded this bound, return `Error::MacroblockLimit` without publishing output or advancing reference, GOP, byte-accounting or motion-count state. The independent conformance reader checks the same ceiling from emitted bits, not encoder counters. Fixed QP can refuse dense content; I_PCM or per-macroblock QP fallback remains later work, as recorded in the [bit-limit design](h264-encoder-macroblock-limit.md).
+
 ## Slice data and skip runs
 
 Reuse one residual syntax traversal for counting and emission. Add the inter coded-block-pattern mapping from Table 9-4, the P macroblock-type offset for intra macroblocks, partition prediction syntax, and CAVLC `mb_skip_run`. Uncoded and skipped blocks reset all affected coefficient-count neighbours.
@@ -82,10 +84,22 @@ The P-picture layer additionally requires all of the following:
 - Every supported luma and chroma interpolation phase, negative displacement, edge extension, constrained-intra neighbour case, motion-predictor fallback, and partition shape has a deterministic test.
 - Candidate-admission tests accept a consecutive `MvCnt` sum of 16 and reject 17, including a 16-vector macroblock followed by P_Skip. A forced-cost fixture makes the forbidden partition layout cheaper and verifies that mode decision still chooses an admissible layout or intra. Cover row transitions, last-P/first-P picture boundaries, and failed-frame retry without resetting the carried count. Independently derive `MvCnt` from emitted macroblock and sub-macroblock syntax in the conformance reader and require every consecutive pair's sum to be at most 16 across picture boundaries. A synthetic stream with a sum of 17 must fail that reader even if all decoder samples match.
 - Motion-boundary fixtures cover both derived-vector endpoints, one quarter sample beyond each endpoint, and independently invalid `mvd_l0` syntax. Check derived skip vectors and fractional refinements as well as integer candidates.
+- Forced partition fixtures emit every supported macroblock and sub-macroblock layout at QPs 10, 16, 28, 40, and 51, with filtering both enabled and disabled. Test-only export records the actual stream and encoder reconstruction. Actions independently parses all 80 streams and compares their complete visible planes with CoreAV, pinned FFmpeg, and pinned JM. A macroblock-layer ceiling regression rejects an oversized cheaper candidate without counting its skip-run prefix.
 - Every output at every tested QP decodes completely. All three decoders match the encoder's complete visible Y, Cb, and Cr samples for every frame in order, with exact frame count, crop, profile, level, and metadata. One mismatch, warning, missing frame, oracle failure, or incomplete output fails conformance.
 - A rejected frame, allocation failure, or output-budget failure cannot advance GOP state or replace the reference. Retrying a valid frame matches a fresh encoder at the same successful prefix.
 - The similarity guard passes on the exact public head against the main allowlist. Its result records the checked commit without exposing comparison source. Every commit has a DCO sign-off.
 
+## P-picture implementation checklist
+
+This is the first commit of the P-picture layer. The normative rules and search choices above remain its contract. Implement and verify these units in order:
+
+1. Add `Gop::AllIntra` and a checked fixed IDR interval to settings. Keep all existing callers explicitly all-intra. Move the completed coded picture into the encoder's one-reference state only after every output check passes. Keep IDR identity, modulo-16 frame number, and the preceding macroblock's `MvCnt` transactional.
+2. Add P reference-slice headers, P_L0_16x16, derived P_Skip, skip-run emission, and the inter coded-block-pattern mapping. Keep normative motion prediction separate from the deterministic integer, half-sample, and quarter-sample search. Reconstruct every winning candidate through the scalar kernels.
+3. Extend candidate-local motion maps to 16x8, 8x16, and P_8x8 with every specified subpartition shape. Enforce the consecutive-count budget before cost comparison and retain the zero-count intra fallback. Include constrained-intra neighbour availability and inter deblocking strengths derived from the selected motion and nonzero luma blocks.
+4. Add a separate test-only sequence driver and untimed synthetic Actions conformance. Independently derive `MvCnt` from emitted syntax, including the last-P/first-P boundary, rather than trusting encoder instrumentation. Verify frame-number wrap, IDR boundaries, skipped tails, integer and fractional motion, partition coverage, crop, reference rollback, complete three-decoder sample equality, and the unchanged all-intra byte snapshot.
+
+No rate-control or CABAC implementation belongs in this layer. Its completion requires the exact-head guard against the main allowlist, not only a proposed allowlist preview. The layer remains unmerged until its independent review and the external stage-gate decision are complete.
+
 ## Next design-only slice
 
-Plan a bounded fixed-GOP rate controller after inter conformance. Its note must separate a target-rate policy from normative QP and buffer constraints, define failure and flush behavior, and propose synthetic acceptance checks before any implementation. CABAC, adaptive quantisation, lookahead, and any quality or speed acceptance method remain separate work.
+The [picture-budget proposal](h264-encoder-rate-control.md) defines the next design-only slice after inter conformance. It separates a target-rate policy from normative QP and buffer constraints, defines failure and flush behavior, and proposes synthetic acceptance checks before any implementation. CABAC, adaptive quantisation, lookahead, and any quality or speed acceptance method remain separate work.

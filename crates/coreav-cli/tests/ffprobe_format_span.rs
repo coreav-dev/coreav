@@ -162,9 +162,9 @@ fn output_span_does_not_change_copy_planning_or_trimmed_bytes() {
     assert!(printed.status.success());
     assert_eq!(printed.stdout, b"0.000000,2.500000\n");
     let copied = Command::new(env!("CARGO_BIN_EXE_coreav"))
-        .args(["ffmpeg", "-v", "error", "-ss", "0", "-i"])
+        .args(["ffmpeg", "-v", "error", "-i"])
         .arg(&input)
-        .args(["-t", "1", "-map", "0:v", "-c", "copy"])
+        .args(["-ss", "0", "-t", "1", "-map", "0:v", "-c", "copy"])
         .arg(&output)
         .env("COREAV_STRICT_SAFE", "1")
         .output()
@@ -175,9 +175,77 @@ fn output_span_does_not_change_copy_planning_or_trimmed_bytes() {
         String::from_utf8_lossy(&copied.stderr)
     );
     assert_eq!(
-        format!("{:x}", Sha256::digest(std::fs::read(output).unwrap())),
+        format!("{:x}", Sha256::digest(std::fs::read(&output).unwrap())),
         "4064dba9ec64429a954c8492f77e7934b63348a6bc4d77ea2fb1346511d49c92"
     );
+    std::fs::remove_file(&output).unwrap();
+    let pin = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
+    for existing in [false, true] {
+        if existing {
+            std::fs::write(&output, b"existing output").unwrap();
+        }
+        let args = ["-y", "-v", "error", "-ss", "0", "-i"];
+        let tail = ["-t", "1", "-map", "0:v", "-c", "copy"];
+        let entries = std::fs::read_dir(&dir.0).unwrap().count();
+        let refused = Command::new(env!("CARGO_BIN_EXE_coreav"))
+            .args(["--strict-safe", "ffmpeg"])
+            .args(args)
+            .arg(&input)
+            .args(tail)
+            .arg(&output)
+            .output()
+            .unwrap();
+        assert_eq!(refused.status.code(), Some(4));
+        assert!(refused.stdout.is_empty());
+        assert_eq!(std::fs::read_dir(&dir.0).unwrap().count(), entries);
+        if existing {
+            assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+        } else {
+            assert!(!output.exists());
+        }
+        if pin.is_file() {
+            let expected = Command::new(&pin)
+                .args(["-nostdin", "-hide_banner"])
+                .args(args)
+                .arg(&input)
+                .args(tail)
+                .arg(&output)
+                .output()
+                .unwrap();
+            assert!(expected.status.success());
+            let bytes = std::fs::read(&output).unwrap();
+            if existing {
+                std::fs::write(&output, b"existing output").unwrap();
+            } else {
+                std::fs::remove_file(&output).unwrap();
+            }
+            let fallback = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                .arg("ffmpeg")
+                .args(args)
+                .arg(&input)
+                .args(tail)
+                .arg(&output)
+                .env("COREAV_FALLBACK", &pin)
+                .env_remove("COREAV_STRICT_SAFE")
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .output()
+                .unwrap();
+            assert_eq!(fallback.status.code(), expected.status.code());
+            assert_eq!(fallback.stdout, expected.stdout);
+            assert_eq!(std::fs::read(&output).unwrap(), bytes);
+        } else {
+            assert!(
+                std::env::var_os("CI").is_none()
+                    && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
+                "set COREAV_FFMPEG to the pin"
+            );
+        }
+        if output.exists() {
+            std::fs::remove_file(&output).unwrap();
+        }
+    }
 }
 
 #[test]

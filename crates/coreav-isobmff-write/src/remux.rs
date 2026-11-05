@@ -24,8 +24,8 @@ use crate::sanitize::{AUDIO_KEPT, EntryBox, Removed, VISUAL_KEPT, describe, entr
 use crate::scan::{FileScan, MAX_PATH, Path, Skipped, TrakScan, read_elst, scan};
 use crate::{
     BoxDropReason, Cleared, ClearedField, DroppedBox, DroppedTrack, ExtractError, InputStream,
-    Keep, MAX_REMUX_INPUTS, Metadata, MetadataKind, OnUnsupported, RemuxOptions, RemuxSummary,
-    RemuxTrack, TrackDropReason,
+    Keep, MAX_REMUX_INPUTS, Metadata, MetadataKind, OnUnsupported, RemuxInputsOptions,
+    RemuxOptions, RemuxSummary, RemuxTrack, TrackDropReason,
 };
 use core::cell::RefCell;
 use coreav_isobmff::{
@@ -106,7 +106,31 @@ pub fn remux_mp4_inputs<S: Source, W: Write>(
     allowlist: &Allowlist,
     out: W,
 ) -> Result<RemuxSummary, ExtractError> {
+    remux_mp4_inputs_with_options(
+        inputs,
+        streams,
+        left_out_covers,
+        limits,
+        allowlist,
+        &RemuxInputsOptions::default(),
+        out,
+    )
+}
+
+/// [`remux_mp4_inputs`] with explicit packet-layout and duration policies.
+/// Input limits, movie-clock equality and metadata ownership are unchanged.
+pub fn remux_mp4_inputs_with_options<S: Source, W: Write>(
+    inputs: Vec<S>,
+    streams: &[InputStream],
+    left_out_covers: &[u64],
+    limits: &Limits,
+    allowlist: &Allowlist,
+    options: &RemuxInputsOptions,
+    out: W,
+) -> Result<RemuxSummary, ExtractError> {
     let options = RemuxOptions {
+        interleave_packets: options.interleave_packets,
+        rebuild_durations: options.rebuild_durations,
         on_unsupported: OnUnsupported::Fail,
         left_out_covers: left_out_covers.to_vec(),
         ..RemuxOptions::default()
@@ -223,11 +247,13 @@ fn remux<S: Source, R: Source, W: Write>(
         return Err(unsupported("a remux needs one to sixteen input sources").into());
     }
     let multiple = inputs.len() > 1;
-    let rebuild_durations = options.rebuild_durations || options.video_origin.is_some();
-    if options.rebuild_durations
-        && (multiple || replacements.video.is_some() || replacements.audio.is_some())
+    if options.interleave_packets && (replacements.video.is_some() || replacements.audio.is_some())
     {
-        return Err(unsupported("rebuilt durations with replacements or multiple inputs").into());
+        return Err(unsupported("packet ordering with replacements").into());
+    }
+    let rebuild_durations = options.rebuild_durations || options.video_origin.is_some();
+    if options.rebuild_durations && (replacements.video.is_some() || replacements.audio.is_some()) {
+        return Err(unsupported("rebuilt durations with replacements").into());
     }
     if options.video_origin.is_some()
         && (multiple || replacements.video.is_some() || replacements.audio.is_some())
@@ -494,6 +520,12 @@ fn remux<S: Source, R: Source, W: Write>(
         limits,
     )?;
     let mut budget = Budget::new(limits);
+    if options.interleave_packets
+        && plans.len() > 1
+        && plans.iter().any(|plan| plan.track.kind == TrackKind::Video)
+    {
+        muxer.interleave_packets()?;
+    }
     let mut kept: Vec<Kept<'_>> = Vec::new();
     for mut plan in plans {
         let (input_movie, input_source) = if plan.input == 0 {

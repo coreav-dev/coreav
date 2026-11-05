@@ -1,4 +1,4 @@
-//! Bounded, owner-thread-only High-profile H.264 encoding with VideoToolbox.
+//! Bounded, owner-thread-only H.264 High and HEVC Main encoding with VideoToolbox.
 //!
 //! Input is explicitly BT.709 limited-range I420. The native adapter copies it
 //! into framework-owned storage; no caller borrow survives submission.
@@ -12,7 +12,8 @@ use std::sync::{
 };
 use std::time::Instant;
 
-use crate::h264::{self, AccessUnit, Config, Dimensions, Sync};
+use crate::h264::{self, Dimensions, Sync};
+use crate::hevc;
 
 /// A checked platform operation used in diagnostics.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -77,6 +78,8 @@ pub enum Error {
     Backpressure,
     /// H.264 metadata validation failed.
     Metadata(h264::Error),
+    /// HEVC metadata validation failed.
+    HevcMetadata(hevc::Error),
     /// A matching encoder is unavailable before submission.
     Unavailable(Availability),
     /// A native operation returned an error.
@@ -94,6 +97,7 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Metadata(error) => error.fmt(f),
+            Self::HevcMetadata(error) => error.fmt(f),
             Self::Framework { operation, status } => {
                 write!(f, "VideoToolbox {operation:?} failed with status {status}")
             }
@@ -120,6 +124,75 @@ impl std::error::Error for Error {}
 impl From<h264::Error> for Error {
     fn from(value: h264::Error) -> Self {
         Self::Metadata(value)
+    }
+}
+
+impl From<hevc::Error> for Error {
+    fn from(value: hevc::Error) -> Self {
+        Self::HevcMetadata(value)
+    }
+}
+
+/// Platform codec selected before session creation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Codec {
+    /// High-profile H.264, with the existing hardware policy.
+    H264,
+    /// Main-profile 8-bit HEVC, requiring confirmed hardware.
+    Hevc,
+}
+
+/// Immutable configuration for the selected codec.
+#[derive(Debug)]
+pub enum Configuration {
+    /// Checked SPS/PPS and avcC.
+    H264(h264::Config),
+    /// Checked VPS/SPS/PPS and hvcC.
+    Hevc(hevc::Config),
+}
+
+impl Configuration {
+    /// Parameter sets in elementary-stream order.
+    pub fn parameter_sets(&self) -> impl Iterator<Item = &[u8]> {
+        match self {
+            Self::H264(config) => [None, Some(config.sps()), Some(config.pps())],
+            Self::Hevc(config) => [Some(config.vps()), Some(config.sps()), Some(config.pps())],
+        }
+        .into_iter()
+        .flatten()
+    }
+    /// Visible source dimensions checked against the encoded headers.
+    pub fn dimensions(&self) -> Dimensions {
+        match self {
+            Self::H264(config) => config.dimensions(),
+            Self::Hevc(config) => config.dimensions(),
+        }
+    }
+}
+
+/// Owned sample data whose metadata is validated before delivery.
+#[derive(Debug)]
+pub enum AccessUnit {
+    /// Four-byte length-prefixed H.264 NAL units.
+    H264(h264::AccessUnit),
+    /// Four-byte length-prefixed HEVC NAL units.
+    Hevc(hevc::AccessUnit),
+}
+
+impl AccessUnit {
+    /// Original length-prefixed sample bytes.
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::H264(unit) => unit.as_bytes(),
+            Self::Hevc(unit) => unit.as_bytes(),
+        }
+    }
+    /// Checked random-access identity, not a requested keyframe preference.
+    pub fn is_sync(&self) -> bool {
+        match self {
+            Self::H264(unit) => unit.sync() == Sync::Idr,
+            Self::Hevc(unit) => unit.is_sync(),
+        }
     }
 }
 
@@ -200,9 +273,10 @@ impl Time {
     }
 }
 
-/// High-profile, progressive BT.709 limited-range 8-bit 4:2:0 settings.
+/// Progressive BT.709 limited-range 8-bit 4:2:0 encoding settings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Settings {
+    codec: Codec,
     dimensions: Dimensions,
     rate_num: u32,
     rate_den: u32,
@@ -235,12 +309,36 @@ impl Settings {
             return Err(Error::Input);
         }
         Ok(Self {
+            codec: Codec::H264,
             dimensions,
             rate_num,
             rate_den,
             bitrate,
             hardware,
         })
+    }
+    /// Selects Main-profile 8-bit HEVC and requires confirmed hardware encoding.
+    pub fn hevc_main_bt709_limited(
+        width: u32,
+        height: u32,
+        rate_num: u32,
+        rate_den: u32,
+        bitrate: u32,
+    ) -> Result<Self, Error> {
+        let mut settings = Self::bt709_limited(
+            width,
+            height,
+            rate_num,
+            rate_den,
+            bitrate,
+            HardwarePolicy::Require,
+        )?;
+        settings.codec = Codec::Hevc;
+        Ok(settings)
+    }
+    /// Codec fixed for the entire session.
+    pub fn codec(self) -> Codec {
+        self.codec
     }
     /// Visible source dimensions.
     pub fn dimensions(self) -> Dimensions {
@@ -310,7 +408,7 @@ pub struct Limits {
     pub max_pending_frames: usize,
     /// Maximum bytes in one owned access unit.
     pub max_access_unit_bytes: usize,
-    /// Maximum complete SPS/PPS/avcC size.
+    /// Maximum complete parameter-set and decoder-configuration size.
     pub max_configuration_bytes: usize,
     /// Maximum NAL units per access unit.
     pub max_nals: usize,
@@ -380,6 +478,12 @@ impl Limits {
             .and_then(|n| n.checked_add(std::mem::size_of::<Slot>()))
             .and_then(|n| n.checked_mul(self.max_pending_frames))
             .and_then(|n| n.checked_add(std::mem::size_of::<Mailbox>()))
+            .and_then(|n| match settings.codec {
+                Codec::H264 => Some(n),
+                Codec::Hevc => std::mem::size_of::<coreav_hevc::HeaderParser>()
+                    .checked_mul(2)
+                    .and_then(|parsers| n.checked_add(parsers)),
+            })
             .ok_or(Error::Limit)
     }
 }
@@ -548,6 +652,13 @@ enum SlotState {
     Pending,
     Copying,
     Ready(Packet),
+    Hevc(RawSample),
+}
+
+impl SlotState {
+    fn ready(&self) -> bool {
+        matches!(self, Self::Ready(_) | Self::Hevc(_))
+    }
 }
 
 struct Slot {
@@ -562,7 +673,7 @@ struct Inner {
     phase: Phase,
     error: Option<Error>,
     slots: VecDeque<Slot>,
-    config: Option<Arc<Config>>,
+    config: Option<Arc<Configuration>>,
     accepted: u64,
     completed: u64,
     delivered: u64,
@@ -631,8 +742,10 @@ impl Mailbox {
 
 struct RawSample {
     bytes: Vec<u8>,
+    vps: Vec<u8>,
     sps: Vec<u8>,
     pps: Vec<u8>,
+    hvcc: Vec<u8>,
     dimensions: (u32, u32),
     pts: Time,
     duration: Time,
@@ -724,42 +837,27 @@ impl CallbackLease {
         {
             return Err(Error::Output);
         }
-        if let Some(config) = inner.config.as_ref() {
-            if config.sps() != raw.sps || config.pps() != raw.pps {
-                return Err(Error::Output);
-            }
-        } else {
-            let config =
-                Config::from_parameter_sets(&raw.sps, &raw.pps, dimensions, limits.reader())?;
-            if config.color() != Some(h264::Color::BT709_LIMITED) {
-                return Err(Error::Output);
-            }
-            inner.config = Some(Arc::new(config));
-        }
-        let config = inner.config.as_ref().ok_or(Error::Output)?;
-        let unit = AccessUnit::copy_from(
-            &raw.bytes,
-            config,
-            if raw.sync { Sync::Idr } else { Sync::NonIdr },
-            limits.reader(),
-        )?;
-        let bytes = u64::try_from(unit.as_bytes().len()).map_err(|_| Error::Limit)?;
+        let bytes = u64::try_from(raw.bytes.len()).map_err(|_| Error::Limit)?;
         let total = inner.total_bytes.checked_add(bytes).ok_or(Error::Limit)?;
-        if total > limits.max_output_bytes || (self.id == 0 && unit.sync() != Sync::Idr) {
+        if total > limits.max_output_bytes || (self.id == 0 && !raw.sync) {
             return Err(Error::Output);
         }
+        let state = match self.mailbox.settings.codec {
+            Codec::H264 => SlotState::Ready(packet_from_raw(
+                raw,
+                self.id,
+                inner,
+                self.mailbox.settings,
+                limits,
+            )?),
+            Codec::Hevc => SlotState::Hevc(raw),
+        };
         let slot = inner
             .slots
             .iter_mut()
             .find(|slot| slot.id == self.id)
             .ok_or(Error::Output)?;
-        slot.state = SlotState::Ready(Packet {
-            frame_id: self.id,
-            pts: slot.pts,
-            duration: slot.duration,
-            config: Arc::clone(config),
-            unit,
-        });
+        slot.state = state;
         inner.total_bytes = total;
         inner.unclaimed_bytes = inner
             .unclaimed_bytes
@@ -768,6 +866,83 @@ impl CallbackLease {
         inner.completed = inner.completed.checked_add(1).ok_or(Error::Limit)?;
         Ok(())
     }
+}
+
+fn packet_from_raw(
+    raw: RawSample,
+    frame_id: u64,
+    inner: &mut Inner,
+    settings: Settings,
+    limits: Limits,
+) -> Result<Packet, Error> {
+    let dimensions = settings.dimensions;
+    if let Some(config) = inner.config.as_ref() {
+        let same = match config.as_ref() {
+            Configuration::H264(config) => {
+                raw.vps.is_empty()
+                    && raw.hvcc.is_empty()
+                    && config.sps() == raw.sps
+                    && config.pps() == raw.pps
+            }
+            Configuration::Hevc(config) => {
+                config.vps() == raw.vps
+                    && config.sps() == raw.sps
+                    && config.pps() == raw.pps
+                    && config.as_hvcc() == raw.hvcc
+            }
+        };
+        if !same {
+            return Err(Error::Output);
+        }
+    } else {
+        let config = match settings.codec {
+            Codec::H264 => {
+                if !raw.vps.is_empty() || !raw.hvcc.is_empty() {
+                    return Err(Error::Output);
+                }
+                let config = h264::Config::from_parameter_sets(
+                    &raw.sps,
+                    &raw.pps,
+                    dimensions,
+                    limits.reader(),
+                )?;
+                if config.color() != Some(h264::Color::BT709_LIMITED) {
+                    return Err(Error::Output);
+                }
+                Configuration::H264(config)
+            }
+            Codec::Hevc => Configuration::Hevc(hevc::Config::from_parameter_sets(
+                &raw.vps,
+                &raw.sps,
+                &raw.pps,
+                &raw.hvcc,
+                dimensions,
+                limits.reader(),
+            )?),
+        };
+        inner.config = Some(Arc::new(config));
+    }
+    let config = inner.config.as_ref().ok_or(Error::Output)?;
+    let unit = match config.as_ref() {
+        Configuration::H264(config) => AccessUnit::H264(h264::AccessUnit::copy_from(
+            &raw.bytes,
+            config,
+            if raw.sync { Sync::Idr } else { Sync::NonIdr },
+            limits.reader(),
+        )?),
+        Configuration::Hevc(_) => AccessUnit::Hevc(hevc::AccessUnit::copy_from(
+            &raw.bytes,
+            raw.sync,
+            limits.reader(),
+        )?),
+    };
+    Ok(Packet {
+        frame_id,
+        pts: raw.pts,
+        duration: raw.duration,
+        config: Arc::clone(config),
+        unit,
+    })
 }
 
 impl Drop for CallbackLease {
@@ -788,16 +963,16 @@ pub struct Packet {
     /// Exact submitted duration.
     pub duration: Time,
     /// Shared immutable parameter sets for streaming elementary output.
-    pub config: Arc<Config>,
-    /// Checked owned H.264 data.
+    pub config: Arc<Configuration>,
+    /// Checked owned data for the selected codec.
     pub unit: AccessUnit,
 }
 
 /// Checked completion after all submitted output has been pulled.
 #[derive(Debug)]
 pub struct Completion {
-    /// Final checked parameter sets and avcC.
-    pub config: Arc<Config>,
+    /// Final checked parameter sets and avcC or hvcC.
+    pub config: Arc<Configuration>,
     /// Actual session implementation.
     pub identity: Identity,
     /// Effective requested-and-checked settings.
@@ -850,6 +1025,7 @@ struct Session<B: Backend> {
     control: Control,
     last_pts: Option<Time>,
     last_end: Option<(Time, Time)>,
+    hevc: Option<hevc::Stream>,
 }
 
 impl<B: Backend> Session<B> {
@@ -872,6 +1048,7 @@ impl<B: Backend> Session<B> {
             control,
             last_pts: None,
             last_end: None,
+            hevc: None,
         };
         owner.check()?;
         owner.native = Some(create(owner.registration.key)?);
@@ -1012,7 +1189,7 @@ impl<B: Backend> Session<B> {
         let through = {
             let inner = lock(&self.mailbox.inner);
             match inner.slots.front() {
-                Some(slot) if !matches!(slot.state, SlotState::Ready(_)) => Some(slot.pts),
+                Some(slot) if !slot.state.ready() => Some(slot.pts),
                 _ => None,
             }
         };
@@ -1038,14 +1215,42 @@ impl<B: Backend> Session<B> {
             if inner
                 .slots
                 .front()
-                .is_some_and(|slot| slot.committed && matches!(slot.state, SlotState::Ready(_)))
+                .is_some_and(|slot| slot.committed && slot.state.ready())
             {
                 let slot = inner.slots.pop_front().ok_or(Error::Output)?;
-                let SlotState::Ready(packet) = slot.state else {
-                    return Err(Error::Output);
+                let packet = match slot.state {
+                    SlotState::Ready(packet) => packet,
+                    SlotState::Hevc(raw) => packet_from_raw(
+                        raw,
+                        slot.id,
+                        &mut inner,
+                        self.settings,
+                        self.mailbox.limits,
+                    )?,
+                    _ => return Err(Error::Output),
                 };
                 if packet.frame_id != inner.delivered {
                     return Err(Error::Output);
+                }
+                if let (Configuration::Hevc(config), AccessUnit::Hevc(unit)) =
+                    (packet.config.as_ref(), &packet.unit)
+                {
+                    if self.hevc.is_none() {
+                        self.hevc = Some(hevc::Stream::new(
+                            config,
+                            coreav_hevc::Limits {
+                                max_nal_bytes: self.mailbox.limits.max_access_unit_bytes,
+                                max_width: self.mailbox.limits.max_width,
+                                max_height: self.mailbox.limits.max_height,
+                                max_pictures: self.mailbox.limits.max_frames,
+                                ..coreav_hevc::Limits::default()
+                            },
+                        )?);
+                    }
+                    self.hevc
+                        .as_mut()
+                        .ok_or(Error::Output)?
+                        .validate(unit, config)?;
                 }
                 inner.delivered = inner.delivered.checked_add(1).ok_or(Error::Limit)?;
                 inner.queue_reserved = inner
@@ -1096,7 +1301,7 @@ impl<B: Backend> Session<B> {
         Ok(result)
     }
 
-    fn seal_output(&self, identity: Identity) -> Result<Completion, Error> {
+    fn seal_output(&mut self, identity: Identity) -> Result<Completion, Error> {
         let mut inner = lock(&self.mailbox.inner);
         self.mailbox.check(&inner)?;
         if inner.phase != Phase::Drained
@@ -1109,6 +1314,9 @@ impl<B: Backend> Session<B> {
             return Err(Error::Output);
         }
         let config = inner.config.take().ok_or(Error::Output)?;
+        if let Some(stream) = self.hevc.as_mut() {
+            stream.finish(inner.accepted)?;
+        }
         inner.phase = Phase::Closed;
         Ok(Completion {
             config,

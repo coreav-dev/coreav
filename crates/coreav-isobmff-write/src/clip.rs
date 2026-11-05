@@ -55,7 +55,32 @@ pub fn clip_mp4<S: Source, W: Write>(
     limits: &Limits,
     allowlist: &Allowlist,
     options: &ClipOptions,
+    out: W,
+) -> Result<ClipSummary, ExtractError> {
+    clip_mp4_inner(source, limits, allowlist, options, out, false)
+}
+
+/// Copies an input-seek interval only when native clipping preserves its
+/// complete packet timeline. Audio, composition offsets, shifted cut points,
+/// several edits, video clocks below 10,000 ticks per second and partial-sample
+/// bounds refuse before any output is written.
+pub fn clip_mp4_input_seek<S: Source, W: Write>(
+    source: S,
+    limits: &Limits,
+    allowlist: &Allowlist,
+    options: &ClipOptions,
+    out: W,
+) -> Result<ClipSummary, ExtractError> {
+    clip_mp4_inner(source, limits, allowlist, options, out, true)
+}
+
+fn clip_mp4_inner<S: Source, W: Write>(
+    source: S,
+    limits: &Limits,
+    allowlist: &Allowlist,
+    options: &ClipOptions,
     mut out: W,
+    input_seek: bool,
 ) -> Result<ClipSummary, ExtractError> {
     let mut source = source;
     let movie = probe(&mut source, limits, allowlist)?;
@@ -69,6 +94,15 @@ pub fn clip_mp4<S: Source, W: Write>(
         if !lt(start, end)? {
             return Err(unsupported("the clip ends at or before its start").into());
         }
+    }
+    if input_seek && selected_audio.is_some() {
+        return Err(unsupported("an input-seek copy with audio").into());
+    }
+    if input_seek && video.edit_list == EditList::Multiple {
+        return Err(unsupported("an input-seek copy with several video edits").into());
+    }
+    if input_seek && video.timescale < 10_000 {
+        return Err(unsupported("an input-seek copy that needs a different video clock").into());
     }
     let mut budget = Budget::new(limits);
 
@@ -117,6 +151,18 @@ pub fn clip_mp4<S: Source, W: Write>(
         limits,
         &mut budget,
     )?;
+    if input_seek
+        && (plan.zero != start_v
+            || end_v.is_some_and(|end| end != plan.end)
+            || end_v.is_none() && !plan.keeps_last
+            || video_tables.0.offsets
+            || sub(plan.end, plan.zero)? != Rational::from_int(i128::from(video_tables.0.duration)))
+    {
+        return Err(unsupported(
+            "an input-seek copy that needs packet pre-roll or partial-sample timing",
+        )
+        .into());
+    }
     let audio_planned = audio_plan.is_some();
     let audio = match (audio_plan, selected_audio, audio_entry) {
         (Some(plan), Some(track), Some(entry)) => Some(CutAudio {

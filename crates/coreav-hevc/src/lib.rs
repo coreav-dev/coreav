@@ -1,23 +1,33 @@
-//! Opt-in HEVC Main/Main10 headers, written from ITU-T H.265 (V11).
+//! Opt-in HEVC headers and scalar intra reconstruction from ITU-T H.265 (V11).
 //!
 //! HEVC may require a patent licence. This unpublished, separately packaged
 //! crate is never part of default artifacts. Enable `native-hevc` explicitly.
-//! It parses headers only, not CABAC or reconstructed pictures.
+//! `HeaderParser` inspects headers without reconstructing samples.
+//! `IntraPictureDecoder` reconstructs one original unfiltered Main/Main10 intra
+//! picture; inter prediction, filters and production backend wiring are absent.
 
 #![forbid(unsafe_code)]
 #![cfg(feature = "native-hevc")]
 
 mod bits;
+mod cabac;
+mod ctu;
 mod dpb;
+mod intra;
 mod nal;
 mod params;
 mod parser;
+mod picture_hash;
+mod residual;
 mod rps;
+mod scaling;
 mod sei;
 mod slice;
+mod substream;
 mod vui;
 
 pub use dpb::{OutputEvent, PictureOrder};
+pub use intra::{IntraLimits, IntraPicture, IntraPictureDecoder, IntraPlane, IntraStats};
 pub use nal::{AnnexB, LengthPrefixed, NalHeader};
 pub use parser::{HeaderParser, NalInfo, PictureInfo, Summary};
 pub use rps::Rps;

@@ -54,7 +54,7 @@ mod scan;
 mod split;
 mod tables;
 
-pub use clip::{clip_audio_mp4, clip_mp4};
+pub use clip::{clip_audio_mp4, clip_mp4, clip_mp4_input_seek};
 pub use join::join_mp4;
 pub use m4a::extract_audio;
 pub use matroska::{
@@ -62,7 +62,9 @@ pub use matroska::{
     MatroskaRemuxOptions, MatroskaRemuxSummary, MatroskaRemuxTrack, remux_matroska,
     remux_matroska_replacing,
 };
-pub use remux::{remux_mp4, remux_mp4_inputs, remux_mp4_replacing, sanitize_mp4};
+pub use remux::{
+    remux_mp4, remux_mp4_inputs, remux_mp4_inputs_with_options, remux_mp4_replacing, sanitize_mp4,
+};
 pub use replace::{
     AudioReplacement, AudioSample, Replacement, ReplacementSample, Replacements, roll_boxes,
 };
@@ -266,6 +268,11 @@ pub enum OnUnsupported {
 /// What [`remux_mp4`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemuxOptions {
+    /// Store copied packets in edited decode-time order, with output track
+    /// order breaking ties. Uses one sample per chunk under the existing
+    /// table budget. Unsupported edit clocks fail before writing; native
+    /// remux defaults retain their approximately one-second chunks.
+    pub interleave_packets: bool,
     /// Derive track and media durations from copied samples and validated
     /// edits instead of preserving declared header overrides. Single-source
     /// copy only, without replacements. The default keeps the native remux
@@ -313,6 +320,18 @@ pub struct InputStream {
     pub input: usize,
     /// Position of the stream in that source.
     pub stream: usize,
+}
+
+/// Optional compatibility policies for [`remux_mp4_inputs_with_options`].
+/// Defaults retain the native layout and declared header durations.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RemuxInputsOptions {
+    /// Order audiovisual chunks by final edited decode time, one sample each.
+    /// Additional chunks consume the existing table allowance.
+    pub interleave_packets: bool,
+    /// Reconstruct header durations from complete validated sample/edit windows.
+    /// Unsupported timing refuses before output rather than being approximated.
+    pub rebuild_durations: bool,
 }
 
 /// The most source files accepted by [`remux_mp4_inputs`].

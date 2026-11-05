@@ -1,3 +1,5 @@
+#[cfg(feature = "aac")]
+mod aac;
 mod exact;
 mod flac;
 mod record;
@@ -24,6 +26,8 @@ pub enum DecoderEligibilityKind {
     Exact,
     /// A separately registered decoder conformance contract applies.
     Conformance,
+    /// Per-sample numerical bounds apply; this is never exact-output evidence.
+    DecodeTolerance,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -118,7 +122,13 @@ pub(super) fn plan(
         .get(*index)
         .filter(|stream| stream.kind == StreamKind::Audio)
         .ok_or_else(|| Refusal::not_native("raw audio requires an audio stream"))?;
-    let (codec, output_format) = packing(command);
+    let (codec, output_format) = if command.muxer == Muxer::Wav
+        && super::codecs(command, &[(*index, stream)]) == [Some(Codec::PcmF32)]
+    {
+        (Codec::PcmF32, SampleFormat::F32)
+    } else {
+        packing(command)
+    };
     if super::codecs(command, &[(*index, stream)]) != [Some(codec)] {
         return Err(Refusal::not_native(
             "raw audio with another effective output codec",
@@ -129,6 +139,9 @@ pub(super) fn plan(
         _ => None,
     });
     let wave = super::format_name(report) == Some("wav");
+    if wave && command.muxer == Muxer::Wav && args::stdout(&command.output) {
+        return Err(Refusal::not_native("WAVE to WAV stdout is not registered"));
+    }
     let pcm = if wave {
         Some(
             codec_name
@@ -179,7 +192,8 @@ pub(super) fn plan(
         ));
     }
     if command.muxer == Muxer::Wav
-        && (!wave
+        && wave
+        && (output_format != SampleFormat::S16
             || output_rate != input_rate
             || output_channels != channels
             || !report.chapters.is_empty()
@@ -190,7 +204,7 @@ pub(super) fn plan(
                     .any(|(key, _)| !key.eq_ignore_ascii_case("encoder")))
     {
         return Err(Refusal::not_native(
-            "WAVE to WAV output with changed rate, channels or unregistered metadata",
+            "WAVE to WAV output with unregistered packing, rate, channels or metadata",
         ));
     }
     if pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::F32)
@@ -252,7 +266,11 @@ pub(super) fn plan(
         let admission = codec
             .and_then(|codec| record::admission(codec, container))
             .ok_or_else(|| {
-                Refusal::not_native("an unregistered decoder representation or presentation")
+                Refusal::not_native(if codec_name == Some("aac") {
+                    "AAC raw output without a registered byte-exact decoder"
+                } else {
+                    "an unregistered decoder representation or presentation"
+                })
             })?;
         let kind = admission.kind;
         if admission
@@ -398,6 +416,11 @@ struct Pass {
 enum Decoded {
     Encoded(Summary),
     Pcm(crate::ffprobe::audio::wav::Pcm),
+    #[cfg(feature = "aac")]
+    Aac {
+        packets: u64,
+        bytes: u64,
+    },
 }
 
 enum DecodeError {
@@ -466,6 +489,10 @@ fn conversion<'a>(
 }
 
 fn decode(command: &Command, plan: &Plan, sink: &mut dyn Sink) -> Result<Pass, DecodeError> {
+    #[cfg(feature = "aac")]
+    if plan.eligibility == DecoderEligibilityKind::DecodeTolerance {
+        return aac::decode(command, plan, sink);
+    }
     if matches!(plan.decoder, DecoderPlan::Pcm(_)) {
         wav::decode(command, plan, sink)
     } else {
@@ -597,6 +624,8 @@ fn packet_presentation(command: &Command, plan: &Plan, pass: &Pass) -> Result<()
                                     || decoded.stream.sample_rate != 48_000
                                     || !matches!(decoded.stream.channels, 1 | 2)
                             }
+                            record::Requirement::AacNoNoiseOrAllMsIntensity
+                            | record::Requirement::FfmpegAacMp4Timeline => true,
                         };
                     }
                 }
@@ -640,6 +669,23 @@ fn mpeg1_frames(mut bytes: &[u8]) -> bool {
 }
 
 pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value, Stop> {
+    if plan.eligibility == DecoderEligibilityKind::DecodeTolerance && !args::stdout(&command.output)
+    {
+        match std::fs::symlink_metadata(&command.output) {
+            Ok(metadata)
+                if !metadata.file_type().is_file() || metadata.permissions().readonly() =>
+            {
+                return Err(Refusal::not_native(
+                    "AAC PCM requires a writable regular-file destination",
+                )
+                .into());
+            }
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                return Err(Stop::Failed(audio_failure(Error::Output(error))));
+            }
+            _ => {}
+        }
+    }
     let force = if args::stdout(&command.output) {
         false
     } else {
@@ -651,10 +697,32 @@ pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value,
     let before =
         decode(command, plan, &mut Bytes(&mut std::io::sink())).map_err(DecodeError::preflight)?;
     packet_presentation(command, plan, &before)?;
-    if command.muxer == Muxer::Wav {
+    if command.muxer == Muxer::Wav && matches!(plan.decoder, DecoderPlan::Pcm(_)) {
         return wav::write(command, plan, &before, force);
     }
+    let header = if command.muxer == Muxer::Wav {
+        let summary = before
+            .converted
+            .ok_or_else(|| Refusal::not_native("WAV without a qualified sample count"))?;
+        let bytes = summary
+            .output_frames
+            .checked_mul(u64::from(summary.output.channels) * summary.output.format.bytes() as u64)
+            .filter(|bytes| coreav_audio::wav::fits(*bytes))
+            .ok_or_else(|| Refusal::not_native("WAV output exceeds its size fields"))?;
+        Some(coreav_audio::wav::header(
+            summary.output.format,
+            summary.output.channels,
+            summary.output.sample_rate,
+            summary.output.channel_mask,
+            (!args::stdout(&command.output)).then_some(bytes),
+        ))
+    } else {
+        None
+    };
     let run = |out: &mut dyn Write| -> Result<serde_json::Value, WriteFailure> {
+        if let Some(header) = &header {
+            out.write_all(header).map_err(Error::Output)?;
+        }
         let after = decode(command, plan, &mut Bytes(out)).map_err(DecodeError::terminal)?;
         if before != after {
             return Err(audio_failure(Error::Invalid(

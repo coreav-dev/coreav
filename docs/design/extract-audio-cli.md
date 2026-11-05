@@ -55,9 +55,11 @@ through `coreav_cli::output`:
   file is moved into place by a hard link, which fails rather than replace
   a file created at OUTPUT while the command ran (a rename after one more
   check where the file system has no hard links); with `--force` it is
-  renamed over OUTPUT, replacing a symbolic link rather than writing
-  through it, and keeps the replaced file's permissions. An OUTPUT that is
-  a directory is refused before any work. Cleaning up the `.part` file
+  renamed over an admitted writable regular OUTPUT and keeps the replaced
+  file's permissions. Existing symbolic links, multiply-linked Unix files,
+  non-regular files and unwritable files are refused by the
+  [shared destination owner](regular-file-destinations.md). An OUTPUT that
+  is a directory is refused before any work. Cleaning up the `.part` file
   when the process is interrupted would need a signal handler (a C call or
   a dependency, for the reason given for `SIGPIPE` above); it is not done.
 - `--allow` and `--strict` take the names of `coreav probe`.

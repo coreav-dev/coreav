@@ -127,11 +127,17 @@ The guard is the `bench-guard` job of `.github/workflows/ci.yml`, run by
   command, outside the count. C15 and C19 clip the audio-only input into
   MP4 because the compatibility command refuses clipping into M4A. Every
   output goes into a fresh directory. The guard sets a nonexistent
-  fallback program, so any case that stops being native fails. The shape
+  fallback program, so any case that stops being native fails, except the
+  maintainer-approved C18 `basic.mp4` and C19 `aac.m4a` input-seek cases.
+  Those two require strict-safe exit 4, absent/existing destination and
+  staging preservation, and byte-identical real pinned fallback. They
+  remain in the case roster but have no instruction count or native credit;
+  the report records them separately as required refusals. Their former
+  success counts, the other cases, and every tolerance remain unchanged. The shape
   coverage test derives every template's shape and job with the command
   set's classifier and requires exactly one case for each selected shape.
   The instruction regression test injects 10% more case instructions,
-  without changing start-up, and requires each case to fail at the
+  without changing start-up, and requires each measured case to fail at the
   baseline's tolerance, with a just-below-tolerance passing control.
   The 14 initial counts and fixture digests come from
   [the guard run](https://github.com/coreav-dev/coreav/actions/runs/41320935327)
