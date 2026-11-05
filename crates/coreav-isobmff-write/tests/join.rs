@@ -69,6 +69,26 @@ fn join(inputs: &[&[u8]]) -> Result<(JoinSummary, Vec<u8>), JoinError> {
     join_with(inputs, JoinAudio::First)
 }
 
+#[test]
+fn h264_field_metadata_still_reports_its_omission() {
+    let source = movie(&[ibbp_video(24, 24)]);
+    let (summary, output) = join_with(&[&source, &source], JoinAudio::None).unwrap();
+    let field = FourCc(*b"fiel");
+    assert!(
+        probe_all(&source).tracks[0]
+            .description
+            .other_boxes
+            .contains(&field)
+    );
+    assert!(summary.boxes_left_out.contains(&field));
+    assert!(
+        !probe_all(&output).tracks[0]
+            .description
+            .other_boxes
+            .contains(&field)
+    );
+}
+
 fn probe_all(data: &[u8]) -> Movie {
     probe(
         SliceSource::new(data),

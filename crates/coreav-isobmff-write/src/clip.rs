@@ -1169,11 +1169,27 @@ pub(crate) fn conforming(track: &Track) -> Result<(), Error> {
     }
 }
 
+pub(crate) struct VisualLabels {
+    pub(crate) compressor_name: [u8; 32],
+    pub(crate) fiel: Option<[u8; 2]>,
+}
+
+impl VisualLabels {
+    pub(crate) const NONE: Self = Self {
+        compressor_name: [0; 32],
+        fiel: None,
+    };
+}
+
 /// The visual sample entry (ISO/IEC 14496-12 12.1.3): the source's coded
 /// width and height, then its codec configuration box and its `pasp`,
 /// `clap`, `colr` and `btrt` boxes as stored; its other children are left
 /// out. A stream [`conforming`] refuses has none.
 pub(crate) fn video_sample_entry(track: &Track) -> Result<Vec<u8>, Error> {
+    visual_sample_entry(track, &VisualLabels::NONE)
+}
+
+pub(crate) fn visual_sample_entry(track: &Track, labels: &VisualLabels) -> Result<Vec<u8>, Error> {
     conforming(track)?;
     let description = &track.description;
     let expected: &[u8; 4] = match (description.codec, &description.fourcc.0) {
@@ -1207,12 +1223,15 @@ pub(crate) fn video_sample_entry(track: &Track) -> Result<Vec<u8>, Error> {
     entry.extend_from_slice(&0x0048_0000u32.to_be_bytes());
     entry.extend_from_slice(&[0; 4]); // reserved
     entry.extend_from_slice(&1u16.to_be_bytes()); // frame_count
-    entry.extend_from_slice(&[0; 32]); // compressorname
+    entry.extend_from_slice(&labels.compressor_name);
     entry.extend_from_slice(&0x0018u16.to_be_bytes()); // depth
     entry.extend_from_slice(&(-1i16).to_be_bytes()); // pre_defined
     let mut children = vec![Node::leaf(&config.kind.0, config.data.clone())];
     for child in &description.entry_boxes {
         children.push(Node::leaf(&child.kind.0, child.data.clone()));
+    }
+    if let Some(fiel) = labels.fiel {
+        children.push(Node::leaf(b"fiel", fiel.to_vec()));
     }
     for child in children {
         child.write(&mut entry).map_err(|_| overflow())?;
