@@ -242,8 +242,9 @@ fn avc_sps_read(nal: &[u8], full_range: bool) -> Option<(VideoInfo, Option<AvcSp
             valid &= !b.flag()?;
         }
         bit_depth = b.ue()?.checked_add(8)?;
-        let chroma_depth = b.ue()?.checked_add(8)?;
-        valid &= chroma_format <= 3 && bit_depth <= 14 && chroma_depth == bit_depth;
+        let chroma_depth = b.ue()?;
+        valid &=
+            chroma_format <= 3 && bit_depth <= 14 && chroma_depth.checked_add(8) == Some(bit_depth);
         b.bit()?;
         if b.flag()? {
             let lists = if chroma_format == 3 { 12 } else { 8 };
@@ -1091,6 +1092,19 @@ mod tests {
             config.extend_from_slice(&[0, 4, 0x68, 0xce, 0x3c, 0x80]);
         }
         config
+    }
+
+    #[test]
+    fn invalid_chroma_depth_preserves_readable_structured_aspect() {
+        let sps = [
+            0x67, 0x64, 0x00, 0x1e, 0xa8, 0x00, 0x00, 0x03, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xf3,
+            0xa1, 0x1e, 0xc0, 0x40, 0x20,
+        ];
+        let info = avc_sps(&sps, false).unwrap();
+        assert_eq!(info.sar.ratio(), Some((1, 1)));
+        let mut config = aspect_config(&sps, 1, 1);
+        config[1] = 100;
+        assert_eq!(avc_summary(&config, &[0, 0, 0, 2, 0x65, 0xb8]), None);
     }
 
     #[test]
