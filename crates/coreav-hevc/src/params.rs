@@ -54,7 +54,9 @@ pub(crate) struct Sps {
     pub(crate) min_cb_log2: u32,
     pub(crate) min_tb_log2: u32,
     pub(crate) max_tb_log2: u32,
+    pub(crate) max_inter_transform_depth: u32,
     pub(crate) max_intra_transform_depth: u32,
+    pub(crate) amp: bool,
     pub(crate) strong_smoothing: bool,
     pub(crate) pcm: Option<Pcm>,
     pub(crate) scaling_lists: Option<ScalingLists>,
@@ -90,6 +92,7 @@ pub(crate) struct Pps {
     pub(crate) qp_delta_depth: u32,
     pub(crate) qp_delta_enabled: bool,
     pub(crate) transform_skip: bool,
+    pub(crate) constrained_intra: bool,
     pub(crate) transquant_bypass: bool,
     pub(crate) parallel_merge_log2: u32,
     pub(crate) scaling_lists: Option<ScalingLists>,
@@ -384,7 +387,7 @@ pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
     }
     let min_tb_log2 = bits.ue(min_cb_log2 - 3)? + 2;
     let max_tb_log2 = min_tb_log2 + bits.ue(ctb_log2.min(5) - min_tb_log2)?;
-    bits.ue(ctb_log2 - min_tb_log2)?;
+    let max_inter_transform_depth = bits.ue(ctb_log2 - min_tb_log2)?;
     let max_intra_transform_depth = bits.ue(ctb_log2 - min_tb_log2)?;
     let scaling_lists = if bits.flag()? {
         Some(if bits.flag()? {
@@ -395,7 +398,7 @@ pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
     } else {
         None
     };
-    bits.flag()?;
+    let amp = bits.flag()?;
     let sao = bits.flag()?;
     let pcm = if bits.flag()? {
         let luma_depth = bits.u(4)? + 1;
@@ -484,7 +487,9 @@ pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
         min_cb_log2,
         min_tb_log2,
         max_tb_log2,
+        max_inter_transform_depth,
         max_intra_transform_depth,
+        amp,
         strong_smoothing,
         pcm,
         scaling_lists,
@@ -503,7 +508,7 @@ pub(crate) fn pps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Pps> {
     let ref_l0 = bits.ue(14)? + 1;
     let ref_l1 = bits.ue(14)? + 1;
     let init_qp = bits.se(-74, 25)? + 26;
-    bits.flag()?;
+    let constrained_intra = bits.flag()?;
     let transform_skip = bits.flag()?;
     let qp_delta_enabled = bits.flag()?;
     let qp_delta_depth = if qp_delta_enabled { bits.ue(3)? } else { 0 };
@@ -598,6 +603,7 @@ pub(crate) fn pps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Pps> {
         qp_delta_depth,
         qp_delta_enabled,
         transform_skip,
+        constrained_intra,
         transquant_bypass,
         parallel_merge_log2,
         scaling_lists,

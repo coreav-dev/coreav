@@ -10,6 +10,24 @@ import unittest
 
 
 class HevcWorkflow(unittest.TestCase):
+    def test_complete_scalar_comparison_uses_the_full_current_census(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        for line in workflow.splitlines():
+            if line.strip().startswith('paths:'):
+                self.assertIn('scripts/hevc_decode.py', json.loads(line.split(':', 1)[1]))
+        step = workflow.split('- name: Check complete scalar conformance output\n', 1)[1]
+        command = step.split('run: |\n', 1)[1].split('\n      - ', 1)[0]
+        arguments = shlex.split(command.replace('\\\n', ''))
+        self.assertEqual(arguments[:3], ['python3', '-I', 'scripts/hevc_decode.py'])
+        self.assertNotIn('--select-test', arguments)
+        self.assertEqual(arguments[arguments.index('--census') + 1], '$RUNNER_TEMP/hevc-intra/g1/census.json')
+        self.assertEqual(int(arguments[arguments.index('--max-memory-bytes') + 1]), 1 << 30)
+        self.assertEqual(int(arguments[arguments.index('--max-stream-bins') + 1]), 1 << 40)
+        self.assertEqual(int(arguments[arguments.index('--max-picture-bins') + 1]), 1 << 28)
+        self.assertIn('${{ runner.temp }}/hevc-decode', workflow)
+        self.assertIn('--example headers --example intra --example decode', workflow)
+
     def test_census_uses_its_own_public_recipient_without_changing_shared_corpus_sealing(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()

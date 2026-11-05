@@ -1,6 +1,32 @@
 use crate::{Error, Result, bits::Bits};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Initialization {
+    I,
+    P,
+    B,
+}
+
+impl Initialization {
+    pub(crate) fn select<T>(self, [intra, predictive, bipredictive]: [T; 3]) -> T {
+        match self {
+            Self::I => intra,
+            Self::P => predictive,
+            Self::B => bipredictive,
+        }
+    }
+
+    pub(crate) fn for_slice(kind: u32, swap: bool) -> Result<Self> {
+        match (kind, swap) {
+            (2, false) => Ok(Self::I),
+            (1, false) | (0, true) => Ok(Self::P),
+            (0, false) | (1, true) => Ok(Self::B),
+            _ => Err(Error::InvalidData("cabac_initialization")),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Context {
     state: u8,
     mps: bool,
@@ -283,8 +309,30 @@ const TRANS_IDX_MPS: [u8; 64] = [
 
 #[cfg(test)]
 mod tests {
-    use super::{Cabac, Context};
+    use super::{Cabac, Context, Initialization};
     use crate::Error;
+
+    #[test]
+    fn slice_initialization_and_swap_follow_equation_9_7() {
+        for (kind, swap, expected) in [
+            (2, false, Initialization::I),
+            (1, false, Initialization::P),
+            (1, true, Initialization::B),
+            (0, false, Initialization::B),
+            (0, true, Initialization::P),
+        ] {
+            assert_eq!(Initialization::for_slice(kind, swap), Ok(expected));
+        }
+        for (kind, swap) in [(2, true), (3, false), (u32::MAX, true)] {
+            assert_eq!(
+                Initialization::for_slice(kind, swap),
+                Err(Error::InvalidData("cabac_initialization"))
+            );
+        }
+        assert_eq!(Initialization::I.select([0, 1, 2]), 0);
+        assert_eq!(Initialization::P.select([0, 1, 2]), 1);
+        assert_eq!(Initialization::B.select([0, 1, 2]), 2);
+    }
 
     #[test]
     fn raw_pcm_samples_and_restart_keep_the_same_picture_budget() -> crate::Result<()> {

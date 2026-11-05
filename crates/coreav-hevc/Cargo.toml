@@ -1,6 +1,6 @@
 [package]
 name = "coreav-hevc"
-description = "Opt-in HEVC headers and scalar intra reconstruction from ITU-T H.265"
+description = "Opt-in HEVC headers and scalar reconstruction from ITU-T H.265"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -27,6 +27,10 @@ required-features = ["native-hevc"]
 
 [[example]]
 name = "intra"
+required-features = ["native-hevc"]
+
+[[example]]
+name = "decode"
 required-features = ["native-hevc"]
 
 [lints]

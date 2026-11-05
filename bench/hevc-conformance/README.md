@@ -36,6 +36,23 @@ python3 scripts/hevc_conformance.py run \
 
 For a small acquisition preflight, append `--archive IPRED_B_Nokia_3.zip`. It cannot pass the full gate. Do not run the full acquisition or census on a Capy machine.
 
+### Complete scalar reconstruction
+
+Build the `decode` example with `native-hevc`. After the G1/G3 command below completes, compare every admitted original conformance stream through EOF:
+
+```sh
+python3 -I scripts/hevc_decode.py \
+  --registration "$RUNNER_TEMP/archives.pinned.json" \
+  --census "$RUNNER_TEMP/hevc-intra/g1/census.json" \
+  --data "$RUNNER_TEMP/hevc-data" --out "$RUNNER_TEMP/hevc-decode" \
+  --parser "$PWD/target/release/examples/headers" \
+  --native "$PWD/target/release/examples/decode" --oracle-bin "$ORACLE_BIN" \
+  --max-memory-bytes 1073741824 --max-stream-bins 1099511627776 \
+  --max-picture-bins 268435456
+```
+
+The comparator consumes the complete source-bound census, preserves every archive disposition and requires the published whole-output anchor before comparing individual output pictures. It checks original coded/output identities, geometry, packing, hashes, effective work and budget controls. `--select-test` is diagnostic only and cannot report complete coverage. The `decode` example accepts `INPUT MAX_MEMORY_BYTES MAX_STREAM_BINS MAX_PICTURE_BINS`; `-` reads standard input. Its bounded JSON lines contain each output picture and a final successful-completion summary. Annex B timestamps remain null. This command and its fixture tests are implemented; original-media results and the separate C2 container-packet comparison are still pending.
+
 ### Selected intra reconstruction
 
 Build both `headers` and `intra` examples with `native-hevc`. After the same acquisition, hash binding and synthetic verification above, run G1 with G2/G3 comparisons:

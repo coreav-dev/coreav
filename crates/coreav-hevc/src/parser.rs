@@ -2,7 +2,7 @@ use crate::{
     Error, Limits, NalHeader, OutputEvent, PictureOrder, Result, SeiInfo, SliceHeader,
     bits::Bits,
     ctu::Layout,
-    dpb::Dpb,
+    dpb::{Dpb, Emission},
     nal,
     params::{self, Pps, Sps, Vps},
     sei, slice,
@@ -112,11 +112,12 @@ pub(crate) struct SliceSyntax {
     pub independent_address: u32,
     pub qp_y: i32,
     pub chroma_qp_offsets: [i32; 2],
-    pub cabac_init: bool,
+    pub initialization: crate::cabac::Initialization,
     pub sao: [bool; 2],
     pub deblock_disabled: bool,
     pub deblock_offsets: [i32; 2],
     pub loop_filter_slices: bool,
+    pub inter: Option<crate::slice::InterSlice>,
 }
 
 impl SliceSyntax {
@@ -132,9 +133,15 @@ impl SliceSyntax {
             chroma_qp_offsets: header
                 .chroma_qp_offsets
                 .ok_or(Error::InvalidData("missing_chroma_qp"))?,
-            cabac_init: header
-                .cabac_init_flag
-                .ok_or(Error::InvalidData("missing_cabac_init"))?,
+            initialization: crate::cabac::Initialization::for_slice(
+                header
+                    .slice_type
+                    .ok_or(Error::InvalidData("missing_slice_type"))?,
+                header
+                    .cabac_init_flag
+                    .ok_or(Error::InvalidData("missing_cabac_init"))?,
+            )?,
+            inter: header.inter,
             sao: header.sao.ok_or(Error::InvalidData("missing_sao_flags"))?,
             deblock_disabled: header
                 .deblock_disabled
@@ -213,6 +220,42 @@ pub(crate) struct SliceInput<'a> {
     pub scratch_bytes: usize,
 }
 
+pub(crate) trait PictureObserver {
+    fn boundary(&mut self, dpb: &mut Dpb, scratch_bytes: usize) -> Result<()>;
+    fn slice(&mut self, input: SliceInput<'_>, dpb: &Dpb) -> Result<()>;
+    fn sei(&mut self, info: SeiInfo, dpb: &Dpb, scratch_bytes: usize) -> Result<()>;
+    fn output(&mut self, emission: Emission<'_>) -> Result<()>;
+}
+
+fn output(
+    emission: Emission<'_>,
+    observer: &mut Option<&mut dyn PictureObserver>,
+    emit: &mut impl FnMut(OutputEvent) -> Result<()>,
+    summary: &mut Summary,
+) -> Result<()> {
+    if let Some(observer) = observer.as_mut() {
+        observer.output(emission)?;
+    } else {
+        emit(emission.event)?;
+    }
+    summary.output_pictures += 1;
+    Ok(())
+}
+
+fn boundary(
+    dpb: &mut Dpb,
+    observer: &mut Option<&mut dyn PictureObserver>,
+    emit: &mut impl FnMut(OutputEvent) -> Result<()>,
+    summary: &mut Summary,
+    scratch_bytes: usize,
+) -> Result<()> {
+    if let Some(visitor) = observer.as_mut() {
+        visitor.boundary(dpb, scratch_bytes)?;
+        dpb.resume(|emission| output(emission, observer, emit, summary))?;
+    }
+    Ok(())
+}
+
 impl StreamCore {
     pub(crate) fn new(limits: Limits) -> Self {
         Self {
@@ -242,6 +285,48 @@ impl StreamCore {
         self.read_selected(bytes, emit, None, usize::MAX, |_| Ok(()))
     }
 
+    pub(crate) fn new_reconstruction(limits: Limits) -> Self {
+        Self {
+            dpb: Dpb::new_reconstruction(),
+            ..Self::new(limits)
+        }
+    }
+
+    pub(crate) fn heap_bytes(&self) -> Result<usize> {
+        self.dpb.heap_bytes()
+    }
+
+    pub(crate) fn fail(&mut self) {
+        self.failed = true;
+        self.dpb.fail();
+    }
+
+    pub(crate) fn read_reconstructed(
+        &mut self,
+        bytes: &[u8],
+        memory_limit: usize,
+        observer: &mut dyn PictureObserver,
+    ) -> Result<NalInfo> {
+        if self.failed {
+            return Err(Error::InvalidData("parser_failed"));
+        }
+        if self.finished {
+            return Err(Error::InvalidData("parser_finished"));
+        }
+        let result = self.read(
+            bytes,
+            |_| Ok(()),
+            None,
+            memory_limit,
+            |_| Ok(()),
+            Some(observer),
+        );
+        if result.is_err() {
+            self.fail();
+        }
+        result
+    }
+
     pub(crate) fn read_selected(
         &mut self,
         bytes: &[u8],
@@ -256,7 +341,7 @@ impl StreamCore {
         if self.finished {
             return Err(Error::InvalidData("parser_finished"));
         }
-        let result = self.read(bytes, emit, target, memory_limit, observe);
+        let result = self.read(bytes, emit, target, memory_limit, observe, None);
         if result.is_err() {
             self.failed = true;
         }
@@ -265,7 +350,26 @@ impl StreamCore {
 
     pub(crate) fn finish(
         &mut self,
+        emit: impl FnMut(OutputEvent) -> Result<()>,
+    ) -> Result<Summary> {
+        self.finish_inner(emit, None)
+    }
+
+    pub(crate) fn finish_reconstructed(
+        &mut self,
+        observer: &mut dyn PictureObserver,
+    ) -> Result<Summary> {
+        let result = self.finish_inner(|_| Ok(()), Some(observer));
+        if result.is_err() {
+            self.fail();
+        }
+        result
+    }
+
+    fn finish_inner(
+        &mut self,
         mut emit: impl FnMut(OutputEvent) -> Result<()>,
+        mut observer: Option<&mut dyn PictureObserver>,
     ) -> Result<Summary> {
         if self.failed {
             return Err(Error::InvalidData("parser_failed"));
@@ -274,11 +378,16 @@ impl StreamCore {
             return Err(Error::InvalidData("no_coded_pictures"));
         }
         if !self.finished {
-            let result = self.dpb.finish(|event| {
-                emit(event)?;
-                self.summary.output_pictures += 1;
-                Ok(())
-            });
+            boundary(
+                &mut self.dpb,
+                &mut observer,
+                &mut emit,
+                &mut self.summary,
+                0,
+            )?;
+            let result = self
+                .dpb
+                .finish(|event| output(event, &mut observer, &mut emit, &mut self.summary));
             if let Err(error) = result {
                 self.failed = true;
                 return Err(error);
@@ -295,6 +404,7 @@ impl StreamCore {
         target: Option<u64>,
         memory_limit: usize,
         mut observe: impl FnMut(SliceInput<'_>) -> Result<()>,
+        mut observer: Option<&mut dyn PictureObserver>,
     ) -> Result<NalInfo> {
         if self.ended {
             return Err(Error::InvalidData("nal_after_eob"));
@@ -390,7 +500,7 @@ impl StreamCore {
                     .summary
                     .pictures
                     .saturating_sub(u64::from(!prefix.first));
-                let retain_entries = if target == Some(index) {
+                let retain_entries = if target == Some(index) || observer.is_some() {
                     Some(
                         memory_limit
                             .checked_sub(rbsp.capacity())
@@ -472,6 +582,21 @@ impl StreamCore {
                     }
                 }
                 let order = if header.first {
+                    boundary(
+                        &mut self.dpb,
+                        &mut observer,
+                        &mut emit,
+                        &mut self.summary,
+                        rbsp.capacity()
+                            .checked_add(
+                                parsed
+                                    .entry_lengths
+                                    .capacity()
+                                    .checked_mul(core::mem::size_of::<u64>())
+                                    .ok_or(Error::Limit("reconstruction_memory"))?,
+                            )
+                            .ok_or(Error::Limit("reconstruction_memory"))?,
+                    )?;
                     let hash = *self
                         .vps_hash
                         .get(s.vps_id as usize)
@@ -481,9 +606,7 @@ impl StreamCore {
                         .is_some_and(|previous| previous != hash)
                     {
                         self.dpb.start_cvsg(nal, &header, |event| {
-                            emit(event)?;
-                            self.summary.output_pictures += 1;
-                            Ok(())
+                            output(event, &mut observer, &mut emit, &mut self.summary)
                         })?;
                     }
                     self.active_vps_hash = Some(hash);
@@ -503,9 +626,7 @@ impl StreamCore {
                         return Err(Error::InvalidData("sps_change_within_cvs"));
                     }
                     let order = self.dpb.picture(nal, &header, s, &self.limits, |event| {
-                        emit(event)?;
-                        self.summary.output_pictures += 1;
-                        Ok(())
+                        output(event, &mut observer, &mut emit, &mut self.summary)
                     })?;
                     if starts_cvs {
                         self.active_sps = Some(sps_identity);
@@ -520,7 +641,7 @@ impl StreamCore {
                     self.summary.independent_slices += 1;
                 }
                 if retain_entries.is_some() {
-                    observe(SliceInput {
+                    let input = SliceInput {
                         index,
                         header,
                         picture,
@@ -541,7 +662,12 @@ impl StreamCore {
                                     .ok_or(Error::Limit("reconstruction_memory"))?,
                             )
                             .ok_or(Error::Limit("reconstruction_memory"))?,
-                    })?;
+                    };
+                    if let Some(observer) = observer.as_mut() {
+                        observer.slice(input, &self.dpb)?;
+                    } else {
+                        observe(input)?;
+                    }
                 }
                 NalInfo::Slice {
                     header,
@@ -554,6 +680,13 @@ impl StreamCore {
                     return Err(Error::InvalidData("aud_pic_type"));
                 }
                 bits.trailing()?;
+                boundary(
+                    &mut self.dpb,
+                    &mut observer,
+                    &mut emit,
+                    &mut self.summary,
+                    rbsp.capacity(),
+                )?;
                 self.picture = None;
                 NalInfo::AccessUnitDelimiter
             }
@@ -561,6 +694,13 @@ impl StreamCore {
                 if !rbsp.is_empty() {
                     return Err(Error::InvalidData("end_nal_payload"));
                 }
+                boundary(
+                    &mut self.dpb,
+                    &mut observer,
+                    &mut emit,
+                    &mut self.summary,
+                    rbsp.capacity(),
+                )?;
                 self.picture = None;
                 if nal.unit_type == 37 {
                     self.ended = true;
@@ -585,6 +725,11 @@ impl StreamCore {
                 }
                 self.summary.picture_hashes += u64::from(info.picture_hash.is_some());
                 self.summary.reserved_hashes += u64::from(info.reserved_hashes);
+                if nal.unit_type == 40 {
+                    if let Some(observer) = observer.as_mut() {
+                        observer.sei(info, &self.dpb, rbsp.capacity())?;
+                    }
+                }
                 NalInfo::Sei(info)
             }
             10..=15 | 22..=31 => return Err(Error::Unsupported("reserved_vcl")),

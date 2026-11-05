@@ -1,6 +1,6 @@
 # HEVC scalar inter reconstruction
 
-Status: milestone 4 implementation plan, committed before implementation in the same pull request. Milestone 3 is merged in coreav-dev/coreav#414. Its final proof includes 456 original and separately registered synthetic intra targets, all 371 applicable defined picture hashes, 740 runtime controls and 26 development first-IRAP comparisons. This plan extends the [HEVC plan](hevc.md), [intra reconstruction](hevc-intra.md) and [in-loop filters](hevc-inloop.md).
+Status: milestone 4 implementation in progress, following the first-commit plan in the same pull request. Scalar inter reconstruction and the complete C1 comparator have local unit coverage; original-source C1 execution, the C2 packet adapter and full final-head CI are not yet complete. Milestone 3 is merged in coreav-dev/coreav#414. Its final proof includes 456 original and separately registered synthetic intra targets, all 371 applicable defined picture hashes, 740 runtime controls and 26 development first-IRAP comparisons. This plan extends the [HEVC plan](hevc.md), [intra reconstruction](hevc-intra.md) and [in-loop filters](hevc-inloop.md).
 
 ## Outcome and authority
 
