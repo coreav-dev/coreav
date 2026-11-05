@@ -1,14 +1,16 @@
-//! Allocation-free scalar kernels for Main and Main10 HEVC intra reconstruction.
+//! Allocation-free scalar kernels for Main and Main10 HEVC intra reconstruction and filters.
 //!
 //! Enable `native-hevc` explicitly. The caller owns bitstream syntax, effective
 //! QP/scaling-list derivation, neighbour availability and picture storage.
 //! Algorithms and integer tables follow ITU-T H.265 V11 (01/2026), clauses
-//! 8.4.4 and 8.6.2–8.6.7. Range-extension tools are not implemented.
+//! 8.4.4, 8.6.2–8.6.7 and 8.7. Range-extension tools are not implemented.
 
 #![no_std]
 
 #[cfg(feature = "native-hevc")]
 mod domain;
+#[cfg(feature = "native-hevc")]
+mod filter;
 #[cfg(feature = "native-hevc")]
 mod intra;
 #[cfg(feature = "native-hevc")]
@@ -18,6 +20,8 @@ mod tables;
 
 #[cfg(feature = "native-hevc")]
 pub use domain::{BitDepth, Block, BlockMut, BlockSize, Component, Error, IntraMode};
+#[cfg(feature = "native-hevc")]
+pub use filter::{SaoClass, deblock_chroma, deblock_luma, sao_sample};
 #[cfg(feature = "native-hevc")]
 pub use intra::{IntraPrediction, predict_intra};
 #[cfg(feature = "native-hevc")]

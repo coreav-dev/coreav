@@ -113,6 +113,8 @@ fn picture(
             "scaling_list_blocks":stats.scaling_list_blocks,"sign_hidden_groups":stats.sign_hidden_groups,
             "dst_blocks":stats.dst_blocks,"bins":stats.bins,"picture_hashes":stats.picture_hashes,
             "reserved_hashes":stats.reserved_hashes,"memory_bytes":stats.memory_bytes,
+            "deblock_edges":stats.deblock_edges,"deblock_changed_samples":stats.deblock_changed_samples,
+            "sao_blocks":stats.sao_blocks,"sao_changed_samples":stats.sao_changed_samples,"sao_merges":stats.sao_merges,
             "luma_modes":stats.luma_modes.as_slice(),"chroma_modes":stats.chroma_modes.as_slice(),
             "dct_blocks":stats.dct_blocks.as_slice()}}),
     )

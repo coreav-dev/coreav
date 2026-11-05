@@ -76,7 +76,7 @@ jobs:
             --data "$RUNNER_TEMP/hevc-data" --out "$RUNNER_TEMP/hevc-intra" \
             --parser "$PWD/target/release/examples/headers" --oracle-bin "$RUNNER_TEMP/oracle" \
             --native "$PWD/target/release/examples/intra" --synthetic-data "$RUNNER_TEMP/hevc-synthetic" \
-            --max-memory-bytes 268435456 --max-bins 268435456
+            --max-memory-bytes 268435456 --max-bins 268435456 --filters
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

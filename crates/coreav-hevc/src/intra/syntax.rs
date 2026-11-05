@@ -1,4 +1,7 @@
-use super::{Cell, Frame, Memory};
+use super::{
+    Cell, Frame, Memory,
+    filter::{Ctu, Sao},
+};
 use crate::{
     Error, Result,
     cabac::{Cabac, Context},
@@ -24,6 +27,8 @@ pub(super) struct Contexts {
     cbf_chroma: [Context; 4],
     qp_delta: [Context; 2],
     residual: residual::Contexts,
+    sao_merge: Context,
+    sao_type: Context,
 }
 
 impl Contexts {
@@ -39,6 +44,8 @@ impl Contexts {
             cbf_chroma: [94, 138, 182, 154].map(|value| Context::new(value, slice_qp)),
             qp_delta: [Context::new(154, slice_qp); 2],
             residual: residual::Contexts::new(slice_qp),
+            sao_merge: Context::new(153, slice_qp),
+            sao_type: Context::new(200, slice_qp),
         }
     }
 }
@@ -247,6 +254,109 @@ fn component_qp(qp: i32, offset: i32, chroma_offset: Option<i32>) -> Result<u8> 
 }
 
 impl Frame {
+    fn read_sao(
+        &mut self,
+        input: &SliceInput<'_>,
+        location: Location,
+        slice: u32,
+        cabac: &mut Cabac<'_, '_>,
+    ) -> Result<()> {
+        let raster = location.y * input.layout.width + location.x;
+        let mut sao = [Sao::default(); 3];
+        let mut merged = false;
+        if input.syntax.sao.into_iter().any(|v| v) {
+            let left = location.x > 0
+                && raster > input.syntax.independent_address
+                && input.layout.at_raster(raster - 1)?.tile == location.tile;
+            let above = location.y > 0
+                && raster - input.layout.width >= input.syntax.independent_address
+                && input.layout.at_raster(raster - input.layout.width)?.tile == location.tile;
+            let merge = if left && cabac.decision(&mut self.contexts.sao_merge)? {
+                Some(raster - 1)
+            } else if above && cabac.decision(&mut self.contexts.sao_merge)? {
+                Some(raster - input.layout.width)
+            } else {
+                None
+            };
+            if let Some(index) = merge {
+                sao = self
+                    .filter_ctus
+                    .get(index as usize)
+                    .filter(|c| c.seen)
+                    .ok_or(Error::InvalidData("sao_merge_source"))?
+                    .sao;
+                merged = true;
+            } else {
+                for component in 0..3 {
+                    if !input
+                        .syntax
+                        .sao
+                        .get(usize::from(component != 0))
+                        .copied()
+                        .ok_or(Error::InvalidData("sao_component"))?
+                    {
+                        continue;
+                    }
+                    let kind = if component == 2 {
+                        sao[1].kind
+                    } else if cabac.decision(&mut self.contexts.sao_type)? {
+                        1 + u8::from(cabac.bypass()?)
+                    } else {
+                        0
+                    };
+                    let mut value = Sao {
+                        kind,
+                        ..Sao::default()
+                    };
+                    if value.kind != 0 {
+                        let max = (1i16 << (input.sps.bit_depth.min(10) - 5)) - 1;
+                        for offset in &mut value.offsets {
+                            while *offset < max && cabac.bypass()? {
+                                *offset += 1;
+                            }
+                        }
+                        if value.kind == 1 {
+                            for offset in &mut value.offsets {
+                                if *offset != 0 && cabac.bypass()? {
+                                    *offset = -*offset;
+                                }
+                            }
+                            value.band = bypass_bits(cabac, 5)? as u8;
+                        } else {
+                            for offset in value.offsets.iter_mut().skip(2) {
+                                *offset = -*offset;
+                            }
+                            value.class = if component == 2 {
+                                sao[1].class
+                            } else {
+                                bypass_bits(cabac, 2)? as u8
+                            };
+                        }
+                    }
+                    *sao.get_mut(component)
+                        .ok_or(Error::InvalidData("sao_component"))? = value;
+                }
+            }
+        }
+        self.stats.sao_merges += u64::from(merged);
+        *self
+            .filter_ctus
+            .get_mut(raster as usize)
+            .ok_or(Error::InvalidData("filter_ctu_address"))? = Ctu {
+            seen: true,
+            order: location.tile_scan,
+            tile: location.tile,
+            slice,
+            across_tiles: input.pps.loop_filter_tiles,
+            across_slices: input.syntax.loop_filter_slices,
+            deblock_disabled: input.syntax.deblock_disabled,
+            offsets: input.syntax.deblock_offsets,
+            chroma_offsets: [input.pps.cb_qp_offset, input.pps.cr_qp_offset],
+            sao,
+        };
+        Ok(())
+    }
+
     pub(super) fn decode(
         &mut self,
         input: SliceInput<'_>,
@@ -258,6 +368,7 @@ impl Frame {
         if self.index != input.index
             || self.info != input.picture
             || self.hash_seen
+            || self.filtered
             || self.next_ctu != 0 && !self.segment_closed
         {
             return Err(Error::InvalidData("selected_segment_state"));
@@ -316,6 +427,7 @@ impl Frame {
             loop {
                 let location = input.layout.at_tile_scan(self.next_ctu)?;
                 self.start_ctu(&input, location, slice)?;
+                self.read_sao(&input, location, slice, &mut cabac)?;
                 let mut walker = Walker {
                     frame: self,
                     input: &input,
@@ -372,7 +484,7 @@ impl Frame {
         Ok((y / 4) * (self.info.width as usize / 4) + x / 4)
     }
 
-    fn cell(&self, x: usize, y: usize) -> Result<&Cell> {
+    pub(super) fn cell(&self, x: usize, y: usize) -> Result<&Cell> {
         self.cells
             .get(self.cell_index(x, y)?)
             .ok_or(Error::InvalidData("intra_cell_address"))
@@ -438,6 +550,20 @@ struct Walker<'f, 'i, 'data> {
 }
 
 impl Walker<'_, '_, '_> {
+    fn protect(&mut self, area: Area) -> Result<()> {
+        for y in (area.y..area.y + area.side()).step_by(4) {
+            for x in (area.x..area.x + area.side()).step_by(4) {
+                let index = self.frame.cell_index(x, y)?;
+                self.frame
+                    .cells
+                    .get_mut(index)
+                    .ok_or(Error::InvalidData("intra_cell_address"))?
+                    .protected = true;
+            }
+        }
+        Ok(())
+    }
+
     fn neighbour(&self, x: Option<usize>, y: Option<usize>) -> Result<Option<Cell>> {
         let (Some(x), Some(y)) = (x, y) else {
             return Ok(None);
@@ -548,6 +674,8 @@ impl Walker<'_, '_, '_> {
                     reconstructed: 0,
                     qp: self.frame.qp.current as i8,
                     slice: self.slice,
+                    edges: u8::from(x == area.x) | (u8::from(y == area.y) << 1),
+                    protected: false,
                 };
             }
         }
@@ -609,6 +737,7 @@ impl Walker<'_, '_, '_> {
             self.input.pps.transquant_bypass && cabac.decision(&mut self.frame.contexts.bypass)?;
         if bypass {
             self.frame.stats.transquant_bypass_units += 1;
+            self.protect(area)?;
         }
         let nxn = area.log2 == self.input.sps.min_cb_log2
             && !cabac.decision(&mut self.frame.contexts.part)?;
@@ -661,6 +790,9 @@ impl Walker<'_, '_, '_> {
     fn pcm(&mut self, cabac: &mut Cabac<'_, '_>, area: Area) -> Result<()> {
         alignment(cabac)?;
         let pcm = self.input.sps.pcm.ok_or(Error::InvalidData("intra_pcm"))?;
+        if pcm.loop_filter_disabled {
+            self.protect(area)?;
+        }
         for component in 0..3 {
             let scale = if component == 0 { 1 } else { 2 };
             let depth = if component == 0 {
@@ -912,6 +1044,9 @@ impl Walker<'_, '_, '_> {
                     return Err(Error::InvalidData("intra_reconstruction_overlap"));
                 }
                 cell.reconstructed |= mask;
+                if mask & 1 != 0 {
+                    cell.edges |= u8::from(x == luma_area.x) | (u8::from(y == luma_area.y) << 1);
+                }
             }
         }
         Ok(())
@@ -1120,6 +1255,7 @@ mod tests {
             chroma_depth: depth,
             min_log2: 4,
             max_log2: 4,
+            loop_filter_disabled: false,
         });
         let mut writer = params::tests::Writer::default();
         writer.ue(0);
@@ -1188,6 +1324,8 @@ mod tests {
                 cabac_init: false,
                 sao: [false; 2],
                 deblock_disabled: true,
+                deblock_offsets: [0; 2],
+                loop_filter_slices: true,
             };
             SliceInput {
                 index: 0,
@@ -1204,6 +1342,8 @@ mod tests {
                     cabac_init_flag: (!segment.dependent).then_some(false),
                     sao: (!segment.dependent).then_some([false; 2]),
                     deblock_disabled: (!segment.dependent).then_some(true),
+                    deblock_offsets: (!segment.dependent).then_some([0; 2]),
+                    loop_filter_slices: (!segment.dependent).then_some(true),
                     entry_points: segment.lengths.len() as u32,
                     rbsp_header_bytes: 1,
                     no_output_of_prior_pics: false,
@@ -1549,6 +1689,8 @@ mod tests {
             reconstructed: 7,
             qp: 26,
             slice: 1,
+            edges: 0,
+            protected: false,
         };
         let mut walker = Walker {
             frame: &mut frame,
@@ -1588,6 +1730,8 @@ mod tests {
             reconstructed: 7,
             qp: 20,
             slice: 1,
+            edges: 0,
+            protected: false,
         };
         *cell_mut(&mut frame, 4, 8)? = value;
         value.qp = 30;
@@ -1637,6 +1781,8 @@ mod tests {
                 reconstructed: mask,
                 qp: 26,
                 slice: 1,
+                edges: 0,
+                protected: false,
             };
         }
         let mut budget = 5;
@@ -1706,6 +1852,7 @@ mod tests {
             chroma_depth: 6,
             min_log2: 4,
             max_log2: 4,
+            loop_filter_disabled: false,
         });
         let mut writer = params::tests::Writer::default();
         for _ in 0..256 {
@@ -1949,6 +2096,122 @@ mod tests {
         );
         assert!(!frame.complete());
         Ok(())
+    }
+
+    #[test]
+    fn sao_reads_deblocked_source_once_and_charges_its_live_copy() -> Result<()> {
+        let mut frame = filter_frame([33, 33])?;
+        frame.planes[0][7] = 34;
+        for ctu in &mut frame.filter_ctus {
+            ctu.sao[0] = Sao {
+                kind: 2,
+                offsets: [3, 1, -1, -3],
+                class: 0,
+                band: 0,
+            };
+        }
+        let live = frame.heap_bytes()? + frame.planes[0].len() * 2;
+        assert_eq!(
+            frame.finalize(0, live - 1),
+            Err(Error::Limit("reconstruction_memory"))
+        );
+        assert!(!frame.filtered);
+        assert_eq!(frame.planes[0][7], 34);
+        assert_eq!(frame.finalize(0, live)?, live);
+        assert_eq!(&frame.planes[0][6..=8], &[34, 31, 34]);
+        assert_eq!(frame.stats.sao_blocks, [2, 0, 0]);
+        let before = frame.planes.clone();
+        let stats = frame.stats;
+        assert_eq!(frame.finalize(0, live)?, 0);
+        assert_eq!(frame.planes, before);
+        assert_eq!(frame.stats, stats);
+        Ok(())
+    }
+
+    #[test]
+    fn deblocking_respects_actual_edges_and_keeps_a_protected_side() -> Result<()> {
+        for protected in [false, true] {
+            let mut frame = filter_frame([100, 104])?;
+            for ctu in &mut frame.filter_ctus {
+                ctu.deblock_disabled = false;
+            }
+            for y in (0..16).step_by(4) {
+                for x in (0..16).step_by(4) {
+                    cell_mut(&mut frame, x, y)?.protected = protected;
+                }
+            }
+            frame.finalize(0, usize::MAX)?;
+            assert_eq!(frame.stats.deblock_edges, [4, 2, 2]);
+            assert_eq!(
+                &frame.planes[0][13..19],
+                if protected {
+                    &[100, 100, 100, 103, 103, 104]
+                } else {
+                    &[101, 101, 102, 103, 103, 104]
+                }
+            );
+            assert!(frame.planes[0][..13].iter().all(|v| *v == 100));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn sao_tile_and_slice_crossings_and_protected_destinations_are_distinct() -> Result<()> {
+        for tile in [false, true] {
+            for across in [false, true] {
+                let mut frame = filter_frame([100, 104])?;
+                for ctu in &mut frame.filter_ctus {
+                    ctu.sao[0] = Sao {
+                        kind: 2,
+                        offsets: [2, 1, -1, -2],
+                        class: 0,
+                        band: 0,
+                    };
+                    ctu.across_tiles = across;
+                    ctu.across_slices = across;
+                }
+                if tile {
+                    frame.filter_ctus[1].tile = 1;
+                } else {
+                    frame.filter_ctus[1].slice = 2;
+                }
+                frame.finalize(0, usize::MAX)?;
+                assert_eq!(frame.planes[0][15], if across { 101 } else { 100 });
+                assert_eq!(frame.planes[0][16], if across { 103 } else { 104 });
+            }
+        }
+        let mut frame = filter_frame([100, 104])?;
+        for ctu in &mut frame.filter_ctus {
+            ctu.sao[0] = Sao {
+                kind: 1,
+                offsets: [2; 4],
+                band: 12,
+                class: 0,
+            };
+        }
+        cell_mut(&mut frame, 0, 0)?.protected = true;
+        frame.finalize(0, usize::MAX)?;
+        assert_eq!(frame.planes[0][0], 100);
+        assert_eq!(frame.planes[0][4], 102);
+        assert_eq!(frame.planes[0][16], 106);
+        Ok(())
+    }
+
+    fn filter_frame(values: [u8; 2]) -> Result<Frame> {
+        let fixture = fixture(32, 16, 8, false, 1)?;
+        let mut rbsp = vec![0x80];
+        rbsp.extend(pcm_body(
+            &[[0x86, 0x80], [0x8b, 0x80]],
+            [0xfe, 0x80],
+            &values,
+        )?);
+        let original = escaped(&rbsp);
+        let input = fixture.input(segment(&rbsp, &original, &[]));
+        let mut frame = Frame::new(&input, 0, usize::MAX)?;
+        let mut budget = 6;
+        frame.decode(input, &mut budget, 0, usize::MAX)?;
+        assert!(frame.complete());
+        Ok(frame)
     }
 
     #[test]

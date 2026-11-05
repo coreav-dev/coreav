@@ -149,7 +149,9 @@ class Census(unittest.TestCase):
                     max_memory_bytes=1024, max_bins=10, conformance_window=[0] * 4,
                     stats=dict({key: 0 for key in runner.COUNTERS}, ctus=1, coding_units=1,
                                memory_bytes=1024, bins=10, luma_modes=[0] * 35,
-                               chroma_modes=[0] * 35, dct_blocks=[0] * 4))
+                               chroma_modes=[0] * 35, dct_blocks=[0] * 4,
+                               deblock_edges=[0] * 3, deblock_changed_samples=[0] * 3,
+                               sao_blocks=[0] * 3, sao_changed_samples=[0] * 3))
 
     def test_native_completion_budgets_indices_and_suffix_coverage_are_required(self):
         stream = self.targets()
@@ -267,7 +269,8 @@ class Census(unittest.TestCase):
         census = dict(complete=True, archives=archives, intra_candidates=expected,
                       synthetic_census=dict(complete=True, streams=synthetic))
 
-        def targets(source, record, native, directory, name, source_kind):
+        def targets(source, record, native, directory, name, source_kind, filters=False):
+            self.assertFalse(filters)
             return descriptors[name]
 
         with mock.patch.object(runner.harness, 'registration', return_value=dict(archives=cases)), \

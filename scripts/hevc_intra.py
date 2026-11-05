@@ -9,6 +9,7 @@ Its output is coded planar Y/Cb/Cr, little-endian u16 at both supported depths.
 import argparse
 import collections
 import hashlib
+import io
 import json
 import pathlib
 import struct
@@ -23,8 +24,10 @@ COUNTERS = ('ctus', 'coding_units', 'transform_units', 'nonzero_transform_units'
             'transform_skips', 'transquant_bypass_units', 'pcm_units', 'dependent_segments',
             'tile_restarts', 'wpp_restarts', 'qp_deltas', 'nonzero_qp_deltas',
             'scaling_list_blocks', 'sign_hidden_groups', 'dst_blocks', 'bins',
-            'picture_hashes', 'reserved_hashes', 'memory_bytes')
-ARRAY_COUNTERS = {'luma_modes': 35, 'chroma_modes': 35, 'dct_blocks': 4}
+            'picture_hashes', 'reserved_hashes', 'memory_bytes', 'sao_merges')
+ARRAY_COUNTERS = {'luma_modes': 35, 'chroma_modes': 35, 'dct_blocks': 4,
+                  'deblock_edges': 3, 'deblock_changed_samples': 3,
+                  'sao_blocks': 3, 'sao_changed_samples': 3}
 SERIAL_COUNTERS = {'tiles': 'tile_restarts', 'wpp': 'wpp_restarts',
                    'dependent_segments': 'dependent_segments'}
 INPUT_CAP = 256 << 20
@@ -49,17 +52,18 @@ def selected_hashes(rows, target):
     return defined, reserved
 
 
-def stream_targets(source, record, native, directory, test, source_kind):
+def stream_targets(source, record, native, directory, test, source_kind, filters=False):
     require(0 < source.stat().st_size <= harness.BITSTREAM_CAP
             and harness.digest(source) == record['sha256'], 'candidate_source_identity')
     summary, pictures, outputs = harness.native_rows(native, source.read_bytes())
     eligible_coded = {index for index, picture in enumerate(pictures)
-                      if picture['all_intra'] and picture['filters_disabled']}
-    stored = [row for row in record.get('intra_candidates', []) if row['gate'] == 'G2']
+                      if picture['all_intra'] and (filters or picture['filters_disabled'])}
+    stored = [row for row in record.get('intra_candidates', []) if filters or row['gate'] == 'G2']
     if not eligible_coded:
         require(not stored, 'unexpected_g2_candidate')
         return None
-    require(eligible_coded <= {output['picture_index'] for output in outputs},
+    nonoutput = eligible_coded - {output['picture_index'] for output in outputs}
+    require(not nonoutput or filters and test == 'OPFLAG_B' and nonoutput == {39, 73},
             'eligible_coded_output_absent')
     eligible = [(index, output, pictures[output['picture_index']])
                 for index, output in enumerate(outputs) if output['picture_index'] in eligible_coded]
@@ -70,7 +74,7 @@ def stream_targets(source, record, native, directory, test, source_kind):
     require(record['reference_count']['value'] == len(outputs)
             and record.get('output_order_checked_by_packet_positions') is True,
             'candidate_output_mapping')
-    expected = [row for row in harness.coverage(pictures, outputs, references) if row['gate'] == 'G2']
+    expected = [row for row in harness.coverage(pictures, outputs, references) if filters or row['gate'] == 'G2']
     require(stored == expected and len(stored) == len(eligible), 'candidate_census_disagrees')
     rows = [json.loads(line, object_pairs_hook=harness.unique_object)
             for line in native.read_text().splitlines()]
@@ -84,6 +88,31 @@ def stream_targets(source, record, native, directory, test, source_kind):
         targets.append(dict(candidate=dict(test=test, stream_sha256=record['sha256'],
                                           source_kind=source_kind, **candidate),
                             picture=picture, hashes=selected_hashes(rows, candidate['picture_index'])))
+    for index in sorted(nonoutput):
+        picture = pictures[index]
+        hashes = selected_hashes(rows, index)
+        require(hashes[0] == 1, 'nonoutput_sei_reference_missing')
+        current, reference = None, None
+        for row in rows:
+            if row.get('kind') != 'nal':
+                continue
+            if row['nal_type'] < 32 and row.get('first_slice_segment_in_pic_flag'):
+                current = row['picture_index']
+            if row['nal_type'] == 40 and current == index and row.get('picture_hash'):
+                require(reference is None, 'nonoutput_sei_reference_duplicate')
+                reference = row.get('picture_hash_reference')
+        require(isinstance(reference, dict) and reference.get('algorithm') == 'md5'
+                and isinstance(reference.get('components'), list) and len(reference['components']) == 3
+                and all(isinstance(c, list) and len(c) == 16
+                        and all(harness.integer(v) and v < 256 for v in c)
+                        for c in reference['components']), 'nonoutput_sei_reference_invalid')
+        candidate = dict(test=test, stream_sha256=record['sha256'], source_kind=source_kind,
+                         picture_index=index, bit_depth=picture['bit_depth'], gate='G3',
+                         tiles=picture['tiles'], wpp=picture['wpp'],
+                         dependent_segments=picture['dependent_segments'],
+                         reference=dict(source_scope='coded-picture reference (SEI), not output',
+                                        algorithm='md5', coded_component_md5=[bytes(c).hex() for c in reference['components']]))
+        targets.append(dict(candidate=candidate, picture=picture, hashes=hashes))
     return dict(source=source, record=record, summary=summary, frames=frames,
                 targets=targets, directory=directory, test=test, rows=rows)
 
@@ -109,7 +138,7 @@ def candidates(args, census):
             directory = args.out / 'g1' / case['test'] / member['sha256']
             item = stream_targets(args.data / case['test'] / member['path'], record,
                                   directory / 'native.stdout', directory,
-                                  case['test'], 'published_conformance')
+                                  case['test'], 'published_conformance', getattr(args, 'filters', False))
             if item:
                 streams.append(item)
     synthetic = census['synthetic_census']
@@ -122,12 +151,17 @@ def candidates(args, census):
         identity = recipe['id']
         directory = args.out / 'g1' / 'synthetic' / identity
         item = stream_targets(args.synthetic_data / 'run-1' / (identity + '.hevc'), record,
-                              directory / 'native.stdout', directory, record['test'], 'synthetic')
+                              directory / 'native.stdout', directory, record['test'], 'synthetic', getattr(args, 'filters', False))
         require(item is not None, 'synthetic_g2_absent')
         streams.append(item)
-    expected = [row for row in census['intra_candidates'] if row['gate'] == 'G2']
+    expected = [row for row in census['intra_candidates'] if getattr(args, 'filters', False) or row['gate'] == 'G2']
     actual = [target['candidate'] for stream in streams for target in stream['targets']]
-    require(actual and actual == expected, 'complete_g2_denominator')
+    output_actual = [row for row in actual if row['reference'].get('source_scope') != 'coded-picture reference (SEI), not output']
+    require(actual and output_actual == expected, 'complete_g2_denominator')
+    if getattr(args, 'filters', False):
+        require([(row['test'], row['picture_index']) for row in actual
+                 if row['reference'].get('source_scope') == 'coded-picture reference (SEI), not output']
+                == [('OPFLAG_B', 39), ('OPFLAG_B', 73)], 'nonoutput_denominator')
     require({row['bit_depth'] for row in actual} == {8, 10}, 'g2_depth_denominator')
     return streams
 
@@ -194,8 +228,9 @@ def packed_picture(raw, metadata):
             'native_raw_format')
     geometry = [(width, height)] + [((width + 1) // 2, (height + 1) // 2)] * 2
     require(metadata['planes'] == [dict(width=w, height=h) for w, h in geometry], 'native_raw_planes')
+    size = raw.stat().st_size if isinstance(raw, pathlib.Path) else len(raw)
     require(harness.integer(metadata['output_bytes'])
-            and len(raw) == metadata['output_bytes'] == sum(w * h * 2 for w, h in geometry),
+            and size == metadata['output_bytes'] == sum(w * h * 2 for w, h in geometry),
             'native_raw_size')
     crop = metadata['conformance_window']
     require(len(crop) == 4 and all(harness.integer(value) for value in crop)
@@ -203,32 +238,36 @@ def packed_picture(raw, metadata):
             and height - 2 * (crop[2] + crop[3]) == metadata['height'] > 0, 'native_raw_crop')
     whole = hashlib.md5()
     coded_hashes, visible_hashes, proof = [], [], []
-    offset, visible_bytes = 0, 0
-    for component, (w, h) in enumerate(geometry):
-        plane = memoryview(raw)[offset:offset + w * h * 2]
-        offset += len(plane)
-        minimum, maximum, above_255, low_bits = 1 << depth, 0, 0, 0
-        for (sample,) in struct.iter_unpack('<H', plane):
-            require(sample < 1 << depth, 'native_sample_range')
-            minimum, maximum = min(minimum, sample), max(maximum, sample)
-            above_255 += sample > 255
-            low_bits += bool(sample & 3)
-        packed = bytes(plane[::2]) if depth == 8 else plane
-        coded_hashes.append(hashlib.md5(packed).hexdigest())
-        sample_bytes = 1 if depth == 8 else 2
-        scale = 2 if component == 0 else 1
-        left, top = crop[0] * scale, crop[2] * scale
-        visible_width = metadata['width'] if component == 0 else (metadata['width'] + 1) // 2
-        visible_height = metadata['height'] if component == 0 else (metadata['height'] + 1) // 2
-        visible = hashlib.md5()
-        for y in range(top, top + visible_height):
-            row = packed[(y * w + left) * sample_bytes:(y * w + left + visible_width) * sample_bytes]
-            require(len(row) == visible_width * sample_bytes, 'native_crop_row')
-            visible.update(row)
-            whole.update(row)
-            visible_bytes += len(row)
-        visible_hashes.append(visible.hexdigest())
-        proof.append(dict(min=minimum, max=maximum, above_255=above_255, nonzero_low_two_bits=low_bits))
+    visible_bytes = 0
+    with raw.open('rb') if isinstance(raw, pathlib.Path) else io.BytesIO(raw) as source:
+        for component, (w, h) in enumerate(geometry):
+            minimum, maximum, above_255, low_bits = 1 << depth, 0, 0, 0
+            sample_bytes = 1 if depth == 8 else 2
+            scale = 2 if component == 0 else 1
+            left, top = crop[0] * scale, crop[2] * scale
+            visible_width = metadata['width'] if component == 0 else (metadata['width'] + 1) // 2
+            visible_height = metadata['height'] if component == 0 else (metadata['height'] + 1) // 2
+            visible, coded = hashlib.md5(), hashlib.md5()
+            for y in range(h):
+                row = source.read(w * 2)
+                require(len(row) == w * 2, 'native_raw_size')
+                for (sample,) in struct.iter_unpack('<H', row):
+                    require(sample < 1 << depth, 'native_sample_range')
+                    minimum, maximum = min(minimum, sample), max(maximum, sample)
+                    above_255 += sample > 255
+                    low_bits += bool(sample & 3)
+                packed = row[::2] if depth == 8 else row
+                coded.update(packed)
+                if top <= y < top + visible_height:
+                    selected = packed[left * sample_bytes:(left + visible_width) * sample_bytes]
+                    require(len(selected) == visible_width * sample_bytes, 'native_crop_row')
+                    visible.update(selected)
+                    whole.update(selected)
+                    visible_bytes += len(selected)
+            coded_hashes.append(coded.hexdigest())
+            visible_hashes.append(visible.hexdigest())
+            proof.append(dict(min=minimum, max=maximum, above_255=above_255, nonzero_low_two_bits=low_bits))
+        require(not source.read(1), 'native_raw_size')
     return dict(bytes=visible_bytes, md5=whole.hexdigest(), coded_component_md5=coded_hashes,
                 visible_component_md5=visible_hashes, sample_proof=proof)
 
@@ -236,6 +275,10 @@ def packed_picture(raw, metadata):
 def compare_picture(raw, metadata, candidate, oracle):
     result = packed_picture(raw, metadata)
     reference = candidate['reference']
+    if reference.get('source_scope') == 'coded-picture reference (SEI), not output':
+        require('output_index' not in reference and oracle is None, 'nonoutput_mapping_invented')
+        require(result['coded_component_md5'] == reference['coded_component_md5'], 'coded_component_mismatch')
+        return result
     require(result['bytes'] == reference['bytes'] == oracle['bytes']
             and result['md5'] == reference['md5'] == oracle['md5'], 'native_reference_mismatch')
     if 'coded_component_md5' in reference:
@@ -338,7 +381,7 @@ def run(args):
                       native=harness.digest(args.native), synthetic_registration=harness.digest(fixture.REGISTRATION),
                       acquisition=harness.digest(args.data / 'acquisition.json'))
     oracle_identity = {name: harness.digest(args.oracle_bin / name) for name in ('ffmpeg', 'ffprobe')}
-    result = dict(complete=False, gate='G2', stage='g1', identities=identities, results=[])
+    result = dict(complete=False, gate='G3' if args.filters else 'G2', stage='g1', identities=identities, results=[])
     try:
         options = argparse.Namespace(**vars(args))
         options.out = args.out / 'g1'
@@ -377,8 +420,9 @@ def run(args):
                 metadata = json.loads(lines[0], object_pairs_hook=harness.unique_object)
                 validate_metadata(metadata, target, stream, source, args.max_memory_bytes, args.max_bins)
                 require(output.stat().st_size < harness.CAPTURE_CAP, 'native_raw_limit')
-                comparison = compare_picture(output.read_bytes(), metadata, candidate,
-                                             oracle[candidate['reference']['output_index']])
+                reference = candidate['reference']
+                comparison = compare_picture(output, metadata, candidate,
+                                             oracle[reference['output_index']] if 'output_index' in reference else None)
                 result['results'].append(dict(complete=True, candidate=candidate, metadata=metadata,
                                               comparison=comparison))
                 output.unlink()
@@ -394,6 +438,10 @@ def run(args):
         result.update(aggregate(denominator, result['results']), stage='complete',
                       negative_controls=[dict(test=stream['test'], source_sha256=stream['record']['sha256'],
                                               controls=stream['controls']) for stream in streams])
+        if args.filters:
+            result['gate'] = 'G3'
+            result['coverage_gaps'].append('unproved at 10-bit: tiles/dependent segments, no official candidate')
+            result['serial_effective_coverage_complete'] = False
     finally:
         harness.write_json(args.out / 'result.json', result)
     return result
@@ -406,6 +454,7 @@ def main():
         parser.add_argument('--' + name, required=True, type=pathlib.Path)
     parser.add_argument('--max-memory-bytes', required=True, type=int)
     parser.add_argument('--max-bins', required=True, type=int)
+    parser.add_argument('--filters', action='store_true', help='Include original filtered intra and non-output SEI references')
     args = parser.parse_args()
     try:
         result = run(args)
