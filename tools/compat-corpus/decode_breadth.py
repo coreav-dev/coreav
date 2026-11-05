@@ -72,6 +72,7 @@ import time
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent.parent / 'scripts')]
 import thumbnail_oracle  # noqa: E402
+import test_oracle
 
 BAR = 74
 GROUPS = ('h264', 'av1', 'vp9', 'vp8', 'other')
@@ -517,6 +518,9 @@ def main():
         p.add_argument('--files', required=name == 'summarize')
         p.add_argument(out, required=True)
     opts = parser.parse_args()
+    if opts.mode == 'run':
+        oracle = test_oracle.require(opts.ffmpeg, opts.ffprobe)
+        opts.ffmpeg, opts.ffprobe = str(oracle.ffmpeg), str(oracle.ffprobe)
     if opts.mode == 'run' and opts.fetch:
         import round_files
         pool = round_files.pool()

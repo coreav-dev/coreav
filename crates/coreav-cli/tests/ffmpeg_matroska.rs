@@ -6,6 +6,9 @@
     clippy::indexing_slicing
 )]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -28,19 +31,8 @@ fn run(command: &mut Command) -> Vec<u8> {
 }
 
 fn tools() -> Option<(PathBuf, PathBuf)> {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| "/opt/coreav-oracle-bin/ffmpeg".into());
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
-    if ffmpeg.is_file() && ffprobe.is_file() {
-        return Some((ffmpeg, ffprobe));
-    }
-    assert!(
-        std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-        "the pinned FFmpeg oracle is required"
-    );
-    eprintln!("skipping: set COREAV_FFMPEG to the pinned oracle");
-    None
+    let pair = test_oracle::require();
+    Some((pair.ffmpeg().to_path_buf(), pair.ffprobe().to_path_buf()))
 }
 
 fn scratch(name: &str) -> PathBuf {

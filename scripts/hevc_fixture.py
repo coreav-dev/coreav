@@ -16,6 +16,7 @@ import sys
 import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import test_oracle
 import oracle_pin
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -384,6 +385,8 @@ def main():
     parser.add_argument('--output', required=True, type=pathlib.Path)
     parser.add_argument('--registration', type=pathlib.Path, default=REGISTRATION)
     args = parser.parse_args()
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = qualified.ffmpeg, qualified.ffprobe
     expected = None
     if args.mode == 'verify':
         expected = json.loads(args.registration.read_text())

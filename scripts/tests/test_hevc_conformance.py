@@ -778,7 +778,7 @@ class Conformance(unittest.TestCase):
         with mock.patch.object(runner, 'registration', return_value=data), \
                 mock.patch.object(runner, 'read_json', side_effect=[acquisition, inventory]), \
                 mock.patch.object(runner, 'digest', return_value='f' * 64), \
-                mock.patch.object(runner.oracle_pin, 'verify_bin', return_value=[]), \
+                mock.patch.object(runner.test_oracle, 'verify_bin', return_value=[]), \
                 mock.patch.object(runner, 'child', return_value=(0, self.root / 'native', None)), \
                 mock.patch.object(runner, 'native_rows', return_value=fixture[2:5]), \
                 mock.patch.object(runner, 'probe', side_effect=[fixture[5], dict(frames=fixture[6])]), \
@@ -939,7 +939,7 @@ class Conformance(unittest.TestCase):
                                manifests=manifests)
         with mock.patch.dict(sys.modules, {'round_files': round_files, 'r2pool': limits}), \
                 mock.patch.object(runner, 'roster', return_value=files), \
-                mock.patch.object(runner.oracle_pin, 'verify_bin', return_value=[]), \
+                mock.patch.object(runner.test_oracle, 'verify_bin', return_value=[]), \
                 mock.patch.object(runner, 'corpus_record', side_effect=inspect):
             runner.fetch_corpus(args, inspect=True)
         self.assertEqual(list(dest.iterdir()), [keep])

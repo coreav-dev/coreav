@@ -47,6 +47,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import transcode_check as tc  # noqa: E402
 import transcode_speed as ts  # noqa: E402
+import test_oracle
 
 MACHINE = 'c4-standard-8'
 USD_PER_HOUR = 0.60
@@ -67,12 +68,12 @@ def job_script(gate_name, classes):
         '> out/apt.log 2>&1',
         '{ lscpu; nproc; free -g; uname -a; df -h /dev/shm; echo "smt active: '
         '$(cat /sys/devices/system/cpu/smt/active 2>&1)"; python3 --version; ldd bin/coreav; '
-        'sha256sum bin/* transcode_speed.py transcode_check.py; bin/ffmpeg -version | head -1; } '
+        'sha256sum bin/* scripts/*; bin/ffmpeg -version | head -1; } '
         '> out/host.txt 2>&1',
         'if ldd bin/coreav | grep -q "not found"; then echo "missing libraries" >> out/progress.txt; exit 2; fi',
         'export PATH="$PWD/bin:$PATH"',
         'echo "start $(date -u +%T)" >> out/progress.txt',
-        f'python3 -I transcode_speed.py run --selection selection.json --files files --coreav bin/coreav '
+        f'python3 -I scripts/transcode_speed.py run --selection selection.json --files files --coreav bin/coreav '
         f'--ffmpeg bin/ffmpeg --ffprobe bin/ffprobe {arms} --gate {shlex.quote(gate_name)} --out out '
         f'--tmp /dev/shm/transcode-speed --classes {",".join(classes)} > out/speed.log 2>&1',
         'echo "rc=$? end $(date -u +%T)" >> out/progress.txt',
@@ -155,8 +156,7 @@ def main():
         (up / 'files').mkdir(exist_ok=True)
         for name, path in (('coreav', a.coreav), ('ffmpeg', a.ffmpeg), ('ffprobe', a.ffprobe), ('x264', a.x264)):
             shutil.copy(path, up / 'bin' / name)
-        for name in ('transcode_speed.py', 'transcode_check.py'):
-            shutil.copy(HERE / name, up / name)
+        test_oracle.bundle(up, ['transcode_speed.py'])
         gate_name = 'gate' + pathlib.Path(a.gate).suffix
         shutil.copy(a.gate, up / gate_name)
         tc.ENV = tc.child_env(a.ffmpeg)

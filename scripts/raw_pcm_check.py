@@ -11,7 +11,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
-from oracle_pin import verify_bin
+from test_oracle import verify_bin
 from pcm_output_check import fields, native_command, run
 from swr_characterize import RATES, pcm, signal
 

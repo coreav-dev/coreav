@@ -152,12 +152,12 @@ class SummaryComparison(unittest.TestCase):
 
 class Commands(unittest.TestCase):
     def oracle(self):
-        with patch.object(check.oracle_pin_macos, "verify_bin", return_value=[]), \
-                patch.object(check.oracle_pin, "verify_bin", return_value=[]):
+        with patch.object(check.test_oracle, "verify_bin", return_value=[]), \
+                patch.object(check.test_oracle, "verify_bin", return_value=[]):
             return check.Oracle(Path("oracle"))
 
     def test_platform_pin_is_verified_on_construction(self):
-        for platform, module in (("darwin", check.oracle_pin_macos), ("linux", check.oracle_pin)):
+        for platform, module in (("darwin", check.test_oracle), ("linux", check.test_oracle)):
             with self.subTest(platform=platform), patch.object(check.sys, "platform", platform), \
                     patch.object(module, "verify_bin", return_value=[]) as verify:
                 oracle = check.Oracle(Path("oracle"))
@@ -169,7 +169,7 @@ class Commands(unittest.TestCase):
             options = {"side_effect": failure} if isinstance(failure, BaseException) else {"return_value": failure}
             output = io.StringIO()
             with self.subTest(failure=failure), patch.object(check.sys, "platform", "darwin"), \
-                    patch.object(check.oracle_pin_macos, "verify_bin", **options), \
+                    patch.object(check.test_oracle, "verify_bin", **options), \
                     patch.object(check, "generate_fixtures") as generate, \
                     contextlib.redirect_stderr(output):
                 self.assertEqual(check.main(["--coreav", "coreav", "--oracle-dir", "oracle",
@@ -295,22 +295,25 @@ class Commands(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory, patch.object(check.subprocess, "run", side_effect=child), \
                 patch.object(check, "matroska_without_default_duration", side_effect=lambda data: data), \
+                patch.object(check, "hevc_sample_types", return_value={0, 1, 20, 21, 32, 33, 34, 35, 40}), \
                 patch.object(check, "rewrite_avcc", side_effect=lambda data, change: data):
             root = Path(directory)
             (root / "unrelated").write_bytes(b"leave alone")
             first = check.generate_fixtures(oracle, root, audio=True)
             second = check.generate_fixtures(oracle, root, audio=True)
             self.assertEqual(first, second)
-            self.assertEqual(len(first), 41)
+            self.assertEqual(len(first), 50)
             by_name = {fixture.name: fixture for fixture in first}
             for name in ("mov-pcm", "ts-av", "ts-audio", "ts-programs", "ts-mp2-unassigned", "mp4-fractional-rotation", "ts-offset", "mp4-split-utf8",
                          "mp4-fragmented", "mp4-irregular-clock", "mkv-large-track-title", "mkv-analysis-packet-cap",
                          "mp4-unspecified-aspect-header-only-pps", "mp4-unspecified-aspect-truncated-pps",
-                         "mp4-unspecified-aspect-unused-pps"):
+                         "mp4-unspecified-aspect-unused-pps", "mp4-hevc-hev1-inband",
+                         "mp4-hevc-hev1-aud", "mp4-hevc-hev1-hash", "mp4-hevc-hev1-with-audio"):
                 self.assertFalse(by_name[name].native, name)
             for name in ("mov-aac", "ts-mp2", "ts-mp2-offset", "ts-mp2-programs",
                          "mp4-chapters", "mp4-hdr", "mp4-hdr-rotation", "mp4-long-metadata",
-                         "mp4-unspecified-aspect-without-config-suffix"):
+                         "mp4-unspecified-aspect-without-config-suffix", "mp4-hevc-hev1",
+                         "mp4-hevc-hev1-cra", "mp4-hevc-main10", "mp4-hevc-metadata", "mp4-hevc-hvc1"):
                 self.assertTrue(by_name[name].native, name)
             self.assertEqual([fixture.name for fixture in first if fixture.structured_side_data],
                              ["mp4-hdr-rotation"])
@@ -318,6 +321,33 @@ class Commands(unittest.TestCase):
             self.assertFalse(list(root.glob(".input-summary-*")))
             for fixture in second:
                 self.assertEqual(fixture.path.read_bytes(), b"generated")
+
+    def test_hevc_fixture_types_are_read_from_all_framed_sample_units(self):
+        def sample(kind):
+            return b"\x00\x00\x00\x03" + bytes((kind << 1, 1, 0x80))
+
+        for payloads, expected in (([sample(20), sample(21)], {20, 21}),
+                                   ([sample(35) + sample(20), sample(40)], {20, 35, 40})):
+            with patch.object(check.stsd_craft, "read_source",
+                              return_value=(b"", 0, [(value, 1, 0, True) for value in payloads], (0, 0))):
+                self.assertEqual(check.hevc_sample_types("generated.mp4"), expected)
+        for payload in (b"\x00", b"\x00\x00\x00\x00", b"\x00\x00\x00\x09\x28\x01\x80"):
+            with patch.object(check.stsd_craft, "read_source", return_value=(b"", 0, [(payload, 1, 0, True)], (0, 0))):
+                with self.assertRaises(check.CheckFailure):
+                    check.hevc_sample_types("generated.mp4")
+
+    def test_structured_control_compares_complete_output_status_and_stderr(self):
+        oracle = self.oracle()
+        good = subprocess.CompletedProcess([], 0, b'{"streams":[{"width":64}]}\n', b'')
+        with patch.object(check.subprocess, "run", side_effect=[good, good]):
+            self.assertEqual(check.compare_structured("native", oracle, Path("generated.mp4"), "hevc"), [])
+        for bad in (subprocess.CompletedProcess([], 0, b'{"streams":[{"width":65}]}\n', b''),
+                    subprocess.CompletedProcess([], 1, good.stdout, b''),
+                    subprocess.CompletedProcess([], 0, good.stdout, b'warning'),
+                    subprocess.CompletedProcess([], 0, b'', b'')):
+            with patch.object(check.subprocess, "run", side_effect=[bad, good]):
+                self.assertEqual(check.compare_structured("native", oracle, Path("generated.mp4"), "hevc"),
+                                 ["hevc-structured"])
 
     def test_matroska_rate_fixture_keeps_packets_but_omits_stale_indexes_and_defaults(self):
         craft = check.mkv_craft

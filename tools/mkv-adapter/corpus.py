@@ -37,6 +37,8 @@ import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 sys.path.insert(0, str(ROOT / 'tools' / 'mediainfo-oracle'))
 import mediainfo_oracle as mo  # noqa: E402
 
@@ -90,11 +92,11 @@ def sha256_file(path):
     return digest.hexdigest()
 
 
-def capture(command, name, level, out_path):
+def capture(command, name, level, out_path, env=None):
     """Runs an adapter; writes its document or a failure record; returns the run record."""
     started = time.monotonic()
     try:
-        done = subprocess.run(command, capture_output=True, timeout=TIMEOUT, check=False)
+        done = subprocess.run(command, capture_output=True, timeout=TIMEOUT, check=False, env=env)
         status, stdout, stderr = done.returncode, done.stdout, done.stderr
     except subprocess.TimeoutExpired:
         status, stdout, stderr = 'timeout', b'', b''
@@ -138,7 +140,8 @@ def process(entry, args, env, endpoint):
             for level in LEVELS:
                 record['runs'][f'ffprobe.{level}'] = capture(
                     [str(ROOT / 'scripts' / 'oracle-ffprobe.sh'), level, str(media)], name, level,
-                    out / 'reference' / f'{name}.{level}.json')
+                    out / 'reference' / f'{name}.{level}.json',
+                    env=dict(os.environ, FFMPEG=str(args.oracle.ffmpeg), FFPROBE=str(args.oracle.ffprobe)))
             mediainfo = mo.capture_one(args.mediainfo, media, name)
             (out / 'mediainfo' / f'{name}.mediainfo.json').write_text(json.dumps(mediainfo) + '\n')
         # A new capture makes this file's old comparison stale.
@@ -155,12 +158,14 @@ def process(entry, args, env, endpoint):
 
 
 def cmd_run(args):
+    args.oracle = test_oracle.require(os.environ.get('FFMPEG'), os.environ.get('FFPROBE'))
+    ffprobe = str(args.oracle.ffprobe)
     out = pathlib.Path(args.out)
     for sub in ('reference', 'candidate', 'mediainfo', 'runs'):
         (out / sub).mkdir(parents=True, exist_ok=True)
     pathlib.Path(args.work).mkdir(parents=True, exist_ok=True)
     provenance = out / 'PROVENANCE.json'
-    current = {'ffprobe': subprocess.run(['ffprobe', '-version'], capture_output=True, text=True).stdout.split('\n')[0],
+    current = {'ffprobe': subprocess.run([ffprobe, '-version'], capture_output=True, text=True).stdout.split('\n')[0],
                'mediainfo': subprocess.run([args.mediainfo, '--Version'], capture_output=True,
                                            text=True).stdout.strip().split('\n')[-1]}
     if provenance.exists() and json.loads(provenance.read_text()) != current:

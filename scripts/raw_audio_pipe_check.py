@@ -503,10 +503,7 @@ def main():
     parser.add_argument("--oracle-bin", type=Path, required=True)
     parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
-    if sys.platform == "darwin":
-        from oracle_pin_macos import verify_bin
-    else:
-        from oracle_pin import verify_bin
+    from test_oracle import verify_bin
     problems = list(verify_bin(args.oracle_bin))
     if problems:
         raise SystemExit("\n".join(problems))

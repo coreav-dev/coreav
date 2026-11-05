@@ -119,7 +119,7 @@ class Report(unittest.TestCase):
         self.platform = patch.object(deblock.sys, 'platform', 'linux')
         self.platform.start()
         self.addCleanup(self.platform.stop)
-        self.pin = patch.object(g1.oracle_pin, 'verify_bin', return_value=[])
+        self.pin = patch.object(g1.test_oracle, 'verify_bin', return_value=[])
         self.pin.start()
         self.addCleanup(self.pin.stop)
 
@@ -193,7 +193,7 @@ class Report(unittest.TestCase):
         self.assertEqual(len(self.report()['cells']), 2)
 
     def test_pin_and_provenance_failures_retain_incomplete_report(self):
-        with patch.object(g1.oracle_pin, 'verify_bin', return_value=['wrong oracle']):
+        with patch.object(g1.test_oracle, 'verify_bin', return_value=['wrong oracle']):
             with self.assertRaisesRegex(ValueError, 'wrong oracle'):
                 deblock.main(self.argv)
         self.assertFalse(self.report()['complete'])

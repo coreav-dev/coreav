@@ -25,6 +25,7 @@ import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import oracle_pin
+import test_oracle
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 import transcode_check as tc
 import transcode_speed as speed
@@ -347,7 +348,7 @@ def run(args):
         build_receipt = json.loads(Path(args.build).read_text())
         require(build_receipt['commit'] == commit and build_receipt['command'] == BUILD and
                 build_receipt['coreav_sha256'] == digest(coreav), 'build receipt does not match source and executable')
-        require(not list(oracle_pin.verify_bin(tools)), 'oracle pin verification failed')
+        require(not list(test_oracle.verify_bin(tools)), 'oracle pin verification failed')
         registered = roster()
         report.update(inputs=registered, inputs_sha256=digest(INPUTS), build=build_receipt,
                       host=host(tmp, json.loads(Path(args.instance).read_text())),
@@ -402,7 +403,7 @@ def run(args):
 
 def smoke(args):
     tools = Path(args.tools).resolve()
-    require(not list(oracle_pin.verify_bin(tools)), 'oracle pin verification failed')
+    require(not list(test_oracle.verify_bin(tools)), 'oracle pin verification failed')
     tmp = Path(args.tmp).resolve()
     tmp.mkdir(parents=True, exist_ok=False)
     executor = Executor(300)

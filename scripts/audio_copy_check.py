@@ -42,6 +42,7 @@ import sys
 from fractions import Fraction
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import test_oracle
 
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
@@ -263,11 +264,13 @@ def cases(source, out):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--coreav", required=True)
-    parser.add_argument("--ffmpeg", default="ffmpeg")
-    parser.add_argument("--ffprobe", default="ffprobe")
+    parser.add_argument("--ffmpeg")
+    parser.add_argument("--ffprobe")
     parser.add_argument("--work", required=True, type=pathlib.Path)
     parser.add_argument("--report", type=pathlib.Path)
     tools = parser.parse_args()
+    qualified = test_oracle.require(tools.ffmpeg, tools.ffprobe)
+    tools.ffmpeg, tools.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     sources, out = tools.work / "sources", tools.work / "outputs"
     shutil.rmtree(tools.work, ignore_errors=True)
     sources.mkdir(parents=True)

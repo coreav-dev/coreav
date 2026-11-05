@@ -24,7 +24,7 @@ class FallbackNames(unittest.TestCase):
         self.directory = self.root / 'oracle bin'
         for attribute, value in [('ROOT', self.root), ('OUT', self.out), ('SOURCE', self.source)]:
             self.enterContext(patch.object(names, attribute, value))
-        self.verify = self.enterContext(patch.object(names.oracle_pin, 'verify_bin', return_value=[]))
+        self.verify = self.enterContext(patch.object(names.test_oracle, 'verify_bin', return_value=[]))
         self.listing = self.enterContext(patch.object(names, 'run', side_effect=self.listings))
         vocabulary = SimpleNamespace(FFMPEG_VALUE=set(), FFMPEG_CODEC=set(), FFMPEG_FLAG=set(),
                                      FFPROBE_VALUE=set(), FFPROBE_FLAG=set())

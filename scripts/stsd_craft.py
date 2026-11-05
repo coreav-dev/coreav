@@ -26,6 +26,8 @@ import struct
 import subprocess
 import sys
 import tempfile
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import test_oracle
 
 
 def boxes(data, start, end):
@@ -188,6 +190,7 @@ FIXTURE = 'two-sample-entries'
 
 
 def fixture(ffmpeg, directory):
+    ffmpeg = str(test_oracle.require(ffmpeg).ffmpeg)
     video = os.path.join(directory, FIXTURE + '.mp4')
     with tempfile.TemporaryDirectory() as work:
         sources = []

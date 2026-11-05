@@ -18,6 +18,8 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 ROSTER = ROOT / 'docs/measurements/vp9-native/roster.json'
 CONDITION = ROOT / 'docs/measurements/vp9-native/file-condition.json'
 PACKETS = 120
@@ -451,7 +453,13 @@ def main():
     report.add_argument('--shards', type=int, required=True)
     args = parser.parse_args()
     try:
+        if args.mode in ('run', 'preflight'):
+            oracle = test_oracle.require(args.ffmpeg, args.ffprobe)
+            args.ffmpeg, args.ffprobe = str(oracle.ffmpeg), str(oracle.ffprobe)
         return {'fetch': bounded_fetch, 'run': run, 'preflight': preflight, 'summarize': summarize}[args.mode](args)
+    except test_oracle.QualificationError as error:
+        print(str(error), file=sys.stderr)
+        return 1
     except Exception as error:
         print(f'vp9-corpus: {args.mode} failed ({type(error).__name__})', file=sys.stderr)
         return 1

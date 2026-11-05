@@ -41,6 +41,8 @@ import statistics
 import subprocess
 import sys
 import time
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import test_oracle
 
 RESAMPLES = 2_000
 
@@ -77,6 +79,7 @@ def main():
     p.add_argument('--seed', type=int, default=20261021)
     p.add_argument('--report')
     args = p.parse_args()
+    args.ffmpeg = str(test_oracle.require(args.ffmpeg).ffmpeg)
     rows = []
     for stream in args.streams:
         name = pathlib.Path(stream).name

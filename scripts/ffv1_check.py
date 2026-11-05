@@ -16,6 +16,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import oracle_pin
+import test_oracle
 
 MAX_BYTES = 64 * 1024 * 1024
 MAX_CASES = 128
@@ -65,7 +66,7 @@ def verify_oracles(ffmpeg, ffprobe):
     ffmpeg, ffprobe = Path(ffmpeg).resolve(), Path(ffprobe).resolve()
     require(ffmpeg.name == 'ffmpeg' and ffprobe.name == 'ffprobe' and ffmpeg.parent == ffprobe.parent,
             'supply ffmpeg and ffprobe from the same pinned installation')
-    problems = list(oracle_pin.verify_bin(ffmpeg.parent))
+    problems = list(test_oracle.verify_bin(ffmpeg.parent))
     require(not problems, '\n'.join(problems))
     for executable in (ffmpeg, ffprobe):
         run([executable, '-version'], output_limit=65536)

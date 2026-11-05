@@ -20,6 +20,9 @@ STREAM_MAP = {
 }
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import test_oracle
+
 def integer(value):
     return None if value is None or value == "N/A" else int(value)
 
@@ -222,8 +225,8 @@ def main():
     parser.add_argument("command", choices=["capture", "run", "self-check"])
     parser.add_argument("fixtures", type=Path)
     parser.add_argument("output", type=Path, help="new directory; existing outputs are never overwritten")
-    parser.add_argument("--ffprobe", default="ffprobe")
-    parser.add_argument("--ffmpeg", default="ffmpeg")
+    parser.add_argument("--ffprobe")
+    parser.add_argument("--ffmpeg")
     parser.add_argument("--timeout", type=float, default=120, help="seconds per subprocess")
     parser.add_argument("--comparator", type=Path, default=Path("target/debug/coreav-oracle-json"))
     parser.add_argument("--profile", choices=["fixtures", "real"], default="fixtures")
@@ -231,6 +234,8 @@ def main():
     candidate.add_argument("--candidate-exe", type=Path)
     candidate.add_argument("--candidate-dir", type=Path)
     args = parser.parse_args()
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
     if args.command == "run" and not (args.candidate_exe or args.candidate_dir):

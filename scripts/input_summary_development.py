@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / 'tools' / 'compat-corpus'))
 import round_files
 sys.path.insert(0, str(ROOT / 'scripts'))
 import oracle_pin
+import test_oracle
 
 
 def select(manifests):
@@ -163,7 +164,7 @@ def main():
     selected = []
     stage = 'preparation'
     try:
-        if list(oracle_pin.verify_bin(args.oracle_dir)):
+        if list(test_oracle.verify_bin(args.oracle_dir)):
             raise CaptureFailure('oracle-pin', 'verification', [])
         selected = select({name: round_files.manifest(name, None) for name in ('v1', 'v1-ts-audio')})
         if not selected:

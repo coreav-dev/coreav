@@ -54,6 +54,7 @@ import zlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import clip_check as cc  # noqa: E402
 import track_boxes  # noqa: E402
+import test_oracle
 
 IN_SCOPE = (".mp4", ".mov", ".m4a", ".m4b", ".m4v", ".3gp", ".3g2")
 TIMEOUT = 600
@@ -1116,8 +1117,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--coreav", required=True)
     parser.add_argument("--media", required=True)
-    parser.add_argument("--ffprobe", default="ffprobe")
-    parser.add_argument("--ffmpeg", default="ffmpeg")
+    parser.add_argument("--ffprobe")
+    parser.add_argument("--ffmpeg")
     parser.add_argument("--mediainfo")
     parser.add_argument("--kd-overlay", help="known-divergences.json from scripts/oracle_kd.py")
     parser.add_argument("--require-several-edits", action="store_true",
@@ -1125,6 +1126,8 @@ def main():
                              "(the fixture run; a corpus directory holds no source for them)")
     parser.add_argument("--report")
     args = parser.parse_args()
+    oracle = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = str(oracle.ffmpeg), str(oracle.ffprobe)
 
     entries = known_divergences()
     strict = strict_files(args.kd_overlay)

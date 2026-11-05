@@ -118,7 +118,7 @@ class KnownExclusions(unittest.TestCase):
                  mock.patch.object(harness, 'known_exclusions', return_value=exclusions), \
                  mock.patch.object(harness, 'read_json', side_effect=[acquisition, inventory]), \
                  mock.patch.object(harness, 'digest', side_effect=identity), \
-                 mock.patch.object(harness.oracle_pin, 'verify_bin', return_value=[]), \
+                 mock.patch.object(harness.test_oracle, 'verify_bin', return_value=[]), \
                  mock.patch.object(harness, 'child', return_value=(0, root / 'native', None)) as child, \
                  mock.patch.object(harness, 'native_rows', return_value=(dict(complete=True), [], [])), \
                  mock.patch.object(harness, 'probe') as probe, \

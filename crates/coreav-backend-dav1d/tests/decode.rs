@@ -11,6 +11,9 @@
     clippy::indexing_slicing
 )]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -21,11 +24,7 @@ use coreav_decode::{
 use coreav_isobmff::{Allowlist, Budget, FileSource, Source, probe};
 
 fn ffmpeg() -> PathBuf {
-    let path = std::env::var_os("PATH").expect("PATH");
-    std::env::split_paths(&path)
-        .map(|d| d.join("ffmpeg"))
-        .find(|p| p.is_file())
-        .expect("ffmpeg on PATH")
+    test_oracle::require().ffmpeg().to_path_buf()
 }
 
 fn generate(dir: &Path, name: &str, size: &str, pix_fmt: &str, extra: &[&str]) -> PathBuf {

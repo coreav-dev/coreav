@@ -345,7 +345,7 @@ fn probe_with_purpose<'a, S: Source + 'a>(
         return mkv::probe(buffered, size, name, limits::matroska(limits));
     }
     if wanted(args::Container::Isobmff) {
-        match iso::probe(&mut buffered, size, name, limits) {
+        match iso::probe(&mut buffered, size, name, limits, purpose) {
             Err(failure) if not_isobmff(&failure) => {}
             Ok(iso::IsoProbed {
                 mut report,

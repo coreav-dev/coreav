@@ -4,6 +4,9 @@
 #[path = "../../coreav-isobmff/tests/common/text_movie.rs"]
 mod common;
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -179,9 +182,7 @@ fn output_span_does_not_change_copy_planning_or_trimmed_bytes() {
         "4064dba9ec64429a954c8492f77e7934b63348a6bc4d77ea2fb1346511d49c92"
     );
     std::fs::remove_file(&output).unwrap();
-    let pin = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
+    let pin = test_oracle::require().ffmpeg().to_path_buf();
     for existing in [false, true] {
         if existing {
             std::fs::write(&output, b"existing output").unwrap();
@@ -205,43 +206,36 @@ fn output_span_does_not_change_copy_planning_or_trimmed_bytes() {
         } else {
             assert!(!output.exists());
         }
-        if pin.is_file() {
-            let expected = Command::new(&pin)
-                .args(["-nostdin", "-hide_banner"])
-                .args(args)
-                .arg(&input)
-                .args(tail)
-                .arg(&output)
-                .output()
-                .unwrap();
-            assert!(expected.status.success());
-            let bytes = std::fs::read(&output).unwrap();
-            if existing {
-                std::fs::write(&output, b"existing output").unwrap();
-            } else {
-                std::fs::remove_file(&output).unwrap();
-            }
-            let fallback = Command::new(env!("CARGO_BIN_EXE_coreav"))
-                .arg("ffmpeg")
-                .args(args)
-                .arg(&input)
-                .args(tail)
-                .arg(&output)
-                .env("COREAV_FALLBACK", &pin)
-                .env_remove("COREAV_STRICT_SAFE")
-                .env_remove("COREAV_FALLBACK_ACTIVE")
-                .output()
-                .unwrap();
-            assert_eq!(fallback.status.code(), expected.status.code());
-            assert_eq!(fallback.stdout, expected.stdout);
-            assert_eq!(std::fs::read(&output).unwrap(), bytes);
+        let expected = Command::new(&pin)
+            .args(["-nostdin", "-hide_banner"])
+            .args(args)
+            .arg(&input)
+            .args(tail)
+            .arg(&output)
+            .output()
+            .unwrap();
+        assert!(expected.status.success());
+        let bytes = std::fs::read(&output).unwrap();
+        if existing {
+            std::fs::write(&output, b"existing output").unwrap();
         } else {
-            assert!(
-                std::env::var_os("CI").is_none()
-                    && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-                "set COREAV_FFMPEG to the pin"
-            );
+            std::fs::remove_file(&output).unwrap();
         }
+        let fallback = Command::new(env!("CARGO_BIN_EXE_coreav"))
+            .arg("ffmpeg")
+            .args(args)
+            .arg(&input)
+            .args(tail)
+            .arg(&output)
+            .env("COREAV_FALLBACK", &pin)
+            .env_remove("COREAV_STRICT_SAFE")
+            .env_remove("COREAV_FALLBACK_ACTIVE")
+            .output()
+            .unwrap();
+        assert_eq!(fallback.status.code(), expected.status.code());
+        assert_eq!(fallback.stdout, expected.stdout);
+        assert_eq!(std::fs::read(&output).unwrap(), bytes);
+
         if output.exists() {
             std::fs::remove_file(&output).unwrap();
         }
@@ -290,26 +284,21 @@ fn format_output_counts_all_cover_picture_streams() {
         for writer in ["json", "csv=p=0", "default=noprint_wrappers=1:nokey=1"] {
             let output = run(&path, writer, "format=nb_streams");
             assert!(output.status.success());
-            let oracle = std::env::var_os("COREAV_FFMPEG")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"))
-                .with_file_name("ffprobe");
-            if oracle.is_file() {
-                let reference = Command::new(oracle)
-                    .args([
-                        "-v",
-                        "error",
-                        "-of",
-                        writer,
-                        "-show_entries",
-                        "format=nb_streams",
-                    ])
-                    .arg(&path)
-                    .output()
-                    .unwrap();
-                assert!(reference.status.success());
-                assert_eq!(output.stdout, reference.stdout);
-            }
+            let oracle = test_oracle::require().ffprobe().to_path_buf();
+            let reference = Command::new(oracle)
+                .args([
+                    "-v",
+                    "error",
+                    "-of",
+                    writer,
+                    "-show_entries",
+                    "format=nb_streams",
+                ])
+                .arg(&path)
+                .output()
+                .unwrap();
+            assert!(reference.status.success());
+            assert_eq!(output.stdout, reference.stdout);
         }
     }
 }

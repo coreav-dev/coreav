@@ -15,6 +15,7 @@ import subprocess
 import sys
 
 import oracle_pin
+import test_oracle
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ROSTER = ROOT / "packages/wasm-h264/test/installed/roster.json"
@@ -209,7 +210,7 @@ def generate(oracle, x264, output, hostile_manifest=None):
     if output.exists() and any(output.iterdir()):
         raise ValueError("output directory must be empty")
     output.mkdir(parents=True, exist_ok=True)
-    problems = list(oracle_pin.verify_bin(oracle))
+    problems = list(test_oracle.verify_bin(oracle))
     if problems:
         raise ValueError("the pinned oracle programs are required")
     logs = []

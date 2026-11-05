@@ -14,6 +14,7 @@ import unittest
 from unittest.mock import patch
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 SCRIPT = Path(__file__).resolve().parents[1] / 'gen-v2-fixtures.py'
 SPEC = importlib.util.spec_from_file_location('gen_v2_fixtures', SCRIPT)
 generator = importlib.util.module_from_spec(SPEC)
@@ -160,7 +161,9 @@ class Generator(unittest.TestCase):
             target = out / 'v2_still_rgba.png'
             target.write_bytes(b'previous complete fixture')
             stdout, stderr = io.StringIO(), io.StringIO()
-            with patch.object(generator.subprocess, 'run', side_effect=subprocess.TimeoutExpired(
+            with patch.object(generator.test_oracle, 'require', return_value=generator.test_oracle.Oracle(
+                    Path('/oracle/ffmpeg'), Path('/oracle/ffprobe'))), \
+                    patch.object(generator.subprocess, 'run', side_effect=subprocess.TimeoutExpired(
                     'ffmpeg', 180, stderr=b'partial encoder diagnostic')):
                 with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                     status = generator.main([
@@ -190,11 +193,11 @@ class Generator(unittest.TestCase):
                 self.assertEqual(list(Path(temporary).iterdir()), [])
 
 
-@unittest.skipUnless(os.environ.get('COREAV_V2_FFMPEG') and os.environ.get('COREAV_V2_FFPROBE'),
-                     'optional short smoke requires caller-verified oracle paths')
 class OracleSmoke(unittest.TestCase):
     def test_stills_and_multitrack_match_the_recipe_and_repeat_bytes(self):
-        ffmpeg, ffprobe = os.environ['COREAV_V2_FFMPEG'], os.environ['COREAV_V2_FFPROBE']
+        import test_oracle
+        oracle = test_oracle.require(os.environ.get('COREAV_V2_FFMPEG'), os.environ.get('COREAV_V2_FFPROBE'))
+        ffmpeg, ffprobe = oracle.ffmpeg, oracle.ffprobe
         names = ('v2_still_rgba.png', 'v2_still_rgb.jpg', 'v2_multi_audio_eng.mp4',
                  'v2_still_rgba%03d.png')
         hashes = []

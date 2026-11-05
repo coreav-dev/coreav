@@ -49,6 +49,8 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
+sys.path.insert(0, str(HERE))
+import test_oracle
 MACHINE = 'c4-standard-16'
 USD_PER_HOUR = 1.20            # an upper bound on the on-demand price of c4-standard-16 and its disk
 CAP_USD = 10.0                 # the per-task spend limit
@@ -61,7 +63,8 @@ BINARIES = ('decode-oracle', 'ffmpeg', 'ffprobe')
 UPLOADED = ['scripts/codec_coverage_gcp.py', 'scripts/thumbnail_oracle.py',
             'tools/compat-corpus/decode_breadth.py', 'tools/compat-corpus/decode_reasons.json',
             'tools/compat-corpus/round_files.py',
-            'tools/compat-corpus/release_round.py', 'tools/stage3-report/r2pool.py']
+            'tools/compat-corpus/release_round.py', 'tools/stage3-report/r2pool.py'] \
+    + ['scripts/' + name for name in test_oracle.SUPPORT]
 
 
 def sha256(path):
@@ -196,6 +199,7 @@ def check_binaries(bin_dir, manifest_):
 
 
 def build(args, up, pending):
+    test_oracle.bundle(up / 'repo', ['thumbnail_oracle.py'])
     for rel in UPLOADED:
         (up / 'repo' / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / rel, up / 'repo' / rel)

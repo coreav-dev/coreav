@@ -19,6 +19,7 @@ from evidence import file_hash, require, sha, write
 
 sys.path.insert(0, str(ROOT / "scripts"))
 import oracle_pin_macos
+import test_oracle
 
 BOTTLE_SHA = "71ea80f43e78935336818c646b4561db14301e5590d0e726f221a944cb9efb73"
 BINARY_SHA = "bbb048645b448aea89db45c7331a09598c82da9941c41ce478b05d52b4c15bb2"
@@ -91,7 +92,7 @@ def capture(oracle, output):
         sys.platform == "darwin" and not output.exists(), "capture_platform_or_output"
     )
     oracle = oracle.resolve(strict=True)
-    problems = list(oracle_pin_macos.verify_bin(oracle, ROOT))
+    problems = list(test_oracle.verify_bin(oracle, ROOT))
     require(not problems, "baseline_pin")
     pin = oracle_pin_macos.load(ROOT)
     ffmpeg = oracle / "ffmpeg"
