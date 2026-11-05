@@ -1,6 +1,6 @@
-# HEVC header conformance census
+# HEVC conformance checks
 
-This is milestone 1 of [the HEVC design](../../docs/design/hevc.md). It acquires published data, checks every admitted stream's headers to EOF, and records the fixed 54-file profile/container census. It does not reconstruct pictures with CoreAV, measure speed, or pass later correctness gates.
+The G1 driver of [the HEVC design](../../docs/design/hevc.md) acquires published data, checks every admitted stream's headers to EOF, and records the fixed 54-file profile/container census. The G2 driver adds selected unfiltered intra reconstruction against original registered references, not inter or filtered-picture decoding. Neither driver measures speed. The historical candidate counts below are not new reconstruction results.
 
 The [complete evidence-source table](evidence-sources.md) records the verified census at `028ca00a6831b64faa226614252edd0290ce642d`: 147 archives, 144 distinct official bitstreams, 144 header/reference checks, two named maintainer exclusions and one named unequal-depth refusal. The 126 hash-validated-oracle count rows represent 123 distinct streams; those counts are not labelled published. The separate four synthetic sources supply eight Main10 G2 candidates. Published candidates supply three 8-bit G2, eleven 8-bit G3 and six Main10 G3 pictures. All four depth/gate sets are nonempty; these are candidates, not reconstruction passes.
 
@@ -12,7 +12,7 @@ The metadata-only census also completed all 54 fixed files. Its public aggregate
 
 The registration pins the listing HTML and the H.265.1 PDF. Archive SHA-256 values are not invented before acquisition. `acquisition.json` records them, and each `inventory.json` records extracted data hashes, published MD5 records, declared sizes, and descriptions. Those receipts must be retained with the census. The full acquisition is required before the full census can pass. A preflight selection never reports complete coverage.
 
-H.265.1 clause 6.5.2 allows archives without decoded pictures or reference hashes and prescribes the reference software to generate them. That software is not an allowed source or oracle for this project. A missing published reference therefore blocks the test. An included published YUV file can supply the reference directly, with its derived MD5 labelled as such. Binary-oracle output is never substituted for missing published data.
+H.265.1 clause 6.5.2 allows archives without decoded pictures or reference hashes and prescribes the reference software to generate them. That software is not an allowed source or oracle for this project. An included published YUV file can supply the reference directly, with its derived MD5 labelled as such. When an archive has only a published whole-output MD5, per-picture oracle hashes are allowed only after the complete pinned-oracle output matches that published MD5 exactly, under the [reference decision of 2026-11-05](../../docs/design/hevc.md). Each derived reference is explicitly oracle-derived and records the original stream identity, coded/output picture indices, anchoring published MD5 and attachment identity. Missing or mismatching whole-output references remain reported blockers, not silently skipped pictures or unanchored oracle substitutions.
 
 `TSUNEQBD_A_MAIN10` is an expected refusal. Clause 6.6.13.3 specifies 10-bit luma and 9-bit chroma, outside the registered equal-depth scope. Extension-data tests are not blanket exclusions. For example, clause 6.6.12.36 requires Main decoders to ignore `EXT_A`'s extension data and decode its three pictures.
 
@@ -36,6 +36,28 @@ python3 scripts/hevc_conformance.py run \
 
 For a small acquisition preflight, append `--archive IPRED_B_Nokia_3.zip`. It cannot pass the full gate. Do not run the full acquisition or census on a Capy machine.
 
+### Selected intra reconstruction
+
+Build both `headers` and `intra` examples with `native-hevc`. After the same acquisition, hash binding and synthetic verification above, run G1 and G2 together with:
+
+```sh
+python3 -I scripts/hevc_intra.py \
+  --registration "$RUNNER_TEMP/archives.pinned.json" \
+  --data "$RUNNER_TEMP/hevc-data" --out "$RUNNER_TEMP/hevc-intra" \
+  --synthetic-data "$RUNNER_TEMP/hevc-synthetic" \
+  --parser "$PWD/target/release/examples/headers" \
+  --native "$PWD/target/release/examples/intra" --oracle-bin "$ORACLE_BIN" \
+  --max-memory-bytes 268435456 --max-bins 268435456
+```
+
+This calls the existing G1 owner once into `hevc-intra/g1`; do not also run the standalone G1 command for the same work. It derives eligible original coded-picture indices from every fresh header record, retaining archive aliases and the four synthetic recipes. An eligible picture missing an output/reference mapping fails instead of disappearing from the denominator. The complete source-bound result is `hevc-intra/result.json`, retained with G1 receipts in the workflow's `hevc-g2` artifact.
+
+The `intra` example takes `INPUT TARGET_INDEX NEW_OUTPUT_U16LE MAX_MEMORY_BYTES MAX_BINS`. It creates but never overwrites its output, packs coded Y/Cb/Cr as u16le at both depths, and emits one complete JSON record only after header EOF, successful finalization and output flush. Failure removes only its own newly created output. Caller-owned input capacity is reported separately from reconstruction memory. The G2 driver independently checks every sample's depth, original crop offsets, component geometry and byte count before packing visible 8-bit samples to bytes or retaining 10-bit little-endian pairs. Full coded-component hashes and cropped-picture hashes remain distinct.
+
+The oracle decodes the complete stream to bounded per-frame MD5 output, with exact frame counts, packed sizes, original output-reference order and complete progress. It is not a selected-frame shortcut. Nonzero exit, incomplete output or a reference mismatch fails; diagnostic wording does not. The original NAL sequence always reaches native reconstruction, with only the existing registered oracle-only parameter preparation permitted.
+
+Runtime controls require absent-target, one-byte entropy initialization, zero-memory and zero-bin failures with cleanup, plus preserved no-clobber output. Decoded mode/transform/QP/PCM counters and actual memory/bin use accompany every picture. Tile effects count real boundaries after the initial tile, only for tiled candidates; WPP and dependent effects likewise count only their own candidates. Missing effective reference cases remain explicit coverage gaps, not a claim of serial-feature pixel conformance. Unit/control tests are separate from this media result.
+
 Retain `archives.pinned.json` as an artifact and copy it into this directory's `archives.json` before completing the PR. The census requires these archive/extracted-data pins, not just the listing's filenames and sizes. Later acquisition checks the pinned archive and extracted hashes. A registration-identity hash binds the original listing/table decisions through this first-acquisition step; adding observed hashes cannot change its membership or scope.
 
 The independent oracle checks every access-unit boundary against the native first-slice offsets, coded geometry against stream metadata, and output count and ordered visible geometry/depth against decoded-frame metadata. Published counts and included reference YUV lengths provide a separate check. The native parser must simulate output decisions, not rename the number of `pic_output_flag` pictures to an output count. `BUMPING_A` has 49 published output pictures in clause 6.6.12.33 despite coding more pictures.
@@ -58,7 +80,7 @@ The [synthetic Main10 recipes](synthetic.md) supply additional unfiltered intra 
 
 [VPSSPSPPS_A's registered oracle preparation](oracle-preparation.md) stably orders only its leading VPS/SPS/PPS units. Every NAL byte, within-type order, VCL position and following byte remains unchanged; CoreAV always reads the original. Receipts and diagnostics retain both input digests. Its reference count is the published description's six pictures, and prepared output must match the published MD5 exactly. The original oracle's incomplete two-picture output is not accepted as harmless. For changing-resolution streams, stream-level coded geometry must match an activated format; each output's visible geometry and depth are compared independently in order.
 
-`census.json` retains each stream's chosen `reference_count`, including its method, value and source. `published: false` identifies the hash-validated oracle method. The `reference_count_sources` rows and `reference_count_methods` totals form the generated source audit. Refusals and blocked streams remain in that audit and the archive accounting. For a confirmed one-picture output, the published whole-file MD5 is also that picture's MD5, with its original hash attachment retained as the source. Multi-picture files still require published YUV bytes to derive individual picture hashes. The count fallback does not manufacture picture hashes or tool coverage.
+`census.json` retains each stream's chosen `reference_count`, including its method, value and source. `published: false` identifies the hash-validated oracle method. The `reference_count_sources` rows and `reference_count_methods` totals form the generated source audit. Refusals and blocked streams remain in that audit and the archive accounting. For a confirmed one-picture output, the published whole-file MD5 is also that picture's MD5, with its original hash attachment retained as the source. A multi-picture stream with eligible unfiltered intra pictures and no published YUV receives complete per-frame oracle hashes only after whole-output confirmation. These carry `source_scope: oracle_picture_anchored_to_published_whole_output`, `stream`, `stream_sha256`, `picture_index`, `output_index` and `anchoring_md5`, together with the published attachment and oracle identities. The count fallback alone does not manufacture picture hashes or tool coverage. New eligible pictures join the G2 denominator without changing the historical source audit.
 
 The separate fixed-file census does not decode frames or judge pixels. It reads container and selected-video-stream metadata only. Acquisition is separate from execution so credentials are not present in media subprocess environments.
 
@@ -89,7 +111,7 @@ The example accepts one complete Annex B file path. It emits JSON lines and retu
 
 Every NAL has a `kind: "nal"` record with integer `index`, `offset`, `size`, `nal_type`, `layer_id` and `temporal_id`. Offset names the first NAL-header byte after the start code. Size excludes Annex B trailing zero bytes. Temporal ID is `nuh_temporal_id_plus1 - 1`.
 
-Every VCL record includes boolean `first_slice_segment_in_pic_flag` and `dependent_slice_segment_flag`, and zero-based `picture_index`. All slices belonging to one coded picture carry that picture's index. A first slice also includes `coded_width`, `coded_height`, visible `width`, visible `height`, `bit_depth`, `profile_idc`, and boolean `tiles` and `wpp`. Each independent slice includes `slice_type`, two boolean `sao` flags, and boolean `deblocking_disabled`. The parser retains enough state to validate dependent segments and parameter-set activation. Additional slice/tool metadata can be emitted without changing the required fields.
+Every VCL record includes boolean `first_slice_segment_in_pic_flag` and `dependent_slice_segment_flag`, and zero-based `picture_index`. All slices belonging to one coded picture carry that picture's index. A first slice also includes `coded_width`, `coded_height`, visible `width`, visible `height`, `bit_depth`, `profile_idc`, `ctb_log2`, the four `conformance_window` offsets in chroma samples, and boolean `tiles` and `wpp`. Each independent slice includes `slice_type`, effective `slice_qp_y` and `chroma_qp_offsets`, two boolean `sao` flags, and boolean `deblocking_disabled`. The parser retains enough state to validate dependent segments and parameter-set activation. Additional slice/tool metadata can be emitted without changing the required fields.
 
 Every picture released by the output simulator has a `kind: "output"` record with `picture_index`, signed full `poc`, visible `width`, visible `height` and `bit_depth`, in presentation order. The final record is `kind: "summary"`, with `complete: true`, file `bytes`, `nals`, coded `pictures`, true `output_pictures`, and `tools` coverage. Nonzero exit and a final `kind: "refusal"` record with `category: "unsupported"` and `reason: "unequal component depths"` are required for the named out-of-scope test. Other failures must also return nonzero and must not emit a successful completion summary.
 
