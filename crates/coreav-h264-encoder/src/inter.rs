@@ -1,0 +1,1040 @@
+use super::*;
+use crate::motion::{Layout, Part};
+use coreav_kernels_h264::Block;
+
+#[derive(Clone)]
+pub(super) struct Inter {
+    pub(super) layout: Layout,
+    pub(super) parts: [Part; 16],
+    pub(super) len: usize,
+    differences: [Mv; 16],
+    pub(super) skip: bool,
+}
+
+impl Inter {
+    fn new(layout: Layout) -> Result<Self> {
+        let (parts, len) = layout.parts()?;
+        Ok(Self {
+            layout,
+            parts,
+            len,
+            differences: [Mv::default(); 16],
+            skip: false,
+        })
+    }
+
+    fn derive(&mut self, border: Border<'_>) -> Result<()> {
+        let mut grid = [None; 16];
+        for (part, difference) in self.parts.iter().zip(&mut self.differences).take(self.len) {
+            *difference = part
+                .mv
+                .difference(border.predictor(&grid, *part, self.layout)?)?;
+            motion::commit(&mut grid, *part)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn motion(&self) -> Result<MotionMb> {
+        let mut grid = [None; 16];
+        for &part in self.parts.iter().take(self.len) {
+            motion::commit(&mut grid, part)?;
+        }
+        let mut vectors = [Mv::default(); 16];
+        for (v, p) in vectors.iter_mut().zip(grid) {
+            *v = p.ok_or(Error::Internal)?;
+        }
+        Ok(MotionMb {
+            intra: false,
+            vectors,
+        })
+    }
+
+    pub(super) fn syntax(&self, w: &mut Bits) -> Result<()> {
+        w.ue(self.layout.code())?;
+        if let Layout::Sub(shapes) = self.layout {
+            for shape in shapes {
+                w.ue(u32::from(shape))?;
+            }
+        }
+        for &d in self.differences.iter().take(self.len) {
+            d.write(w)?;
+        }
+        Ok(())
+    }
+}
+
+fn predict(
+    reference: &FramePlane,
+    tile: &mut Tile,
+    part: Part,
+    mx: usize,
+    my: usize,
+    chroma: bool,
+) -> Result<()> {
+    let scale = if chroma { 2 } else { 1 };
+    let divisor = if chroma { 8 } else { 4 };
+    let margin = if chroma { 0 } else { 2 };
+    let extra = if chroma { 1 } else { 5 };
+    let (x, y) = (part.x / scale, part.y / scale);
+    let (width, height) = (part.width / scale, part.height / scale);
+    let ix = (mx * 16 / scale + x) as i32 + part.mv.x.div_euclid(divisor) - margin;
+    let iy = (my * 16 / scale + y) as i32 + part.mv.y.div_euclid(divisor) - margin;
+    let mut window = [0; 21 * 21];
+    for j in 0..height + extra {
+        for i in 0..width + extra {
+            *window.get_mut(j * 21 + i).ok_or(Error::Internal)? =
+                reference.sample(ix + i as i32, iy + j as i32)?;
+        }
+    }
+    let src =
+        Block::new(&window, 0, 21, width + extra, height + extra).map_err(|_| Error::Internal)?;
+    let dst = BlockMut::new(&mut tile.0, Tile::at(x, y), STRIDE, width, height)
+        .map_err(|_| Error::Internal)?;
+    let (xf, yf) = (
+        part.mv.x.rem_euclid(divisor) as u8,
+        part.mv.y.rem_euclid(divisor) as u8,
+    );
+    if chroma {
+        Scalar.chroma_mc(dst, src, xf, yf);
+    } else {
+        Scalar.luma_mc(dst, src, xf, yf);
+    }
+    Ok(())
+}
+
+pub(super) struct Search<'a> {
+    pub(super) reference: &'a [FramePlane; 3],
+    pub(super) decision: &'a Decision<'a>,
+    pub(super) border: Border<'a>,
+    pub(super) mx: usize,
+    pub(super) my: usize,
+    pub(super) previous: u8,
+}
+
+impl Search<'_> {
+    fn evaluate(&self, mut inter: Inter) -> Result<Candidate> {
+        if !motion::admitted(self.previous, inter.len) {
+            return Err(Error::Syntax);
+        }
+        inter.derive(self.border)?;
+        let mut luma = Luma {
+            mode: None,
+            modes: [2; 16],
+            levels: [[0; 16]; 16],
+            dc: [0; 16],
+            tile: Tile::empty(),
+        };
+        let mut chroma_tiles = [Tile::empty(), Tile::empty()];
+        for &part in inter.parts.iter().take(inter.len) {
+            predict(
+                self.reference.first().ok_or(Error::Internal)?,
+                &mut luma.tile,
+                part,
+                self.mx,
+                self.my,
+                false,
+            )?;
+            for (c, tile) in chroma_tiles.iter_mut().enumerate() {
+                predict(
+                    self.reference.get(c + 1).ok_or(Error::Internal)?,
+                    tile,
+                    part,
+                    self.mx,
+                    self.my,
+                    true,
+                )?;
+            }
+        }
+        let chroma = if inter.skip {
+            Chroma {
+                mode: 0,
+                levels: [[[0; 16]; 4]; 2],
+                dc: [[0; 4]; 2],
+                tiles: chroma_tiles,
+            }
+        } else {
+            for (k, levels) in luma.levels.iter_mut().enumerate() {
+                let (x, y) = xy(k);
+                *levels = t::quantize(
+                    &t::forward(&luma.tile.residual(self.decision.source, x, y)?)?,
+                    self.decision.qp,
+                    false,
+                )?;
+                luma.tile
+                    .add(x, y, &t::scaled(levels, self.decision.qp, None)?)?;
+            }
+            chroma_residual(
+                &chroma_tiles,
+                self.decision.csources,
+                t::chroma_qp(self.decision.qp),
+            )?
+        };
+        self.decision.candidate(luma, chroma, Some(inter), 0)
+    }
+
+    fn trial(
+        &self,
+        base: &Inter,
+        index: usize,
+        mv: Mv,
+        best: &mut Option<Candidate>,
+        refusal: &mut Error,
+    ) -> Result<()> {
+        if !mv.valid() {
+            return Ok(());
+        }
+        let mut candidate = base.clone();
+        candidate.parts.get_mut(index).ok_or(Error::Internal)?.mv = mv;
+        match self.evaluate(candidate) {
+            Ok(candidate) => consider(best, candidate),
+            Err(Error::Coefficient | Error::Syntax) => {}
+            Err(Error::MacroblockLimit) => *refusal = Error::MacroblockLimit,
+            Err(e) => return Err(e),
+        }
+        Ok(())
+    }
+
+    fn search_parts(
+        &self,
+        mut base: Inter,
+        start: usize,
+        end: usize,
+        refusal: &mut Error,
+    ) -> Result<Option<Candidate>> {
+        let mut result = None;
+        for index in start..end {
+            let mut grid = [None; 16];
+            for &p in base.parts.iter().take(index) {
+                motion::commit(&mut grid, p)?;
+            }
+            let part = *base.parts.get(index).ok_or(Error::Internal)?;
+            let predictor = self.border.predictor(&grid, part, base.layout)?;
+            let mut best = None;
+            self.trial(&base, index, Mv::default(), &mut best, refusal)?;
+            if predictor.x % 4 == 0 && predictor.y % 4 == 0 {
+                self.trial(&base, index, predictor, &mut best, refusal)?;
+            }
+            for x in -16..=16 {
+                for y in -16..=16 {
+                    self.trial(&base, index, Mv { x: x * 4, y: y * 4 }, &mut best, refusal)?;
+                }
+            }
+            for step in [2, 1] {
+                let Some(b) = &best else {
+                    break;
+                };
+                let centre = b
+                    .inter
+                    .as_ref()
+                    .ok_or(Error::Internal)?
+                    .parts
+                    .get(index)
+                    .ok_or(Error::Internal)?
+                    .mv;
+                for dx in [-step, 0, step] {
+                    for dy in [-step, 0, step] {
+                        if dx != 0 || dy != 0 {
+                            self.trial(
+                                &base,
+                                index,
+                                Mv {
+                                    x: centre.x + dx,
+                                    y: centre.y + dy,
+                                },
+                                &mut best,
+                                refusal,
+                            )?;
+                        }
+                    }
+                }
+            }
+            self.trial(&base, index, predictor, &mut best, refusal)?;
+            let Some(best) = best else {
+                return Ok(None);
+            };
+            base = best.inter.as_ref().ok_or(Error::Internal)?.clone();
+            result = Some(best);
+        }
+        Ok(result)
+    }
+
+    pub(super) fn candidates(
+        &self,
+        best: &mut Option<Candidate>,
+        refusal: &mut Error,
+    ) -> Result<()> {
+        if motion::admitted(self.previous, 1) {
+            let mv = self.border.skip()?;
+            if mv.valid() {
+                let mut skip = Inter::new(Layout::Whole)?;
+                skip.skip = true;
+                skip.parts.first_mut().ok_or(Error::Internal)?.mv = mv;
+                match self.evaluate(skip) {
+                    Ok(c) => consider(best, c),
+                    Err(Error::Coefficient | Error::Syntax) => {}
+                    Err(Error::MacroblockLimit) => *refusal = Error::MacroblockLimit,
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+        for layout in [Layout::Whole, Layout::Horizontal, Layout::Vertical] {
+            let base = Inter::new(layout)?;
+            if motion::admitted(self.previous, base.len) {
+                let len = base.len;
+                if let Some(candidate) = self.search_parts(base, 0, len, refusal)? {
+                    consider(best, candidate);
+                }
+            }
+        }
+        let mut selected = Inter::new(Layout::Sub([0; 4]))?;
+        if !motion::admitted(self.previous, selected.len) {
+            return Ok(());
+        }
+        let mut start = 0;
+        for group in 0..4 {
+            let mut group_best = None;
+            for shape in 0..4 {
+                let Layout::Sub(mut shapes) = selected.layout else {
+                    return Err(Error::Internal);
+                };
+                *shapes.get_mut(group).ok_or(Error::Internal)? = shape;
+                let mut trial = Inter::new(Layout::Sub(shapes))?;
+                if !motion::admitted(self.previous, trial.len) {
+                    continue;
+                }
+                for (dst, src) in trial.parts.iter_mut().zip(&selected.parts).take(start) {
+                    *dst = *src;
+                }
+                let count = match shape {
+                    0 => 1,
+                    1 | 2 => 2,
+                    _ => 4,
+                };
+                if let Some(candidate) = self.search_parts(trial, start, start + count, refusal)? {
+                    consider(&mut group_best, candidate);
+                }
+            }
+            let Some(candidate) = group_best else {
+                return Ok(());
+            };
+            selected = candidate.inter.as_ref().ok_or(Error::Internal)?.clone();
+            let Layout::Sub(shapes) = selected.layout else {
+                return Err(Error::Internal);
+            };
+            start += match shapes.get(group).ok_or(Error::Internal)? {
+                0 => 1,
+                1 | 2 => 2,
+                _ => 4,
+            };
+            if group == 3 {
+                consider(best, candidate);
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use super::*;
+    use crate::{Colour, Gop, Limits, Settings};
+
+    fn settings(deblocking: Deblocking) -> Settings {
+        Settings {
+            width: 16,
+            height: 16,
+            qp: 28,
+            deblocking,
+            gop: Gop::Fixed { idr_interval: 32 },
+            colour: Colour {
+                full_range: false,
+                primaries: 1,
+                transfer: 1,
+                matrix: 1,
+                chroma_location: 0,
+            },
+        }
+    }
+
+    struct Reader {
+        bytes: Vec<u8>,
+        bit: usize,
+    }
+    impl Reader {
+        fn new(nal: &[u8]) -> Self {
+            let mut bytes = Vec::new();
+            let mut zeros = 0;
+            for &b in &nal[1..] {
+                if zeros == 2 && b == 3 {
+                    zeros = 0;
+                    continue;
+                }
+                bytes.push(b);
+                zeros = if b == 0 { zeros + 1 } else { 0 };
+            }
+            Self { bytes, bit: 0 }
+        }
+        fn u(&mut self, n: usize) -> u32 {
+            let mut value = 0;
+            for _ in 0..n {
+                value = value * 2 + u32::from((self.bytes[self.bit / 8] >> (7 - self.bit % 8)) & 1);
+                self.bit += 1;
+            }
+            value
+        }
+        fn ue(&mut self) -> u32 {
+            let mut n = 0;
+            while self.u(1) == 0 {
+                n += 1;
+                assert!(n < 32);
+            }
+            (1 << n) - 1 + self.u(n)
+        }
+        fn se(&mut self) -> i32 {
+            let v = self.ue();
+            if v % 2 == 0 {
+                -(v as i32 / 2)
+            } else {
+                (v as i32 + 1) / 2
+            }
+        }
+    }
+
+    #[test]
+    fn every_luma_and_chroma_phase_uses_euclidean_negative_coordinates() {
+        let mut reference = FramePlane::new(16, 16).unwrap();
+        for (p, v) in reference.data.iter_mut().enumerate() {
+            *v = (32 + p % 16 * 4 + p / 16 * 8) as u8;
+        }
+        for xf in 0..4 {
+            for yf in 0..4 {
+                let mut tile = Tile::empty();
+                let part = Part {
+                    x: 4,
+                    y: 4,
+                    width: 4,
+                    height: 4,
+                    mv: Mv {
+                        x: -4 + xf,
+                        y: -4 + yf,
+                    },
+                };
+                predict(&reference, &mut tile, part, 0, 0, false).unwrap();
+                for j in 0..4 {
+                    for i in 0..4 {
+                        assert_eq!(
+                            tile.0[Tile::at(4 + i, 4 + j)],
+                            (32 + (3 + i) * 4 + (3 + j) * 8 + xf as usize + yf as usize * 2) as u8
+                        );
+                    }
+                }
+            }
+        }
+        for (p, v) in reference.data.iter_mut().enumerate() {
+            *v = (p % 16 * 8 + p / 16 * 8) as u8;
+        }
+        for xf in 0..8 {
+            for yf in 0..8 {
+                let mut tile = Tile::empty();
+                let part = Part {
+                    x: 4,
+                    y: 4,
+                    width: 4,
+                    height: 4,
+                    mv: Mv {
+                        x: -8 + xf,
+                        y: -8 + yf,
+                    },
+                };
+                predict(&reference, &mut tile, part, 0, 0, true).unwrap();
+                for j in 0..2 {
+                    for i in 0..2 {
+                        assert_eq!(
+                            tile.0[Tile::at(2 + i, 2 + j)],
+                            ((1 + i) * 8 + (1 + j) * 8 + xf as usize + yf as usize) as u8
+                        );
+                    }
+                }
+            }
+        }
+        for chroma in [false, true] {
+            for mv in [Mv { x: -8192, y: -2048 }, Mv { x: 8191, y: 2047 }] {
+                let mut tile = Tile::empty();
+                predict(
+                    &reference,
+                    &mut tile,
+                    Part {
+                        width: 16,
+                        height: 16,
+                        mv,
+                        ..Part::default()
+                    },
+                    0,
+                    0,
+                    chroma,
+                )
+                .unwrap();
+                let n = if chroma { 8 } else { 16 };
+                let corner = if mv.x < 0 {
+                    reference.data[0]
+                } else {
+                    reference.data[255]
+                };
+                for y in 0..n {
+                    for x in 0..n {
+                        assert_eq!(tile.0[Tile::at(x, y)], corner);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_syntax_fixtures_decode_every_partition_and_subpartition() {
+        let export = std::env::var_os("H264_P_FIXTURE_DIR").map(std::path::PathBuf::from);
+        if let Some(dir) = &export {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        let mut manifest = String::from("layout\tqp\tdeblocking\n");
+        let mut exported = 0;
+        let layouts = [
+            Layout::Whole,
+            Layout::Horizontal,
+            Layout::Vertical,
+            Layout::Sub([0; 4]),
+            Layout::Sub([1; 4]),
+            Layout::Sub([2; 4]),
+            Layout::Sub([3; 4]),
+            Layout::Sub([0, 1, 2, 3]),
+        ];
+        for qp in [10, 16, 28, 40, 51] {
+            for deblocking in [Deblocking::Disabled, Deblocking::Enabled] {
+                for (layout_index, layout) in layouts.into_iter().enumerate() {
+                    let mut s = settings(deblocking);
+                    s.qp = qp;
+                    let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+                    let y: Vec<_> = (0..256)
+                        .map(|p| (32 + p % 16 * 5 + p / 16 * 3) as u8)
+                        .collect();
+                    let cb: Vec<_> = (0..64)
+                        .map(|p| (64 + p % 8 * 9 + p / 8 * 5) as u8)
+                        .collect();
+                    let cr: Vec<_> = (0..64)
+                        .map(|p| (192 - p % 8 * 7 - p / 8 * 3) as u8)
+                        .collect();
+                    let picture = Picture {
+                        y: Plane::new(&y, 16, 16, 16).unwrap(),
+                        cb: Plane::new(&cb, 8, 8, 8).unwrap(),
+                        cr: Plane::new(&cr, 8, 8, 8).unwrap(),
+                    };
+                    let first = encoder.encode(picture).unwrap();
+                    let reference = encoder.reference.as_ref().unwrap();
+                    let (_, source) = reference[0].tiles(picture.y, 0, 0, 16).unwrap();
+                    let csources = [
+                        reference[1].tiles(picture.cb, 0, 0, 8).unwrap().1,
+                        reference[2].tiles(picture.cr, 0, 0, 8).unwrap().1,
+                    ];
+                    let context = MbContext {
+                        top: None,
+                        left: None,
+                        p_slice: true,
+                    };
+                    let decision = Decision {
+                        source: &source,
+                        csources: &csources,
+                        context,
+                        qp,
+                        pending_skip: 0,
+                    };
+                    let search = Search {
+                        reference,
+                        decision: &decision,
+                        border: Border::default(),
+                        mx: 0,
+                        my: 0,
+                        previous: 0,
+                    };
+                    let mut inter = Inter::new(layout).unwrap();
+                    for (i, p) in inter.parts.iter_mut().take(inter.len).enumerate() {
+                        p.mv = Mv {
+                            x: (i % 3) as i32 * 4 - 3,
+                            y: (i % 5) as i32 * 2 - 3,
+                        };
+                    }
+                    let candidate = search.evaluate(inter).unwrap();
+                    let mut writer = Bits::new(100_000);
+                    syntax::slice(
+                        &mut writer,
+                        &encoder,
+                        syntax::Slice {
+                            idr: false,
+                            id: 0,
+                            frame_num: 1,
+                        },
+                    )
+                    .unwrap();
+                    let header = writer.len;
+                    writer.ue(0).unwrap();
+                    let state = macroblock(
+                        &mut writer,
+                        &candidate.luma,
+                        &candidate.chroma,
+                        candidate.inter.as_ref(),
+                        context,
+                    )
+                    .unwrap();
+                    assert_eq!(writer.len - header, candidate.key.bits);
+                    let nal = writer.nal(0x61).unwrap();
+                    let mut reader = Reader::new(&nal);
+                    assert_eq!(reader.ue(), 0);
+                    assert_eq!(reader.ue(), 5);
+                    assert_eq!(reader.ue(), 0);
+                    assert_eq!(reader.u(4), 1);
+                    assert_eq!(reader.u(3), 0);
+                    assert_eq!(reader.se(), i32::from(qp) - 26);
+                    let filter = reader.ue();
+                    assert_eq!(filter, u32::from(deblocking == Deblocking::Disabled));
+                    if filter == 0 {
+                        assert_eq!(reader.se(), 0);
+                        assert_eq!(reader.se(), 0);
+                    }
+                    assert_eq!(reader.ue(), 0);
+                    let code = reader.ue();
+                    assert_eq!(code, layout.code());
+                    let count = if code == 3 {
+                        let mut count = 0;
+                        let Layout::Sub(shapes) = layout else {
+                            unreachable!()
+                        };
+                        for expected in shapes {
+                            let shape = reader.ue();
+                            assert_eq!(shape, u32::from(expected));
+                            count += match shape {
+                                0 => 1,
+                                1 | 2 => 2,
+                                3 => 4,
+                                _ => unreachable!(),
+                            };
+                        }
+                        count
+                    } else if code == 0 {
+                        1
+                    } else {
+                        2
+                    };
+                    let inter = candidate.inter.as_ref().unwrap();
+                    assert_eq!(count, inter.len);
+                    for d in inter.differences.iter().take(count) {
+                        assert_eq!(reader.se(), d.x);
+                        assert_eq!(reader.se(), d.y);
+                    }
+                    let mut planes = [
+                        FramePlane::new(16, 16).unwrap(),
+                        FramePlane::new(8, 8).unwrap(),
+                        FramePlane::new(8, 8).unwrap(),
+                    ];
+                    planes[0].commit(&candidate.luma.tile, 0, 0, 16).unwrap();
+                    for (c, tile) in candidate.chroma.tiles.iter().enumerate() {
+                        planes[c + 1].commit(tile, 0, 0, 8).unwrap();
+                    }
+                    let nonzero = state.counts[0]
+                        .iter()
+                        .enumerate()
+                        .fold(0, |v, (p, &n)| v | if n != 0 { 1 << p } else { 0 });
+                    if deblocking == Deblocking::Enabled {
+                        for (c, plane) in planes.iter_mut().enumerate() {
+                            deblock::picture(
+                                &mut plane.data,
+                                plane.width,
+                                plane.height,
+                                if c == 0 { qp } else { t::chroma_qp(qp) },
+                                c != 0,
+                                |_, _| {
+                                    Ok(deblock::Record {
+                                        motion: state.motion,
+                                        nonzero,
+                                    })
+                                },
+                            )
+                            .unwrap();
+                        }
+                    }
+                    let mut expected = vec![
+                        first.reconstruction.clone(),
+                        planes.iter().flat_map(|p| p.data.iter().copied()).collect(),
+                    ];
+                    let mut decoder = coreav_h264::Decoder::with_kernels(
+                        coreav_h264::Scalar,
+                        coreav_h264::Limits::default(),
+                    )
+                    .with_mode(coreav_h264::Mode::EveryPicture);
+                    for n in &first.nals {
+                        decoder.decode_nal(n).unwrap();
+                    }
+                    decoder.end_access_unit().unwrap();
+                    for n in &first.nals[..2] {
+                        decoder.decode_nal(n).unwrap();
+                    }
+                    decoder.decode_nal(&nal).unwrap();
+                    decoder.end_access_unit().unwrap();
+                    decoder.flush().unwrap();
+                    let pictures = decoder.take_pictures();
+                    assert_eq!(pictures.len(), 2);
+                    for (picture, expected) in pictures.iter().zip(&expected) {
+                        let (cb, cr) = picture.chroma();
+                        let actual: Vec<_> = picture
+                            .luma()
+                            .rows()
+                            .chain(cb.rows())
+                            .chain(cr.rows())
+                            .flatten()
+                            .copied()
+                            .collect();
+                        assert_eq!(
+                            &actual, expected,
+                            "layout={layout:?} qp={qp} deblocking={deblocking:?}"
+                        );
+                    }
+                    assert!(decoder.warnings().is_empty());
+                    assert_eq!(decoder.warnings_dropped(), 0);
+                    let enabled = u8::from(deblocking == Deblocking::Enabled);
+                    if let Some(dir) = &export {
+                        let name = format!("forced-{qp}-{enabled}-{layout_index}");
+                        let mut stream = Vec::new();
+                        for n in first
+                            .nals
+                            .iter()
+                            .chain(first.nals.iter().take(2))
+                            .chain(std::iter::once(&nal))
+                        {
+                            stream.extend([0, 0, 0, 1]);
+                            stream.extend(n);
+                        }
+                        std::fs::write(dir.join(format!("{name}.h264")), stream).unwrap();
+                        let samples: Vec<u8> = expected.drain(..).flatten().collect();
+                        std::fs::write(dir.join(format!("{name}.yuv")), samples).unwrap();
+                    }
+                    manifest.push_str(&format!("{layout_index}\t{qp}\t{enabled}\n"));
+                    exported += 1;
+                }
+            }
+        }
+        assert_eq!(exported, 80);
+        if let Some(dir) = &export {
+            std::fs::write(dir.join("manifest.tsv"), manifest).unwrap();
+        }
+    }
+
+    #[test]
+    fn a_forbidden_cheaper_skip_cannot_defeat_the_zero_count_intra_fallback() {
+        let mut encoder = Encoder::new(settings(Deblocking::Disabled), Limits::default()).unwrap();
+        let y = [104; 256];
+        let cb = [92; 64];
+        let cr = [156; 64];
+        let picture = Picture {
+            y: Plane::new(&y, 16, 16, 16).unwrap(),
+            cb: Plane::new(&cb, 8, 8, 8).unwrap(),
+            cr: Plane::new(&cr, 8, 8, 8).unwrap(),
+        };
+        encoder.encode(picture).unwrap();
+        let reference = encoder.reference.as_ref().unwrap();
+        let (base, source) = reference[0].tiles(picture.y, 0, 0, 16).unwrap();
+        let (cb, scb) = reference[1].tiles(picture.cb, 0, 0, 8).unwrap();
+        let (cr, scr) = reference[2].tiles(picture.cr, 0, 0, 8).unwrap();
+        let context = MbContext {
+            top: None,
+            left: None,
+            p_slice: true,
+        };
+        let csources = [scb, scr];
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context,
+            qp: 28,
+            pending_skip: 0,
+        };
+        let search = Search {
+            reference,
+            decision: &decision,
+            border: Border::default(),
+            mx: 0,
+            my: 0,
+            previous: 0,
+        };
+        let a = IntraAvail::default();
+        let intra = decision
+            .candidate(
+                intra16(&base, &source, a, 2, 28).unwrap(),
+                chroma(&[cb, cr], &csources, a, 0, 28).unwrap(),
+                None,
+                2,
+            )
+            .unwrap();
+        let mut skip = Inter::new(Layout::Whole).unwrap();
+        skip.skip = true;
+        let cheap = search.evaluate(skip.clone()).unwrap();
+        assert!(cheap.key < intra.key);
+        let forbidden = Search {
+            previous: 16,
+            ..search
+        };
+        assert!(matches!(forbidden.evaluate(skip), Err(Error::Syntax)));
+        let mut best = Some(intra);
+        forbidden
+            .candidates(&mut best, &mut Error::Coefficient)
+            .unwrap();
+        assert!(best.unwrap().inter.is_none());
+        let fine = Inter::new(Layout::Sub([3; 4])).unwrap();
+        assert_eq!(fine.len, 16);
+        assert!(search.evaluate(fine.clone()).is_ok());
+        assert!(matches!(
+            Search {
+                previous: 1,
+                ..search
+            }
+            .evaluate(fine),
+            Err(Error::Syntax)
+        ));
+    }
+
+    #[test]
+    fn predictor_seeds_outside_the_integer_square_and_fractional_limits_are_admitted_exactly() {
+        let mut encoder = Encoder::new(settings(Deblocking::Disabled), Limits::default()).unwrap();
+        let y = [128; 256];
+        let c = [128; 64];
+        let picture = Picture {
+            y: Plane::new(&y, 16, 16, 16).unwrap(),
+            cb: Plane::new(&c, 8, 8, 8).unwrap(),
+            cr: Plane::new(&c, 8, 8, 8).unwrap(),
+        };
+        encoder.encode(picture).unwrap();
+        let reference = encoder.reference.as_ref().unwrap();
+        let source = reference[0].tiles(picture.y, 0, 0, 16).unwrap().1;
+        let csources = [
+            reference[1].tiles(picture.cb, 0, 0, 8).unwrap().1,
+            reference[2].tiles(picture.cr, 0, 0, 8).unwrap().1,
+        ];
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context: MbContext {
+                top: None,
+                left: None,
+                p_slice: true,
+            },
+            qp: 28,
+            pending_skip: 0,
+        };
+        for mv in [Mv { x: -8192, y: -2048 }, Mv { x: 8191, y: 2047 }] {
+            let mb = MotionMb {
+                intra: false,
+                vectors: [mv; 16],
+            };
+            let search = Search {
+                reference,
+                decision: &decision,
+                border: Border {
+                    left: Some(&mb),
+                    top: Some(&mb),
+                    top_right: Some(&mb),
+                    ..Border::default()
+                },
+                mx: 0,
+                my: 0,
+                previous: 0,
+            };
+            let base = Inter::new(Layout::Whole).unwrap();
+            let best = search
+                .search_parts(base.clone(), 0, 1, &mut Error::Coefficient)
+                .unwrap()
+                .unwrap();
+            assert_eq!(best.inter.unwrap().parts[0].mv, mv);
+            for dx in [-2, -1, 0, 1, 2] {
+                for dy in [-2, -1, 0, 1, 2] {
+                    let trial = Mv {
+                        x: mv.x + dx,
+                        y: mv.y + dy,
+                    };
+                    let mut best = None;
+                    search
+                        .trial(&base, 0, trial, &mut best, &mut Error::Coefficient)
+                        .unwrap();
+                    assert_eq!(best.is_some(), trial.valid());
+                }
+            }
+            let skip = Inter {
+                skip: true,
+                parts: {
+                    let mut p = base.parts;
+                    p[0].mv = mv;
+                    p
+                },
+                ..base
+            };
+            assert!(search.evaluate(skip).is_ok());
+        }
+    }
+
+    #[test]
+    fn skip_prefix_costs_and_zero_residual_neighbours_match_the_emitted_syntax() {
+        let source = Tile::empty();
+        let csources = [Tile::empty(), Tile::empty()];
+        let dirty = Neighbour {
+            counts: [[16; 16]; 3],
+            ..Neighbour::default()
+        };
+        let context = MbContext {
+            top: Some(&dirty),
+            left: Some(&dirty),
+            p_slice: true,
+        };
+        let luma = Luma {
+            mode: None,
+            modes: [2; 16],
+            levels: [[0; 16]; 16],
+            dc: [0; 16],
+            tile: source.clone(),
+        };
+        let chroma = Chroma {
+            mode: 0,
+            levels: [[[0; 16]; 4]; 2],
+            dc: [[0; 4]; 2],
+            tiles: csources.clone(),
+        };
+        for pending_skip in [0, 1, 2, 3, 7, 8, 20] {
+            let decision = Decision {
+                source: &source,
+                csources: &csources,
+                context,
+                qp: 28,
+                pending_skip,
+            };
+            for skip in [false, true] {
+                let inter = Inter {
+                    skip,
+                    ..Inter::new(Layout::Whole).unwrap()
+                };
+                let candidate = decision
+                    .candidate(luma.clone(), chroma.clone(), Some(inter), 0)
+                    .unwrap();
+                let mut writer = Bits::new(100);
+                let run = pending_skip + u32::from(skip);
+                writer.ue(run).unwrap();
+                let prefix_bits = writer.len;
+                assert_eq!(
+                    prefix_bits,
+                    (2 * (32 - (run + 1).leading_zeros()) - 1) as usize
+                );
+                let state = macroblock(
+                    &mut writer,
+                    &candidate.luma,
+                    &candidate.chroma,
+                    candidate.inter.as_ref(),
+                    context,
+                )
+                .unwrap();
+                assert_eq!(state.counts, [[0; 16]; 3]);
+                assert!(!state.motion.intra);
+                assert_eq!(writer.len, candidate.key.bits);
+                if skip {
+                    assert_eq!(writer.len, prefix_bits);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn oversized_macroblock_layers_are_rejected_before_cost_comparison_without_counting_skip_runs()
+    {
+        let source = Tile::empty();
+        let csources = [Tile::empty(), Tile::empty()];
+        let context = MbContext {
+            top: None,
+            left: None,
+            p_slice: true,
+        };
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context,
+            qp: 10,
+            pending_skip: 0,
+        };
+        let prediction = Inter::new(Layout::Whole).unwrap();
+        let mut luma = Luma {
+            mode: None,
+            modes: [2; 16],
+            levels: [[2047; 16]; 16],
+            dc: [0; 16],
+            tile: source.clone(),
+        };
+        let mut chroma = Chroma {
+            mode: 0,
+            levels: [[[2047; 16]; 4]; 2],
+            dc: [[2047; 4]; 2],
+            tiles: csources.clone(),
+        };
+        let layer_bits = |luma: &Luma, chroma: &Chroma| {
+            let mut counter = Bits::count();
+            let result = macroblock(&mut counter, luma, chroma, Some(&prediction), context);
+            if counter.len > 3200 {
+                assert!(matches!(result, Err(Error::MacroblockLimit)));
+            } else {
+                result.unwrap();
+            }
+            counter.len
+        };
+        let oversized = layer_bits(&luma, &chroma);
+        assert!(oversized > 3200);
+        let mut alternative_luma = luma.clone();
+        alternative_luma.levels = [[0; 16]; 16];
+        alternative_luma.tile.0.fill(0);
+        let mut alternative_chroma = chroma.clone();
+        alternative_chroma.levels = [[[0; 16]; 4]; 2];
+        alternative_chroma.dc = [[0; 4]; 2];
+        for tile in &mut alternative_chroma.tiles {
+            tile.0.fill(0);
+        }
+        let alternative = decision
+            .candidate(
+                alternative_luma,
+                alternative_chroma,
+                Some(prediction.clone()),
+                0,
+            )
+            .unwrap();
+        assert!(oversized as u64 * (1 << (decision.qp / 3)) < alternative.key.cost);
+        let mut best = Some(alternative);
+        match decision.candidate(luma.clone(), chroma.clone(), Some(prediction.clone()), 0) {
+            Ok(candidate) => consider(&mut best, candidate),
+            Err(e) => assert_eq!(e, Error::MacroblockLimit),
+        }
+        assert!(best.unwrap().key.cost > oversized as u64 * (1 << (decision.qp / 3)));
+        for index in 0..392 {
+            if index < 256 {
+                luma.levels[index / 16][index % 16] = 0;
+            } else if index < 384 {
+                let c = index - 256;
+                chroma.levels[c / 64][c % 64 / 16][c % 16] = 0;
+            } else {
+                chroma.dc[(index - 384) / 4][(index - 384) % 4] = 0;
+            }
+            if layer_bits(&luma, &chroma) <= 3200 {
+                break;
+            }
+        }
+        let payload = layer_bits(&luma, &chroma);
+        assert!((3138..=3200).contains(&payload));
+        let with_run = Decision {
+            pending_skip: u32::MAX - 1,
+            ..decision
+        };
+        let accepted = with_run
+            .candidate(luma, chroma, Some(prediction), 0)
+            .unwrap();
+        assert_eq!(accepted.key.bits, payload + 63);
+        assert!(accepted.key.bits > 3200);
+    }
+}

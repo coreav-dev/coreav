@@ -1,7 +1,7 @@
 //! Test-only raw-picture driver and independent CoreAV reconstruction check.
 #![forbid(unsafe_code)]
 
-use coreav_h264_encoder::{Colour, Deblocking, Encoder, Limits, Picture, Plane, Settings};
+use coreav_h264_encoder::{Colour, Deblocking, Encoder, Gop, Limits, Picture, Plane, Settings};
 use std::{
     env,
     fs::File,
@@ -52,6 +52,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         height,
         qp: qp.parse()?,
         deblocking,
+        gop: Gop::AllIntra,
         colour: Colour {
             full_range: range.parse()?,
             primaries: primaries.parse()?,
