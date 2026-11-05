@@ -5,8 +5,8 @@ use std::collections::VecDeque;
 use std::time::Instant;
 
 use coreav_decode::{
-    Backend, BackendKind, Codec, Decoder, DecoderInfo, Error, ErrorKind, Isolation, Limits, Packet,
-    StreamConfig, StreamTraits, Support,
+    Backend, BackendKind, BufferLease, Codec, Decoder, DecoderInfo, Error, ErrorKind, Isolation,
+    Limits, Packet, PictureAllocator, SharedFrame, StreamConfig, StreamTraits, Support,
 };
 use coreav_frame::{Chroma, ColorInfo, Frame, Picture, PixelFormat, Pixels, Plane};
 
@@ -72,10 +72,9 @@ type Take<'a> = &'a mut dyn FnMut(&LentFrame<'_>) -> Result<(), Error>;
 /// VP codec ISOBMFF binding and the Matroska mappings store them. libvpx
 /// decodes it at once and makes ready the frame it shows, if any, which
 /// takes the packet's pts; neither codec reorders frames. Frames are
-/// copied out of libvpx's images into packed planes at once, so libvpx's
-/// buffers are never held: into a [`Frame`] by [`Decoder::send_packet`],
-/// or by the caller from a [`LentFrame`] with
-/// [`LibvpxDecoder::send_packet_lending`].
+/// copied into packed planes by [`Decoder::send_packet`], or lent to the
+/// caller by [`LibvpxDecoder::send_packet_lending`]. With a shared VP9
+/// allocator, the caller can retain a [`BufferLease`] instead of copying.
 pub struct LibvpxDecoder {
     vpx: Vpx,
     interface: Interface,
@@ -103,6 +102,26 @@ impl LibvpxDecoder {
         stream: &StreamConfig,
         limits: &Limits,
     ) -> Result<Self, Error> {
+        Self::open_inner(options, stream, limits, None)
+    }
+
+    /// Opens a decoder with caller-owned VP9 picture storage. VP8 retains
+    /// libvpx's internal allocation and exposes no shared-frame metadata.
+    pub fn open_with_allocator(
+        options: &LibvpxOptions,
+        stream: &StreamConfig,
+        limits: &Limits,
+        allocator: PictureAllocator,
+    ) -> Result<Self, Error> {
+        Self::open_inner(options, stream, limits, Some(allocator))
+    }
+
+    fn open_inner(
+        options: &LibvpxOptions,
+        stream: &StreamConfig,
+        limits: &Limits,
+        allocator: Option<PictureAllocator>,
+    ) -> Result<Self, Error> {
         let Some(interface) = interface(stream.codec) else {
             return Err(Error::new(ErrorKind::Unsupported, ONLY));
         };
@@ -121,7 +140,7 @@ impl LibvpxDecoder {
                 .map_or(1, |n| u32::try_from(n.get()).unwrap_or(u32::MAX)),
             n => n,
         };
-        let vpx = Vpx::open(interface, threads).map_err(|e| failure("opening", &e))?;
+        let vpx = Vpx::open(interface, threads, allocator).map_err(|e| failure("opening", &e))?;
         Ok(Self {
             vpx,
             interface,
@@ -155,9 +174,8 @@ impl LibvpxDecoder {
     /// [`Decoder::send_packet`], except that each frame the packet makes
     /// ready goes to `take` while it is still in libvpx's buffer, instead of
     /// being copied into a [`Frame`] for [`Decoder::receive_frame`]: for a
-    /// caller that copies it where it goes next at once (the sandboxed
-    /// worker, into its shared memory). An error from `take` fails the
-    /// decoder.
+    /// caller that copies it at once or retains its shared backing. An
+    /// error from `take` fails the decoder.
     pub fn send_packet_lending(
         &mut self,
         packet: &Packet<'_>,
@@ -346,6 +364,9 @@ fn decoded_frame_bytes(stream: &StreamConfig, width: u32, height: u32) -> u64 {
 }
 
 fn failure(what: &str, error: &Failure) -> Error {
+    if let Some(error) = &error.allocator_error {
+        return error.clone();
+    }
     let kind = match error.code {
         2 => ErrorKind::Limit,
         3 | 8 => ErrorKind::Backend,
@@ -493,6 +514,19 @@ pub struct LentFrame<'a> {
 }
 
 impl LentFrame<'_> {
+    /// Displayed planes already in the allocator's shared slot. Absent
+    /// without shared storage, for VP8, or for big-endian 16-bit samples.
+    /// Retain [`Self::shared_backing`] before this lending call returns.
+    pub fn shared_frame(&self) -> Option<SharedFrame> {
+        self.view.shared_frame()
+    }
+
+    /// Keeps a shared allocation alive after this lending call, including
+    /// after the decoder releases its own reference to the picture.
+    pub fn shared_backing(&self) -> Option<BufferLease> {
+        self.view.shared_backing()
+    }
+
     /// Width in pixels.
     pub fn width(&self) -> u32 {
         self.layout.width

@@ -1221,7 +1221,7 @@ jobs:
           COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
           COREAV_LEGACY_TRANSCODE: ${{ runner.temp }}/coreav-legacy-target/release/coreav
         run: |
-          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test transcode \
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test transcode --test frame_handoff --test decoder_host \
             --target-dir target/fallback
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
             --test legacy_encoders --target-dir target/fallback

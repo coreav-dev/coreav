@@ -33,6 +33,7 @@ rustix = { version = "1", default-features = false, features = ["std", "process"
 [target.'cfg(target_os = "linux")'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "fs", "process", "thread"] }
 memmap2 = "0.9"
+libc = "0.2"
 
 # An exception crate copies the workspace lint table with only
 # `unsafe_code` changed to "deny"; `#[allow(unsafe_code)]` is on `shm` alone

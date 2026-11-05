@@ -6,7 +6,7 @@
 #![forbid(unsafe_code)]
 
 #[cfg(target_os = "linux")]
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::io::{self, Write};
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -16,7 +16,9 @@ use std::time::Duration;
 #[cfg(target_os = "linux")]
 use std::time::Instant;
 
-use coreav_decode::{Decoder, DecoderInfo, Error, ErrorKind, Packet};
+#[cfg(target_os = "linux")]
+use coreav_decode::{BufferLease, SharedFrame};
+use coreav_decode::{Decoder, DecoderInfo, Error, ErrorKind, Packet, PictureAllocator};
 use coreav_frame::{ColorInfo, Picture, PixelFormat};
 
 #[cfg(target_os = "linux")]
@@ -89,7 +91,7 @@ fn run(
         open.limits.max_memory_bytes = open.limits.max_memory_bytes.min(space);
     }
     let mut output = Output::new(&open)?;
-    let mut decoder = make_decoder(&open)?;
+    let mut decoder = make_decoder(&open, output.allocator())?;
     WorkerMessage::Ready(decoder.info().decoder.clone())
         .write(out)
         .map_err(io_error)?;
@@ -256,10 +258,11 @@ fn spawn_reader(
     Ok((command_rx, ack_rx))
 }
 
-/// The backend the worker hosts. libvpx lends each frame it shows, which
-/// the worker copies straight into its slot; every other backend's frames
-/// come as [`coreav_frame::Frame`]s, copied from there.
+/// The backend the worker hosts. dav1d and libvpx lend displayed pictures
+/// already in shared slots when their allocator supports them.
 enum Hosted {
+    #[cfg(feature = "dav1d")]
+    Dav1d(Box<coreav_backend_dav1d::Dav1dDecoder>),
     #[cfg(feature = "libvpx")]
     Libvpx(Box<coreav_backend_libvpx::LibvpxDecoder>),
     Frames(Box<dyn Decoder>),
@@ -268,6 +271,8 @@ enum Hosted {
 impl Hosted {
     fn info(&self) -> &DecoderInfo {
         match self {
+            #[cfg(feature = "dav1d")]
+            Self::Dav1d(decoder) => decoder.info(),
             #[cfg(feature = "libvpx")]
             Self::Libvpx(decoder) => decoder.info(),
             Self::Frames(decoder) => decoder.info(),
@@ -282,6 +287,8 @@ impl Hosted {
         out: &mut impl Write,
     ) -> Result<(), Error> {
         match self {
+            #[cfg(feature = "dav1d")]
+            Self::Dav1d(decoder) => decoder.send_packet(packet),
             #[cfg(feature = "libvpx")]
             Self::Libvpx(decoder) => decoder.send_packet_lending(packet, &mut |frame| {
                 output.emit(frame, Some(frame.pts), frame.color, out)
@@ -292,6 +299,8 @@ impl Hosted {
 
     fn send_eof(&mut self) -> Result<(), Error> {
         match self {
+            #[cfg(feature = "dav1d")]
+            Self::Dav1d(decoder) => decoder.send_eof(),
             #[cfg(feature = "libvpx")]
             Self::Libvpx(decoder) => decoder.send_eof(),
             Self::Frames(decoder) => decoder.send_eof(),
@@ -300,7 +309,16 @@ impl Hosted {
 
     /// Sends on the frames the backend has ready.
     fn drain(&mut self, output: &mut Output, out: &mut impl Write) -> Result<(), Error> {
+        #[cfg(feature = "dav1d")]
+        if let Self::Dav1d(decoder) = self {
+            while decoder.receive_frame_lending(&mut |frame| {
+                output.emit(frame, frame.pts, frame.color, out)
+            })? {}
+            return Ok(());
+        }
         let decoder: &mut dyn Decoder = match self {
+            #[cfg(feature = "dav1d")]
+            Self::Dav1d(decoder) => decoder.as_mut(),
             #[cfg(feature = "libvpx")]
             Self::Libvpx(decoder) => decoder.as_mut(),
             Self::Frames(decoder) => decoder.as_mut(),
@@ -320,6 +338,10 @@ trait Outgoing {
     /// Writes the planes in order with their rows packed into `target`,
     /// exactly as long.
     fn write_packed(&self, target: &mut [u8]) -> Result<(), Error>;
+    #[cfg(target_os = "linux")]
+    fn shared(&self) -> Option<(SharedFrame, BufferLease)> {
+        None
+    }
 }
 
 impl Outgoing for Picture {
@@ -351,6 +373,10 @@ impl Outgoing for Picture {
 
 #[cfg(feature = "libvpx")]
 impl Outgoing for coreav_backend_libvpx::LentFrame<'_> {
+    #[cfg(target_os = "linux")]
+    fn shared(&self) -> Option<(SharedFrame, BufferLease)> {
+        Some((self.shared_frame()?, self.shared_backing()?))
+    }
     fn size(&self) -> (u32, u32) {
         (self.width(), self.height())
     }
@@ -364,8 +390,29 @@ impl Outgoing for coreav_backend_libvpx::LentFrame<'_> {
     }
 }
 
+#[cfg(feature = "dav1d")]
+impl Outgoing for coreav_backend_dav1d::LentFrame<'_> {
+    fn size(&self) -> (u32, u32) {
+        (self.width(), self.height())
+    }
+    fn format(&self) -> PixelFormat {
+        self.format()
+    }
+    fn write_packed(&self, target: &mut [u8]) -> Result<(), Error> {
+        self.write_packed(target)
+    }
+    #[cfg(target_os = "linux")]
+    fn shared(&self) -> Option<(SharedFrame, BufferLease)> {
+        Some((self.shared_frame()?, self.shared_backing()?))
+    }
+}
+
 /// Where frames go: slots of the shared memory, or inline.
 struct Output {
+    #[cfg(target_os = "linux")]
+    pool: Option<crate::shm::Pool>,
+    #[cfg(target_os = "linux")]
+    pending: HashMap<u32, (u32, BufferLease)>,
     #[cfg(target_os = "linux")]
     memory: Option<crate::shm::WorkerMemory>,
     #[cfg(target_os = "linux")]
@@ -386,24 +433,48 @@ struct Output {
 impl Output {
     #[cfg(target_os = "linux")]
     fn new(open: &Open) -> Result<Self, Error> {
-        let (slots, slot_size) = match &open.transfer {
+        let (slots, buffers, slot_size) = match &open.transfer {
             Transfer::Shared {
-                slots, slot_size, ..
-            } => (*slots, *slot_size),
-            Transfer::Pipe => (0, 0),
+                slots,
+                buffers,
+                slot_size,
+                ..
+            } => (*slots, *buffers, *slot_size),
+            Transfer::Pipe => (0, 0, 0),
         };
         let memory = match &open.transfer {
             Transfer::Shared { path, .. } => {
-                let len = u64::from(slots)
-                    .checked_mul(slot_size)
-                    .ok_or_else(|| Error::new(ErrorKind::Backend, "memory size overflows"))?;
+                let len = u64::from(
+                    slots
+                        .checked_add(buffers)
+                        .ok_or_else(|| Error::new(ErrorKind::Backend, "slot count overflows"))?,
+                )
+                .checked_mul(slot_size)
+                .ok_or_else(|| Error::new(ErrorKind::Backend, "memory size overflows"))?;
                 // Where the memory cannot be mapped (a sandbox without
                 // `/proc`), every frame goes inline instead.
-                crate::shm::WorkerMemory::open(path, len).ok()
+                crate::shm::WorkerMemory::open_prefix(path, len, u64::from(slots) * slot_size).ok()
             }
             Transfer::Pipe => None,
         };
+        let pool = match &open.transfer {
+            Transfer::Shared { path, .. } if buffers > 0 && memory.is_some() => {
+                crate::shm::Pool::open(
+                    path,
+                    slots,
+                    buffers,
+                    slot_size,
+                    open.limits
+                        .max_memory_bytes
+                        .saturating_sub(u64::from(slots) * slot_size),
+                )
+                .ok()
+            }
+            _ => None,
+        };
         Ok(Self {
+            pool,
+            pending: HashMap::new(),
             memory,
             slots,
             slot_size,
@@ -413,6 +484,26 @@ impl Output {
             seq: 0,
             deadline: open.limits.deadline(),
         })
+    }
+
+    fn allocator(&self) -> Option<PictureAllocator> {
+        #[cfg(target_os = "linux")]
+        return self
+            .pool
+            .as_ref()
+            .map(|pool| Arc::new(pool.clone()) as PictureAllocator);
+        #[cfg(not(target_os = "linux"))]
+        None
+    }
+
+    #[cfg(target_os = "linux")]
+    fn acknowledge(&mut self, slot: u32) {
+        if let Some((credit, lease)) = self.pending.remove(&slot) {
+            self.free.push_back(credit);
+            drop(lease);
+        } else if slot < self.slots && !self.free.contains(&slot) {
+            self.free.push_back(slot);
+        }
     }
 
     /// Outside Linux there is no shared memory: every frame goes inline.
@@ -429,6 +520,9 @@ impl Output {
     #[cfg(target_os = "linux")]
     fn take_slot(&mut self) -> Result<u32, Error> {
         loop {
+            while let Some(slot) = self.acks.as_ref().and_then(|acks| acks.try_recv().ok()) {
+                self.acknowledge(slot);
+            }
             if let Some(slot) = self.free.pop_front() {
                 return Ok(slot);
             }
@@ -438,10 +532,7 @@ impl Output {
                 .ok_or_else(|| Error::new(ErrorKind::Backend, "no acknowledgements"))?;
             let remaining = self.deadline.saturating_duration_since(Instant::now());
             match acks.recv_timeout(remaining) {
-                Ok(slot) if slot < self.slots && !self.free.contains(&slot) => {
-                    self.free.push_back(slot);
-                }
-                Ok(_) => {}
+                Ok(slot) => self.acknowledge(slot),
                 Err(RecvTimeoutError::Timeout) => {
                     return Err(Error::new(ErrorKind::Timeout, "no free frame slot"));
                 }
@@ -503,6 +594,48 @@ impl Output {
         };
         self.seq += 1;
         #[cfg(target_os = "linux")]
+        if let Some((shared, lease)) = picture.shared() {
+            while self.pending.contains_key(&shared.slot) {
+                let remaining = self.deadline.saturating_duration_since(Instant::now());
+                let ack = self
+                    .acks
+                    .as_ref()
+                    .ok_or_else(|| Error::new(ErrorKind::Backend, "no acknowledgements"))?
+                    .recv_timeout(remaining)
+                    .map_err(|e| match e {
+                        RecvTimeoutError::Timeout => {
+                            Error::new(ErrorKind::Timeout, "no free frame slot")
+                        }
+                        RecvTimeoutError::Disconnected => {
+                            Error::new(ErrorKind::Backend, "parent gone")
+                        }
+                    })?;
+                self.acknowledge(ack);
+            }
+            let credit = self.take_slot()?;
+            let slot = shared.slot;
+            self.pending.insert(slot, (credit, lease));
+            let planes = shared
+                .planes
+                .into_iter()
+                .map(|p| PlaneDescriptor {
+                    offset: p.offset,
+                    stride: p.stride,
+                    len: p.len,
+                })
+                .collect();
+            return WorkerMessage::Frame(
+                FrameDescriptor {
+                    slot,
+                    planes,
+                    ..descriptor
+                },
+                Vec::new(),
+            )
+            .write(out)
+            .map_err(io_error);
+        }
+        #[cfg(target_os = "linux")]
         if self.memory.is_some() && offset <= self.slot_size {
             let slot = self.take_slot()?;
             let base = u64::from(slot) * self.slot_size;
@@ -536,11 +669,11 @@ impl Output {
     }
 }
 
-fn make_decoder(open: &Open) -> Result<Hosted, Error> {
+fn make_decoder(open: &Open, allocator: Option<PictureAllocator>) -> Result<Hosted, Error> {
     match open.backend {
         WorkerBackend::Ffmpeg => ffmpeg_decoder(open).map(Hosted::Frames),
-        WorkerBackend::Dav1d => dav1d_decoder(open).map(Hosted::Frames),
-        WorkerBackend::Libvpx => libvpx_decoder(open),
+        WorkerBackend::Dav1d => dav1d_decoder(open, allocator),
+        WorkerBackend::Libvpx => libvpx_decoder(open, allocator),
     }
 }
 
@@ -571,20 +704,22 @@ fn ffmpeg_decoder(_: &Open) -> Result<Box<dyn Decoder>, Error> {
 }
 
 #[cfg(feature = "dav1d")]
-fn dav1d_decoder(open: &Open) -> Result<Box<dyn Decoder>, Error> {
+fn dav1d_decoder(open: &Open, allocator: Option<PictureAllocator>) -> Result<Hosted, Error> {
     use coreav_backend_dav1d::{Dav1dDecoder, Dav1dOptions};
     let options = Dav1dOptions {
         threads: open.threads,
     };
-    Ok(Box::new(Dav1dDecoder::open(
-        &options,
-        &open.stream,
-        &open.limits,
-    )?))
+    let decoder = match allocator {
+        Some(allocator) => {
+            Dav1dDecoder::open_with_allocator(&options, &open.stream, &open.limits, allocator)
+        }
+        None => Dav1dDecoder::open(&options, &open.stream, &open.limits),
+    }?;
+    Ok(Hosted::Dav1d(Box::new(decoder)))
 }
 
 #[cfg(not(feature = "dav1d"))]
-fn dav1d_decoder(_: &Open) -> Result<Box<dyn Decoder>, Error> {
+fn dav1d_decoder(_: &Open, _: Option<PictureAllocator>) -> Result<Hosted, Error> {
     Err(Error::new(
         ErrorKind::Unsupported,
         "this worker was built without dav1d",
@@ -592,20 +727,22 @@ fn dav1d_decoder(_: &Open) -> Result<Box<dyn Decoder>, Error> {
 }
 
 #[cfg(feature = "libvpx")]
-fn libvpx_decoder(open: &Open) -> Result<Hosted, Error> {
+fn libvpx_decoder(open: &Open, allocator: Option<PictureAllocator>) -> Result<Hosted, Error> {
     use coreav_backend_libvpx::{LibvpxDecoder, LibvpxOptions};
     let options = LibvpxOptions {
         threads: open.threads,
     };
-    Ok(Hosted::Libvpx(Box::new(LibvpxDecoder::open(
-        &options,
-        &open.stream,
-        &open.limits,
-    )?)))
+    let decoder = match allocator {
+        Some(allocator) => {
+            LibvpxDecoder::open_with_allocator(&options, &open.stream, &open.limits, allocator)
+        }
+        None => LibvpxDecoder::open(&options, &open.stream, &open.limits),
+    }?;
+    Ok(Hosted::Libvpx(Box::new(decoder)))
 }
 
 #[cfg(not(feature = "libvpx"))]
-fn libvpx_decoder(_: &Open) -> Result<Hosted, Error> {
+fn libvpx_decoder(_: &Open, _: Option<PictureAllocator>) -> Result<Hosted, Error> {
     Err(Error::new(
         ErrorKind::Unsupported,
         "this worker was built without libvpx",

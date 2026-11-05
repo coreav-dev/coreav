@@ -619,6 +619,7 @@ dependencies = [
  "coreav-decode",
  "coreav-frame",
  "coreav-isobmff",
+ "libc",
  "memmap2",
  "rustix",
 ]

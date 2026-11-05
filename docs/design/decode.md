@@ -34,7 +34,7 @@ multimedia implementation source was read.
 | `coreav-worker` | Sandboxed worker process: control protocol, descriptor validation, shared memory | `deny`, allowed only in `shm.rs` |
 | `coreav-backend-ffmpeg` | Drives an `ffmpeg` binary inside the worker | forbidden |
 | `coreav-backend-h264` | CoreAV's own H.264 decoder, in the calling process | forbidden |
-| `coreav-backend-dav1d` | dav1d through the `dav1d` crate | forbidden (the binding's own `unsafe` is a dependency's) |
+| `coreav-backend-dav1d` | dav1d through the `dav1d` crate | `deny`, allowed only in its picture allocator |
 | `coreav-backend-libvpx` | libvpx through CoreAV's declarations of its decoder API; the frame sizes of each packet, read in safe Rust | `deny`, allowed only in its FFI module |
 | `coreav-backend-nvdec` (planned, not in the workspace yet) | NVDEC through FFI | `deny`, allowed only in its FFI module |
 
@@ -331,16 +331,18 @@ owned by the worker, or anything after `Done` ends the session with a
 `Backend` error and kills the worker.
 
 **Shared memory**. The parent creates an anonymous memory file
-(`memfd_create`), sizes it for N slots (default 2) of the largest frame
-the stream's declared size and the limits allow, and seals it against
+(`memfd_create`), sizes it for N transfer slots (default 2), with 24 additional decoder slots for dav1d and libvpx, and seals it against
 shrinking and growing (`F_SEAL_SHRINK`, `F_SEAL_GROW`, then `F_SEAL_SEAL`),
 all through `rustix`'s safe API. The worker opens it read-write through
 `/proc/<parent>/fd/<n>`; the descriptor itself is close-on-exec, so other
 child processes do not inherit it. The parent maps it read-only as a raw
 mapping (`memmap2::MmapRaw`, created without `unsafe`, which hands out
 pointers, never references), the worker read-write with one `memmap2`
-call. The crate's only `unsafe` is in `shm.rs`: the worker's mapping call,
-and the parent's copy out of its mapping (below).
+call. The crate's only `unsafe` is in `shm.rs`, for mapping, copying and direct writes from raw mapped addresses to a pipe. Decoder slots allow padded dimensions, borders and 16-bit 4:4:4 samples. Their mappings are created lazily at the requested capacity, not at the arena's full virtual size.
+
+The decoder's allocation callback never waits for an acknowledgement. Reference pictures can occupy the entire shared pool, so an allocation that does not fit a shared slot uses reusable private storage within the same memory budget and the existing copy path. Live and cached capacities count together. The operating-system address-space limit is unchanged. Transfer slots are mapped separately from decoder slots, so obtaining writable transfer bytes never aliases a decoder's live C pointers.
+
+Each decoder allocation becomes an immutable `BufferLease` after its writable address is obtained. The decoder holds one lease until its release callback. A directly published frame holds another until the parent acknowledges it. The final lease returns the buffer to the pool. Publication still consumes one of the N transfer credits, and re-showing a reference picture waits for its previous acknowledgement before publishing that physical slot again. This keeps both bounded backpressure and the existing one-outstanding-frame-per-slot protocol.
 
 The seals settle what a compromised worker could do to the backing file: it cannot truncate the file, so the parent's mapping cannot fault (`SIGBUS`); it can
 only write bytes into it, which is what it is there for.
@@ -371,7 +373,7 @@ in their slots instead (`WorkerOptions::lend_frames`; the transcode,
 which writes each frame to the encoder's pipe). A lent frame's pixels
 are `Pixels::Shared`: a handle holding the byte ranges the descriptor's
 check gave, read only through the same `copy_out`, a piece at a time
-into the consumer's own buffer. The slot stays the parent's until the
+into the consumer's own buffer, or written directly to an unbuffered pipe with synchronous raw `writev`. No Rust slice into the mapping is formed in either case. The slot stays the parent's until the
 last clone of the frame drops, and the acknowledgement goes to the
 worker then; a frame in that slot before it ends the session, as for any
 slot the parent holds. A worker can change a lent frame's pixel values
@@ -664,9 +666,7 @@ and formats it lacks would be converted by FFmpeg.
 
 ## dav1d
 
-dav1d (BSD-2) decodes AV1 through the `dav1d` crate, the Rust binding of
-the rust-av project, so CoreAV writes no FFI and `coreav-backend-dav1d`
-keeps `unsafe` forbidden.
+dav1d (BSD-2) decodes AV1 through the `dav1d` crate, the Rust binding of the rust-av project. CoreAV implements its picture-allocation trait in the isolated `allocator` module.
 - **Build.** The crate's `dav1d` feature links the system's libdav1d
   (BSD-2), and the CLI, the worker and the decode oracle each have a
   `dav1d` feature that turns it on.
@@ -679,12 +679,7 @@ keeps `unsafe` forbidden.
     a pinned tarball (`docs/design/release.md`, "Two builds").
   - A default build has none of it, so the workspace builds without
     libdav1d.
-- **FFI.** All of it is in the `dav1d` crate, rust-av's binding (MIT,
-  accepted by `deny.toml`). `coreav-backend-dav1d` is the decoder-backend
-  crate that uses it, and it has no `unsafe` of its own: the workspace's
-  `forbid` holds, and `docs/unsafe-sites.md` says so. Should a future
-  version need CoreAV-authored FFI, it belongs in this crate only, under
-  the decoder-backend `unsafe` exception, with each site listed in `docs/unsafe-sites.md`. The CLI's `dav1d`
+- **FFI.** The C declarations remain in the `dav1d` binding. CoreAV's allocator implements its unsafe allocation contract with checked geometry, 64-byte alignment and padding, and owned leases. Its sites are listed in `docs/unsafe-sites.md`. All other backend code forbids unsafe. The CLI's `dav1d`
   feature turns on `coreav thumbnail` like `ffmpeg-fallback` does; with
   both, AV1 goes to dav1d (the policy's order) and the other codecs to
   the fallback.
@@ -710,8 +705,7 @@ keeps `unsafe` forbidden.
 - **Output.** One frame per temporal unit, the highest spatial layer of
   the operating point (`all_layers` off), as FFmpeg's libdav1d wrapper
   outputs; film grain applied (dav1d's default, as FFmpeg's). Each
-  picture is copied at once into packed planes, so dav1d's buffers are
-  never held by a frame. Samples above 8 bits are 16 bits in host order
+  picture is checked before publication. Ordinary consumers receive packed copies; the worker lends the displayed picture and publishes its allocator's shared slot directly when available. Decoder pictures and their storage remain alive through the lending callback. Samples above 8 bits are 16 bits in host order
   in dav1d and little-endian in the frame model (swapped on a big-endian
   host). An identity matrix (RGB coded as G, B, R) stays in the Y'CbCr
   layout, and the colour description says how to convert it.
