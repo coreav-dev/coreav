@@ -70,7 +70,7 @@ Retain custom and default scaling-list values instead of accepting their flags a
 
 Use checked dimensions and stride/plane-size arithmetic, fallible reservations and wide intermediate arithmetic with the specification's intermediate clipping and rounding. Charge the total simultaneous memory before reservation: reconstructed planes, availability maps, CTU metadata, coefficient/transform scratch, parameter payloads, substream maps and any allocation growth overlap. Stride padding is not reference output. The conformance writer packs rows without another full-picture copy.
 
-The proposed defaults are 256 MiB of total reconstruction memory, including scratch and maps, and 268,435,456 decoded bins for the selected picture; a caller may choose different bounds. Header limits remain independent. Input/substream bounds and coding-tree/transform bounds are enforced separately. The conformance driver records these same concrete memory/bin budgets before running media; changing them requires a reviewed prospective registration, not relabelling a failed run. A valid stream exceeding a caller budget is `Limit`, malformed syntax is `InvalidData`, and unimplemented tools are `Unsupported`; all carry static labels. No unsafe code, unbounded recursion, infallible growth or production panic is introduced.
+The proposed defaults are 256 MiB of total reconstruction memory, including scratch and maps, and 268,435,456 decoded bins for the selected picture; a caller may choose different bounds. Header limits remain independent. Input/substream bounds and coding-tree/transform bounds are enforced separately. CI records the actual memory/bin budgets and reports budget exhaustion as failure, never as missing coverage or successful reconstruction. These are runtime safety limits, not a measurement freeze. A valid stream exceeding a caller budget is `Limit`, malformed syntax is `InvalidData`, and unimplemented tools are `Unsupported`; all carry static labels. No unsafe code, unbounded recursion, infallible growth or production panic is introduced.
 
 ## Implementation sequence
 
@@ -81,7 +81,7 @@ These are reviewable steps within the milestone work unit, not separately author
 3. Add the scalar kernel crate and selected-picture reconstruction for both depths together. Integrate QP/scaling lists, transforms, prediction, skip/bypass and PCM under the memory/work budgets. Keep filtered and inter pictures refused.
 4. Add the original-picture conformance selection and exact G2 comparisons, complete effective-tool counters, negative controls and affected entropy/picture fuzz targets. Preserve every earlier gate, feature-isolation check and source-bound receipt.
 
-The milestone estimate in the parent plan is not permission to open unrelated PRs. Keep this work's design, implementation and necessary test/check fixes together. A later performance registration or separate results publication remains separate work under the existing rules.
+The milestone estimate in the parent plan is not permission to open unrelated PRs. Keep this work's design, implementation and necessary test/check fixes together. No freeze, seal, attestation or performance-registration machinery is added. Any later reference measurement follows the current project rules; it is not authorized by this implementation plan.
 
 ## Verification and existing evidence
 
