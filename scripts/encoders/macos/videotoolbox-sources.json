@@ -12799,7 +12799,7 @@
     "warmups": 1
   },
   "tools": {
-    "docs/design/encoders.md": "212847fadf20d8bdbca769ee8e3632e6ce7490514f8de6b686473cc733a06490",
+    "docs/design/encoders.md": "24266e234fbbe6fdb83d2f82fdb78a47e781867b36750ddab2a10235a6a99fe5",
     "docs/design/encoders/macos.md": "bd4c5444d5df030cdbfddd80e79166f7375da4acabf308eff191c2170c455d02",
     "scripts/encoders/macos/baseline_smoke.py": "a4c1f04eecca082ebb90e2305d08443c6ccab571736f641013b62f6a60b910d5",
     "scripts/encoders/macos/cache_residency.py": "a4adb4552616e840f0fdde85cc51287b9d7ed2e77f37d9a353a019441ac718aa",

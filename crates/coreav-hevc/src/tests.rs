@@ -470,7 +470,7 @@ fn selected_picture_budgets_and_callback_errors_are_terminal() -> Result<()> {
 
 #[test]
 fn absent_target_filtered_picture_and_truncated_entropy_never_publish() -> Result<()> {
-    for (target, filtered, truncated) in [(1, false, false), (0, true, false), (0, false, true)] {
+    for (target, filtered, truncated) in [(1, false, false), (0, true, true), (0, false, true)] {
         let mut fixture = pcm_fixture(8, 8, filtered)?;
         if truncated {
             fixture.nal.pop();
@@ -489,13 +489,33 @@ fn absent_target_filtered_picture_and_truncated_entropy_never_publish() -> Resul
                 Ok(())
             })
         })();
-        if filtered {
-            assert_eq!(result, Err(Error::Unsupported("selected_filtered_picture")));
-        } else {
-            assert!(matches!(result, Err(Error::InvalidData(_))));
-        }
+        assert!(matches!(result, Err(Error::InvalidData(_))));
         assert_eq!(emitted, 0);
         assert!(decoder.finish(|_| Ok(())).is_err());
+    }
+    Ok(())
+}
+
+#[test]
+fn original_filtered_pcm_publishes_once_without_internal_block_edges() -> Result<()> {
+    for depth in [8, 10] {
+        let fixture = pcm_fixture(depth, depth, true)?;
+        let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 0);
+        for nal in fixture.sets.iter().chain([&fixture.nal]) {
+            decoder.read_nal(nal, |_| Err(Error::InvalidData("premature_publication")))?;
+        }
+        let mut emitted = 0;
+        decoder.finish(|picture| {
+            emitted += 1;
+            assert_eq!(picture.stats.deblock_edges, [0; 3]);
+            assert_eq!(picture.stats.sao_blocks, [0; 3]);
+            for (plane, expected) in picture.planes.into_iter().zip(&fixture.planes) {
+                assert_eq!(plane.samples, expected);
+            }
+            Ok(())
+        })?;
+        assert_eq!(emitted, 1);
+        decoder.finish(|_| Err(Error::InvalidData("duplicate_publication")))?;
     }
     Ok(())
 }

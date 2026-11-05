@@ -287,7 +287,7 @@ struct ToolArgs {
 #[cfg(feature = "transcode")]
 #[derive(Args, Clone)]
 #[command(
-    about = "Re-encode the video to H.264 in MP4 and copy the audio",
+    about = "Re-encode video in MP4 and copy the audio",
     long_about = "Re-encode the video of an MP4, MOV, Matroska or WebM file to H.264 in MP4 \
 and copy its audio, as `ffmpeg -i IN -c:v libx264 -c:a copy OUT.mp4` does \
 (https://coreav.dev/docs/commands/transcode).\n\n\
@@ -296,7 +296,11 @@ summary are stable. Other source codecs (HEVC, AV1, VP9, VP8, ProRes) are \
 experimental: measured slower than FFmpeg's command and with known defects \
 (https://coreav.dev/docs/measurements/transcode). The encoder is a separate program the operator installs: \
 an x264 program, or an ffmpeg program built with libx264; CoreAV runs it as a \
-resource-limited process and gives it only raw frames."
+resource-limited process and gives it only raw frames.\n\n\
+Explicit --video av1 selects the built-in SVT-AV1 encoder on supported Unix \
+builds with the native backend. It accepts planar 8-bit 4:2:0 SDR input, \
+uses preset 8 and integer CRF 32 by default, preserves source timestamps, \
+and prints coreav.transcode/2. H.264 remains the default output."
 )]
 struct TranscodeArgs {
     /// The file (or http(s) URL) to transcode.
@@ -304,11 +308,11 @@ struct TranscodeArgs {
     /// Where to write the MP4 file: a new file (not the input; an existing
     /// one only with --force).
     output: PathBuf,
-    /// Output video codec. AV1 is unavailable in this build.
+    /// Output video codec. AV1 requires a supported Unix build with native SVT-AV1.
     #[arg(long, value_name = "CODEC", default_value = "h264",
           value_parser = ["h264", "av1"])]
     video: String,
-    /// Constant rate factor, 0 to 51 (default 23).
+    /// Constant rate factor: H.264 0 to 51 (default 23), AV1 integer 0 to 63 (default 32).
     #[arg(long, value_name = "Q", conflicts_with = "bitrate",
           value_parser = parse_crf)]
     crf: Option<f32>,
@@ -317,9 +321,10 @@ struct TranscodeArgs {
           value_parser = clap::value_parser!(u32).range(1..=2_000_000))]
     bitrate: Option<u32>,
     /// x264's preset, fastest to slowest: ultrafast, superfast, veryfast,
-    /// faster, fast, medium, slow, slower, veryslow, placebo.
+    /// faster, fast, medium, slow, slower, veryslow, placebo (default medium).
+    /// With AV1, a numeric preset 0 to 13 (default 8).
     #[arg(long, value_name = "PRESET", default_value = "medium",
-          value_parser = coreav_transcode::encoder::PRESETS)]
+          hide_default_value = true, value_parser = coreav_transcode::encoder::PRESETS)]
     preset: String,
     #[arg(skip)]
     preset_explicit: bool,
@@ -346,8 +351,9 @@ struct TranscodeArgs {
     audio_bitrate: Option<u32>,
     /// The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`:
     /// x264 when there is one, else ffmpeg. With --strict-safe, `ffmpeg`
-    /// is refused and `auto` is x264 only. `platform` and `svt-av1` are
-    /// unavailable in this build.
+    /// is refused and `auto` is x264 only. With AV1, `auto` and `svt-av1`
+    /// select the built-in native backend without an external encoder fallback.
+    /// `platform` is unavailable in this build.
     #[arg(long, value_name = "ENCODER", default_value = "auto",
           value_parser = ["auto", "x264", "ffmpeg", "platform", "svt-av1"])]
     encoder: String,
@@ -367,7 +373,7 @@ struct TranscodeArgs {
     /// The ffmpeg program (default: COREAV_FFMPEG, else ffmpeg on PATH).
     #[arg(long, value_name = "PATH")]
     ffmpeg: Option<PathBuf>,
-    /// Encoder threads (default: the encoder's own choice).
+    /// Encoder threads (default: the encoder's own choice). AV1 refuses this option.
     #[arg(long, value_name = "N", value_parser = clap::value_parser!(u32).range(1..=128))]
     threads: Option<u32>,
     /// Seconds the whole transcode may take before it is stopped.
@@ -385,6 +391,28 @@ fn parse_crf(text: &str) -> Result<f32, String> {
         .ok()
         .filter(|q| (0.0..=51.0).contains(q))
         .ok_or_else(|| format!("'{text}' is not a number from 0 to 51"))
+}
+
+/// `--crf` for AV1: an integer from 0 to 63.
+#[cfg(feature = "transcode")]
+fn parse_av1_crf(text: &str) -> Result<f32, String> {
+    text.parse::<u8>()
+        .ok()
+        .filter(|q| *q <= 63)
+        .map(f32::from)
+        .ok_or_else(|| "AV1 --crf must be an integer from 0 to 63".into())
+}
+
+#[cfg(feature = "transcode")]
+fn parse_video_preset(text: &str) -> Result<String, String> {
+    if coreav_transcode::encoder::PRESETS.contains(&text)
+        || text.parse::<u8>().is_ok_and(|preset| preset <= 13)
+    {
+        return Ok(text.into());
+    }
+    Err(format!(
+        "'{text}' is not an x264 preset or an AV1 integer preset from 0 to 13"
+    ))
 }
 
 #[cfg(feature = "thumbnail")]
@@ -766,6 +794,11 @@ const EXIT_IO: u8 = 3;
 /// Exit code for a standard output closed by its reader: 128 + `SIGPIPE`.
 const EXIT_BROKEN_PIPE: u8 = 141;
 
+enum CommandHost {
+    Standalone,
+    Embedded,
+}
+
 fn main() -> ExitCode {
     // `coreav thumbnail` runs this program again as its sandboxed decode
     // worker (docs/design/decode.md), and `coreav transcode` as the
@@ -796,7 +829,7 @@ fn main() -> ExitCode {
         }
         None => {}
     }
-    main_with(args, std::env::current_exe().ok())
+    run_args(args, std::env::current_exe().ok(), CommandHost::Standalone)
 }
 
 /// Parses `args` (the program name first) and runs the command; `this` is
@@ -804,9 +837,18 @@ fn main() -> ExitCode {
 /// again as their sandboxed workers. `--help`, `--version` and usage errors are printed as the argument parser prints
 /// them, with the write checked. The Python package's `coreav` command
 /// calls this with its own arguments (`docs/design/python.md`).
+#[allow(dead_code, reason = "The Python command embeds this entry")]
 pub(crate) fn main_with(
     args: impl IntoIterator<Item = OsString>,
     this: Option<PathBuf>,
+) -> ExitCode {
+    run_args(args, this, CommandHost::Embedded)
+}
+
+fn run_args(
+    args: impl IntoIterator<Item = OsString>,
+    this: Option<PathBuf>,
+    host: CommandHost,
 ) -> ExitCode {
     // The argument parser's tables and matches stay allocated until the
     // command has run, and are freed after it: freed before, their many
@@ -814,7 +856,7 @@ pub(crate) fn main_with(
     // large allocation, a cost that grows with the number of subcommands and
     // has nothing to do with the command's work (`docs/design/benchmarks.md`).
     let mut command = Cli::command();
-    let parsed = match command.try_get_matches_from_mut(args) {
+    let parsed = match parse_args(&mut command, args) {
         Ok(mut matches) => {
             #[cfg(feature = "transcode")]
             let preset_explicit = matches.subcommand_matches("transcode").is_some_and(|m| {
@@ -840,7 +882,7 @@ pub(crate) fn main_with(
     };
     let code = match parsed {
         Ok((cli, matches)) => {
-            let code = run(cli, this);
+            let code = run(cli, this, host);
             drop(matches);
             code
         }
@@ -854,6 +896,59 @@ pub(crate) fn main_with(
     };
     drop(command);
     code
+}
+
+fn parse_args(
+    command: &mut clap::Command,
+    args: impl IntoIterator<Item = OsString>,
+) -> Result<clap::ArgMatches, clap::Error> {
+    #[cfg(not(feature = "transcode"))]
+    {
+        command.try_get_matches_from_mut(args)
+    }
+
+    #[cfg(feature = "transcode")]
+    {
+        let args: Vec<_> = args.into_iter().collect();
+        let selects_av1 = |matches: &clap::ArgMatches| {
+            matches
+                .subcommand_matches("transcode")
+                .is_some_and(|matches| {
+                    matches.get_one::<String>("video").map(String::as_str) == Some("av1")
+                })
+        };
+        match command.try_get_matches_from_mut(&args) {
+            Ok(matches) if !selects_av1(&matches) => return Ok(matches),
+            Ok(_) => {}
+            Err(error) => {
+                let selection = Cli::command().mut_subcommand("transcode", |command| {
+                    command.defer(|command| {
+                        TranscodeArgs::augment_args(command)
+                            .mut_arg("crf", |arg| {
+                                arg.value_parser(clap::builder::StringValueParser::new())
+                            })
+                            .mut_arg("preset", |arg| {
+                                arg.value_parser(clap::builder::StringValueParser::new())
+                            })
+                    })
+                });
+                let Ok(matches) = selection.try_get_matches_from(&args) else {
+                    return Err(error);
+                };
+                if !selects_av1(&matches) {
+                    return Err(error);
+                }
+            }
+        }
+        *command = Cli::command().mut_subcommand("transcode", |command| {
+            command.defer(|command| {
+                TranscodeArgs::augment_args(command)
+                    .mut_arg("crf", |arg| arg.value_parser(parse_av1_crf))
+                    .mut_arg("preset", |arg| arg.value_parser(parse_video_preset))
+            })
+        });
+        command.try_get_matches_from_mut(&args)
+    }
 }
 
 /// The exit for a failed write to standard output: [`EXIT_BROKEN_PIPE`]
@@ -913,8 +1008,8 @@ impl<W: Write> Write for Watched<W> {
 }
 
 /// Runs the command `cli` describes.
-#[cfg_attr(not(feature = "thumbnail"), allow(unused_variables))]
-fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
+fn run(cli: Cli, this: Option<PathBuf>, host: CommandHost) -> ExitCode {
     #[cfg(feature = "input-capture")]
     if let Some(target) = cli.capture_encoder_input.as_ref() {
         return match &cli.command {
@@ -958,21 +1053,34 @@ fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
             run_thumbnail(&args, this.as_deref(), StrictSafe::new(cli.strict_safe))
         }
         #[cfg(feature = "transcode")]
-        Command::Transcode(args) => {
-            run_transcode(&args, this.as_deref(), StrictSafe::new(cli.strict_safe))
-        }
+        Command::Transcode(args) => run_transcode(
+            &args,
+            this.as_deref(),
+            StrictSafe::new(cli.strict_safe),
+            host,
+        ),
     }
 }
 
 #[cfg(feature = "transcode")]
-fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictSafe) -> ExitCode {
+fn run_transcode(
+    args: &TranscodeArgs,
+    this: Option<&Path>,
+    strict_safe: StrictSafe,
+    host: CommandHost,
+) -> ExitCode {
     use coreav_cli::transcode;
+    if args.video == "av1" && matches!(host, CommandHost::Embedded) {
+        return fail(&Failure::Unsupported(
+            "AV1 encoding needs the standalone coreav executable; the embedded command cannot host its private worker".into(),
+        ));
+    }
     let selected = if args.video == "av1"
         || matches!(args.encoder.as_str(), "platform" | "svt-av1")
         || args.audio_encoder.is_some()
         || args.require_hardware
     {
-        let preflight = || -> Result<TranscodeArgs, &'static str> {
+        let preflight = || -> Result<coreav_transcode::selection::Resolved, &'static str> {
             let selection = coreav_transcode::selection::Selection {
                 video: args.video.parse()?,
                 encoder: args.encoder.parse()?,
@@ -980,71 +1088,48 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
                 require_hardware: args.require_hardware,
                 crf: args.crf,
                 preset: args.preset_explicit.then(|| args.preset.clone()),
+                bitrate: args.bitrate,
+                threads: args.threads,
             };
-            let resolved = selection.resolve(
+            selection.resolve(
                 args.audio == "aac",
                 strict_safe.on(),
                 args.x264.as_deref(),
                 args.ffmpeg.as_deref(),
-            )?;
-            let mut selected = args.clone();
-            selected.encoder = resolved.video.name().into();
-            match resolved.video {
-                coreav_transcode::encoder::EncoderProgram::X264(path) => {
-                    selected.x264 = Some(path);
-                }
-                coreav_transcode::encoder::EncoderProgram::Ffmpeg(path) => {
-                    selected.ffmpeg = Some(path);
-                }
-            }
-            if let Some(path) = resolved.aac {
-                selected.ffmpeg = Some(path);
-            }
-            Ok(selected)
+                transcode::av1::compiled(),
+            )
         };
-        match preflight() {
-            Ok(selected) => Some(selected),
-            Err(message) => {
-                let _ = writeln!(
-                    std::io::stderr(),
-                    "{}",
-                    Failure::Unsupported(message.into()).to_json()
-                );
-                return ExitCode::from(EXIT_REJECTED);
+        let resolved = match preflight() {
+            Ok(resolved) => resolved,
+            Err(message) => return fail(&Failure::Unsupported(message.into())),
+        };
+        let mut selected = args.clone();
+        match resolved.video {
+            coreav_transcode::selection::ResolvedVideo::SvtAv1 { preset, crf } => {
+                return run_av1_transcode(args, this, strict_safe, preset, crf, resolved.aac);
+            }
+            coreav_transcode::selection::ResolvedVideo::H264(program) => {
+                selected.encoder = program.name().into();
+                match program {
+                    coreav_transcode::encoder::EncoderProgram::X264(path) => {
+                        selected.x264 = Some(path);
+                    }
+                    coreav_transcode::encoder::EncoderProgram::Ffmpeg(path) => {
+                        selected.ffmpeg = Some(path);
+                    }
+                }
             }
         }
+        if let Some(path) = resolved.aac {
+            selected.ffmpeg = Some(path);
+        }
+        Some(selected)
     } else {
         None
     };
     let args = selected.as_ref().unwrap_or(args);
-    let bitrates = match args.audio.as_str() {
-        "opus" => Some(6..=510),
-        "aac" => Some(16..=512),
-        _ => None,
-    };
-    match (args.audio_bitrate, bitrates) {
-        (Some(_), None) => {
-            return usage(
-                "--audio-bitrate is the bit rate of the audio encode: it needs --audio opus or aac",
-            );
-        }
-        (Some(kbps), Some(range)) if !range.contains(&kbps) => {
-            return usage(&format!(
-                "--audio-bitrate for --audio {} is {} to {} kbit/s, not {kbps}",
-                args.audio,
-                range.start(),
-                range.end()
-            ));
-        }
-        _ => {}
-    }
-    if args.audio == "opus" && !cfg!(feature = "libopus") {
-        let refusal = Failure::Unsupported(
-            "--audio opus: this coreav is built without the Opus encoder: build it with the opt-in libopus feature"
-                .into(),
-        );
-        let _ = writeln!(std::io::stderr(), "{}", refusal.to_json());
-        return ExitCode::from(EXIT_REJECTED);
+    if let Err(code) = transcode_audio(args) {
+        return code;
     }
     let scale = match args.scale.as_deref().map(transcode::scale).transpose() {
         Ok(scale) => scale,
@@ -1124,6 +1209,145 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
                 out,
             )
             .map_err(|f| explain_write(source, f)),
+        }
+    })
+}
+
+#[cfg(feature = "transcode")]
+fn transcode_audio(args: &TranscodeArgs) -> Result<(), ExitCode> {
+    let bitrates = match args.audio.as_str() {
+        "opus" => Some(6..=510),
+        "aac" => Some(16..=512),
+        _ => None,
+    };
+    match (args.audio_bitrate, bitrates) {
+        (Some(_), None) => {
+            return Err(usage(
+                "--audio-bitrate is the bit rate of the audio encode: it needs --audio opus or aac",
+            ));
+        }
+        (Some(kbps), Some(range)) if !range.contains(&kbps) => {
+            return Err(usage(&format!(
+                "--audio-bitrate for --audio {} is {} to {} kbit/s, not {kbps}",
+                args.audio,
+                range.start(),
+                range.end()
+            )));
+        }
+        _ => {}
+    }
+    if args.audio == "opus" && !cfg!(feature = "libopus") {
+        return Err(fail(&Failure::Unsupported(
+            "--audio opus: this coreav is built without the Opus encoder: build it with the opt-in libopus feature".into(),
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "transcode")]
+fn run_av1_transcode(
+    args: &TranscodeArgs,
+    this: Option<&Path>,
+    strict_safe: StrictSafe,
+    preset: u8,
+    crf: u8,
+    aac_program: Option<PathBuf>,
+) -> ExitCode {
+    use coreav_cli::transcode;
+    use coreav_transcode::{AacAudio, AudioMode, Av1Options, CommonOptions, OpusAudio};
+
+    if let Err(code) = transcode_audio(args) {
+        return code;
+    }
+    let scale = match args.scale.as_deref().map(transcode::scale).transpose() {
+        Ok(scale) => scale,
+        Err(message) => return usage(&message),
+    };
+    if let Err(message) = strict_safe.sandbox() {
+        let _ = writeln!(
+            std::io::stderr(),
+            "{}",
+            Failure::StrictSafe(message).to_json()
+        );
+        return ExitCode::from(compat_cmd::EXIT_UNSUPPORTED);
+    }
+    let Some(this) = this else {
+        return fail(&Failure::Unsupported(
+            "cannot find the running coreav worker executable".into(),
+        ));
+    };
+    let launcher = coreav_worker::ExecLauncher {
+        command: coreav_worker::WorkerCommand {
+            program: this.to_path_buf(),
+            args: strict_safe.entry(coreav_worker::EXEC_ARG),
+        },
+    };
+    let mut options = Av1Options::default();
+    options.scale = scale;
+    options.common = CommonOptions {
+        audio: match args.audio.as_str() {
+            "none" => AudioMode::None,
+            "opus" => AudioMode::Opus(OpusAudio {
+                stream: None,
+                bitrate: args.audio_bitrate.map(|kbps| kbps * 1000),
+                program: this.to_path_buf(),
+            }),
+            "aac" => AudioMode::Aac(AacAudio {
+                stream: None,
+                bitrate: args.audio_bitrate.map(|kbps| kbps * 1000),
+                #[cfg(feature = "input-capture")]
+                input_capture: None,
+            }),
+            _ => AudioMode::Copy,
+        },
+        aac_program,
+        timeout: std::time::Duration::from_secs(args.timeout),
+        ..CommonOptions::default()
+    };
+    let job = match transcode::av1::prepare(options, preset, crf, &launcher) {
+        Ok(job) => job,
+        Err(failure) => return fail_write(&failure),
+    };
+    if args.output.as_os_str() == "-" {
+        return usage("the output must be a file: the MP4 is written with its movie box first");
+    }
+    let Some(output) = args.output.to_str() else {
+        return usage("the output path must be valid UTF-8");
+    };
+    if let Err(failure) = transcode::av1::check_deadline(&job) {
+        return fail_write(&failure);
+    }
+    let mut remote = match open_remote(&args.input) {
+        Ok(remote) => remote,
+        Err(exit) => return exit,
+    };
+    if let Err(failure) = transcode::av1::check_deadline(&job) {
+        return fail_write(&failure);
+    }
+    write_output(&args.input, output, args.force, |out| {
+        transcode::av1::check_deadline(&job)?;
+        match remote.as_mut() {
+            None => coreav_isobmff::FileSource::open(&args.input)
+                .map_err(|error| WriteFailure::Rejected(Failure::library(error)))
+                .and_then(|file| {
+                    transcode::av1::make(
+                        job,
+                        this,
+                        strict_safe,
+                        BufferedSource::new(file),
+                        &args.output,
+                        out,
+                    )
+                }),
+            Some(source) => transcode::av1::make(
+                job,
+                this,
+                strict_safe,
+                BufferedSource::new(&mut *source),
+                &args.output,
+                out,
+            )
+            .map_err(|failure| explain_write(source, failure)),
         }
     })
 }
@@ -1525,17 +1749,7 @@ fn write_output_core<T>(
         }
         // The reader closed the pipe: no message, as for the documents.
         Err(_) if broken_pipe => ExitCode::from(EXIT_BROKEN_PIPE),
-        Err(failure) => {
-            let code = if failure.is_io() {
-                EXIT_IO
-            } else if failure.is_strict_safe() {
-                compat_cmd::EXIT_UNSUPPORTED
-            } else {
-                EXIT_REJECTED
-            };
-            let _ = writeln!(std::io::stderr(), "{}", failure.to_json());
-            ExitCode::from(code)
-        }
+        Err(failure) => fail_write(&failure),
     }
 }
 
@@ -2098,6 +2312,18 @@ fn fail(failure: &Failure) -> ExitCode {
     ExitCode::from(code)
 }
 
+fn fail_write(failure: &WriteFailure) -> ExitCode {
+    let code = if failure.is_io() {
+        EXIT_IO
+    } else if failure.is_strict_safe() {
+        compat_cmd::EXIT_UNSUPPORTED
+    } else {
+        EXIT_REJECTED
+    };
+    let _ = writeln!(std::io::stderr(), "{}", failure.to_json());
+    ExitCode::from(code)
+}
+
 fn run_split(args: &SplitArgs) -> ExitCode {
     let allowlist = match probe::allowlist(args.allow.as_deref(), args.strict) {
         Ok(allowlist) => allowlist,
@@ -2258,6 +2484,113 @@ fn run_join(args: &JoinArgs) -> ExitCode {
         |out| join::run(&args.inputs, &options, &allowlist, out).map_err(WriteFailure::from),
         |summary, out| join::write_document(out, summary, &args.inputs),
     )
+}
+
+#[cfg(all(test, feature = "transcode"))]
+mod av1_host_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_fractional_crf_tokens_keep_their_values() {
+        for crf in ["23.5", "32.0000001", "1e-50", "3.2e1"] {
+            let args: Vec<_> = [
+                "coreav",
+                "transcode",
+                "input.mp4",
+                "output.mp4",
+                "--crf",
+                crf,
+            ]
+            .map(OsString::from)
+            .into_iter()
+            .collect();
+            let expected = Cli::command().try_get_matches_from(&args).unwrap();
+            let actual = parse_args(&mut Cli::command(), args).unwrap();
+            let value = |matches: &clap::ArgMatches| {
+                matches
+                    .subcommand_matches("transcode")
+                    .unwrap()
+                    .get_one::<f32>("crf")
+                    .unwrap()
+                    .to_bits()
+            };
+            assert_eq!(value(&actual), value(&expected), "{crf}");
+        }
+    }
+
+    #[test]
+    fn legacy_parser_errors_keep_their_bytes_and_precedence() {
+        for flags in [
+            &["input.mp4", "output.mp4", "--crf", "52"][..],
+            &["input.mp4", "output.mp4", "--crf", "64"],
+            &["input.mp4", "output.mp4", "--crf", "invalid"],
+            &["input.mp4", "output.mp4", "--preset", "8"],
+            &["input.mp4", "output.mp4", "--preset", "14"],
+            &["input.mp4", "output.mp4", "--preset", "invalid"],
+            &["--crf", "52"],
+            &["--preset", "8"],
+            &["--crf", "52", "--unknown"],
+            &["--unknown", "--crf", "52"],
+            &["--crf", "52", "--bitrate", "1000"],
+            &["--preset", "8", "--video", "h264"],
+        ] {
+            let args: Vec<_> = ["coreav", "transcode"]
+                .into_iter()
+                .chain(flags.iter().copied())
+                .map(OsString::from)
+                .collect();
+            let expected = Cli::command().try_get_matches_from(&args).unwrap_err();
+            let actual = parse_args(&mut Cli::command(), args).unwrap_err();
+            assert_eq!(actual.kind(), expected.kind(), "{flags:?}");
+            assert_eq!(actual.exit_code(), expected.exit_code(), "{flags:?}");
+            assert_eq!(actual.to_string(), expected.to_string(), "{flags:?}");
+        }
+    }
+
+    #[test]
+    #[ignore = "subprocess target for the embedded-host boundary"]
+    fn embedded_host_child() {
+        let code = main_with(
+            [
+                "coreav",
+                "transcode",
+                "/nonexistent/embedded-input.mp4",
+                "/nonexistent/embedded-output.mp4",
+                "--video",
+                "av1",
+            ]
+            .map(OsString::from),
+            std::env::current_exe().ok(),
+        );
+        std::process::exit(if code == ExitCode::from(EXIT_REJECTED) {
+            i32::from(EXIT_REJECTED)
+        } else {
+            255
+        });
+    }
+
+    #[test]
+    fn embedded_host_refusal_precedes_build_and_source_checks() {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "av1_host_tests::embedded_host_child",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env_remove("COREAV_STRICT_SAFE")
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(i32::from(EXIT_REJECTED)),
+            "{output:?}"
+        );
+        let error: Value = serde_json::from_slice(&output.stderr).unwrap();
+        assert_eq!(error, Failure::Unsupported(
+            "AV1 encoding needs the standalone coreav executable; the embedded command cannot host its private worker".into(),
+        ).to_json());
+    }
 }
 
 #[cfg(test)]

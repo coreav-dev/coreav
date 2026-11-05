@@ -18,6 +18,37 @@ SPEC.loader.exec_module(runner)
 
 
 class OracleDiagnostics(unittest.TestCase):
+    def test_source_first_picture_oracle_is_bounded_without_changing_official_commands(self):
+        for first_picture in (False, True):
+            with self.subTest(first_picture=first_picture), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                frames = [dict(width=2, height=2, pix_fmt='yuv420p')]
+
+                def child(command, path, label):
+                    self.assertEqual(command[command.index('-export_side_data') + 1], '+enhancements')
+                    self.assertLess(command.index('-export_side_data'), command.index('-i'))
+                    self.assertEqual('-frames:v' in command, first_picture)
+                    if first_picture:
+                        self.assertEqual(command[command.index('-frames:v') + 1], '1')
+                        self.assertNotIn('hevc', [command[i + 1] for i, arg in enumerate(command[:-1])
+                                                  if arg == '-f'])
+                        self.assertEqual(label, 'source-first-frame')
+                    else:
+                        self.assertEqual(command[command.index('-f') + 1], 'hevc')
+                        self.assertEqual(label, 'oracle-frames')
+                    stdout, stderr = path / (label + '.stdout'), path / (label + '.stderr')
+                    stdout.write_text('#hash: MD5\n#codec_id 0: rawvideo\n#media_type 0: video\n'
+                                      + '0, 0, 0, 1, 6, ' + 'a' * 32 + '\n')
+                    stderr.write_text('frame=1\ndup_frames=0\ndrop_frames=0\nprogress=end\n')
+                    return 0, stdout, stderr
+
+                with mock.patch.object(runner, 'child', side_effect=child):
+                    result = runner.oracle_frames(root / 'ffmpeg', root / 'source', root,
+                                                  frames, 'self-written', first_picture=first_picture)
+                self.assertEqual(result, [dict(bytes=6, md5='a' * 32)])
+                label = 'source-first-frame' if first_picture else 'oracle-frames'
+                self.assertTrue(json.loads((root / (label + '.json')).read_text())['complete'])
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -306,6 +337,8 @@ class OracleDiagnostics(unittest.TestCase):
         self.assertEqual(attempt['layout'], 'whole_output_yuv_file')
         self.assertIn('repeat+error', attempt['command'])
         self.assertIn('-noautoscale', attempt['command'])
+        self.assertEqual(attempt['command'][attempt['command'].index('-export_side_data') + 1], '+enhancements')
+        self.assertLess(attempt['command'].index('-export_side_data'), attempt['command'].index('-i'))
         self.assertEqual(attempt['stdout_capture'], 'reference-md5.stdout')
         self.assertTrue(all(d['classification'] == 'unclassified' for d in diagnostics))
 
@@ -864,6 +897,8 @@ class Conformance(unittest.TestCase):
         command = child.call_args.args[0]
         self.assertEqual(command[command.index('-flags') + 1], 'unaligned')
         self.assertLess(command.index('-flags'), command.index(source))
+        self.assertEqual(command[command.index('-export_side_data') + 1], '+enhancements')
+        self.assertLess(command.index('-export_side_data'), command.index(source))
 
     def test_output_order_uses_frame_packet_positions_when_the_oracle_exposes_them(self):
         fixture = list(self.fixture())
@@ -893,7 +928,8 @@ class Conformance(unittest.TestCase):
             path.write_bytes(b'abc')
             return path
 
-        def inspect(item, path, out, oracle_bin):
+        def inspect(item, path, out, oracle_bin, *, intra=None):
+            self.assertIsNone(intra)
             self.assertEqual(path.read_bytes(), b'abc')
             return dict(item, status='inspected')
 
@@ -912,6 +948,54 @@ class Conformance(unittest.TestCase):
         self.assertFalse(receipt['complete'])
         self.assertTrue(all('key' not in f for f in receipt['files']))
         pool.close.assert_called_once()
+
+    def test_development_pixel_work_never_decodes_the_metadata_only_partition(self):
+        source = self.root / 'original.mp4'
+        source.write_bytes(b'abc')
+        out, err = self.root / 'metadata.stdout', self.root / 'metadata.stderr'
+        runner.write_json(out, dict(format=dict(format_name='mp4'), streams=[dict(codec_type='video', codec_name='hevc',
+            profile='Main', width=16, height=16, pix_fmt='yuv420p', field_order='progressive')]))
+        err.write_text('')
+        options = dict(native=self.root / 'native', parser=self.root / 'headers', max_memory_bytes=1024, max_bins=100)
+        for partition in ('held-out-partition', 'development'):
+            item = dict(sha256=runner.digest(source), size=3, partition=partition)
+            with mock.patch.object(runner, 'child', return_value=(0,out,err)), \
+                    mock.patch('hevc_intra.development_picture', return_value=dict(complete=True)) as decode:
+                record = runner.corpus_record(item, source, self.root, self.root, intra=options)
+                self.assertEqual(record['status'], 'inspected')
+                if partition == 'development':
+                    self.assertTrue(record['intra']['complete'])
+                    decode.assert_called_once_with(item,source,self.root / item['sha256'],self.root,**options)
+                else:
+                    self.assertNotIn('intra', record)
+                    decode.assert_not_called()
+
+    @unittest.skipUnless(sys.platform == 'linux', 'media subprocess limits require Linux')
+    def test_larger_raw_picture_files_keep_all_other_child_resource_limits(self):
+        code, out, _ = runner.child([sys.executable, '-c', 'import resource,json;print(json.dumps([resource.getrlimit(k) for k in '
+            '(resource.RLIMIT_AS,resource.RLIMIT_CPU,resource.RLIMIT_FSIZE,resource.RLIMIT_CORE)]))'],
+            self.root / 'limits', 'native', file_limit=256 << 20)
+        self.assertEqual(code,0)
+        self.assertEqual(json.loads(out.read_text()), [[6 << 30]*2, [runner.TIMEOUT]*2, [256 << 20]*2, [0,0]])
+        for limit in (0, runner.CAPTURE_CAP - 1, (4 << 30) + 1):
+            with self.assertRaises(ValueError):
+                runner.child([], self.root / 'invalid', 'limits', file_limit=limit)
+
+    def test_development_failure_aggregates_keep_the_denominator_and_omit_arbitrary_diagnostics(self):
+        records = [dict(partition='development' if i < 26 else 'held-out-partition', profile='Main',
+                        bit_depth=8, status='inspected') for i in range(54)]
+        for record in records[:26]:
+            record['intra'] = dict(complete=True, stage='complete')
+        records[0].update(status='blocked', intra=dict(complete=False, stage='reconstruction',
+            native_refusal=dict(kind='refusal', category='invalid_data', reason='intra_context')))
+        result = runner.corpus_result(records)
+        self.assertFalse(result['complete'])
+        self.assertEqual(result['development_intra']['expected'], 26)
+        self.assertEqual(result['development_intra']['completed'], 25)
+        self.assertEqual(result['development_intra']['stages']['reconstruction'], 1)
+        self.assertEqual(result['development_intra']['native_refusals'], dict(intra_context=1))
+        records[0]['intra']['native_refusal']['reason'] = 'untrusted diagnostic / canary'
+        self.assertNotIn('canary', json.dumps(runner.corpus_result(records)['development_intra']))
 
 
 class AnchoredPictures(unittest.TestCase):

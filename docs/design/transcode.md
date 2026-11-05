@@ -2,6 +2,8 @@
 
 Status: Accepted
 
+This note describes the default H.264 path. [Explicit AV1 output](#explicit-av1-output) uses the separate SVT-AV1 backend contract and version 2 summary.
+
 `coreav transcode IN OUT.mp4` re-encodes one video stream to H.264 and
 copies the audio, the shape of the most common `ffmpeg` job:
 
@@ -78,11 +80,21 @@ Out, each needing its own roadmap item:
 - Other audio encoders and AAC profiles (HE-AAC), Opus or AAC of more
   than two channels (Opus's channel mapping family 1), resampling to an
   AAC rate, and audio CoreAV does not decode yet.
-- Other video encoders (NVENC, SVT-AV1, `rav1e`): policy record 0042
+- Other video encoders (NVENC, `rav1e`): policy record 0042
   allows them as backends; each is an item of its own.
 - Smart rendering, the copy-when-possible router, ladders, other
   filters, MKV output, MPEG-TS input,
   trimming (`-ss`, `-t`), two-pass rate control.
+
+## Explicit AV1 output
+
+Only `coreav transcode --video av1` selects the built-in sandboxed SVT-AV1 worker. Both `--encoder auto` and `--encoder svt-av1` select that backend, without an external video-encoder fallback. H.264 with copied audio remains the default.
+
+The standalone binary needs the `svt-av1-native` feature, a verified static recipe installation and an input decoder. Supported targets are the two Linux musl and two macOS architectures listed in the [SVT-AV1 design](encoders/svt-av1.md#static-library-build). The release feature sets do not select this native backend yet. Windows, embedded command hosting and AV1 output through the compatibility command are outside this path. Strict-safe still refuses the worker where the launcher cannot enforce its memory limit.
+
+AV1 requires exact integer preset tokens from 0 through 13 and CRF tokens from 0 through 63, with defaults 8 and 32. Fractional and exponent notation are refused before conversion. Bitrate and thread controls are unsupported. The accepted input is planar eight-bit 4:2:0 with SDR transfer metadata and an applied source range. No HDR, bit-depth, range or frame-rate conversion is implicit. Only an explicit scale changes geometry. The original source-clock timeline, including its final duration, remains separate from the settings cadence.
+
+The CLI prepares the typed AV1 job before media I/O and checks its original deadline before source opening and identification. The common engine retains decode pacing, audio handling, MP4 replacement and temporary-output publication. Completed AV1 jobs emit [`coreav.transcode/2`](../schema/transcode-v2.md), with encoder metadata separate from the source codec. H.264 retains its original version 1 document and parser behavior. Source and synthetic receipt tests do not establish native correctness, release packaging or the four-target runtime gates.
 
 ## Pipeline
 

@@ -26,6 +26,8 @@
 pub mod aac;
 pub mod annexb;
 pub mod audio;
+#[cfg(feature = "svt-av1")]
+pub mod av1;
 #[cfg(feature = "input-capture")]
 pub mod capture;
 pub mod contract;
@@ -45,3 +47,8 @@ pub use pipeline::{
     AudioMode, Error, Remuxed, SourceKind, Summary, TranscodeOptions, VideoSummary, transcode,
 };
 pub use scale::{Scale, Side, parse_scale};
+
+#[cfg(feature = "svt-av1")]
+pub use pipeline::{
+    Av1Encoding, Av1Options, Av1Summary, Av1Transcode, Av1VideoSummary, CommonOptions,
+};

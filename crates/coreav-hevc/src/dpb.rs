@@ -837,6 +837,8 @@ mod tests {
             cabac_init_flag: Some(false),
             sao: Some([false; 2]),
             deblock_disabled: Some(true),
+            deblock_offsets: Some([0; 2]),
+            loop_filter_slices: Some(true),
             entry_points: 0,
             rbsp_header_bytes: 0,
             no_output_of_prior_pics: false,

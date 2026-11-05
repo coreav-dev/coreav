@@ -223,6 +223,44 @@ pub struct Sequence {
     first_display_delay: Option<u8>,
     still_picture: bool,
     timing: Option<Timing>,
+    frame_syntax: FrameSyntax,
+}
+
+/// Checked sequence fields that control uncompressed frame-header parsing.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct FrameSyntax {
+    /// Whether the reduced still-picture header is used.
+    pub reduced: bool,
+    /// Whether a decoder model is present.
+    pub decoder_model: bool,
+    /// Whether frame IDs are present.
+    pub frame_ids: bool,
+    /// Whether the sequence has exactly one operating point with mask zero.
+    pub single_operating_point: bool,
+    /// Width syntax field length, from one through sixteen.
+    pub width_bits: u8,
+    /// Height syntax field length, from one through sixteen.
+    pub height_bits: u8,
+    /// Whether superblocks have 128 luma samples per side.
+    pub superblock_128: bool,
+    /// Order-hint field length, or zero when disabled.
+    pub order_hint_bits: u8,
+    /// Screen-content tool selection, with two meaning frame-selected.
+    pub screen_tools: u8,
+    /// Integer-motion selection, with two meaning frame-selected.
+    pub integer_mv: u8,
+    /// Whether reference-frame motion vectors are enabled.
+    pub reference_mvs: bool,
+    /// Whether warped motion is enabled.
+    pub warped_motion: bool,
+    /// Whether super-resolution may be used.
+    pub superres: bool,
+    /// Whether CDEF may be used.
+    pub cdef: bool,
+    /// Whether loop restoration may be used.
+    pub restoration: bool,
+    /// Whether U and V quantization deltas are separate.
+    pub separate_uv_delta_q: bool,
 }
 
 impl Sequence {
@@ -252,6 +290,13 @@ impl Sequence {
         }
         let still_picture = bits.flag()?;
         let reduced = bits.flag()?;
+        let mut frame_syntax = FrameSyntax {
+            reduced,
+            single_operating_point: reduced,
+            screen_tools: 2,
+            integer_mv: 2,
+            ..FrameSyntax::default()
+        };
         if reduced && !still_picture {
             return Err(Error::Malformed(Malformed::ReducedWithoutStill));
         }
@@ -266,6 +311,7 @@ impl Sequence {
             if bits.flag()? {
                 timing = Some(read_timing(&mut bits)?);
                 if bits.flag()? {
+                    frame_syntax.decoder_model = true;
                     delay_bits = Some(bits.read(5)? as u8 + 1);
                     if bits.read(32)? == 0 {
                         return Err(Error::Malformed(Malformed::ZeroClock));
@@ -279,6 +325,9 @@ impl Sequence {
             let mut ids = [u16::MAX; 32];
             for op in 0..operating_points {
                 let id = bits.read(12)? as u16;
+                if op == 0 {
+                    frame_syntax.single_operating_point = operating_points == 1 && id == 0;
+                }
                 if ids.contains(&id) {
                     return Err(Error::Malformed(Malformed::DuplicateOperatingPoint));
                 }
@@ -308,6 +357,8 @@ impl Sequence {
         }
         let width_bits = bits.read(4)? as u8 + 1;
         let height_bits = bits.read(4)? as u8 + 1;
+        frame_syntax.width_bits = width_bits;
+        frame_syntax.height_bits = height_bits;
         let max_width = bits.read(width_bits)? + 1;
         let max_height = bits.read(height_bits)? + 1;
         if max_width > limits.max_width {
@@ -317,29 +368,43 @@ impl Sequence {
             return Err(Error::LimitExceeded(Limit::Height));
         }
         if !reduced && bits.flag()? {
+            frame_syntax.frame_ids = true;
             let delta = bits.read(4)?;
             let additional = bits.read(3)?;
             if delta + additional + 3 > 16 {
                 return Err(Error::Malformed(Malformed::FrameIdLength));
             }
         }
-        bits.read(3)?;
+        frame_syntax.superblock_128 = bits.flag()?;
+        bits.read(2)?;
         if !reduced {
-            bits.read(4)?;
+            bits.read(2)?;
+            frame_syntax.warped_motion = bits.flag()?;
+            bits.flag()?;
             let order_hint = bits.flag()?;
             if order_hint {
-                bits.read(2)?;
-            }
-            let screen_tools = bits.flag()? || bits.flag()?;
-            if screen_tools && !bits.flag()? {
                 bits.flag()?;
+                frame_syntax.reference_mvs = bits.flag()?;
             }
+            frame_syntax.screen_tools = if bits.flag()? {
+                2
+            } else {
+                u8::from(bits.flag()?)
+            };
+            frame_syntax.integer_mv = if frame_syntax.screen_tools == 0 || bits.flag()? {
+                2
+            } else {
+                u8::from(bits.flag()?)
+            };
             if order_hint {
-                bits.read(3)?;
+                frame_syntax.order_hint_bits = bits.read(3)? as u8 + 1;
             }
         }
-        bits.read(3)?;
+        frame_syntax.superres = bits.flag()?;
+        frame_syntax.cdef = bits.flag()?;
+        frame_syntax.restoration = bits.flag()?;
         let color = read_color(&mut bits, profile)?;
+        frame_syntax.separate_uv_delta_q = color.separate_uv_delta_q;
         let film_grain = bits.flag()?;
         bits.finish()?;
         if profile != 0 {
@@ -369,7 +434,13 @@ impl Sequence {
             first_display_delay,
             still_picture,
             timing,
+            frame_syntax,
         })
+    }
+
+    /// Returns the checked fields that determine frame-header syntax.
+    pub fn frame_syntax(&self) -> FrameSyntax {
+        self.frame_syntax
     }
 
     /// Returns the sequence maximum width in luma samples, not actual frame width.
@@ -470,6 +541,7 @@ struct ParsedColor {
     monochrome: bool,
     subsampling_x: bool,
     subsampling_y: bool,
+    separate_uv_delta_q: bool,
 }
 
 fn read_color(bits: &mut Bits<'_>, profile: u8) -> Result<ParsedColor, Error> {
@@ -522,9 +594,7 @@ fn read_color(bits: &mut Bits<'_>, profile: u8) -> Result<ParsedColor, Error> {
         }
         (full_range, x, y)
     };
-    if !monochrome {
-        bits.flag()?;
-    }
+    let separate_uv_delta_q = !monochrome && bits.flag()?;
     if matrix == 0 && (subsampling_x || subsampling_y) {
         return Err(Error::Malformed(Malformed::IdentitySubsampling));
     }
@@ -544,6 +614,7 @@ fn read_color(bits: &mut Bits<'_>, profile: u8) -> Result<ParsedColor, Error> {
         monochrome,
         subsampling_x,
         subsampling_y,
+        separate_uv_delta_q,
     })
 }
 

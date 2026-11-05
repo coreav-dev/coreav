@@ -1339,6 +1339,15 @@ fn join_edit_refusal(
     if summary.audio_edits > 1 {
         return Ok(Some("a concat output that needs several audio edits"));
     }
+    if summary
+        .inputs
+        .iter()
+        .any(|input| input.video.codec == coreav_isobmff::Codec::H264)
+    {
+        return Ok(Some(
+            "H.264 concat packet conversion that CoreAV cannot copy exactly",
+        ));
+    }
     Ok(None)
 }
 

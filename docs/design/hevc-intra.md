@@ -1,6 +1,6 @@
 # HEVC scalar intra reconstruction
 
-Status: scalar intra implementation. Milestone 1 is merged in coreav-dev/coreav#373. This note describes milestone 2 of [the decoder plan](hevc.md); the plan and implementation share one work unit. Bounded unit/control checks cover the implemented path, but G2 media verification is not yet established.
+Status: milestone 2 is merged in coreav-dev/coreav#393. Its complete G2 result checked all 17 eligible pictures, 17 defined picture hashes and 50 negative/no-clobber controls. This note describes its original unfiltered scalar intra scope; [milestone 3](hevc-inloop.md) extends the same owner with in-loop filters. No production consumer selects it by default.
 
 ## Outcome and limits
 

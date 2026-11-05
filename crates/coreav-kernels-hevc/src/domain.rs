@@ -19,6 +19,20 @@ pub enum Error {
     Transform,
 }
 
+/// Maps an effective 4:2:0 chroma QP index using H.265 Table 8-10.
+pub fn chroma_qp_index(index: i32) -> Result<i32, Error> {
+    if !(-24..=63).contains(&index) {
+        return Err(Error::Qp);
+    }
+    Ok(match index {
+        30..=43 => *[29, 30, 31, 32, 33, 33, 34, 34, 35, 35, 36, 36, 37, 37]
+            .get((index - 30) as usize)
+            .ok_or(Error::Qp)?,
+        44.. => index - 6,
+        _ => index,
+    })
+}
+
 /// Sample depth admitted by Main and Main10.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct BitDepth(u8);

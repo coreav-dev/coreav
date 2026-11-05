@@ -21,6 +21,7 @@ pub(crate) struct Pcm {
     pub(crate) chroma_depth: u32,
     pub(crate) min_log2: u32,
     pub(crate) max_log2: u32,
+    pub(crate) loop_filter_disabled: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -78,6 +79,8 @@ pub(crate) struct Pps {
     pub(crate) lists_modification: bool,
     pub(crate) deblock_override: bool,
     pub(crate) deblock_disabled: bool,
+    pub(crate) deblock_offsets: [i32; 2],
+    pub(crate) loop_filter_tiles: bool,
     pub(crate) loop_filter_slices: bool,
     pub(crate) chroma_offsets: bool,
     pub(crate) header_extension: bool,
@@ -405,12 +408,13 @@ pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
             return Err(Error::InvalidData("PCM block size"));
         }
         let max_log2 = pcm_min + bits.ue(ctb_log2.min(5) - pcm_min)?;
-        bits.flag()?;
+        let loop_filter_disabled = bits.flag()?;
         Some(Pcm {
             luma_depth,
             chroma_depth,
             min_log2: pcm_min,
             max_log2,
+            loop_filter_disabled,
         })
     } else {
         None
@@ -519,6 +523,7 @@ pub(crate) fn pps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Pps> {
     let mut uniform_tiles = true;
     let mut column_width = [0; 39];
     let mut row_height = [0; 43];
+    let mut loop_filter_tiles = true;
     if tiles {
         tile_columns = bits.ue(u32::MAX - 1)? + 1;
         tile_rows = bits.ue(u32::MAX - 1)? + 1;
@@ -543,17 +548,17 @@ pub(crate) fn pps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Pps> {
                 }
             }
         }
-        bits.flag()?;
+        loop_filter_tiles = bits.flag()?;
     }
     let loop_filter_slices = bits.flag()?;
     let mut deblock_override = false;
     let mut deblock_disabled = false;
+    let mut deblock_offsets = [0; 2];
     if bits.flag()? {
         deblock_override = bits.flag()?;
         deblock_disabled = bits.flag()?;
         if !deblock_disabled {
-            bits.se(-6, 6)?;
-            bits.se(-6, 6)?;
+            deblock_offsets = [bits.se(-6, 6)?, bits.se(-6, 6)?];
         }
     }
     let scaling_lists = if bits.flag()? {
@@ -582,6 +587,8 @@ pub(crate) fn pps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Pps> {
         lists_modification,
         deblock_override,
         deblock_disabled,
+        deblock_offsets,
+        loop_filter_tiles,
         loop_filter_slices,
         chroma_offsets,
         header_extension,

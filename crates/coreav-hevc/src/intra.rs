@@ -5,6 +5,7 @@ use crate::{
 };
 use coreav_kernels_hevc::{self as kernels, BitDepth, IntraMode};
 
+mod filter;
 mod syntax;
 
 /// Independent header, reconstruction-memory and selected-picture entropy budgets.
@@ -67,6 +68,16 @@ pub struct IntraStats {
     pub picture_hashes: u64,
     /// Reserved suffix hashes, not credited as checked hashes.
     pub reserved_hashes: u64,
+    /// Eligible intra deblocking edge segments per component.
+    pub deblock_edges: [u64; 3],
+    /// Samples changed by the deblocking passes per component.
+    pub deblock_changed_samples: [u64; 3],
+    /// CTBs with a decoded nonzero SAO type per component.
+    pub sao_blocks: [u64; 3],
+    /// Samples changed by SAO per component.
+    pub sao_changed_samples: [u64; 3],
+    /// CTUs whose SAO parameters were merged from an available neighbour.
+    pub sao_merges: u64,
     /// Accounted peak simultaneous bytes before picture publication.
     pub memory_bytes: usize,
     /// Effective luma prediction blocks indexed by resolved mode.
@@ -98,6 +109,11 @@ impl Default for IntraStats {
             bins: 0,
             picture_hashes: 0,
             reserved_hashes: 0,
+            deblock_edges: [0; 3],
+            deblock_changed_samples: [0; 3],
+            sao_blocks: [0; 3],
+            sao_changed_samples: [0; 3],
+            sao_merges: 0,
             memory_bytes: 0,
             luma_modes: [0; 35],
             chroma_modes: [0; 35],
@@ -119,7 +135,7 @@ pub struct IntraPlane<'a> {
     pub stride: usize,
 }
 
-/// A complete, unfiltered intra picture tied to its original coded-picture index.
+/// A complete, in-loop-filtered intra picture tied to its original coded-picture index.
 #[derive(Clone, Copy, Debug)]
 pub struct IntraPicture<'a> {
     /// Zero-based index in the original coded NAL sequence, not output order.
@@ -141,8 +157,8 @@ enum State {
 
 /// Reconstructs one original Main/Main10 intra picture while inspecting all headers.
 ///
-/// The selected picture must disable deblocking and SAO in its original syntax.
-/// Inter pictures and filtered pictures return `Unsupported`; no fallback runs.
+/// Original syntax controls deblocking and SAO before hashes or publication.
+/// Inter pictures return `Unsupported`; no fallback runs.
 /// Input NAL storage belongs to the caller and is not included in reconstruction
 /// memory. Every error is terminal and discards unpublished samples. A later
 /// error cannot revoke an earlier callback, so callers must also require EOF.
@@ -242,7 +258,7 @@ impl IntraPictureDecoder {
         match info {
             NalInfo::Sei(sei) => {
                 if let Some(frame) = self.frame.as_mut() {
-                    frame.hash(sei)?;
+                    self.peak_memory = self.peak_memory.max(frame.hash(sei, fixed, limit)?);
                 }
             }
             NalInfo::Slice { header, .. } if header.first && !selected && self.frame.is_some() => {
@@ -266,6 +282,9 @@ impl IntraPictureDecoder {
         if self.delivered || !frame.complete() {
             return Err(Error::InvalidData("selected_picture_incomplete"));
         }
+        self.peak_memory = self
+            .peak_memory
+            .max(frame.finalize(Self::fixed_memory()?, self.limits.max_memory_bytes)?);
         frame.stats.bins = self.limits.max_bins - self.remaining_bins;
         frame.stats.memory_bytes = self.peak_memory;
         emit(frame.view())?;
@@ -346,6 +365,8 @@ struct Cell {
     reconstructed: u8,
     qp: i8,
     slice: u32,
+    edges: u8,
+    protected: bool,
 }
 
 struct Scratch {
@@ -363,6 +384,8 @@ struct Frame {
     depth: BitDepth,
     planes: [Vec<u16>; 3],
     cells: Vec<Cell>,
+    filter_ctus: Vec<filter::Ctu>,
+    filtered: bool,
     next_ctu: u32,
     segment_closed: bool,
     contexts: syntax::Contexts,
@@ -409,8 +432,12 @@ impl Frame {
                     reconstructed: 0,
                     qp: 0,
                     slice: 0,
+                    edges: 0,
+                    protected: false,
                 },
             )?,
+            filter_ctus: memory.allocate(input.sps.ctu_count as usize, filter::Ctu::default())?,
+            filtered: false,
             next_ctu: 0,
             segment_closed: false,
             contexts: syntax::Contexts::new(input.syntax.qp_y),
@@ -433,9 +460,6 @@ impl Frame {
         if input.syntax.kind != 2 || input.syntax.cabac_init {
             return Err(Error::Unsupported("selected_inter_picture"));
         }
-        if !input.syntax.deblock_disabled || input.syntax.sao.into_iter().any(|v| v) {
-            return Err(Error::Unsupported("selected_filtered_picture"));
-        }
         Ok(())
     }
 
@@ -453,6 +477,12 @@ impl Frame {
                     .checked_mul(core::mem::size_of::<Cell>())
                     .ok_or(Error::Limit("reconstruction_memory"))?,
             )
+            .and_then(|n| {
+                self.filter_ctus
+                    .capacity()
+                    .checked_mul(core::mem::size_of::<filter::Ctu>())
+                    .and_then(|m| n.checked_add(m))
+            })
             .ok_or(Error::Limit("reconstruction_memory"))
     }
 
@@ -463,10 +493,11 @@ impl Frame {
             && self.cells.iter().all(|c| c.reconstructed == 7)
     }
 
-    fn hash(&mut self, sei: SeiInfo) -> Result<()> {
+    fn hash(&mut self, sei: SeiInfo, fixed: usize, limit: usize) -> Result<usize> {
         if sei.picture_hash.is_none() && sei.reserved_hashes == 0 {
-            return Ok(());
+            return Ok(0);
         }
+        let peak = self.finalize(fixed, limit)?;
         if !self.complete() || self.hash_seen {
             return Err(Error::InvalidData("selected_picture_hash_placement"));
         }
@@ -483,7 +514,7 @@ impl Frame {
             self.stats.picture_hashes += 1;
         }
         self.stats.reserved_hashes += u64::from(sei.reserved_hashes);
-        Ok(())
+        Ok(peak)
     }
 
     fn view(&self) -> IntraPicture<'_> {
