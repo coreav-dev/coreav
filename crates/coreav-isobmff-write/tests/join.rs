@@ -898,6 +898,191 @@ fn unqualified_priming_keeps_compatibility_refusal_and_native_admission() {
     assert!(join(&[&source, &source]).is_ok());
 }
 
+fn fragmented_primed_source(first_dts: u32) -> Vec<u8> {
+    let mut header = movie(&[
+        TrackSpec {
+            video: true,
+            timescale: 48_000,
+            samples: Vec::new(),
+            edits: vec![(64, 0)],
+            entry: *b"avc1",
+        },
+        TrackSpec {
+            video: false,
+            timescale: 48_000,
+            samples: Vec::new(),
+            edits: vec![(64, 1024)],
+            entry: *b"mp4a",
+        },
+    ]);
+    with_framing_record(&mut header);
+    let original = child(&header, b"moov").unwrap();
+    let mut movie_boxes = vec![common::bx(b"mvhd", child(original, b"mvhd").unwrap())];
+    for (kind, trak) in children(original) {
+        if kind != *b"trak" {
+            continue;
+        }
+        let mdia = child(trak, b"mdia").unwrap();
+        let minf = child(mdia, b"minf").unwrap();
+        let stsd = child(child(minf, b"stbl").unwrap(), b"stsd").unwrap();
+        let stbl = common::bx(
+            b"stbl",
+            &common::cat(&[
+                common::bx(b"stsd", stsd),
+                common::full(b"stts", 0, 0, &common::u32s(&[0])),
+                common::full(b"stsc", 0, 0, &common::u32s(&[0])),
+                common::full(b"stsz", 0, 0, &common::u32s(&[0, 0])),
+                common::full(b"stco", 0, 0, &common::u32s(&[0])),
+            ]),
+        );
+        let minf = common::bx(
+            b"minf",
+            &common::cat(&[common::bx(b"dinf", child(minf, b"dinf").unwrap()), stbl]),
+        );
+        let mdia = common::bx(
+            b"mdia",
+            &common::cat(&[
+                common::bx(b"mdhd", child(mdia, b"mdhd").unwrap()),
+                common::bx(b"hdlr", child(mdia, b"hdlr").unwrap()),
+                minf,
+            ]),
+        );
+        movie_boxes.push(common::bx(
+            b"trak",
+            &common::cat(&[
+                common::bx(b"tkhd", child(trak, b"tkhd").unwrap()),
+                common::bx(b"edts", child(trak, b"edts").unwrap()),
+                mdia,
+            ]),
+        ));
+    }
+    movie_boxes.push(common::bx(
+        b"mvex",
+        &common::cat(&[
+            common::full(b"trex", 0, 0, &common::u32s(&[1, 1, 1024, 40, 0])),
+            common::full(b"trex", 0, 0, &common::u32s(&[2, 1, 1024, 20, 0])),
+        ]),
+    ));
+    let moov = common::bx(b"moov", &common::cat(&movie_boxes));
+    let fragment = |offset| {
+        common::bx(
+            b"moof",
+            &common::cat(&[
+                common::full(b"mfhd", 0, 0, &common::u32s(&[1])),
+                common::bx(
+                    b"traf",
+                    &common::cat(&[
+                        common::full(b"tfhd", 0, 0x020000, &common::u32s(&[1])),
+                        common::full(b"tfdt", 0, 0, &common::u32s(&[0])),
+                        common::full(b"trun", 0, 1, &common::u32s(&[4, offset])),
+                    ]),
+                ),
+                common::bx(
+                    b"traf",
+                    &common::cat(&[
+                        common::full(b"tfhd", 0, 0x020000, &common::u32s(&[2])),
+                        common::full(b"tfdt", 0, 0, &common::u32s(&[first_dts])),
+                        common::full(b"trun", 0, 1, &common::u32s(&[4, offset + 160])),
+                    ]),
+                ),
+            ]),
+        )
+    };
+    let moof = fragment(fragment(0).len() as u32 + 8);
+    let mut media = Vec::new();
+    for _ in 0..4 {
+        media.extend_from_slice(&[0, 0, 0, 36, 0x65, 0x88]);
+        media.extend_from_slice(&[0xab; 34]);
+    }
+    media.extend_from_slice(&[0xab; 80]);
+    common::cat(&[
+        common::bx(b"ftyp", child(&header, b"ftyp").unwrap()),
+        moov,
+        moof,
+        common::bx(b"mdat", &media),
+    ])
+}
+
+#[test]
+fn priming_admission_cannot_assume_a_fragment_starts_at_zero() {
+    let mut peer = movie(&[
+        TrackSpec {
+            video: true,
+            timescale: 48_000,
+            samples: vec![
+                S {
+                    size: 40,
+                    duration: 1024,
+                    offset: 0,
+                    sync: true
+                };
+                4
+            ],
+            edits: vec![(64, 0)],
+            entry: *b"avc1",
+        },
+        aac_audio(4, vec![(64, 1024)]),
+    ]);
+    movies::h264_slices(&mut peer, &[true; 4]);
+    with_framing_record(&mut peer);
+    let (_, admitted) = compatible_join(&[&peer, &peer], JoinAudio::First).unwrap();
+    let declared = common::bx(
+        b"mvex",
+        &common::full(b"trex", 0, 0, &common::u32s(&[1, 1, 1024, 40, 0])),
+    );
+    let marked = common::cat(&[
+        common::bx(b"ftyp", child(&peer, b"ftyp").unwrap()),
+        common::bx(b"free", child(&peer, b"moov").unwrap()),
+        common::bx(b"mdat", child(&peer, b"mdat").unwrap()),
+        common::bx(
+            b"moov",
+            &common::cat(&[child(&peer, b"moov").unwrap().to_vec(), declared]),
+        ),
+    ]);
+    assert!(!probe_all(&marked).has_fragments());
+    let (_, still_admitted) = compatible_join(&[&marked, &marked], JoinAudio::First).unwrap();
+    assert_eq!(admitted, still_admitted);
+    for first_dts in [0, 1, 1024, 2048] {
+        let source = fragmented_primed_source(first_dts);
+        let parsed = probe_all(&source);
+        assert!(parsed.has_fragments());
+        assert_eq!(packets(&source, &parsed, 1)[0].dts, i64::from(first_dts));
+        for (inputs, offending) in [
+            ([&source[..], &source[..]], 0),
+            ([&peer[..], &source[..]], 1),
+        ] {
+            for audio in [JoinAudio::First, JoinAudio::None] {
+                assert!(join_with(&inputs, audio).is_ok());
+                let mut output = Vec::new();
+                let result = join_mp4(
+                    inputs.iter().map(|input| SliceSource::new(input)).collect(),
+                    &Limits::default(),
+                    &Allowlist::default(),
+                    &JoinOptions {
+                        video: VideoChoice::First,
+                        audio,
+                        placement: Placement::AfterVideo,
+                        compatibility: Some(JoinCompatibility {
+                            muxer_encoder: "test".into(),
+                        }),
+                    },
+                    &mut output,
+                );
+                assert!(
+                    matches!(result, Err(JoinError::Input {
+                    input,
+                    error: ExtractError::Source(Error::Unsupported {
+                        reason: "a concat input with a positive AAC edit offset"
+                    }),
+                }) if input == offending),
+                    "{first_dts}/{audio:?}: {result:?}"
+                );
+                assert!(output.is_empty());
+            }
+        }
+    }
+}
+
 fn flac_clock_source(rate: u32, delta: u32) -> Vec<u8> {
     let mut source = common::av_movie_with(
         common::lossless_entry(b"fLaC", common::dfla(rate, 16)),

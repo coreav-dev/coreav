@@ -114,10 +114,10 @@ pub fn join_mp4<S: Source, W: Write>(
     let compatibility = options.compatibility.as_ref();
     let primed = compatibility.is_some()
         && first.video.description.codec == Codec::H264
-        && picks.iter().all(|pick| {
+        && movies.iter().zip(&picks).all(|(movie, pick)| {
             pick.audio
                 .as_ref()
-                .is_some_and(|audio| primed_aac(audio.track))
+                .is_some_and(|audio| primed_aac(movie, audio.track))
         });
     if compatibility.is_some() {
         for (input, (movie, pick)) in movies.iter().zip(&picks).enumerate() {
@@ -127,7 +127,7 @@ pub fn join_mp4<S: Source, W: Write>(
                         .chain(&track.later_descriptions)
                         .any(|description| description.codec == Codec::Aac)
                     && track.edits.iter().any(|edit| edit.media_time > 0)
-                    && !(first.video.description.codec == Codec::H264 && primed_aac(track))
+                    && !(first.video.description.codec == Codec::H264 && primed_aac(movie, track))
             }) {
                 return Err(at(
                     input,
@@ -660,7 +660,10 @@ fn encoder_item(value: &str) -> Result<Vec<u8>, Error> {
     Ok(out)
 }
 
-fn primed_aac(track: &Track) -> bool {
+fn primed_aac(movie: &Movie, track: &Track) -> bool {
+    if movie.has_fragments() {
+        return false;
+    }
     let description = &track.description;
     let [edit] = track.edits.as_slice() else {
         return false;
