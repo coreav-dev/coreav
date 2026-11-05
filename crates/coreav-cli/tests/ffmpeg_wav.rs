@@ -284,9 +284,14 @@ fn integer_wav_output_matches_complete_pinned_files() {
 #[cfg(unix)]
 #[test]
 fn wav_non_regular_destinations_refuse_without_staging_or_replacement() {
-    use std::os::unix::fs::{MetadataExt, symlink};
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, symlink};
     use std::os::unix::net::UnixListener;
-    let dir = scratch("special-destinations");
+    let tag = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = Path::new("/tmp").join(format!("cw-{}-{tag}", std::process::id()));
+    std::fs::DirBuilder::new().mode(0o700).create(&dir).unwrap();
     let input = dir.join("input.wav");
     std::fs::write(&input, wav(1, 16, 1, &[0; 6])).unwrap();
     let fifo = dir.join("fifo.wav");
@@ -298,6 +303,10 @@ fn wav_non_regular_destinations_refuse_without_staging_or_replacement() {
             .success()
     );
     let socket = dir.join("socket.wav");
+    assert!(
+        socket.as_os_str().as_encoded_bytes().len() < 104,
+        "keep the fixture below macOS's 104-byte sun_path capacity"
+    );
     let _listener = UnixListener::bind(&socket).unwrap();
     let directory = dir.join("directory.wav");
     std::fs::create_dir(&directory).unwrap();
