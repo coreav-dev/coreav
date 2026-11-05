@@ -14,6 +14,14 @@ After committing this plan, generate short mono 48 kHz WAVE and FLAC controls wi
 
 ## Ownership
 
+### Observed reference layout
+
+After the first plan commit, independent mono 48 kHz S16 WAVE, FLAC-in-MP4 and AAC controls produced `ipcm` version-0 audio entries with 16-bit samples. Their `pcmC` payload is `00 00 00 00 01 10` (version/flags zero, little-endian flag, 16-bit width); no `chnl` child is present. `btrt` carries zero buffer size and equal 768,000-bit/s maximum/average rates. File brands are `isom`, minor version 512, then `isom`, `iso2`, `mp41`. Movie and media clocks are 48,000 Hz; an identity edit covers the complete frame count. Movie metadata carries the existing pinned muxer encoder tag.
+
+Each PCM frame is one two-byte MP4 sample with duration one tick. The reference stores one contiguous audio chunk, while its probe groups samples into 1,024-frame packets plus the complete short terminal packet. A 1.1-second control crosses the one-second boundary without splitting the packet clock at that boundary. The implementation must verify this behavior through the unchanged mux API rather than assume its chunk policy is invisible. These are layout observations, not a compatibility or measured-coverage result.
+
+Use WAVE and containerized FLAC for exact controls through the common two-pass decoder. Standalone FLAC has a separate prepared-stream output owner; it remains outside this new MP4 route rather than bypassing that owner or accidentally emitting its raw bytes into an MP4 filename.
+
 Route only MP4 with exactly one selected audio stream and effective S16 PCM through the current raw-audio plan. Keep the existing outside-WAV/raw guard for commands with video and every unsupported layout. Add a private `raw_audio/mp4.rs` output adapter; reuse the public MP4 muxer's sample-entry, header, table and write APIs without changing its public interface or the transcode writer.
 
 The existing raw-audio owner retains decoder selection, exact conversion composition, the preflight and execution decodes, their equality check, output staging and terminal error classification. Explicit muxer dispatch prevents an MP4 request from falling through to headerless raw bytes. For MP4 only, refuse absent qualified frame counts, stdout, unsupported source metadata, chapters or dispositions before publication. Reuse the existing metadata predicate rather than establish a second list of supported tags; any extraction from the audio-encode owner must preserve its behavior.
