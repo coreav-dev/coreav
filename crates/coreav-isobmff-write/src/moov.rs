@@ -228,14 +228,16 @@ pub(crate) fn interleave<E: From<Error>>(
         }
         cursors.push(chunks);
     }
-    while let Some(Reverse(next)) = queue.pop() {
-        f(next.index, next.chunk)?;
-        let (Some(chunks), Some(tables)) = (cursors.get_mut(next.index), tracks.get(next.index))
-        else {
+    while let Some(mut next) = queue.peek_mut() {
+        let index = next.0.index;
+        f(index, next.0.chunk)?;
+        let (Some(chunks), Some(tables)) = (cursors.get_mut(index), tracks.get(index)) else {
             return Err(overflow().into());
         };
         if let Some(chunk) = chunks.next().transpose().map_err(E::from)? {
-            queue.push(Reverse(Next::new(next.index, tables, chunk, ties)));
+            *next = Reverse(Next::new(index, tables, chunk, ties));
+        } else {
+            std::collections::binary_heap::PeekMut::pop(next);
         }
     }
     Ok(())
@@ -246,6 +248,7 @@ pub(crate) fn interleave<E: From<Error>>(
 struct Next {
     index: usize,
     timescale: u32,
+    decode_start: i64,
     chunk: Chunk,
     ties: Ties,
 }
@@ -255,6 +258,7 @@ impl Next {
         Self {
             index,
             timescale: tables.timescale(),
+            decode_start: tables.decode_start,
             chunk,
             ties,
         }
@@ -264,8 +268,10 @@ impl Next {
 impl Ord for Next {
     fn cmp(&self, other: &Self) -> Ordering {
         // start / timescale compared exactly: a / b < c / d iff a d < c b.
-        let mine = u128::from(self.chunk.start).saturating_mul(u128::from(other.timescale));
-        let theirs = u128::from(other.chunk.start).saturating_mul(u128::from(self.timescale));
+        let mine = (i128::from(self.chunk.start) + i128::from(self.decode_start))
+            * i128::from(other.timescale);
+        let theirs = (i128::from(other.chunk.start) + i128::from(other.decode_start))
+            * i128::from(self.timescale);
         let size = match self.ties {
             Ties::TrackOrder => Ordering::Equal,
             Ties::SmallerFirst => self.chunk.bytes.cmp(&other.chunk.bytes),
