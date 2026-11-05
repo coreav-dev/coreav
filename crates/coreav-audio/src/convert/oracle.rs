@@ -25,6 +25,9 @@ fn reference(
     channels: usize,
     planar: bool,
 ) -> Vec<u8> {
+    // FFmpeg's arm64 SIMD path rounds half-LSB ties away from even;
+    // its C path and CoreAV round to even.
+    const SCALAR_CONVERSION_REFERENCE: [&str; 2] = ["-cpuflags", "0"];
     let (input_format, _) = format(source);
     let (output_format, sample_format) = format(target);
     let layout = format!(
@@ -33,6 +36,7 @@ fn reference(
     );
     let mut child = Command::new(ffmpeg)
         .args(["-v", "error", "-nostdin"])
+        .args(SCALAR_CONVERSION_REFERENCE)
         .args(include_str!("../../../../scripts/oracle-audio-args.txt").split_whitespace())
         .args(["-f", input_format, "-ar", "48000", "-ac"])
         .arg(channels.to_string())
