@@ -53,6 +53,7 @@ def child_limits():
 
 
 def capture(command, allow_unknown=False):
+    require(sys.platform == 'linux', 'fixture subprocesses require Linux limits')
     process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, env=ENVIRONMENT,
                                start_new_session=True, preexec_fn=child_limits)

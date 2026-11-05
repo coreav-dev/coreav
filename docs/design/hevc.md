@@ -1,6 +1,6 @@
 # HEVC decoding
 
-Status: Milestone 1 is merged. `coreav-hevc` provides opt-in header inspection and header-only output bookkeeping, not reconstructed pictures or a decode backend. The [milestone-2 implementation plan](hevc-intra.md) describes the next scalar CABAC and intra work; it supplies no reconstruction result. The milestone structure remains; the evidence rules and explicit C1 exclusions are documented below. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
+Status: Milestone 1 is merged. `coreav-hevc` provides opt-in header inspection and a selected-picture scalar intra path; the [milestone-2 design](hevc-intra.md) describes its CABAC, serial traversal and reconstruction limits. G2 media verification is not yet established. No production decode backend or default consumer selects it. The milestone structure remains; the evidence rules and explicit C1 exclusions are documented below. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
 
 ## What this is
 
@@ -30,9 +30,9 @@ Until a milestone implements a tool, that tool is refused, never decoded approxi
 
 ## Packaging: opt-in, separately packaged
 
-HEVC decoding can require a patent licence depending on jurisdiction and use. The packaging is the native H.264 decoder's: the future `native-hevc` Cargo feature is opt-in and absent from every default build. CLI, Python, WebAssembly and npm consumers must not acquire it through transitive default features. A build without it refuses an explicit native HEVC request with `unsupported_feature`.
+HEVC decoding can require a patent licence depending on jurisdiction and use. The packaging is the native H.264 decoder's: the `native-hevc` Cargo feature is opt-in and absent from every default build. CLI, Python, WebAssembly and npm consumers must not acquire it through transitive default features. The current facades expose no API without that feature; a future backend must refuse an explicit native HEVC request without it using `unsupported_feature`.
 
-The decoder has three crate boundaries. The header parser is a workspace member for CI, not a default artifact dependency; the kernel and backend crates follow in later milestones:
+The decoder has three crate boundaries. The parser and scalar kernel crates are workspace members for CI, not default artifact dependencies; the backend follows in a later milestone:
 
 | Crate | Responsibility | Safety |
 |---|---|---|

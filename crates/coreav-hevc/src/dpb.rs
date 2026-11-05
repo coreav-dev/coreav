@@ -804,7 +804,12 @@ mod tests {
             max_reorder: [2; 7],
             max_latency: [0; 7],
             min_cb_log2: 3,
-            scaling_list_enabled: false,
+            min_tb_log2: 2,
+            max_tb_log2: 5,
+            max_intra_transform_depth: 0,
+            strong_smoothing: false,
+            pcm: None,
+            scaling_lists: None,
             vui: Vui::default(),
         }
     }
@@ -827,6 +832,9 @@ mod tests {
             slice_type: Some(2),
             poc_lsb: Some(poc),
             output: Some(true),
+            slice_qp_y: Some(26),
+            chroma_qp_offsets: Some([0; 2]),
+            cabac_init_flag: Some(false),
             sao: Some([false; 2]),
             deblock_disabled: Some(true),
             entry_points: 0,

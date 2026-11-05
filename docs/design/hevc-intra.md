@@ -1,6 +1,6 @@
 # HEVC scalar intra reconstruction
 
-Status: plan only. Milestone 1 is merged in coreav-dev/coreav#373. This note specifies milestone 2 of [the decoder plan](hevc.md), not an implemented decoder or a G2 result. The first commit of the milestone-2 pull request contains this plan; implementation follows review in the same work unit. No judged media run is part of this planning change.
+Status: scalar intra implementation. Milestone 1 is merged in coreav-dev/coreav#373. This note describes milestone 2 of [the decoder plan](hevc.md); the plan and implementation share one work unit. Bounded unit/control checks cover the implemented path, but G2 media verification is not yet established.
 
 ## Outcome and limits
 
@@ -10,13 +10,13 @@ Inter prediction, in-loop filters, a `coreav-decode` backend, CLI selection, con
 
 Use the already pinned ITU-T H.265 V11 January 2026 specification and H.265.1 data. HM and every other HEVC implementation's source, test lists and source-derived notes remain unread. FFmpeg/ffprobe 9.0.2 remain binary oracles; no library is linked. The four existing synthetic recipes retain their exact registration and labels. This plan does not authorize a new encoder recipe or a source-study exception.
 
-## Existing owners and the missing state
+## Shared stream state
 
-`HeaderParser` currently owns parameter activation, full-content identities, dependent-header inheritance, picture boundaries, POC and the header-only DPB. It reads every admitted header to EOF without reconstructing samples. Its `NalInfo::Slice` is an inspection record, not a sufficient decoding configuration.
+The private `StreamCore` owns parameter activation, full-content identities, dependent-header inheritance, picture boundaries, POC and the header-only DPB. `HeaderParser` delegates to it and reads admitted headers to EOF without reconstructing samples. Its public `NalInfo::Slice` remains an inspection record, not a public decoding configuration.
 
-The current SPS/PPS readers validate but do not retain every reconstruction value. The slice reader retains the entropy start and entry-point count, but discards individual offsets after checking their sum. Milestone 2 must retain validated transform bounds, smoothing and PCM declarations, effective scaling matrices, transform-skip and bypass controls, QP state and every entry-point offset. Re-reading the header in a separate decoder would create conflicting activation, inheritance and lifetime rules.
+The SPS/PPS readers retain validated transform bounds, smoothing and PCM declarations, scaling matrices, transform-skip and bypass controls and QP state. Selected slices retain every entry-point length after checking its count and storage budget. Header-only inspection does not allocate entry-point vectors. Re-reading headers in a separate decoder would create conflicting activation, inheritance and lifetime rules.
 
-Extract a crate-private stream core from the existing owner. `HeaderParser` remains the header-only facade with its existing public contract; the reconstruction facade consumes the same core's validated events. Each NAL has one RBSP/header parse and one parameter-activation decision. Effective inherited syntax and immutable active parameter views reach reconstruction through a borrowed private record, valid for that call. No public parameter-set constructor, second POC implementation or decoder-owned parameter registry is introduced. Preserve all milestone-1 wire regressions and terminal-error behavior during the extraction.
+`IntraPictureDecoder` consumes the same core's validated events. Each NAL has one RBSP/header parse and one parameter-activation decision. Effective inherited syntax and immutable active parameter views reach reconstruction through a borrowed private record, valid for that call. One fixed tile-layout owner serves header address ordering and reconstruction traversal. There is no public parameter-set constructor, second POC implementation or decoder-owned parameter registry.
 
 ## Caller contract
 
@@ -30,7 +30,7 @@ for nal in original_nals {
 decoder.finish(|picture| compare_registered_picture(picture))?;
 ```
 
-The names above describe the proposed interface, not code that exists. `IntraLimits` contains the existing header limits plus explicit total reconstruction-memory and entropy-work budgets. The callback receives a borrowed completed picture with its original coded index, activated geometry/depth, crop and Y/Cb/Cr planes. It cannot retain the planes beyond the callback without its own allocation. There is no display clock, packet adapter or fallback in this API.
+`IntraLimits` contains the existing header limits plus total reconstruction-memory and picture-wide CABAC-bin budgets. The callback receives an `IntraPicture` borrowing completed coded `u16` Y/Cb/Cr planes, with the original coded index, activated geometry/depth, conformance window and effective counters. It cannot retain the planes beyond the callback without its own allocation. There is no display clock, packet adapter or fallback in this API.
 
 Unselected pictures receive header inspection only, so a target after an inter picture can be located without claiming to reconstruct that inter prefix. The selected picture must have only intra slices, need no earlier samples and have both filters disabled. A selected inter or filtered picture returns `Unsupported`, not a placeholder image. Target absence, missing segments or incomplete termination cannot report success. Header-only prefix validation is never counted as reconstructed-picture coverage or complete C1 decoding.
 
@@ -70,7 +70,7 @@ Retain custom and default scaling-list values instead of accepting their flags a
 
 Use checked dimensions and stride/plane-size arithmetic, fallible reservations and wide intermediate arithmetic with the specification's intermediate clipping and rounding. Charge the total simultaneous memory before reservation: reconstructed planes, availability maps, CTU metadata, coefficient/transform scratch, parameter payloads, substream maps and any allocation growth overlap. Stride padding is not reference output. The conformance writer packs rows without another full-picture copy.
 
-The proposed defaults are 256 MiB of total reconstruction memory, including scratch and maps, and 268,435,456 decoded bins for the selected picture; a caller may choose different bounds. Header limits remain independent. Input/substream bounds and coding-tree/transform bounds are enforced separately. CI records the actual memory/bin budgets and reports budget exhaustion as failure, never as missing coverage or successful reconstruction. These are runtime safety limits, not a measurement freeze. A valid stream exceeding a caller budget is `Limit`, malformed syntax is `InvalidData`, and unimplemented tools are `Unsupported`; all carry static labels. No unsafe code, unbounded recursion, infallible growth or production panic is introduced.
+The defaults are 256 MiB of total reconstruction memory, including scratch and maps, and 268,435,456 decoded bins for the selected picture; a caller may choose different bounds. Header limits remain independent. Input/substream bounds and coding-tree/transform bounds are enforced separately. Caller-owned input storage is separate from the charged RBSP copy. CI records the actual memory/bin budgets and reports exhaustion as failure, never as missing coverage or successful reconstruction. These are runtime safety limits, not a measurement freeze. A valid stream exceeding a caller budget is `Limit`, malformed syntax is `InvalidData`, and unimplemented tools are `Unsupported`; all carry static labels. No unsafe code, unbounded recursion, infallible growth or production panic is introduced.
 
 ## Implementation sequence
 
@@ -102,8 +102,10 @@ Validate every defined picture-hash SEI algorithm when present: MD5, CRC and che
 
 Pixel equality and effective syntax coverage are separate facts. Instrument decoded syntax, not just SPS/PPS flags. A tool whose effective reference case is missing stays unproved. Retain filtered tile/WPP/dependent candidates for G3 instead of disabling their filters. Any additional unfiltered reference recipe requires an explicit registration and the applicable authorization before use; none is generated by this plan. Missing coverage blocks the corresponding completion claim rather than being relabelled as a pass.
 
-Run tiny specification-written unit cases and short fixture checks locally. Run all official/synthetic media decoding, corpus acquisition and fuzz campaigns on GitHub Actions, with pinned binary oracles, hard timeouts and credential-free media children. Use only the existing bounded acquisition path when media are needed; this planning PR acquires nothing. No additional file draw, held-out tuning, timed experiment or remote VM is authorized. Preserve original NAL bytes for native input and the sole existing oracle-only parameter-set preparation where applicable.
+Run tiny specification-written unit cases and short fixture checks locally. Run all official/synthetic media decoding, corpus acquisition and fuzz campaigns on GitHub Actions, with pinned binary oracles, hard timeouts and credential-free media children. Use only the existing bounded acquisition path. No additional file draw, held-out tuning, timed experiment or remote VM is authorized. Preserve original NAL bytes for native input and the sole existing oracle-only parameter-set preparation where applicable.
 
-## Readiness of this change
+## Runtime verification
 
-The current change contains documentation only. It does not implement the proposed API, modify features or declarations, run a decoder comparison, establish effective tool coverage or pass G2. Review the ownership, original-picture selection, entropy boundaries and proof obligations before implementation starts. A specification ambiguity or a need for a clean-room exception is escalated, never filled from another implementation.
+The `intra` example retains one original coded picture as planar u16le and emits complete metadata only after full input and successful finalization; failure removes its newly created output. `scripts/hevc_intra.py` runs the existing G1 owner once, derives every eligible coded picture from that fresh census, requires its original output/reference mapping, and compares native packed/cropped pixels with the registered reference and complete pinned-oracle frame hashes. It keeps coded-component hashes separate from visible-picture hashes. Controls reject missing targets, truly truncated entropy, exhausted budgets and output clobbering; media-free comparator mutations reject changed samples, components, references and crop origins.
+
+The driver reports finite budgets and decoded work, including mode/transform counts and sign-hidden groups. Missing effective serial-feature reference cases remain coverage gaps even when every available picture matches. Unit/control checks and compilation do not establish G2; the complete source-bound CI result is required. A specification ambiguity or clean-room exception is escalated, never filled from another implementation.

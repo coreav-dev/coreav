@@ -400,6 +400,8 @@ dependencies = [
 name = "coreav-hevc"
 version = "0.0.1"
 dependencies = [
+ "coreav-kernels-hevc",
+ "md-5",
  "serde_json",
  "sha2",
 ]
@@ -436,6 +438,10 @@ version = "0.0.1"
 
 [[package]]
 name = "coreav-kernels-h264"
+version = "0.0.1"
+
+[[package]]
+name = "coreav-kernels-hevc"
 version = "0.0.1"
 
 [[package]]
