@@ -1,7 +1,7 @@
 //! Test-only raw-picture driver and independent CoreAV reconstruction check.
 #![forbid(unsafe_code)]
 
-use coreav_h264_encoder::{Colour, Encoder, Limits, Picture, Plane, Settings};
+use coreav_h264_encoder::{Colour, Deblocking, Encoder, Gop, Limits, Picture, Plane, Settings};
 use std::{
     env,
     fs::File,
@@ -10,6 +10,22 @@ use std::{
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = env::args().skip(1).collect();
+    let (args, deblocking) = if args.len() == 14 {
+        let enabled = args
+            .last()
+            .ok_or("missing deblocking choice")?
+            .parse::<bool>()?;
+        (
+            args.get(..13).ok_or("missing picture arguments")?,
+            if enabled {
+                Deblocking::Enabled
+            } else {
+                Deblocking::Disabled
+            },
+        )
+    } else {
+        (args.as_slice(), Deblocking::Disabled)
+    };
     let [
         width,
         height,
@@ -24,9 +40,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         transfer,
         matrix,
         location,
-    ] = args.as_slice()
+    ] = args
     else {
-        return Err("usage: g1 WIDTH HEIGHT QP FRAMES INPUT OUTPUT RECON DECODED FULL_RANGE PRIMARIES TRANSFER MATRIX CHROMA_LOCATION".into());
+        return Err("usage: g1 WIDTH HEIGHT QP FRAMES INPUT OUTPUT RECON DECODED FULL_RANGE PRIMARIES TRANSFER MATRIX CHROMA_LOCATION [DEBLOCKING]".into());
     };
     let width = width.parse::<usize>()?;
     let height = height.parse::<usize>()?;
@@ -35,6 +51,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         width,
         height,
         qp: qp.parse()?,
+        deblocking,
+        gop: Gop::AllIntra,
         colour: Colour {
             full_range: range.parse()?,
             primaries: primaries.parse()?,

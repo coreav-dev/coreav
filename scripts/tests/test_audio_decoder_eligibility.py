@@ -79,11 +79,26 @@ class DecoderEligibility(unittest.TestCase):
 
     def test_aac_project_comparator_cannot_grant_iso_eligibility(self):
         aac = next(row for row in self.record['decoders'] if row['codec'] == 'aac')
-        self.assertFalse(aac['decoder_eligible'])
-        self.assertTrue(all(not row['eligible'] for row in aac['presentations']))
+        aac['kind'] = 'conformance'
+        aac.pop('tolerance')
         aac['decoder_eligible'] = True
         with self.assertRaisesRegex(ValueError, 'ISO conformance procedure'):
             eligibility.validate(self.record)
+
+    def test_aac_tolerance_cannot_grant_exactness_or_relax_its_scope(self):
+        for field, value in [('f32_absolute', 2 ** -15), ('s16_lsb', 2),
+                             ('timeline', 'approximate'), ('feature', 'default')]:
+            with self.subTest(field=field):
+                record = copy.deepcopy(self.record)
+                aac = next(row for row in record['decoders'] if row['codec'] == 'aac')
+                aac['tolerance'][field] = value
+                with self.assertRaisesRegex(ValueError, 'tolerance or build scope'):
+                    eligibility.validate(record)
+        aac = next(row for row in self.record['decoders'] if row['codec'] == 'aac')
+        for requirements in ([], ['aac_lc'], ['aac_lc', 'supported_mp4_timeline']):
+            aac['presentations'][0]['requirements'] = requirements
+            with self.assertRaisesRegex(ValueError, 'content and presentation predicates'):
+                eligibility.validate(self.record)
 
     def test_opus_scope_needs_both_registered_profile_and_mp4_timeline(self):
         opus = next(row for row in self.record['decoders'] if row['codec'] == 'opus')

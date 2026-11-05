@@ -11,6 +11,10 @@ on:
       - crates/coreav-h264/**
       - scripts/h264_g1*
       - scripts/tests/test_h264_g1*
+      - scripts/h264_deblock_conformance.py
+      - scripts/tests/test_h264_deblock.py
+      - scripts/h264_p_conformance.py
+      - scripts/tests/test_h264_p.py
       - scripts/install-jm-decoder.sh
       - scripts/jm-decoder.env
       - scripts/oracle-ffmpeg.env
@@ -28,6 +32,10 @@ on:
       - crates/coreav-h264/**
       - scripts/h264_g1*
       - scripts/tests/test_h264_g1*
+      - scripts/h264_deblock_conformance.py
+      - scripts/tests/test_h264_deblock.py
+      - scripts/h264_p_conformance.py
+      - scripts/tests/test_h264_p.py
       - scripts/install-jm-decoder.sh
       - scripts/jm-decoder.env
       - scripts/oracle-ffmpeg.env
@@ -62,15 +70,19 @@ jobs:
           components: clippy
       - name: Unit tests and opt-in driver
         run: |
-          cargo test --locked -p coreav-h264-encoder --features full
+          H264_P_FIXTURE_DIR="$RUNNER_TEMP/p-forced" cargo test --locked --release -p coreav-h264-encoder --features full
           cargo clippy --locked -p coreav-h264-encoder --features full --all-targets -- -D warnings
           cargo build --locked --release -p coreav-h264-encoder --features full --example g1
+          cargo build --locked --release -p coreav-h264-encoder --features full --example p
+          cargo build --locked --release -p coreav-h264 --example decode
           if cargo tree --locked -p coreav-h264-encoder --no-default-features -e normal | grep coreav-kernels-h264; then
             echo 'default encoder feature graph links H.264 kernels' >&2
             exit 1
           fi
           cargo tree --locked -p coreav-h264-encoder --features full -e normal | grep coreav-kernels-h264
           python3 -I -m unittest discover -s scripts/tests -p 'test_h264_g1*.py'
+          python3 -I -m unittest discover -s scripts/tests -p 'test_h264_deblock.py'
+          python3 -I -m unittest discover -s scripts/tests -p 'test_h264_p.py'
       - name: Install black-box decoder oracles
         run: |
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/g1-oracles"
@@ -91,11 +103,36 @@ jobs:
             --jm "$RUNNER_TEMP/g1-oracles/ldecod" \
             --fixtures "$RUNNER_TEMP/g1-existing-fixtures" \
             --output "$RUNNER_TEMP/g1-conformance"
+      - name: Compare enabled deblocking at every QP
+        run: |
+          python3 -I scripts/h264_deblock_conformance.py \
+            --driver target/release/examples/g1 \
+            --ffmpeg "$RUNNER_TEMP/g1-oracles/ffmpeg" \
+            --jm "$RUNNER_TEMP/g1-oracles/ldecod" \
+            --output "$RUNNER_TEMP/deblock-conformance"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: h264-encoder-conformance
           path: |
             ${{ runner.temp }}/g1-conformance
+            ${{ runner.temp }}/deblock-conformance
             ${{ runner.temp }}/g1-oracles/jm-build.txt
+          if-no-files-found: ignore
+      - name: Compare synthetic P sequences with all three decoders
+        run: |
+          python3 -I scripts/h264_p_conformance.py \
+            --driver target/release/examples/p \
+            --decoder target/release/examples/decode \
+            --forced-fixtures "$RUNNER_TEMP/p-forced" \
+            --ffmpeg "$RUNNER_TEMP/g1-oracles/ffmpeg" \
+            --jm "$RUNNER_TEMP/g1-oracles/ldecod" \
+            --output "$RUNNER_TEMP/p-conformance"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: h264-p-conformance
+          path: |
+            ${{ runner.temp }}/p-conformance
+            ${{ runner.temp }}/p-forced
           if-no-files-found: ignore

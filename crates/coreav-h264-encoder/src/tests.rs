@@ -8,6 +8,8 @@ fn settings(width: usize, height: usize, qp: u8) -> Settings {
         width,
         height,
         qp,
+        deblocking: Deblocking::Disabled,
+        gop: Gop::AllIntra,
         colour: Colour {
             full_range: false,
             primaries: 1,
@@ -32,6 +34,14 @@ impl Reader {
     fn u(&mut self, n: u32) -> u32 {
         (0..n).fold(0, |v, _| v * 2 + self.bit())
     }
+    fn ue(&mut self) -> u32 {
+        let mut n = 0;
+        while self.bit() == 0 {
+            n += 1;
+            assert!(n < 32);
+        }
+        (1 << n) - 1 + self.u(n)
+    }
     fn vlc(&mut self, codes: impl IntoIterator<Item = (usize, u32)>) -> usize {
         let codes: Vec<_> = codes.into_iter().filter(|(_, v)| *v & 31 != 0).collect();
         let mut v = 0;
@@ -47,6 +57,10 @@ impl Reader {
 
 fn reader(w: Bits) -> Reader {
     let nal = w.nal(0x65).unwrap();
+    nal_reader(&nal)
+}
+
+fn nal_reader(nal: &[u8]) -> Reader {
     let mut bytes = Vec::new();
     let mut zeros = 0;
     for &b in nal.iter().skip(1) {
@@ -432,4 +446,311 @@ fn dense_low_qp_content_is_refused_without_advancing_sequence_state() {
     assert_eq!(second.nals, expected.nals);
     assert_eq!(second.reconstruction, expected.reconstruction);
     assert_eq!(encoder.encode(picture).unwrap_err(), Error::Limit);
+}
+
+#[test]
+fn enabled_filter_reconstructs_the_complete_picture_before_cropping() {
+    let (width, height) = (18, 22);
+    let y: Vec<_> = (0..width * height)
+        .map(|p| 16 + ((p % width * 3 + p / width * 5) % 220) as u8)
+        .collect();
+    let cb: Vec<_> = (0..width * height / 4)
+        .map(|p| 32 + (p % 97) as u8)
+        .collect();
+    let cr: Vec<_> = (0..width * height / 4)
+        .map(|p| 180 - (p % 83) as u8)
+        .collect();
+    let picture = Picture {
+        y: Plane::new(&y, width, width, height).unwrap(),
+        cb: Plane::new(&cb, width / 2, width / 2, height / 2).unwrap(),
+        cr: Plane::new(&cr, width / 2, width / 2, height / 2).unwrap(),
+    };
+    let mut s = settings(width, height, 28);
+    let original = Encoder::new(s, Limits::default())
+        .unwrap()
+        .encode(picture)
+        .unwrap();
+    s.deblocking = Deblocking::Enabled;
+    let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+    let mut decoder =
+        coreav_h264::Decoder::with_kernels(coreav_h264::Scalar, coreav_h264::Limits::default())
+            .with_mode(coreav_h264::Mode::EveryPicture);
+    let mut expected = Vec::new();
+    for _ in 0..2 {
+        let au = encoder.encode(picture).unwrap();
+        assert_ne!(au.reconstruction, original.reconstruction);
+        expected.push(au.reconstruction);
+        for nal in &au.nals {
+            decoder.decode_nal(nal).unwrap();
+        }
+        decoder.end_access_unit().unwrap();
+    }
+    decoder.flush().unwrap();
+    let pictures = decoder.take_pictures();
+    assert_eq!(pictures.len(), expected.len());
+    for (picture, expected) in pictures.iter().zip(expected) {
+        let (cb, cr) = picture.chroma();
+        let actual: Vec<_> = picture
+            .luma()
+            .rows()
+            .chain(cb.rows())
+            .chain(cr.rows())
+            .flatten()
+            .copied()
+            .collect();
+        assert_eq!(actual, expected);
+    }
+    assert!(decoder.warnings().is_empty());
+    assert_eq!(decoder.warnings_dropped(), 0);
+}
+
+#[test]
+fn fixed_gop_reconstructs_every_cropped_picture_and_rejects_zero_interval() {
+    let (width, height) = (18, 18);
+    let mut s = settings(width, height, 34);
+    s.gop = Gop::Fixed { idr_interval: 0 };
+    assert!(matches!(
+        Encoder::new(s, Limits::default()),
+        Err(Error::Settings)
+    ));
+    s.gop = Gop::Fixed { idr_interval: 2 };
+    s.deblocking = Deblocking::Enabled;
+    let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+    let mut decoder =
+        coreav_h264::Decoder::with_kernels(coreav_h264::Scalar, coreav_h264::Limits::default())
+            .with_mode(coreav_h264::Mode::EveryPicture);
+    let mut expected = std::collections::VecDeque::new();
+    let mut count = 0;
+    for f in 0..3 {
+        let y: Vec<_> = (0..width * height)
+            .map(|p| 32 + ((p % width + f) * 3 + p / width * 5) as u8)
+            .collect();
+        let cb: Vec<_> = (0..width * height / 4)
+            .map(|p| 64 + ((p % 9 + f) * 7 + p / 9 * 3) as u8)
+            .collect();
+        let cr: Vec<_> = (0..width * height / 4)
+            .map(|p| 180 - ((p % 9 + f) * 3 + p / 9 * 5) as u8)
+            .collect();
+        let au = encoder
+            .encode(Picture {
+                y: Plane::new(&y, width, width, height).unwrap(),
+                cb: Plane::new(&cb, width / 2, width / 2, height / 2).unwrap(),
+                cr: Plane::new(&cr, width / 2, width / 2, height / 2).unwrap(),
+            })
+            .unwrap();
+        assert_eq!(au.nals[2][0], if f == 1 { 0x61 } else { 0x65 });
+        expected.push_back(au.reconstruction);
+        for nal in &au.nals {
+            decoder.decode_nal(nal).unwrap();
+        }
+        decoder.end_access_unit().unwrap();
+        for picture in decoder.take_pictures() {
+            let (cb, cr) = picture.chroma();
+            let samples: Vec<_> = picture
+                .luma()
+                .rows()
+                .chain(cb.rows())
+                .chain(cr.rows())
+                .flatten()
+                .copied()
+                .collect();
+            assert_eq!(samples, expected.pop_front().unwrap());
+            count += 1;
+        }
+    }
+    decoder.flush().unwrap();
+    for picture in decoder.take_pictures() {
+        let (cb, cr) = picture.chroma();
+        let samples: Vec<_> = picture
+            .luma()
+            .rows()
+            .chain(cb.rows())
+            .chain(cr.rows())
+            .flatten()
+            .copied()
+            .collect();
+        assert_eq!(samples, expected.pop_front().unwrap());
+        count += 1;
+    }
+    assert_eq!(count, 3);
+    assert!(expected.is_empty());
+    assert!(decoder.warnings().is_empty());
+    assert_eq!(decoder.warnings_dropped(), 0);
+}
+
+#[test]
+fn p_failure_retains_reference_identity_frame_number_and_carried_count() {
+    let mut s = settings(16, 16, 34);
+    s.gop = Gop::Fixed { idr_interval: 3 };
+    let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+    let y = [104; 256];
+    let cb = [92; 64];
+    let cr = [156; 64];
+    let picture = Picture {
+        y: Plane::new(&y, 16, 16, 16).unwrap(),
+        cb: Plane::new(&cb, 8, 8, 8).unwrap(),
+        cr: Plane::new(&cr, 8, 8, 8).unwrap(),
+    };
+    let mut reference = Encoder::new(s, Limits::default()).unwrap();
+    assert_eq!(
+        encoder.encode(picture).unwrap().nals,
+        reference.encode(picture).unwrap().nals
+    );
+    encoder.previous_mv_count = 16;
+    reference.previous_mv_count = 16;
+    encoder.limits.total_bytes = 1;
+    assert_eq!(encoder.encode(picture).unwrap_err(), Error::Limit);
+    assert_eq!(encoder.previous_mv_count, 16);
+    encoder.limits.total_bytes = Limits::default().total_bytes;
+    let retried = encoder.encode(picture).unwrap();
+    let fresh = reference.encode(picture).unwrap();
+    assert_eq!(retried.nals, fresh.nals);
+    assert_eq!(retried.reconstruction, fresh.reconstruction);
+    assert_eq!(encoder.previous_mv_count, 0);
+    assert_eq!(
+        encoder.encode(picture).unwrap().nals,
+        reference.encode(picture).unwrap().nals
+    );
+    assert_eq!(
+        encoder.encode(picture).unwrap().nals,
+        reference.encode(picture).unwrap().nals
+    );
+    assert!(api::zeros::<u8>(usize::MAX).is_err());
+}
+
+#[test]
+fn complete_skip_sequence_wraps_frame_numbers_then_resets_at_idr() {
+    let mut s = settings(16, 16, 34);
+    s.gop = Gop::Fixed { idr_interval: 17 };
+    let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+    let mut decoder =
+        coreav_h264::Decoder::with_kernels(coreav_h264::Scalar, coreav_h264::Limits::default())
+            .with_mode(coreav_h264::Mode::EveryPicture);
+    let y = [128; 256];
+    let c = [128; 64];
+    let picture = Picture {
+        y: Plane::new(&y, 16, 16, 16).unwrap(),
+        cb: Plane::new(&c, 8, 8, 8).unwrap(),
+        cr: Plane::new(&c, 8, 8, 8).unwrap(),
+    };
+    let mut expected = std::collections::VecDeque::new();
+    let mut parameters = None;
+    let mut count = 0;
+    for f in 0..19 {
+        let au = encoder.encode(picture).unwrap();
+        let idr = f % 17 == 0;
+        let mut reader = nal_reader(&au.nals[2]);
+        assert_eq!(reader.ue(), 0);
+        assert_eq!(reader.ue(), if idr { 7 } else { 5 });
+        assert_eq!(reader.ue(), 0);
+        assert_eq!(reader.u(4), if idr { 0 } else { f % 17 % 16 });
+        if idr {
+            assert_eq!(reader.ue(), f / 17 % 2);
+            assert_eq!(reader.u(2), 0);
+        } else {
+            assert_eq!(reader.u(3), 0);
+        }
+        assert_eq!(reader.ue(), 15);
+        assert_eq!(reader.ue(), 1);
+        if !idr {
+            assert_eq!(reader.ue(), 1);
+            assert_eq!(reader.bit(), 1);
+            while reader.at % 8 != 0 {
+                assert_eq!(reader.bit(), 0);
+            }
+            assert_eq!(reader.at / 8, reader.bytes.len());
+            assert_eq!(encoder.previous_mv_count, 1);
+        } else {
+            assert_eq!(encoder.previous_mv_count, 0);
+        }
+        let pair = [au.nals[0].clone(), au.nals[1].clone()];
+        if let Some(previous) = &parameters {
+            assert_eq!(&pair, previous);
+        } else {
+            parameters = Some(pair);
+        }
+        assert_eq!(au.reconstruction, [128; 384]);
+        expected.push_back(au.reconstruction);
+        for nal in &au.nals {
+            decoder.decode_nal(nal).unwrap();
+        }
+        decoder.end_access_unit().unwrap();
+        for picture in decoder.take_pictures() {
+            let (cb, cr) = picture.chroma();
+            let actual: Vec<_> = picture
+                .luma()
+                .rows()
+                .chain(cb.rows())
+                .chain(cr.rows())
+                .flatten()
+                .copied()
+                .collect();
+            assert_eq!(actual, expected.pop_front().unwrap());
+            count += 1;
+        }
+    }
+    decoder.flush().unwrap();
+    for picture in decoder.take_pictures() {
+        let (cb, cr) = picture.chroma();
+        let actual: Vec<_> = picture
+            .luma()
+            .rows()
+            .chain(cb.rows())
+            .chain(cr.rows())
+            .flatten()
+            .copied()
+            .collect();
+        assert_eq!(actual, expected.pop_front().unwrap());
+        count += 1;
+    }
+    assert_eq!(count, 19);
+    assert!(expected.is_empty());
+    assert!(decoder.warnings().is_empty());
+    assert_eq!(decoder.warnings_dropped(), 0);
+}
+
+#[test]
+fn disabled_all_intra_bytes_preserve_the_original_synthetic_stream() {
+    let expected = concat!(
+        "000000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888422e4f93159bf8350",
+        "00100f52a896cf3caa252a84b113d4fe291e572aa5b5ca1800850f8600051241d3e3a7c74f8e9f07371cdc7371cde000",
+        "0000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888208bb16c4d2ff06a000",
+        "201aa55094bd729544a55094bd72ab71c9eb65525b5ca1800850d8600051241d3e3a7c74f8e9f07371cdc7371cde0000",
+        "00016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888422e4f93b4bfc1a800080",
+        "4a9544b9e7954252a8973cf6a5c37e3f2a92dae50c004286c4000288c1d3e3a7c74f8e9f07371cdc7371cde0",
+    );
+    for gop in [Gop::AllIntra, Gop::Fixed { idr_interval: 1 }] {
+        let mut s = settings(16, 16, 28);
+        s.gop = gop;
+        let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+        let mut output = Vec::new();
+        for f in 0..3 {
+            let y: Vec<_> = (0..256)
+                .map(|p| (16 + ((p % 16 + f) * 7 + p / 16 * 5) % 220) as u8)
+                .collect();
+            let cb: Vec<_> = (0..64)
+                .map(|p| (32 + (p % 8 * 9 + p / 8 * 7 + f) % 180) as u8)
+                .collect();
+            let cr: Vec<_> = (0..64)
+                .map(|p| (180 - (p % 8 * 3 + p / 8 * 11 + f) % 140) as u8)
+                .collect();
+            let au = encoder
+                .encode(Picture {
+                    y: Plane::new(&y, 16, 16, 16).unwrap(),
+                    cb: Plane::new(&cb, 8, 8, 8).unwrap(),
+                    cr: Plane::new(&cr, 8, 8, 8).unwrap(),
+                })
+                .unwrap();
+            assert!(
+                encoder.reference.is_none(),
+                "{gop:?} retains no coded reference"
+            );
+            for nal in au.nals {
+                output.extend([0, 0, 0, 1]);
+                output.extend(nal);
+            }
+        }
+        let actual: String = output.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(actual, expected);
+    }
 }

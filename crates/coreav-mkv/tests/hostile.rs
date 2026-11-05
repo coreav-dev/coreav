@@ -663,14 +663,44 @@ fn a_flood_of_empty_zlib_frames_is_bounded() {
         &[&[info(None), zlib_track(0, false)][..], &clusters].concat(),
     );
     let limits = Limits::default();
-    let started = Instant::now();
-    let sizes = inflated_sizes(&data, &limits).unwrap();
+    let segment = probe_with(&data, &limits).unwrap();
+    let mut source = Counting {
+        inner: SliceSource::new(&data),
+        bytes: 0,
+    };
+    let sizes: Vec<_> = segment
+        .packets(&mut source, &limits)
+        .with_inflated_sizes()
+        .map(|p| p.unwrap().inflated_size)
+        .collect();
+    let input_bytes = data.len() as u64;
+    assert!(
+        source.bytes <= 2 * input_bytes,
+        "sized listing read {} bytes for {input_bytes} input bytes",
+        source.bytes
+    );
     assert_eq!(sizes.len(), 512_000);
     // The budget charges 4 KiB a frame: 256 MiB covers 65,536 frames.
     assert_eq!(sizes.iter().filter(|s| s.is_some()).count(), 65_536);
-    let segment = probe_with(&data, &limits).unwrap();
-    assert_eq!(drain(&segment, &data, &limits), Ok(512_000));
-    assert!(started.elapsed().as_secs() < 5, "{:?}", started.elapsed());
+    source.bytes = 0;
+    let mut frames = 0;
+    for packet in segment.packets(&mut source, &limits) {
+        packet.unwrap();
+        frames += 1;
+    }
+    assert_eq!(frames, 512_000);
+    assert!(
+        source.bytes <= input_bytes,
+        "plain listing read {} bytes for {input_bytes} input bytes",
+        source.bytes
+    );
+    source.bytes = 0;
+    segment.index(&mut source, &limits).unwrap();
+    assert!(
+        source.bytes <= input_bytes,
+        "index read {} bytes for {input_bytes} input bytes",
+        source.bytes
+    );
 }
 
 /// A zlib frame that does not inflate affects only its own track: the

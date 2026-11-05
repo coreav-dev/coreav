@@ -2016,6 +2016,162 @@ const FAMILIES: [(&str, &[&str]); 2] = [
     ("matroska-webm", &["mkv", "webm"]),
 ];
 
+const INPUT_SEEK_REFUSALS: [(&str, usize, &str); 17] = [
+    ("C18", 2, "edit_multi_empty.mp4"),
+    ("C18", 2, "edit_multi_audio.mp4"),
+    ("C18", 2, "edit_multi_audio_average.mp4"),
+    ("C18", 2, "edit_multi_av.mp4"),
+    ("C18", 2, "chapters_sized.mp4"),
+    ("C18", 2, "hls_h264.mp4"),
+    ("C18", 2, "hls_open_gop.mp4"),
+    ("C18", 2, "hls_hevc.mp4"),
+    ("C18", 2, "hls_long_gop.mp4"),
+    ("C18", 2, "fragmented_sidx.mp4"),
+    ("C18", 2, "fragmented_many.mp4"),
+    ("C19", 0, "edit_multi_audio.mp4"),
+    ("C19", 0, "edit_multi_audio_average.mp4"),
+    ("C19", 0, "edit_trim_audio.mp4"),
+    ("C19", 1, "edit_multi_audio.mp4"),
+    ("C19", 1, "edit_multi_audio_average.mp4"),
+    ("C19", 1, "edit_trim_audio.mp4"),
+];
+
+#[test]
+fn input_seek_refusal_contract_keeps_its_exact_command_scope() {
+    let set: Value = serde_json::from_str(include_str!(
+        "../../../tools/compat-corpus/commands-0.1.0/commands.json"
+    ))
+    .unwrap();
+    let unique: BTreeSet<_> = INPUT_SEEK_REFUSALS.into_iter().collect();
+    assert_eq!(unique.len(), 17);
+    assert_eq!(unique.iter().filter(|(id, _, _)| *id == "C18").count(), 11);
+    assert_eq!(unique.iter().filter(|(id, _, _)| *id == "C19").count(), 6);
+    for number in [0, 1] {
+        assert_eq!(
+            unique
+                .iter()
+                .filter(|(id, command, _)| *id == "C19" && *command == number)
+                .count(),
+            3
+        );
+    }
+    for (id, number, _) in unique {
+        let entry = set["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["id"] == id)
+            .unwrap();
+        let expected = match (id, number) {
+            ("C18", 2) => json!([
+                "-ss", "00:00:09", "-i", "INPUT", "-t", "00:00:03", "-vcodec", "copy", "-acodec",
+                "copy", "-y", "OUTPUT"
+            ]),
+            ("C19", 0) => json!([
+                "-ss", "3", "-i", "INPUT", "-t", "5", "-c:a", "copy", "OUTPUT"
+            ]),
+            ("C19", 1) => json!([
+                "-ss", "3", "-t", "5", "-i", "INPUT", "-c:a", "copy", "OUTPUT"
+            ]),
+            _ => panic!("unapproved input-seek refusal command"),
+        };
+        assert_eq!(entry["commands"][number]["args"], expected);
+    }
+    for outside in [
+        ("C18", 0, "hls_h264.mp4"),
+        ("C18", 1, "hls_h264.mp4"),
+        ("C18", 2, "basic.mp4"),
+        ("C19", 2, "edit_multi_audio.mp4"),
+        ("C19", 0, "basic.mp4"),
+        ("C05", 2, "hls_h264.mp4"),
+    ] {
+        assert!(!INPUT_SEEK_REFUSALS.contains(&outside));
+    }
+}
+
+fn verify_input_seek_refusal(args: &[String], output: &Path) {
+    let pin = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("PATH")
+                .iter()
+                .flat_map(std::env::split_paths)
+                .map(|directory| directory.join(format!("ffmpeg{}", std::env::consts::EXE_SUFFIX)))
+                .find(|path| coreav_cli::fallback::executable(path))
+        })
+        .expect("stage=oracle_selection: no pinned FFmpeg executable");
+    let pin = std::path::absolute(pin).unwrap();
+    assert!(
+        coreav_cli::fallback::executable(&pin),
+        "stage=oracle_selection: pinned FFmpeg is not executable"
+    );
+    let reference = output.with_file_name("reference.mp4");
+    let directory = output.parent().unwrap();
+    assert!(!output.exists(), "refusal left output before verification");
+    for existing in [false, true] {
+        if existing {
+            std::fs::write(output, b"existing destination").unwrap();
+        }
+        let entries: BTreeSet<_> = std::fs::read_dir(directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        let refused = Command::new(bin())
+            .args(["--strict-safe", "ffmpeg", "-y"])
+            .args(args)
+            .env_remove("COREAV_FALLBACK_ACTIVE")
+            .output()
+            .unwrap();
+        assert_eq!(refused.status.code(), Some(4), "{args:?}: {refused:?}");
+        assert!(refused.stdout.is_empty(), "{args:?}");
+        assert_eq!(
+            std::fs::read_dir(directory)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect::<BTreeSet<_>>(),
+            entries,
+            "{args:?}"
+        );
+        if existing {
+            assert_eq!(std::fs::read(output).unwrap(), b"existing destination");
+        } else {
+            assert!(!output.exists(), "{args:?}");
+        }
+        let expected = Command::new(&pin)
+            .args(["-nostdin", "-hide_banner", "-y"])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(expected.status.success(), "{args:?}: {expected:?}");
+        std::fs::rename(output, &reference).unwrap();
+        if existing {
+            std::fs::write(output, b"existing destination").unwrap();
+        }
+        let fallback = Command::new(bin())
+            .args(["ffmpeg", "-y"])
+            .args(args)
+            .env("COREAV_FALLBACK", &pin)
+            .env_remove("COREAV_STRICT_SAFE")
+            .env_remove("COREAV_FALLBACK_ACTIVE")
+            .output()
+            .unwrap();
+        assert_eq!(
+            fallback.status.code(),
+            expected.status.code(),
+            "stage=real_fallback_exit {args:?}: {}",
+            String::from_utf8_lossy(&fallback.stderr)
+        );
+        assert_eq!(fallback.stdout, expected.stdout, "{args:?}");
+        assert_eq!(
+            std::fs::read(output).unwrap(),
+            std::fs::read(&reference).unwrap(),
+            "{args:?}"
+        );
+        std::fs::remove_file(output).unwrap();
+        std::fs::remove_file(&reference).unwrap();
+    }
+}
+
 /// A concat list in `dir` that names a copy of `source` twice, by its
 /// name alone, as the demuxer's `safe` option takes it.
 fn concat_list(dir: &Path, source: &Path) -> PathBuf {
@@ -2111,6 +2267,7 @@ fn the_0_1_0_commands_on_the_fixtures() {
     let present: BTreeSet<&str> = names.iter().filter_map(|n| family(n)).collect();
     let mut records = Vec::new();
     let mut native = BTreeSet::new();
+    let mut required_refusals = BTreeSet::new();
     for entry in set["entries"].as_array().unwrap() {
         if entry["tool"] != "ffmpeg" {
             continue;
@@ -2166,9 +2323,12 @@ fn the_0_1_0_commands_on_the_fixtures() {
                     })
                     .collect();
                 let label = format!("{id} {} on {name}", template.join(" "));
+                let required =
+                    family == "mp4-mov" && INPUT_SEEK_REFUSALS.contains(&(id, n, name.as_str()));
                 let (status, detail) = match coreav_cli::ffmpeg::run(&args, StrictSafe::new(false))
                 {
                     Ok(summary) => {
+                        assert!(!required, "{label}: required refusal ran natively");
                         native.insert((id, family));
                         ("written", summary)
                     }
@@ -2189,6 +2349,11 @@ fn the_0_1_0_commands_on_the_fixtures() {
                         ("rejected", failure.to_json())
                     }
                 };
+                if required {
+                    assert_eq!(status, "refused", "{label}: {detail}");
+                    verify_input_seek_refusal(&args, &output);
+                    required_refusals.insert((id, n, name.as_str()));
+                }
                 // Not valid HEVC (ITU-T H.265 7.4.3.2.1): no command writes
                 // an output from these, a copy included.
                 if ["size_hevc_mixed_window.mp4", "size_hevc_window.mp4"].contains(&name.as_str()) {
@@ -2216,10 +2381,23 @@ fn the_0_1_0_commands_on_the_fixtures() {
             }
         }
         for family in families.iter().filter(|f| present.contains(*f)) {
-            assert!(
-                native.contains(&(id, *family)),
-                "{id}: no {family} fixture ran natively"
-            );
+            let required: Vec<_> = INPUT_SEEK_REFUSALS
+                .iter()
+                .filter(|(entry, _, _)| *entry == id && *family == "mp4-mov")
+                .collect();
+            if required.is_empty() {
+                assert!(
+                    native.contains(&(id, *family)),
+                    "{id}: no {family} fixture ran natively"
+                );
+            } else {
+                for witness in required {
+                    assert!(
+                        required_refusals.contains(witness),
+                        "{witness:?}: required refusal was not verified"
+                    );
+                }
+            }
         }
     }
     std::fs::write(
@@ -2745,6 +2923,267 @@ fn oracle() -> Option<(PathBuf, PathBuf)> {
     );
     eprintln!("skipping: no pinned ffmpeg and ffprobe (set COREAV_FFMPEG)");
     None
+}
+
+#[cfg(unix)]
+#[test]
+fn raw_s16_fifo_refuses_and_preserves_exact_pinned_fallback() {
+    use std::io::Read;
+    use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("raw-s16-fifo");
+    let source = dir.join("source.s16");
+    let bytes = [0u8, 128, 0, 0, 255, 127];
+    std::fs::write(&source, bytes).unwrap();
+    let mut payloads = Vec::new();
+    for fallback in [false, true] {
+        let fifo = dir.join(if fallback { "fallback.s16" } else { "pin.s16" });
+        assert!(
+            Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let args = [
+            "-y",
+            "-f",
+            "s16le",
+            "-ar",
+            "48000",
+            "-ac",
+            "1",
+            "-i",
+            source.to_str().unwrap(),
+            "-f",
+            "s16le",
+            fifo.to_str().unwrap(),
+        ];
+        let inode = std::fs::metadata(&fifo).unwrap().ino();
+        let entries = std::fs::read_dir(&dir).unwrap().count();
+        let refused = Command::new(bin())
+            .args(["--strict-safe", "ffmpeg"])
+            .args(args)
+            .env("COREAV_FALLBACK", &pin)
+            .output()
+            .unwrap();
+        assert_eq!(refused.status.code(), Some(4), "{refused:?}");
+        assert!(refused.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&refused.stderr).contains("non-regular destination"));
+        assert_eq!(std::fs::metadata(&fifo).unwrap().ino(), inode);
+        assert!(std::fs::metadata(&fifo).unwrap().file_type().is_fifo());
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+        let mut reader = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(rustix::fs::OFlags::NONBLOCK.bits().try_into().unwrap())
+            .open(&fifo)
+            .unwrap();
+        let mut command = if fallback {
+            let mut command = Command::new(bin());
+            command.arg("ffmpeg");
+            command.env("COREAV_FALLBACK", &pin);
+            command.env_remove("COREAV_STRICT_SAFE");
+            command.env_remove("COREAV_FALLBACK_ACTIVE");
+            command
+        } else {
+            Command::new(&pin)
+        };
+        let result = command.args(args).output().unwrap();
+        assert!(result.status.success(), "{result:?}");
+        assert!(result.stdout.is_empty());
+        let mut payload = Vec::new();
+        reader.read_to_end(&mut payload).unwrap();
+        assert_eq!(payload, bytes);
+        assert!(std::fs::metadata(&fifo).unwrap().file_type().is_fifo());
+        assert_eq!(std::fs::metadata(&fifo).unwrap().ino(), inode);
+        payloads.push(payload);
+    }
+    assert_eq!(payloads[0], payloads[1]);
+}
+
+#[cfg(unix)]
+#[test]
+fn raw_s16_linked_outputs_refuse_and_fall_back_through_the_target() {
+    use std::os::unix::fs::{MetadataExt, symlink};
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("raw-s16-links");
+    let source = dir.join("source.s16");
+    let bytes = [0u8, 128, 0, 0, 255, 127];
+    std::fs::write(&source, bytes).unwrap();
+    for (kind, flag) in [
+        ("symlink", "-y"),
+        ("dangling", "-y"),
+        ("dangling", "-n"),
+        ("hardlink", "-y"),
+    ] {
+        for fallback in [false, true] {
+            let tag = format!("{kind}-{flag}-{fallback}");
+            let target = dir.join(format!("{tag}-target.s16"));
+            let destination = dir.join(format!("{tag}.s16"));
+            if kind != "dangling" {
+                std::fs::write(&target, b"preserve target").unwrap();
+            }
+            if kind == "hardlink" {
+                std::fs::hard_link(&target, &destination).unwrap();
+            } else {
+                symlink(&target, &destination).unwrap();
+            }
+            let args = [
+                flag,
+                "-f",
+                "s16le",
+                "-ar",
+                "48000",
+                "-ac",
+                "1",
+                "-i",
+                source.to_str().unwrap(),
+                "-f",
+                "s16le",
+                destination.to_str().unwrap(),
+            ];
+            let inode = std::fs::symlink_metadata(&destination).unwrap().ino();
+            let entries = std::fs::read_dir(&dir).unwrap().count();
+            let refused = Command::new(bin())
+                .args(["--strict-safe", "ffmpeg"])
+                .args(args)
+                .output()
+                .unwrap();
+            assert_eq!(refused.status.code(), Some(4), "{refused:?}");
+            assert!(refused.stdout.is_empty());
+            assert_eq!(
+                std::fs::symlink_metadata(&destination).unwrap().ino(),
+                inode
+            );
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+            if kind == "dangling" {
+                assert!(!target.exists());
+            } else {
+                assert_eq!(std::fs::read(&target).unwrap(), b"preserve target");
+            }
+            let mut command = if fallback {
+                let mut command = Command::new(bin());
+                command.arg("ffmpeg");
+                command.env("COREAV_FALLBACK", &pin);
+                command.env_remove("COREAV_STRICT_SAFE");
+                command.env_remove("COREAV_FALLBACK_ACTIVE");
+                command
+            } else {
+                Command::new(&pin)
+            };
+            let result = command.args(args).output().unwrap();
+            assert!(result.status.success(), "{result:?}");
+            assert!(result.stdout.is_empty());
+            assert_eq!(
+                std::fs::symlink_metadata(&destination).unwrap().ino(),
+                inode
+            );
+            assert_eq!(destination.is_symlink(), kind != "hardlink");
+            assert_eq!(std::fs::read(&destination).unwrap(), bytes);
+            assert_eq!(std::fs::read(target).unwrap(), bytes);
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn raw_s16_unwritable_targets_preserve_the_pinned_exit_status() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("raw-s16-unwritable");
+    let source = dir.join("source.s16");
+    let bytes = [0u8, 128, 0, 0, 255, 127];
+    std::fs::write(&source, bytes).unwrap();
+    for dangling in [false, true] {
+        for flag in ["-y", "-n"] {
+            let mut outcomes = Vec::new();
+            for fallback in [false, true] {
+                let tag = format!("{dangling}-{flag}-{fallback}");
+                let target = if dangling {
+                    dir.join(format!("{tag}-missing/target.s16"))
+                } else {
+                    dir.join(format!("{tag}-target.s16"))
+                };
+                let destination = if dangling {
+                    let link = dir.join(format!("{tag}-link.s16"));
+                    symlink(&target, &link).unwrap();
+                    link
+                } else {
+                    std::fs::write(&target, b"preserve").unwrap();
+                    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o444))
+                        .unwrap();
+                    target.clone()
+                };
+                let args = [
+                    flag,
+                    "-f",
+                    "s16le",
+                    "-ar",
+                    "48000",
+                    "-ac",
+                    "1",
+                    "-i",
+                    source.to_str().unwrap(),
+                    "-f",
+                    "s16le",
+                    destination.to_str().unwrap(),
+                ];
+                let inode = std::fs::symlink_metadata(&destination).unwrap().ino();
+                let entries = std::fs::read_dir(&dir).unwrap().count();
+                let strict = Command::new(bin())
+                    .args(["--strict-safe", "ffmpeg"])
+                    .args(args)
+                    .output()
+                    .unwrap();
+                assert_eq!(strict.status.code(), Some(4), "{strict:?}");
+                assert!(strict.stdout.is_empty());
+                assert_eq!(
+                    std::fs::symlink_metadata(&destination).unwrap().ino(),
+                    inode
+                );
+                assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+                if !dangling {
+                    assert_eq!(std::fs::read(&target).unwrap(), b"preserve");
+                }
+                let mut command = if fallback {
+                    let mut command = Command::new(bin());
+                    command.arg("ffmpeg");
+                    command.env("COREAV_FALLBACK", &pin);
+                    command.env_remove("COREAV_STRICT_SAFE");
+                    command.env_remove("COREAV_FALLBACK_ACTIVE");
+                    command
+                } else {
+                    Command::new(&pin)
+                };
+                let result = command.args(args).output().unwrap();
+                assert!(result.stdout.is_empty());
+                assert_eq!(
+                    std::fs::symlink_metadata(&destination).unwrap().ino(),
+                    inode
+                );
+                let payload = if dangling {
+                    assert!(!target.exists());
+                    None
+                } else {
+                    let payload = std::fs::read(&target).unwrap();
+                    if !result.status.success() || flag == "-n" {
+                        assert_eq!(payload, b"preserve");
+                    } else {
+                        assert_eq!(payload, bytes);
+                    }
+                    Some(payload)
+                };
+                outcomes.push((result.status.code(), payload));
+            }
+            assert_eq!(outcomes[0], outcomes[1], "dangling={dangling}, {flag}");
+        }
+    }
 }
 
 #[test]

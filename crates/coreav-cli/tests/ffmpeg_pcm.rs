@@ -39,6 +39,143 @@ fn scratch(name: &str) -> PathBuf {
     path
 }
 
+#[test]
+fn aac_raw_output_refuses_with_exact_pinned_fallback() {
+    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
+    if !ffmpeg.is_file() {
+        assert!(
+            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
+            "set COREAV_FFMPEG to the pin"
+        );
+        return;
+    }
+    let verified = Command::new("python3")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/oracle_pin.py"))
+        .arg("--verify-bin")
+        .arg(ffmpeg.parent().unwrap())
+        .output()
+        .unwrap();
+    assert!(verified.status.success(), "{verified:?}");
+    let dir = scratch(&format!("aac-raw-refusal-{}", std::process::id()));
+    let source = dir.join("source.mp4");
+    let generated = Command::new(&ffmpeg)
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=64x48:rate=10:duration=0.2",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=709:sample_rate=48000:duration=0.2",
+            "-c:v",
+            "libx264",
+            "-threads:v",
+            "1",
+            "-c:a",
+            "aac",
+        ])
+        .arg(&source)
+        .output()
+        .unwrap();
+    assert!(generated.status.success(), "{generated:?}");
+    let destination = dir.join("output.raw");
+    for (format, codec) in [("f32le", "pcm_f32le"), ("s16le", "pcm_s16le")] {
+        for output in ["-", "pipe:1", destination.to_str().unwrap()] {
+            let args = [
+                "-y",
+                "-threads",
+                "1",
+                "-i",
+                source.to_str().unwrap(),
+                "-ac",
+                "1",
+                "-ar",
+                "48000",
+                "-c:a",
+                codec,
+                "-f",
+                format,
+                output,
+            ];
+            let pin = Command::new(&ffmpeg).args(args).output().unwrap();
+            assert!(pin.status.success(), "{pin:?}");
+            let file = output == destination.to_str().unwrap();
+            let expected = if file {
+                let bytes = std::fs::read(&destination).unwrap();
+                std::fs::remove_file(&destination).unwrap();
+                bytes
+            } else {
+                pin.stdout.clone()
+            };
+            assert!(!expected.is_empty());
+            for existing in [false, true] {
+                if existing {
+                    std::fs::write(&destination, b"preserve destination").unwrap();
+                }
+                let entries = || {
+                    let mut names: Vec<_> = std::fs::read_dir(&dir)
+                        .unwrap()
+                        .map(|entry| entry.unwrap().file_name())
+                        .collect();
+                    names.sort();
+                    names
+                };
+                let before = entries();
+                let refused = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                    .args(["--strict-safe", "ffmpeg"])
+                    .args(args)
+                    .env("COREAV_FALLBACK", &ffmpeg)
+                    .env_remove("COREAV_FALLBACK_ACTIVE")
+                    .env_remove("COREAV_FALLBACK_LOG")
+                    .output()
+                    .unwrap();
+                assert_eq!(refused.status.code(), Some(4), "{refused:?}");
+                assert!(refused.stdout.is_empty());
+                assert!(
+                    String::from_utf8_lossy(&refused.stderr)
+                        .contains("AAC raw output without a registered byte-exact decoder")
+                );
+                assert_eq!(entries(), before);
+                if existing {
+                    assert_eq!(
+                        std::fs::read(&destination).unwrap(),
+                        b"preserve destination"
+                    );
+                }
+                let fallback = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                    .arg("ffmpeg")
+                    .args(args)
+                    .env("COREAV_FALLBACK", &ffmpeg)
+                    .env_remove("COREAV_STRICT_SAFE")
+                    .env_remove("COREAV_FALLBACK_ACTIVE")
+                    .env_remove("COREAV_FALLBACK_LOG")
+                    .output()
+                    .unwrap();
+                assert_eq!(fallback.status.code(), pin.status.code(), "{fallback:?}");
+                assert_eq!(fallback.stdout, pin.stdout);
+                if file {
+                    assert_eq!(std::fs::read(&destination).unwrap(), expected);
+                } else if existing {
+                    assert_eq!(
+                        std::fs::read(&destination).unwrap(),
+                        b"preserve destination"
+                    );
+                }
+                if destination.exists() {
+                    std::fs::remove_file(&destination).unwrap();
+                }
+            }
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 #[cfg(unix)]
 #[test]
 fn input_thread_expressions_reach_fallback_without_consuming_stdin() {
