@@ -170,7 +170,7 @@ fn integer_wav_output_matches_complete_pinned_files() {
     #[cfg(unix)]
     {
         use std::io::Read;
-        use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
+        use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, symlink};
         let source = dir.join("fifo-input.wav");
         std::fs::write(&source, wav(1, 16, 1, &[0; 6])).unwrap();
         let mut payloads = Vec::new();
@@ -214,6 +214,69 @@ fn integer_wav_output_matches_complete_pinned_files() {
             payloads.push(bytes);
         }
         assert_eq!(payloads[0], payloads[1]);
+        for kind in ["symlink", "dangling", "hardlink"] {
+            let mut payloads = Vec::new();
+            for fallback in [false, true] {
+                let tag = format!("{kind}-{fallback}");
+                let target = dir.join(format!("{tag}-target.wav"));
+                let destination = dir.join(format!("{tag}.wav"));
+                if kind != "dangling" {
+                    std::fs::write(&target, b"preserve target").unwrap();
+                }
+                if kind == "hardlink" {
+                    std::fs::hard_link(&target, &destination).unwrap();
+                } else {
+                    symlink(&target, &destination).unwrap();
+                }
+                let inode = std::fs::symlink_metadata(&destination).unwrap().ino();
+                let refused = strict()
+                    .args(["-y", "-i"])
+                    .arg(&source)
+                    .arg(&destination)
+                    .output()
+                    .unwrap();
+                assert_eq!(refused.status.code(), Some(4), "{refused:?}");
+                assert!(refused.stdout.is_empty());
+                assert_eq!(
+                    std::fs::symlink_metadata(&destination).unwrap().ino(),
+                    inode
+                );
+                if kind == "dangling" {
+                    assert!(!target.exists());
+                } else {
+                    assert_eq!(std::fs::read(&target).unwrap(), b"preserve target");
+                }
+                let mut command = if fallback {
+                    let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+                    command.arg("ffmpeg");
+                    command.env("COREAV_FALLBACK", &ffmpeg);
+                    command.env_remove("COREAV_STRICT_SAFE");
+                    command.env_remove("COREAV_FALLBACK_ACTIVE");
+                    command
+                } else {
+                    Command::new(&ffmpeg)
+                };
+                let result = command
+                    .args(["-y", "-i"])
+                    .arg(&source)
+                    .arg(&destination)
+                    .output()
+                    .unwrap();
+                assert!(result.status.success(), "{result:?}");
+                assert!(result.stdout.is_empty());
+                assert_eq!(
+                    std::fs::symlink_metadata(&destination).unwrap().ino(),
+                    inode
+                );
+                assert_eq!(destination.is_symlink(), kind != "hardlink");
+                assert_eq!(
+                    std::fs::read(&destination).unwrap(),
+                    std::fs::read(&target).unwrap()
+                );
+                payloads.push(std::fs::read(target).unwrap());
+            }
+            assert_eq!(payloads[0], payloads[1], "{kind}");
+        }
     }
     std::fs::remove_dir_all(dir).unwrap();
 }
@@ -242,7 +305,24 @@ fn wav_non_regular_destinations_refuse_without_staging_or_replacement() {
     symlink("/dev/null", &device_link).unwrap();
     let fifo_link = dir.join("fifo-link.wav");
     symlink(&fifo, &fifo_link).unwrap();
-    for destination in [&fifo, &socket, &directory, &device_link, &fifo_link] {
+    let target = dir.join("target.wav");
+    std::fs::write(&target, b"preserve target").unwrap();
+    let regular_link = dir.join("regular-link.wav");
+    symlink(&target, &regular_link).unwrap();
+    let dangling_link = dir.join("dangling-link.wav");
+    symlink(dir.join("missing-target.wav"), &dangling_link).unwrap();
+    let hard_link = dir.join("hard-link.wav");
+    std::fs::hard_link(&target, &hard_link).unwrap();
+    for destination in [
+        &fifo,
+        &socket,
+        &directory,
+        &device_link,
+        &fifo_link,
+        &regular_link,
+        &dangling_link,
+        &hard_link,
+    ] {
         let original = std::fs::symlink_metadata(destination).unwrap();
         let entries = std::fs::read_dir(&dir).unwrap().count();
         let result = strict()
@@ -258,6 +338,7 @@ fn wav_non_regular_destinations_refuse_without_staging_or_replacement() {
         let after = std::fs::symlink_metadata(destination).unwrap();
         assert_eq!(original.file_type(), after.file_type());
         assert_eq!(original.ino(), after.ino());
+        assert_eq!(std::fs::read(&target).unwrap(), b"preserve target");
     }
     std::fs::remove_dir_all(dir).unwrap();
 }
