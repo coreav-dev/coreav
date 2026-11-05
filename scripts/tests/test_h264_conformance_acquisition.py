@@ -65,6 +65,8 @@ class Acquisition(unittest.TestCase):
                       OSError(errno.ENETUNREACH, 'unreachable'),
                       OSError(errno.EHOSTUNREACH, 'host unreachable'),
                       TimeoutError('timeout'),
+                      http.client.RemoteDisconnected('closed'),
+                      urllib.error.URLError(http.client.RemoteDisconnected('closed')),
                       urllib.error.URLError(TimeoutError('timeout')),
                       http.client.IncompleteRead(b'partial'),
                       urllib.error.HTTPError('url', 503, 'unavailable', {}, None)):

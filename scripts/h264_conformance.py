@@ -84,7 +84,7 @@ def fetch(zips, stream):
                     e.close()
                 else:
                     reason = e.reason if isinstance(e, urllib.error.URLError) else e
-                    transient = isinstance(reason, (TimeoutError, http.client.IncompleteRead)) or (
+                    transient = isinstance(reason, (TimeoutError, ConnectionError, http.client.IncompleteRead)) or (
                         isinstance(reason, OSError) and reason.errno in {
                             errno.ECONNREFUSED, errno.ENETUNREACH, errno.EHOSTUNREACH,
                             errno.ECONNRESET, errno.ECONNABORTED, errno.ETIMEDOUT,
