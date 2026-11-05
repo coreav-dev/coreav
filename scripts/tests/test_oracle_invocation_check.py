@@ -66,6 +66,18 @@ class HistoricalRecords(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'symbolic link'):
                 check.historical_records(root, record)
 
+    def test_the_boundary_and_its_parents_cannot_be_symbolic_links(self):
+        for name in ('docs', 'docs/measurements'):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                _, record = self.fixture(root)
+                boundary = root / name
+                copy = root / 'retained'
+                boundary.rename(copy)
+                boundary.symlink_to(copy, target_is_directory=True)
+                with self.assertRaisesRegex(ValueError, 'historical boundary'):
+                    check.historical_records(root, record)
+
 
 class Discovery(unittest.TestCase):
     def test_shell_commands_are_not_confused_with_copy_operands(self):

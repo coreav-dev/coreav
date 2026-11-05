@@ -21,7 +21,11 @@ def historical_records(root, record):
     expected = record.get('files')
     if not isinstance(expected, dict) or not expected or not all(isinstance(key, str) for key in expected):
         raise ValueError('restore the nonempty historical path and digest record')
-    boundary = root / HISTORICAL_BOUNDARY
+    boundary = root
+    for component in HISTORICAL_BOUNDARY.split('/'):
+        boundary /= component
+        if boundary.is_symlink() or not boundary.is_dir():
+            raise ValueError('historical boundary must contain only real directories')
     actual = {path.relative_to(root).as_posix(): path for path in boundary.rglob('*')
               if path.is_file() or path.is_symlink()}
     problems = []
