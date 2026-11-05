@@ -77,6 +77,12 @@ fn strict() -> Command {
     command
 }
 
+fn normal() -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+    command.arg("ffmpeg").env_remove("COREAV_STRICT_SAFE");
+    command
+}
+
 fn piped(command: &mut Command, bytes: &[u8]) -> Output {
     let mut child = command
         .stdin(Stdio::piped())
@@ -146,7 +152,12 @@ fn complete_raw_bytes_match_the_pin_for_files_stdout_and_stdin() {
                 std::fs::write(&input, &bytes).unwrap();
                 for muxer in ["s16le", "f32le"] {
                     let reference = Command::new(&ffmpeg)
-                        .args(["-v", "error", "-i"])
+                        .args(["-v", "error"])
+                        .args(
+                            include_str!("../../../scripts/oracle-audio-args.txt")
+                                .split_whitespace(),
+                        )
+                        .arg("-i")
                         .arg(&input)
                         .args(["-f", muxer, "pipe:1"])
                         .output()
@@ -257,12 +268,11 @@ fn corrupt_late_payloads_never_publish_or_delegate() {
             assert!(result.stdout.is_empty());
             assert_eq!(std::fs::read(&output).unwrap(), b"keep");
         }
-        let result = Command::new(env!("CARGO_BIN_EXE_coreav"))
-            .args(["ffmpeg", "-y", "-i"])
+        let result = normal()
+            .args(["-y", "-i"])
             .arg(&input)
             .args(["-f", "s16le"])
             .arg(&output)
-            .env_remove("COREAV_STRICT_SAFE")
             .env("COREAV_FALLBACK", dir.join("must-not-run"))
             .output()
             .unwrap();
@@ -297,6 +307,7 @@ fn pinned_encoded_frames_and_zero_md5_use_complete_exact_output() {
                     "-ac",
                 ])
                 .arg(channels.to_string())
+                .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
                 .arg("-i")
                 .arg(&raw)
                 .args(["-c:a", "flac"])
@@ -313,7 +324,12 @@ fn pinned_encoded_frames_and_zero_md5_use_complete_exact_output() {
                 std::fs::write(&input, bytes).unwrap();
                 for (muxer, codec) in [("s16le", "pcm_s16le"), ("f32le", "pcm_f32le")] {
                     let reference = Command::new(&ffmpeg)
-                        .args(["-v", "error", "-i"])
+                        .args(["-v", "error"])
+                        .args(
+                            include_str!("../../../scripts/oracle-audio-args.txt")
+                                .split_whitespace(),
+                        )
+                        .arg("-i")
                         .arg(&input)
                         .args(["-c:a", codec, "-f", muxer, "pipe:1"])
                         .output()
@@ -390,17 +406,18 @@ fn unsupported_sources_refuse_and_replay_the_real_fallback() {
         assert_eq!(refused.status.code(), Some(4), "{refused:?}");
         assert!(refused.stdout.is_empty());
         let reference = Command::new(&ffmpeg)
-            .args(["-v", "error", "-i"])
+            .args(["-v", "error"])
+            .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+            .arg("-i")
             .arg(&input)
             .args(["-f", "s16le", "pipe:1"])
             .output()
             .unwrap();
         success(&reference);
-        let fallback = Command::new(env!("CARGO_BIN_EXE_coreav"))
-            .args(["ffmpeg", "-v", "error", "-i"])
+        let fallback = normal()
+            .args(["-v", "error", "-i"])
             .arg(&input)
             .args(["-f", "s16le", "pipe:1"])
-            .env_remove("COREAV_STRICT_SAFE")
             .env("COREAV_FALLBACK", &ffmpeg)
             .output()
             .unwrap();
@@ -413,11 +430,8 @@ fn unsupported_sources_refuse_and_replay_the_real_fallback() {
         assert_eq!(refused.status.code(), Some(4), "{refused:?}");
         assert!(refused.stdout.is_empty());
         let fallback = piped(
-            Command::new(env!("CARGO_BIN_EXE_coreav"))
-                .args([
-                    "ffmpeg", "-v", "error", "-i", "pipe:0", "-f", "s16le", "pipe:1",
-                ])
-                .env_remove("COREAV_STRICT_SAFE")
+            normal()
+                .args(["-v", "error", "-i", "pipe:0", "-f", "s16le", "pipe:1"])
                 .env("COREAV_FALLBACK", &ffmpeg),
             &bytes,
         );
@@ -445,11 +459,10 @@ fn broken_stdout_is_quiet_and_never_delegates() {
     let dir = scratch("broken-pipe");
     let input = dir.join("input.flac");
     std::fs::write(&input, fixture(24, 2, 12305).0).unwrap();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
-        .args(["ffmpeg", "-i"])
+    let mut child = normal()
+        .arg("-i")
         .arg(&input)
         .args(["-f", "f32le", "pipe:1"])
-        .env_remove("COREAV_STRICT_SAFE")
         .env("COREAV_FALLBACK", dir.join("must-not-run"))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -482,7 +495,12 @@ fn invalid_reconstructed_ranges_refuse_before_any_output() {
                 std::fs::write(&input, &bytes).unwrap();
                 for muxer in ["s16le", "f32le"] {
                     let reference = Command::new(&ffmpeg)
-                        .args(["-v", "error", "-i"])
+                        .args(["-v", "error"])
+                        .args(
+                            include_str!("../../../scripts/oracle-audio-args.txt")
+                                .split_whitespace(),
+                        )
+                        .arg("-i")
                         .arg(&input)
                         .args(["-f", muxer, "pipe:1"])
                         .output()
@@ -527,12 +545,11 @@ fn invalid_reconstructed_ranges_refuse_before_any_output() {
                     assert!(!output.exists());
                     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
                     std::fs::write(&output, b"keep").unwrap();
-                    let normal = Command::new(env!("CARGO_BIN_EXE_coreav"))
-                        .args(["ffmpeg", "-y", "-i"])
+                    let normal = normal()
+                        .args(["-y", "-i"])
                         .arg(&input)
                         .args(["-f", muxer])
                         .arg(&output)
-                        .env_remove("COREAV_STRICT_SAFE")
                         .env("COREAV_FALLBACK", dir.join("must-not-run"))
                         .output()
                         .unwrap();
@@ -573,7 +590,12 @@ fn valid_reconstructed_range_boundaries_match_complete_pinned_bytes() {
                 .unwrap();
                 for muxer in ["s16le", "f32le"] {
                     let reference = Command::new(&ffmpeg)
-                        .args(["-v", "error", "-i"])
+                        .args(["-v", "error"])
+                        .args(
+                            include_str!("../../../scripts/oracle-audio-args.txt")
+                                .split_whitespace(),
+                        )
+                        .arg("-i")
                         .arg(&input)
                         .args(["-f", muxer, "pipe:1"])
                         .output()
