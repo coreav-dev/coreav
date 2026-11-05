@@ -19,21 +19,22 @@ SPEC.loader.exec_module(CHECK)
 
 
 class Correctness(unittest.TestCase):
-    def fixture(self, mutation=None):
+    def fixture(self, mutation=None, moving=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             work = root / 'work'
-            size = CHECK.FRAMES * 128 * 96 * 3 // 2
+            width, height, frames = (256, 256, 48) if moving else (128, 96, CHECK.FRAMES)
+            size = frames * width * height * 3 // 2
 
             def run(command):
                 if 'transcode' in command:
                     return json.dumps({'schema': 'coreav.transcode/2',
                                        'video': {'encoding': {'segments': 1 if mutation == 'segments' else 2}}}).encode()
                 if Path(command[0]).name == 'ffprobe':
-                    stream = {'codec_name': 'av1', 'width': 128, 'height': 96,
-                              'pix_fmt': 'yuv420p', 'nb_read_frames': str(CHECK.FRAMES)}
+                    stream = {'codec_name': 'av1', 'width': width, 'height': height,
+                              'pix_fmt': 'yuv420p', 'nb_read_frames': str(frames)}
                     if mutation == 'count':
-                        stream['nb_read_frames'] = str(CHECK.FRAMES - 1)
+                        stream['nb_read_frames'] = str(frames - 1)
                     return json.dumps({'streams': [stream]}).encode()
                 output = Path(command[-1])
                 if output.suffix == '.yuv':
@@ -50,9 +51,12 @@ class Correctness(unittest.TestCase):
                     contextlib.redirect_stdout(io.StringIO()):
                 if mutation:
                     with self.assertRaises(ValueError):
-                        CHECK.check(root / 'coreav', root, work)
+                        CHECK.check(root / 'coreav', root, work, moving)
                 else:
-                    CHECK.check(root / 'coreav', root, work)
+                    CHECK.check(root / 'coreav', root, work, moving)
+
+    def test_moving_preset_zero_fixture(self):
+        self.fixture(moving=True)
 
     def test_positive_decodes_and_refusal_controls(self):
         self.fixture()

@@ -2482,7 +2482,9 @@ jobs:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
         run: cargo build --locked --release -p coreav-cli --target x86_64-unknown-linux-musl --features native-h264,dav1d,svt-av1-native
       - name: Check both AV1 decoders and the PSNR sanity floor
-        run: python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-check"
+        run: |
+          python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-check"
+          python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-motion" --moving
 
   ci-report:
     # Always runs, including when the filter above skipped every job, so

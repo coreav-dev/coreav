@@ -585,25 +585,75 @@ fn unsupported_header_branches_fail_before_returning_a_picture() -> TestResult {
             Err(frame::Error::Unsupported(reason))
         );
     }
-    for (field, reason) in [
-        ("short_refs", frame::Unsupported::ShortReferences),
-        ("global", frame::Unsupported::GlobalMotion),
-    ] {
-        let mut frames = seq.reader()?;
-        frames.push(obu(&Coded::default().packet(seq))?)?;
-        let mut w = Coded {
-            kind: 1,
-            ..Coded::default()
+    let mut frames = seq.reader()?;
+    frames.push(obu(&Coded::default().packet(seq))?)?;
+    let mut w = Coded {
+        kind: 1,
+        ..Coded::default()
+    }
+    .syntax(seq);
+    w.change("short_refs", 1)?;
+    w.align();
+    let mut payload = w.bytes();
+    payload.push(0x80);
+    assert_eq!(
+        frames.push(obu(&packet(6, &payload))?),
+        Err(frame::Error::Unsupported(
+            frame::Unsupported::ShortReferences
+        ))
+    );
+    Ok(())
+}
+
+#[test]
+fn global_motion_models_preserve_the_following_header_boundary() -> TestResult {
+    let seq = Seq::default();
+    for model in 0..3 {
+        for high_precision in [false, true] {
+            for long_code in [false, true] {
+                let mut frames = seq.reader()?;
+                frames.push(obu(&Coded::default().packet(seq))?)?;
+                let mut writer = Coded {
+                    kind: 1,
+                    ..Coded::default()
+                }
+                .syntax(seq);
+                writer.change("high_precision", u32::from(high_precision))?;
+                let mut fields = match model {
+                    0 => vec![(1, 1), (1, 0), (1, 1)],
+                    1 => vec![(1, 1), (1, 1)],
+                    _ => vec![(1, 1), (1, 0), (1, 0)],
+                };
+                let parameters = match model {
+                    0 => vec![8 + u8::from(high_precision); 2],
+                    1 => vec![12; 4],
+                    _ => vec![12; 6],
+                };
+                for magnitude in parameters {
+                    if long_code {
+                        fields.extend(std::iter::repeat_n((1, 1), usize::from(magnitude - 2)));
+                        fields.extend([(magnitude, (1 << magnitude) - 1), (1, 1)]);
+                    } else {
+                        fields.extend([(1, 0), (3, 7)]);
+                    }
+                }
+                writer.replace("global", &fields)?;
+                writer.align();
+                let mut payload = writer.bytes();
+                payload.push(0x80);
+                let picture = frames
+                    .push(obu(&packet(6, &payload))?)?
+                    .ok_or("no picture")?;
+                assert_eq!(picture.identity, 1);
+                assert!(picture.displayed);
+                frames.finish()?;
+                for end in 0..payload.len() - 1 {
+                    let mut truncated = seq.reader()?;
+                    truncated.push(obu(&Coded::default().packet(seq))?)?;
+                    assert!(truncated.push(obu(&packet(6, &payload[..end]))?).is_err());
+                }
+            }
         }
-        .syntax(seq);
-        w.change(field, 1)?;
-        w.align();
-        let mut payload = w.bytes();
-        payload.push(0x80);
-        assert_eq!(
-            frames.push(obu(&packet(6, &payload))?),
-            Err(frame::Error::Unsupported(reason))
-        );
     }
     Ok(())
 }

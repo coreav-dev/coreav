@@ -128,7 +128,8 @@ jobs:
           key="CARGO_TARGET_$(printf '%s' "$TARGET" | tr '[:lower:]-' '[:upper:]_')_LINKER"
           export "$key=$compiler"
           export SVT_AV1_PREFIX="$RUNNER_TEMP/svt-av1"
-          cargo test --locked -p coreav-backend-svt-av1 --features native --target "$TARGET"
+          . scripts/rust-dist.env
+          cargo +"$RUST_DIST_TOOLCHAIN" test --locked -p coreav-backend-svt-av1 --features native --target "$TARGET"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

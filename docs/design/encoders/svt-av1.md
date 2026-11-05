@@ -10,6 +10,8 @@ The reader rejects forbidden or reserved header bits, reserved OBU types, missin
 
 Framing validity does not establish that a sequence header or frame payload is valid. It also does not establish frame count, order, timestamps, color metadata, or agreement with submitted frames. Callers must not derive an MP4 sample description or mux packets from framing checks alone.
 
+The frame-header reader consumes identity, translation, rotation/zoom and affine global-motion syntax from AV1 sections 5.9.24 through 5.9.28. Parameter magnitude and translation precision bound each subexponential codeword. Reference predictors change the reconstructed matrix values, not the number of coded bits, so this metadata reader consumes the codewords without reconstructing matrices or certifying motion-vector validity. Handwritten fixtures cover every model, both translation precisions, short and final-range codewords, truncation and the following tile boundary.
+
 ## Sequence configuration
 
 The sequence reader takes a checked OBU and rejects any kind other than a sequence header. Caller limits bound payload bytes and maximum frame dimensions before the reader returns configuration. The reader consumes the sequence syntax, including optional timing, operating points, decoder-model fields, and trailing bits. Both normal and reduced still-picture headers are supported.
@@ -170,5 +172,7 @@ New encoded-stream metadata uses `coreav.transcode/2`, with its schema, examples
 ### Correctness checks
 
 The required CI job builds the opt-in encoder and the existing AV1 decoder from the pinned static libraries. `scripts/svt_av1_check.py` generates a small H.264 fixture, transcodes it through the sandboxed AV1 host across a session boundary, and checks 36 decoded frames at 128 by 96 in eight-bit planar 4:2:0. Explicit FFmpeg `libaom-av1` decoding must agree byte-for-byte with CoreAV's AV1 decode path. A 20 dB PSNR sanity floor compares the output against the decoded source. These are correctness checks, not quality or speed acceptance bars.
+
+The same checker also runs a moving 48-frame, 256 by 256 fixture at preset 0 to exercise global-motion output, using the same two decoders and PSNR floor.
 
 Reference measurements use existing media and report the machine, settings and versions. They make no fixed-host or held-out performance claim.

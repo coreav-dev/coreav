@@ -19,7 +19,7 @@ def run(command):
                           timeout=180).stdout
 
 
-def check(coreav, oracle, work):
+def check(coreav, oracle, work, moving=False):
     problems = list(oracle_pin.verify_bin(oracle))
     if problems:
         raise ValueError('\n'.join(problems))
@@ -30,8 +30,12 @@ def check(coreav, oracle, work):
     reference = work / 'reference.yuv'
     decoded = work / 'oracle.yuv'
     own = work / 'coreav.yuv'
+    width, height, rate, frames, preset = (256, 256, 24, 48, 0) if moving else (128, 96, 6, FRAMES, 8)
+    pattern = f'testsrc2=size={width}x{height}:rate={rate}'
+    if moving:
+        pattern += ',scroll=horizontal=0.03:vertical=0.02'
     run([ffmpeg, '-v', 'error', '-nostdin', '-y', '-f', 'lavfi', '-i',
-         'testsrc2=size=128x96:rate=6', '-frames:v', str(FRAMES), '-c:v', 'libx264',
+         pattern, '-frames:v', str(frames), '-c:v', 'libx264',
          '-preset', 'ultrafast', '-crf', '18', '-pix_fmt', 'yuv420p',
          '-x264-params', 'colorprim=bt709:transfer=bt709:colormatrix=bt709',
          '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709',
@@ -39,17 +43,17 @@ def check(coreav, oracle, work):
     run([ffmpeg, '-v', 'error', '-nostdin', '-y', '-i', source, '-an',
          '-pix_fmt', 'yuv420p', '-f', 'rawvideo', reference])
     receipt = json.loads(run([coreav, 'transcode', source, encoded, '--force',
-                             '--video', 'av1', '--preset', '8', '--crf', '32']))
+                             '--video', 'av1', '--preset', str(preset), '--crf', '32']))
     if receipt.get('schema') != 'coreav.transcode/2':
         raise ValueError('explicit AV1 transcode did not return its v2 receipt')
-    if receipt['video']['encoding']['segments'] < 2:
+    if receipt['video']['encoding']['segments'] < (1 if moving else 2):
         raise ValueError('the AV1 fixture did not cross a bounded-session boundary')
     probe = json.loads(run([oracle / 'ffprobe', '-v', 'error', '-count_frames',
                            '-select_streams', 'v:0', '-show_entries',
                            'stream=codec_name,width,height,pix_fmt,nb_read_frames',
                            '-of', 'json', encoded]))
-    expected = {'codec_name': 'av1', 'width': 128, 'height': 96,
-                'pix_fmt': 'yuv420p', 'nb_read_frames': str(FRAMES)}
+    expected = {'codec_name': 'av1', 'width': width, 'height': height,
+                'pix_fmt': 'yuv420p', 'nb_read_frames': str(frames)}
     if probe.get('streams') != [expected]:
         raise ValueError('AV1 output frame count, dimensions or pixel format changed')
     run([ffmpeg, '-v', 'error', '-nostdin', '-y', '-c:v', 'libaom-av1', '-i', encoded,
@@ -58,7 +62,7 @@ def check(coreav, oracle, work):
          '-f', 'rawvideo', own])
     original = reference.read_bytes()
     pixels = decoded.read_bytes()
-    if len(original) != FRAMES * 128 * 96 * 3 // 2 or len(pixels) != len(original):
+    if len(original) != frames * width * height * 3 // 2 or len(pixels) != len(original):
         raise ValueError('decoder returned an incomplete or extra frame')
     if own.read_bytes() != pixels:
         raise ValueError('CoreAV and the oracle disagree on decoded AV1 pixels')
@@ -66,7 +70,8 @@ def check(coreav, oracle, work):
     psnr = math.inf if squared_error == 0 else 10 * math.log10(255 ** 2 * len(pixels) / squared_error)
     if psnr < 20:
         raise ValueError(f'AV1 fixture PSNR {psnr:.2f} dB is below the 20 dB sanity floor')
-    print(json.dumps({'frames': FRAMES, 'width': 128, 'height': 96, 'pix_fmt': 'yuv420p',
+    print(json.dumps({'frames': frames, 'width': width, 'height': height, 'pix_fmt': 'yuv420p',
+                      'preset': preset,
                       'psnr_db': round(psnr, 3) if math.isfinite(psnr) else 'inf'}))
 
 
@@ -75,9 +80,10 @@ def main():
     parser.add_argument('--coreav', type=Path, required=True)
     parser.add_argument('--oracle', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
+    parser.add_argument('--moving', action='store_true')
     options = parser.parse_args()
     try:
-        check(options.coreav.resolve(), options.oracle.resolve(), options.work.resolve())
+        check(options.coreav.resolve(), options.oracle.resolve(), options.work.resolve(), options.moving)
     except subprocess.CalledProcessError as error:
         print(error.stderr.decode(errors='replace'), file=sys.stderr)
         return 1

@@ -37,8 +37,6 @@ pub enum Unsupported {
     NonuniformTiles,
     /// Segmentation maps or inherited segment quantizers.
     Segmentation,
-    /// Nonidentity global motion.
-    GlobalMotion,
     /// Super-resolution that changes the coded width.
     SuperResolution,
     /// Redundant headers, tile lists, and other non-frame OBU types.
@@ -360,10 +358,8 @@ impl Frames {
             return Err(Error::Geometry);
         }
         let intrabc = intra && screen && bits.flag()?;
+        let high_precision = !intra && !integer && bits.flag()?;
         if !intra {
-            if !integer {
-                bits.flag()?;
-            }
             if !bits.flag()? {
                 bits.read(2)?;
             }
@@ -453,8 +449,22 @@ impl Frames {
         bits.flag()?;
         if !intra {
             for _ in 0..7 {
-                if bits.flag()? {
-                    return Err(Error::Unsupported(Unsupported::GlobalMotion));
+                if !bits.flag()? {
+                    continue;
+                }
+                let rotation = bits.flag()?;
+                let translation = !rotation && bits.flag()?;
+                if !translation {
+                    for _ in 0..if rotation { 2 } else { 4 } {
+                        bits.subexp(12)?;
+                    }
+                }
+                for _ in 0..2 {
+                    bits.subexp(if translation {
+                        8 + u8::from(high_precision)
+                    } else {
+                        12
+                    })?;
                 }
             }
         }
@@ -698,6 +708,29 @@ impl<'a> Bits<'a> {
     }
     fn flag(&mut self) -> Result<bool, Error> {
         Ok(self.read(1)? != 0)
+    }
+    fn subexp(&mut self, magnitude_bits: u8) -> Result<(), Error> {
+        let symbols = (1_u32 << (magnitude_bits + 1)) + 1;
+        let mut consumed = 0;
+        for step in 0..=magnitude_bits {
+            let width = if step == 0 { 3 } else { step + 2 };
+            let group = 1_u32 << width;
+            if symbols - consumed <= 3 * group {
+                let remaining = symbols - consumed;
+                let bits = (u32::BITS - remaining.leading_zeros()) as u8;
+                let cutoff = (1_u32 << bits) - remaining;
+                if self.read(bits - 1)? >= cutoff {
+                    self.flag()?;
+                }
+                return Ok(());
+            }
+            if !self.flag()? {
+                self.read(width)?;
+                return Ok(());
+            }
+            consumed += group;
+        }
+        Err(Error::Malformed)
     }
     fn align(&mut self) -> Result<(), Error> {
         while self.left != 0 {
