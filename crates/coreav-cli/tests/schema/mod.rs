@@ -1,7 +1,7 @@
 //! A small JSON Schema validator for the tests of the `coreav` binary.
 //!
 //! Supports the subset the schemas under `docs/schema/` use: type, const,
-//! enum, minimum, properties, required, additionalProperties: false, items,
+//! enum, minimum, maximum, multipleOf, properties, required, additionalProperties: false, items,
 //! anyOf and local $ref.
 
 use serde_json::Value;
@@ -56,6 +56,16 @@ pub fn validate(value: &Value, schema: &Value, root: &Value, at: &str) -> Result
     if let (Some(minimum), Some(number)) = (schema.get("minimum"), value.as_f64()) {
         if number < minimum.as_f64().unwrap() {
             return Err(format!("{at}: {value} below {minimum}"));
+        }
+    }
+    if let (Some(maximum), Some(number)) = (schema.get("maximum"), value.as_f64()) {
+        if number > maximum.as_f64().unwrap() {
+            return Err(format!("{at}: {value} above {maximum}"));
+        }
+    }
+    if let (Some(divisor), Some(number)) = (schema.get("multipleOf"), value.as_f64()) {
+        if number % divisor.as_f64().unwrap() != 0.0 {
+            return Err(format!("{at}: {value} is not a multiple of {divisor}"));
         }
     }
     if let Some(text) = value.as_str() {

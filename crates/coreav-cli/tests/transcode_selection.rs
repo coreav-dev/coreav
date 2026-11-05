@@ -64,6 +64,7 @@ fn refused(output: Output, message: &str) {
 }
 
 const NO_AV1: &str = "no AV1 encoder: this build has no SVT-AV1 backend";
+const AV1_THREADS: &str = "AV1 does not support --threads: parallelism level is not a thread limit";
 const NO_PLATFORM_VIDEO: &str = "no platform H.264 encoder: this build has no platform backend";
 const NO_PLATFORM_AUDIO: &str = "no platform AAC encoder: this build has no platform backend";
 const NO_HARDWARE: &str =
@@ -152,6 +153,9 @@ fn new_selections_refuse_before_a_missing_input_or_output_is_opened() {
         (&["--video", "av1", "--audio-bitrate", "64"], NO_AV1),
     ];
     for (flags, message) in cases {
+        if *message == NO_AV1 && coreav_cli::transcode::av1::compiled() {
+            continue;
+        }
         refused(run(&input, &output, flags, false), message);
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "{flags:?}");
     }
@@ -192,7 +196,13 @@ fn platform_strict_safe_refusals_use_the_transcode_exit() {
     ] {
         refused(run(&input, &output, flags, true), STRICT_PLATFORM);
     }
-    refused(run(&input, &output, &["--video", "av1"], true), NO_AV1);
+    if !coreav_cli::transcode::av1::compiled() {
+        refused(run(&input, &output, &["--video", "av1"], true), NO_AV1);
+    }
+    refused(
+        run(&input, &output, &["--video", "av1", "--threads", "1"], true),
+        AV1_THREADS,
+    );
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
 }
 
@@ -227,7 +237,11 @@ fn aac_selection_discovers_video_and_audio_programs_before_reading_input() {
             &["--video", "av1", "--ffmpeg", ffmpeg.to_str().unwrap()],
             false,
         ),
-        NO_AV1,
+        if coreav_cli::transcode::av1::compiled() {
+            "with AV1, --ffmpeg applies only to --audio aac"
+        } else {
+            NO_AV1
+        },
     );
     for audio_encoder in ["auto", "ffmpeg"] {
         refused(
@@ -412,8 +426,18 @@ fn a_refused_selection_does_not_touch_an_existing_output() {
     let input = dir.join("missing.mp4");
     let output = dir.join("out.mp4");
     std::fs::write(&output, b"retain this output").unwrap();
-    for flags in [&["--video", "av1"][..], &["--video", "av1", "--force"]] {
-        refused(run(&input, &output, flags, false), NO_AV1);
+    if !coreav_cli::transcode::av1::compiled() {
+        for flags in [&["--video", "av1"][..], &["--video", "av1", "--force"]] {
+            refused(run(&input, &output, flags, false), NO_AV1);
+            assert_eq!(std::fs::read(&output).unwrap(), b"retain this output");
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+        }
+    }
+    for flags in [
+        &["--video", "av1", "--threads", "1"][..],
+        &["--video", "av1", "--threads", "1", "--force"],
+    ] {
+        refused(run(&input, &output, flags, false), AV1_THREADS);
         assert_eq!(std::fs::read(&output).unwrap(), b"retain this output");
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
     }
@@ -470,8 +494,12 @@ fn new_selections_do_not_open_a_blocking_input() {
             .unwrap()
             .success()
     );
+    if !coreav_cli::transcode::av1::compiled() {
+        refused(run(&input, &output, &["--video", "av1"], false), NO_AV1);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+    }
     for (flags, message) in [
-        (&["--video", "av1"][..], NO_AV1),
+        (&["--video", "av1", "--threads", "1"][..], AV1_THREADS),
         (&["--encoder", "platform"][..], NO_PLATFORM_VIDEO),
         (
             &["--audio", "aac", "--audio-encoder", "platform"][..],
@@ -495,9 +523,21 @@ fn new_selections_make_no_network_request() {
     listener.set_nonblocking(true).unwrap();
     let url = format!("http://{}/missing.mp4", listener.local_addr().unwrap());
     let output = dir.join("out.mp4");
+    if !coreav_cli::transcode::av1::compiled() {
+        for flags in [
+            &["--video", "av1"][..],
+            &["--video", "av1", "--encoder", "svt-av1"],
+        ] {
+            refused(run(Path::new(&url), &output, flags, false), NO_AV1);
+            assert!(listener.accept().is_err());
+        }
+    }
     for (flags, message) in [
-        (&["--video", "av1"][..], NO_AV1),
-        (&["--video", "av1", "--encoder", "svt-av1"][..], NO_AV1),
+        (&["--video", "av1", "--threads", "1"][..], AV1_THREADS),
+        (
+            &["--video", "av1", "--encoder", "svt-av1", "--threads", "1"][..],
+            AV1_THREADS,
+        ),
         (&["--encoder", "platform"][..], NO_PLATFORM_VIDEO),
         (&["--require-hardware"][..], NO_HARDWARE),
         (
@@ -567,12 +607,7 @@ fn legacy_missing_input_and_usage_precedence_stay_unchanged() {
 #[test]
 fn legacy_crf_and_preset_validators_still_reject_new_backend_settings() {
     let dir = dir("validators");
-    for flags in [
-        &["--crf", "52"][..],
-        &["--preset", "8"],
-        &["--video", "av1", "--crf", "63"],
-        &["--video", "av1", "--preset", "8"],
-    ] {
+    for flags in [&["--crf", "52"][..], &["--preset", "8"]] {
         let result = run(&dir.join("missing.mp4"), &dir.join("out.mp4"), flags, false);
         assert_eq!(result.status.code(), Some(2), "{flags:?}: {result:?}");
         assert!(result.stdout.is_empty());
@@ -580,6 +615,83 @@ fn legacy_crf_and_preset_validators_still_reject_new_backend_settings() {
         assert!(stderr.starts_with("error: invalid value"), "{stderr}");
     }
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+}
+
+#[test]
+fn valid_av1_settings_follow_build_availability_before_source_opening() {
+    let dir = dir("av1-availability");
+    let input = dir.join("missing.mp4");
+    let output = dir.join("out.mp4");
+    for flags in [
+        &["--video", "av1"][..],
+        &["--video", "av1", "--encoder", "auto"],
+        &["--video", "av1", "--encoder", "svt-av1"],
+        &["--video", "av1", "--crf", "0"],
+        &["--video", "av1", "--crf", "1"],
+        &["--video", "av1", "--crf", "32"],
+        &["--video", "av1", "--crf", "51"],
+        &["--video", "av1", "--crf", "52"],
+        &["--video", "av1", "--crf", "63"],
+        &["--video", "av1", "--preset", "8"],
+        &["--video", "av1", "--preset", "13", "--crf", "0"],
+    ] {
+        let result = run(&input, &output, flags, false);
+        if coreav_cli::transcode::av1::compiled() {
+            assert_eq!(result.status.code(), Some(3), "{flags:?}: {result:?}");
+            assert!(result.stdout.is_empty());
+            let error: Value = serde_json::from_slice(&result.stderr).unwrap();
+            assert_eq!(error["kind"], "io");
+        } else {
+            refused(result, NO_AV1);
+        }
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+    }
+}
+
+#[test]
+fn av1_crf_admission_uses_the_exact_integer_token() {
+    let dir = dir("av1-crf-token");
+    let input = dir.join("missing.mp4");
+    let output = dir.join("out.mp4");
+    std::fs::write(&output, b"retain this output").unwrap();
+    for crf in ["32.0000001", "63.0000001", "1e-50", "32.5", "64"] {
+        let result = run(
+            &input,
+            &output,
+            &["--video", "av1", "--crf", crf, "--force"],
+            false,
+        );
+        assert_eq!(result.status.code(), Some(2), "{crf}: {result:?}");
+        assert!(result.stdout.is_empty(), "{crf}: {result:?}");
+        let error = String::from_utf8(result.stderr).unwrap();
+        assert!(
+            error.contains("AV1 --crf must be an integer from 0 to 63"),
+            "{crf}: {error}"
+        );
+        assert_eq!(std::fs::read(&output).unwrap(), b"retain this output");
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+    }
+}
+
+#[test]
+fn av1_rejects_unsupported_controls_before_media_or_output_access() {
+    let dir = dir("av1-controls");
+    let input = dir.join("missing.mp4");
+    let output = dir.join("out.mp4");
+    for (flags, message) in [
+        (&["--video", "av1", "--threads", "1"][..], AV1_THREADS),
+        (
+            &["--video", "av1", "--bitrate", "1000"][..],
+            "AV1 supports integer --crf only, not --bitrate",
+        ),
+        (
+            &["--video", "av1", "--preset", "medium"][..],
+            "AV1 --preset must be an integer from 0 to 13",
+        ),
+    ] {
+        refused(run(&input, &output, flags, false), message);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+    }
 }
 
 #[test]
@@ -618,8 +730,11 @@ fn help_names_unavailable_backends_and_settings() {
     let normalized = help.split_whitespace().collect::<Vec<_>>().join(" ");
     for phrase in [
         "--video",
-        "AV1 is unavailable in this build",
-        "platform` and `svt-av1` are unavailable in this build",
+        "AV1 requires a supported Unix build with native SVT-AV1",
+        "integer 0 to 63 (default 32)",
+        "numeric preset 0 to 13 (default 8)",
+        "without an external encoder fallback",
+        "AV1 refuses this option",
         "--audio-encoder",
         "`platform` is unavailable in this build",
         "--require-hardware",

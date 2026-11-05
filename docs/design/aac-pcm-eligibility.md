@@ -77,8 +77,12 @@ policy without changing `decode-audio` or its sample-exact edit model.
 Only nonfragmented tracks with no edits or one supported media edit,
 optionally after one empty edit, are candidates. Track ticks must be
 native audio samples. Configuration must explicitly declare mono or
-stereo AAC-LC. Every packet must decode without damage, PNS or intensity
+stereo AAC-LC. Every packet must decode without damage or intensity
 under an all-ones M/S mask. No rate or channel conversion is admitted.
+The original branch additionally requires no PNS. The separately planned
+[PNS extension](aac-pns-eligibility.md) admits separable noise bands using
+their coded energies and the unchanged deterministic projection bars;
+it does not compare complete noise-containing waveforms pointwise.
 Other timelines and profiles refuse before output rather than guessing.
 The preflight separately decodes every stored packet, including packets
 outside the presented interval, before rendering the probe's packet
@@ -93,16 +97,17 @@ Each scan permits at most 16,384 packets and 64 MiB of encoded data,
 with at most 16 MiB per packet and two 1,024-sample channels of decoded
 scratch. Existing MP4 limits bound parsing. Preflight performs a full-stream
 scan and a presentation decode without output. The output pass repeats
-both, for at most four bounded decodes. PNS in a late packet cannot
-qualify because an earlier packet was clean.
+both, for at most four bounded decodes. An excluded PNS tool combination
+in a late packet cannot qualify because an earlier packet was clean.
 
 ## Qualification evidence
 
-The bounded development selection contains twelve AAC-LC files. Nine
-pass complete F32 and S16 sample comparisons through raw stdout, raw
+The initial bounded development selection contained twelve AAC-LC files. Nine
+passed complete F32 and S16 sample comparisons through raw stdout, raw
 files, WAV stdout and WAV files. Their largest observed F32 error is
 3.5762786865234375e-7 and their largest S16 error is one LSB. Three contain
-PNS and refuse before writing output. No result contributes to an exact
+PNS and were refused before writing output in that registration. The
+PNS extension reports its later qualification separately. No result contributes to an exact
 count. Input identities and individual results are retained separately.
 This is PCM sample compatibility. WAV metadata copying and complete
 container byte identity are not registered as exact.

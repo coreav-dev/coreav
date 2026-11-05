@@ -60,7 +60,8 @@ fn sexagesimal(units: &[&str], seconds: &str) -> Option<Rational> {
 /// (`coreav_worker::exec`, the encoder of `coreav transcode`) in any build
 /// with a decoder backend when it is `coreav_worker::EXEC_ARG`, or the Opus
 /// encoder of `coreav transcode --audio opus` in a build with `libopus` when
-/// it is `coreav_worker::opus::ENCODE_ARG`; `None` otherwise. Each hosts or runs only what strict-safe mode allows
+/// it is `coreav_worker::opus::ENCODE_ARG`, or the private SVT-AV1 stdio
+/// entry in a build with `svt-av1`; `None` otherwise. Each hosts or runs only what strict-safe mode allows
 /// (`crate::strict_safe`), on with `--strict-safe` right after the entry
 /// argument, which every launch in the mode passes
 /// (`StrictSafe::entry`), or with `COREAV_STRICT_SAFE`. A build without a
@@ -84,6 +85,10 @@ pub fn run_worker() -> Option<std::process::ExitCode> {
             return Some(coreav_worker::sandbox_exec_main(args, |program| {
                 strict_safe.program(program)
             }));
+        }
+        #[cfg(feature = "svt-av1")]
+        if first.as_deref() == Some(std::ffi::OsStr::new(coreav_transcode::av1::WORKER_ARG)) {
+            return Some(crate::transcode::av1::worker_main(args));
         }
         #[cfg(feature = "libopus")]
         if first.as_deref() == Some(std::ffi::OsStr::new(coreav_worker::opus::ENCODE_ARG)) {

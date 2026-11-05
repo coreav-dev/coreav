@@ -79,6 +79,7 @@ fn inspect(output: &mut impl Write) -> coreav_hevc::Result<()> {
                     "dependent_slice_segment_flag":h.dependent,"picture_index":picture_index,
                     "poc":order.map(|x| x.poc),"poc_lsb":h.poc_lsb,"slice_type":h.slice_type,
                     "pic_output_flag":h.output,"slice_qp_y":h.slice_qp_y,
+                    "deblock_offsets":h.deblock_offsets,"loop_filter_slices":h.loop_filter_slices,
                     "chroma_qp_offsets":h.chroma_qp_offsets,"cabac_init_flag":h.cabac_init_flag,
                     "coded_width":p.width,"coded_height":p.height,
                     "width":p.visible_width,"height":p.visible_height,"bit_depth":p.bit_depth,
@@ -130,6 +131,20 @@ fn inspect(output: &mut impl Write) -> coreav_hevc::Result<()> {
                 if let Some(value) = value.as_object_mut() {
                     value.insert("sei_messages".into(), json!(info.messages));
                     value.insert("picture_hash".into(), json!(info.picture_hash.is_some()));
+                    value.insert(
+                        "picture_hash_reference".into(),
+                        info.picture_hash.map_or(Value::Null, |hash| match hash {
+                            coreav_hevc::PictureHash::Md5(components) => {
+                                json!({"algorithm":"md5","components":components})
+                            }
+                            coreav_hevc::PictureHash::Crc(components) => {
+                                json!({"algorithm":"crc","components":components})
+                            }
+                            coreav_hevc::PictureHash::Checksum(components) => {
+                                json!({"algorithm":"checksum","components":components})
+                            }
+                        }),
+                    );
                     value.insert("reserved_hashes".into(), json!(info.reserved_hashes));
                 }
             }

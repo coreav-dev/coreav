@@ -162,6 +162,46 @@ pub(crate) struct Tns {
 }
 
 impl Tns {
+    pub(crate) fn ranges<'a>(
+        &'a self,
+        info: Info,
+        bands: &'a Bands,
+    ) -> impl Iterator<Item = (core::ops::Range<usize>, TnsFilter)> + 'a {
+        let offsets = info.offsets(bands);
+        let window_len = if info.short() {
+            bands.short_len()
+        } else {
+            bands.frame
+        };
+        let windows = if info.short() { 8 } else { 1 };
+        let num_swb = offsets.len().saturating_sub(1);
+        let max_bands = if info.short() {
+            bands.tns_short
+        } else {
+            bands.tns_long
+        };
+        let limit = max_bands.min(info.max_sfb);
+        self.count
+            .iter()
+            .zip(&self.filters)
+            .take(windows)
+            .enumerate()
+            .flat_map(move |(w, (&count, filters))| {
+                let mut bottom = num_swb;
+                filters
+                    .iter()
+                    .take(count as usize)
+                    .filter_map(move |&filter| {
+                        let top = bottom;
+                        bottom = top.saturating_sub(filter.length);
+                        let start = offsets.get(bottom.min(limit)).copied().unwrap_or(0) as usize;
+                        let end = offsets.get(top.min(limit)).copied().unwrap_or(0) as usize;
+                        (self.present && filter.order > 0 && end > start)
+                            .then_some((w * window_len + start..w * window_len + end, filter))
+                    })
+            })
+    }
+
     /// Reads `tns_data()` (Table 4.54) and converts each filter to LPC
     /// coefficients (`tns_decode_coef()`).
     fn read(&mut self, bits: &mut Bits<'_>, info: &Info) {

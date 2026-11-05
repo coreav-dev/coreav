@@ -176,7 +176,7 @@ class Repository(unittest.TestCase):
         return check.check(self.root)
 
     def test_a_job_no_report_waits_for_is_reported(self):
-        found = self.ci(', conformance-arm64, bench-guard, main-cache]\n', ', conformance-arm64, main-cache]\n')
+        found = self.ci(', bench-guard,', ',')
         self.assertIn('ci.yml: no report job waits for bench-guard', found)
 
     def test_a_job_without_its_concurrency_group_is_reported(self):
