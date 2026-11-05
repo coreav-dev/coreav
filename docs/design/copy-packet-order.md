@@ -49,8 +49,8 @@ remains the native default, including single-stream compatibility copies.
 For packet chunks, the sample-to-chunk table is either empty or the single
 entry `(first_chunk=1, samples_per_chunk=1, sample_description_index=1)`.
 Build that directly rather than repeatedly walking every sample to rediscover
-it. The chunk iterator also yields one sample directly, without a pending
-chunk. The shared heap updates its earliest track in place, repairing once
+it. Keep the existing chunk iterator unchanged. The shared heap updates its
+earliest track in place, repairing once
 instead of removing and reinserting a track for every packet. These changes
 remove scheduling and table-building work without changing the layout,
 packet clocks, tie rule, limits or comparison predicate.

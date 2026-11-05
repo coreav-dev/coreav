@@ -615,18 +615,6 @@ impl ChunkIter<'_> {
     }
 
     fn step(&mut self) -> Result<Option<Chunk>, Error> {
-        if self.tables.chunk_bytes == 0 {
-            let Some((bytes, delta)) = self.next_sample()? else {
-                return Ok(None);
-            };
-            let start = self.ticks;
-            self.ticks = self.ticks.saturating_add(u64::from(delta));
-            return Ok(Some(Chunk {
-                samples: 1,
-                bytes,
-                start,
-            }));
-        }
         loop {
             let Some((size, delta)) = self.next_sample()? else {
                 return Ok(self.pending.take().map(|(chunk, _)| chunk));
