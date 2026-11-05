@@ -20,6 +20,10 @@ use coreav_isobmff::{FourCc, Profile};
 use coreav_mkv::{Allowlist, Codec, Encoding, Segment, SliceSource, Source, Track, TrackKind};
 use std::io::Write;
 
+mod aac_copy;
+use aac_copy::AacCopyClock;
+pub use aac_copy::check_matroska_aac_copy;
+
 /// Bytes charged per kept sample against
 /// [`coreav_isobmff::Limits::max_table_bytes`]: its record, kept between the
 /// passes, and the per-sample vectors of the time computation.
@@ -266,6 +270,7 @@ struct Plan {
     /// The stream's samples are a replacement's: none of the source's
     /// frames is listed or copied.
     replaced: Option<Replaced>,
+    copy_clock: Option<AacCopyClock>,
 }
 
 impl Plan {
@@ -420,7 +425,36 @@ pub fn remux_matroska<S: Source, W: Write>(
         video: None,
         audio: None,
     };
-    remux(source, demux, mux, allowlist, options, none, out)
+    remux(
+        source,
+        demux,
+        mux,
+        allowlist,
+        options,
+        RemuxMode::Native(none),
+        out,
+    )
+}
+
+/// Copies Matroska with the compatibility-only AAC clock qualification.
+/// Native remux and replacement callers retain their timing policy.
+pub fn remux_matroska_compatible<S: Source, W: Write>(
+    source: S,
+    demux: &coreav_mkv::Limits,
+    mux: &coreav_isobmff::Limits,
+    allowlist: &Allowlist,
+    options: &MatroskaRemuxOptions,
+    out: W,
+) -> Result<MatroskaRemuxSummary, MatroskaRemuxError> {
+    remux(
+        source,
+        demux,
+        mux,
+        allowlist,
+        options,
+        RemuxMode::<SliceSource<'static>>::CompatibleCopy,
+        out,
+    )
 }
 
 /// [`remux_matroska`] with one video stream of the source, one audio
@@ -467,7 +501,15 @@ pub fn remux_matroska_replacing<S: Source, R: Source, W: Write>(
     replacements: Replacements<'_, R>,
     out: W,
 ) -> Result<MatroskaRemuxSummary, MatroskaRemuxError> {
-    remux(source, demux, mux, allowlist, options, replacements, out)
+    remux(
+        source,
+        demux,
+        mux,
+        allowlist,
+        options,
+        RemuxMode::Native(replacements),
+        out,
+    )
 }
 
 /// Which replacement a stream's samples are.
@@ -477,6 +519,11 @@ enum Replaced {
     Audio,
 }
 
+enum RemuxMode<'a, R> {
+    Native(Replacements<'a, R>),
+    CompatibleCopy,
+}
+
 /// The Matroska remux, with or without replaced streams.
 fn remux<S: Source, R: Source, W: Write>(
     mut source: S,
@@ -484,9 +531,17 @@ fn remux<S: Source, R: Source, W: Write>(
     mux: &coreav_isobmff::Limits,
     allowlist: &Allowlist,
     options: &MatroskaRemuxOptions,
-    replacements: Replacements<'_, R>,
+    mode: RemuxMode<'_, R>,
     mut out: W,
 ) -> Result<MatroskaRemuxSummary, MatroskaRemuxError> {
+    let compatible = matches!(&mode, RemuxMode::CompatibleCopy);
+    let replacements = match mode {
+        RemuxMode::Native(replacements) => replacements,
+        RemuxMode::CompatibleCopy => Replacements {
+            video: None,
+            audio: None,
+        },
+    };
     let Replacements {
         video: mut replacement,
         mut audio,
@@ -623,6 +678,16 @@ fn remux<S: Source, R: Source, W: Write>(
     dropped.sort_by_key(|d| d.stream_index);
 
     let mut additions = Vec::new();
+    if compatible {
+        let only_track = plans.len() == 1 && options.streams.as_ref().is_none_or(|s| s.len() == 1);
+        for plan in &mut plans {
+            if plan.codec == Codec::Aac
+                && let Some(track) = segment.tracks.get(plan.track)
+            {
+                plan.copy_clock = Some(AacCopyClock::new(&segment, track, only_track));
+            }
+        }
+    }
     // Per track index: the BlockAdditions seen.
     let mut additions_seen = vec![0u64; segment.tracks.len()];
     // The replacements' samples are charged as the source's would be.
@@ -644,6 +709,11 @@ fn remux<S: Source, R: Source, W: Write>(
         &mut additions_seen,
         replaced_samples,
     )?;
+    for plan in &plans {
+        if let Some(clock) = &plan.copy_clock {
+            clock.finish(&segment)?;
+        }
+    }
     // A stream that turned out to have a problem, no samples or no
     // parameter sets cannot be written.
     let mut kept = Vec::new();
@@ -1096,6 +1166,7 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
         entry: Vec::new(),
         timing: None,
         replaced: None,
+        copy_clock: None,
     })
 }
 
@@ -1120,6 +1191,7 @@ fn replaced_plan(track: &Track, codec: Codec) -> Plan {
         entry: Vec::new(),
         timing: None,
         replaced: Some(Replaced::Video),
+        copy_clock: None,
     }
 }
 
@@ -1144,6 +1216,7 @@ fn audio_plan(track: &Track, codec: Codec, timescale: u32) -> Plan {
         entry: Vec::new(),
         timing: None,
         replaced: Some(Replaced::Audio),
+        copy_clock: None,
     }
 }
 
@@ -1380,6 +1453,9 @@ fn list_samples<S: Source>(
         else {
             continue;
         };
+        if let Some(clock) = &mut plan.copy_clock {
+            clock.observe(&packet, segment)?;
+        }
         if plan.failure.is_some() {
             continue;
         }

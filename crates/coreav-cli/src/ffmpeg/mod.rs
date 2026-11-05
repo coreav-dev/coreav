@@ -245,6 +245,10 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   encoded audio stdin names: -, pipe: or pipe:0 (bounded encoded spool)
   standalone WAVE PCM: full-width U8/S16/S24/S32 to raw S16/F32;
     finite F32 sources support unchanged-rate F32 output only
+  bounded standalone FLAC: 16/24-bit mono/stereo to raw S16/F32,
+    with known totals and unchanged rate/channels; no explicit masks
+  standalone integer WAVE to .wav: S16 with unchanged rate and
+    mono/stereo channels; other metadata requires -map_metadata -1
   -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input,
     including streaming stdin without a whole-input spool
   -threads 0..16 or auto before -i: audio decoder workers
@@ -480,6 +484,8 @@ fn run_with_input(
     if let Job::AudioEncode { stream, encoder } = job {
         return audio::write(&command, &report, stream, encoder, strict_safe);
     }
+    drop(report);
+    drop(file);
     write(&command, &job)
 }
 
@@ -535,7 +541,11 @@ pub fn plan(
     list: Option<Vec<PathBuf>>,
 ) -> Result<Job, Refusal> {
     let container = match format_name(report) {
-        Some("wav") if matches!(command.muxer, Muxer::S16le | Muxer::F32le) => {
+        Some("flac") if matches!(command.muxer, Muxer::S16le | Muxer::F32le) => {
+            let selected = select(command, &report.streams)?;
+            return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+        }
+        Some("wav") if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::F32le) => {
             let selected = select(command, &report.streams)?;
             return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
         }
@@ -1824,6 +1834,23 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         _ => Vec::new(),
     };
     let mut refused = None;
+    if let Job::Remux {
+        streams,
+        matroska: true,
+        ..
+    } = job
+    {
+        let source =
+            coreav_mkv::BufferedSource::new(FileSource::open(input).map_err(WriteFailure::from)?);
+        coreav_isobmff_write::check_matroska_aac_copy(
+            source,
+            &coreav_mkv::Limits::default(),
+            &Limits::default(),
+            &mkv_allowlist,
+            streams,
+        )
+        .map_err(WriteFailure::from)?;
+    }
     let written = output::to_file(&path, force, |out| match job {
         Job::RemuxInputs {
             streams,
@@ -1889,8 +1916,18 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 on_unsupported: OnUnsupported::Fail,
                 drop_video: false,
             };
-            crate::remux::run_matroska(input, &options, &mkv_allowlist, out)
-                .map(|summary| crate::remux::matroska_document(&summary))
+            coreav_isobmff_write::remux_matroska_compatible(
+                coreav_mkv::BufferedSource::new(
+                    FileSource::open(input).map_err(WriteFailure::from)?,
+                ),
+                &coreav_mkv::Limits::default(),
+                &Limits::default(),
+                &mkv_allowlist,
+                &options,
+                out,
+            )
+            .map_err(WriteFailure::from)
+            .map(|summary| crate::remux::matroska_document(&summary))
         }
         Job::ExtractAudio { stream, metadata } => crate::extract::run(
             input,

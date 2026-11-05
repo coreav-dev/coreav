@@ -507,3 +507,180 @@ fn source_io_and_limit_errors_are_never_optional_metadata() {
         );
     }
 }
+
+#[test]
+fn loaded_source_uses_the_metadata_end_and_charges_all_retained_capacity() {
+    let payload = encoded_payload(2, 20001);
+    assert!(payload.len() > 34);
+    let mut bytes = file(&[
+        (0, streaminfo(2, 20001)),
+        (1, vec![0; 257]),
+        (4, comment(&["TITLE=own", "language=en"])),
+    ]);
+    let offset = bytes.len() as u64;
+    bytes.extend_from_slice(&payload);
+    struct Checked<'a> {
+        source: SliceSource<'a>,
+        reads: Vec<(u64, usize)>,
+    }
+    impl Source for Checked<'_> {
+        fn len(&mut self) -> Result<u64, Error> {
+            self.source.len()
+        }
+        fn read_exact_at(&mut self, offset: u64, target: &mut [u8]) -> Result<(), Error> {
+            self.reads.push((offset, target.len()));
+            self.source.read_exact_at(offset, target)
+        }
+    }
+    let mut source = Checked {
+        source: SliceSource::new(&bytes),
+        reads: vec![],
+    };
+    let limits = Limits::default();
+    let loaded = load_source(&mut source, bytes.len() as u64, &limits)
+        .ok()
+        .unwrap();
+    assert_eq!(loaded.payload, payload);
+    assert_eq!(source.reads.last(), Some(&(offset, payload.len())));
+    assert_eq!(
+        source.reads.iter().filter(|(at, _)| *at == offset).count(),
+        1
+    );
+    assert_eq!(loaded.info.total_samples, 20001);
+    let charged = limits.max_retained_bytes - loaded.limits.isobmff.max_retained_bytes;
+    assert!(charged > loaded.payload.capacity() as u64 + 1024);
+    assert_eq!(
+        loaded.limits.max_output_samples,
+        loaded.limits.isobmff.max_sample_work / 128
+    );
+    let work = limits.max_sample_work - loaded.limits.isobmff.max_sample_work;
+    for (limited, expected) in [
+        (
+            Limits {
+                max_box_bytes: payload.len() as u64 - 1,
+                ..limits
+            },
+            LimitKind::BoxBytes,
+        ),
+        (
+            Limits {
+                max_packet_bytes: payload.len() as u64 - 1,
+                ..limits
+            },
+            LimitKind::PacketBytes,
+        ),
+        (
+            Limits {
+                max_retained_bytes: charged - 1,
+                ..limits
+            },
+            LimitKind::RetainedBytes,
+        ),
+        (
+            Limits {
+                max_sample_work: work - 1,
+                ..limits
+            },
+            LimitKind::SampleWork,
+        ),
+    ] {
+        let error = load_source(&mut SliceSource::new(&bytes), bytes.len() as u64, &limited);
+        assert!(
+            matches!(error, Err(Failure::Library(Error::LimitExceeded { limit, .. })) if limit == expected)
+        );
+    }
+    let exact = Limits {
+        max_box_bytes: payload.len() as u64,
+        max_packet_bytes: payload.len() as u64,
+        max_retained_bytes: charged,
+        max_sample_work: work,
+        ..limits
+    };
+    let exact = load_source(&mut SliceSource::new(&bytes), bytes.len() as u64, &exact)
+        .ok()
+        .unwrap();
+    assert_eq!(exact.payload, payload);
+    assert_eq!(exact.limits.max_output_samples, 0);
+    assert_eq!(exact.limits.isobmff.max_retained_bytes, 0);
+}
+
+#[test]
+fn source_loading_refuses_explicit_masks_and_preserves_payload_read_errors() {
+    for mask in ["0x4", "0x0", ""] {
+        let mut bytes = file(&[
+            (0, streaminfo(1, 16)),
+            (
+                4,
+                comment(&[&format!("WAVEFORMATEXTENSIBLE_CHANNEL_MASK={mask}")]),
+            ),
+        ]);
+        bytes.extend_from_slice(&encoded_payload(1, 16));
+        assert!(matches!(
+            load_source(
+                &mut SliceSource::new(&bytes),
+                bytes.len() as u64,
+                &Limits::default()
+            ),
+            Err(Failure::Unsupported(_))
+        ));
+    }
+    struct Failing {
+        bytes: Vec<u8>,
+        error: Error,
+    }
+    impl Source for Failing {
+        fn len(&mut self) -> Result<u64, Error> {
+            Ok(self.bytes.len() as u64)
+        }
+        fn read_exact_at(&mut self, offset: u64, target: &mut [u8]) -> Result<(), Error> {
+            if offset == 42 {
+                return Err(self.error.clone());
+            }
+            SliceSource::new(&self.bytes).read_exact_at(offset, target)
+        }
+    }
+    for error in [
+        Error::Io(std::io::ErrorKind::PermissionDenied),
+        Error::LimitExceeded {
+            limit: LimitKind::ReadBytes,
+            offset: 42,
+        },
+    ] {
+        let mut bytes = file(&[(0, streaminfo(1, 16))]);
+        bytes.extend_from_slice(&encoded_payload(1, 16));
+        let size = bytes.len() as u64;
+        let mut source = Failing {
+            bytes,
+            error: error.clone(),
+        };
+        assert!(
+            matches!(load_source(&mut source, size, &Limits::default()), Err(Failure::Library(found)) if found == error)
+        );
+    }
+}
+
+#[test]
+fn source_loading_refuses_other_precision_channels_and_unknown_totals() {
+    for (bits, channels, total) in [
+        (8, 1, 16),
+        (12, 1, 16),
+        (20, 2, 16),
+        (32, 2, 16),
+        (16, 3, 16),
+        (16, 1, 0),
+    ] {
+        let mut body = streaminfo(channels, total);
+        let packed = u64::from_be_bytes(body[10..18].try_into().unwrap());
+        body[10..18].copy_from_slice(&((packed & !(31 << 36)) | ((bits - 1) << 36)).to_be_bytes());
+        let mut bytes = file(&[(0, body)]);
+        bytes.extend_from_slice(&encoded_payload(channels as u16, 16));
+        assert!(matches!(
+            load_source(
+                &mut SliceSource::new(&bytes),
+                bytes.len() as u64,
+                &Limits::default()
+            ),
+            Err(Failure::Unsupported(_))
+        ));
+    }
+}
