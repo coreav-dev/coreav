@@ -15,7 +15,7 @@ ISO/IEC 14496-15:2017 Table 2 prohibits SPS and PPS NAL units in `avc1` and `avc
 
 ## Verification boundaries
 
-The eleven generated controls are the unedited audiovisual case, four video-only audio-gap cases, two FLAC and ALAC copy cases, and four unfiltered AAC-filter controls. The twelve primed-AAC cases remain refusals and are a follow-up. Explicit AAC filters, positive AAC edits and multiple audio edits keep their existing admission rules. Other native command coverage must not decrease.
+The eleven generated controls are the unedited audiovisual case, four video-only audio-gap cases, two FLAC and ALAC copy cases, and four unfiltered AAC-filter controls. This implementation left the twelve primed-AAC cases as refusals. The [primed AAC follow-up](concat-primed-aac.md) admits that qualified class while keeping explicit filters and unrelated timing refusals. Other native command coverage must not decrease.
 
 C02's command, inputs, representative and `bench/guard/baseline.json` stay unchanged. Restore only its current guard routing. Compare its native instruction count against the existing five-percent tolerance. If it exceeds that tolerance or needs a new baseline, stop and report the result instead of modifying the frozen material.
 
@@ -27,7 +27,7 @@ This plan and its implementation share one PR. The plan is the first commit. Top
 
 ## Output metadata and known differences
 
-RFC 9639 Section 8.2 Table 3 defines STREAMINFO statistics for the complete FLAC stream. Its sample count is the combined decoded sample count. Its MD5 is zero, meaning unknown. Block and frame bounds combine all inputs, including a formerly terminal short block that becomes internal after joining. Keeping the first input's total and MD5, as FFmpeg 9.0.2 does, would describe different audio. ALAC retains the maximum frame-byte bound across inputs and actual packets, with average bitrate zero, meaning unknown.
+RFC 9639 Section 8.2 Table 3 defines STREAMINFO statistics for the complete FLAC stream. For the qualified sample-clock inputs, its sample count is the combined decoded sample count. Its MD5 is zero, meaning unknown. Block and frame bounds combine all inputs, including a formerly terminal short block that becomes internal after joining. The [native clock policy](concat-primed-aac.md#clock-and-layout-rules) defines unknown totals and retained bounds when clocks do not establish those statistics. Keeping the first input's total and MD5, as FFmpeg 9.0.2 does, would describe different audio. ALAC retains the maximum frame-byte bound across inputs and actual packets, with average bitrate zero, meaning unknown.
 
 The generated FLAC inputs use fixed blocking. Their copied frame numbers restart at the second input, and a formerly final short block becomes internal. The output intentionally retains this MP4 packet-copy deviation shared with FFmpeg 9.0.2, contrary to the contiguous fixed-block stream model in RFC 9639 Sections 8.2, 9.1 and 9.1.5. It is not a claim of a conforming standalone FLAC stream. Rewriting the headers and their checksums would change packet bytes and is separate work.
 

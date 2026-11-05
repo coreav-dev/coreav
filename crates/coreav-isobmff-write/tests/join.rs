@@ -22,9 +22,9 @@ use coreav_isobmff::{
     SliceSource, Source, TrackKind, probe,
 };
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, ExtractError, JoinAudio, JoinError, JoinOptions, JoinSummary,
-    JoinTrack, Mismatch, Placement, SplitAt, SplitOptions, VideoChoice, clip_mp4, join_mp4,
-    split_mp4,
+    AudioChoice, ClipOptions, ExtractError, JoinAudio, JoinCompatibility, JoinError, JoinOptions,
+    JoinSummary, JoinTrack, Mismatch, Placement, SplitAt, SplitOptions, VideoChoice, clip_mp4,
+    join_mp4, split_mp4,
 };
 use movies::{S, TrackSpec, aac_audio, av_movie, ibbp_video, movie};
 use std::cell::RefCell;
@@ -732,6 +732,254 @@ fn lossless_join_metadata_combines_both_inputs_without_changing_packets() {
         .data;
     assert_eq!(u32::from_be_bytes(config[16..20].try_into().unwrap()), 400);
     assert_eq!(&config[20..24], &[0; 4]);
+}
+
+fn compatible_join(
+    inputs: &[&[u8]],
+    audio: JoinAudio,
+) -> Result<(JoinSummary, Vec<u8>), JoinError> {
+    let mut out = Vec::new();
+    let summary = join_mp4(
+        inputs.iter().map(|input| SliceSource::new(input)).collect(),
+        &Limits::default(),
+        &Allowlist::default(),
+        &JoinOptions {
+            video: VideoChoice::First,
+            audio,
+            placement: Placement::AfterVideo,
+            compatibility: Some(JoinCompatibility {
+                muxer_encoder: "test".into(),
+            }),
+        },
+        &mut out,
+    )?;
+    Ok((summary, out))
+}
+
+fn primed_source(scale: u32, skip: i32) -> Vec<u8> {
+    let mut audio = aac_audio(100, vec![(1900, skip)]);
+    audio.timescale = scale;
+    for sample in &mut audio.samples {
+        sample.duration = scale / 48_000 * 1024;
+    }
+    let mut video = ibbp_video(50, 25);
+    video.edits = vec![(1900, 1024)];
+    let mut source = movie(&[video, audio]);
+    movies::h264_slices(
+        &mut source,
+        &(0..50).map(|i| i % 25 == 0).collect::<Vec<_>>(),
+    );
+    with_framing_record(&mut source);
+    source
+}
+
+fn with_framing_record(source: &mut Vec<u8>) {
+    let moov = child(source, b"moov").unwrap();
+    let trak = child(moov, b"trak").unwrap();
+    let mdia = child(trak, b"mdia").unwrap();
+    let minf = child(mdia, b"minf").unwrap();
+    let stbl = child(minf, b"stbl").unwrap();
+    let stsd = child(stbl, b"stsd").unwrap();
+    let entry = children(&stsd[8..])[0].1;
+    let avcc = child(&entry[78..], b"avcC").unwrap();
+    let at = avcc.as_ptr() as usize - source.as_ptr() as usize;
+    assert_eq!(avcc.len(), 7);
+    let headers: Vec<_> = [moov, trak, mdia, minf, stbl, stsd, entry, avcc]
+        .iter()
+        .map(|bytes| bytes.as_ptr() as usize - source.as_ptr() as usize - 8)
+        .collect();
+    let offsets: Vec<_> = children(moov)
+        .into_iter()
+        .filter(|(tag, _)| tag == b"trak")
+        .flat_map(|(_, trak)| {
+            let stbl = child(
+                child(child(trak, b"mdia").unwrap(), b"minf").unwrap(),
+                b"stbl",
+            )
+            .unwrap();
+            let stco = child(stbl, b"stco").unwrap();
+            (8..stco.len())
+                .step_by(4)
+                .map(|index| stco.as_ptr() as usize - source.as_ptr() as usize + index)
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    for offset in offsets {
+        let old = u32::from_be_bytes(source[offset..offset + 4].try_into().unwrap());
+        if old as usize > at {
+            source[offset..offset + 4].copy_from_slice(&(old + 6).to_be_bytes());
+        }
+    }
+    for header in headers {
+        let size = u32::from_be_bytes(source[header..header + 4].try_into().unwrap());
+        source[header..header + 4].copy_from_slice(&(size + 6).to_be_bytes());
+    }
+    source.splice(
+        at..at + 7,
+        [1, 66, 0, 30, 255, 225, 0, 1, 0x67, 1, 0, 1, 0x68],
+    );
+}
+
+#[test]
+fn primed_compatibility_keeps_each_window_and_orders_multi_edit_media() {
+    for (scale, skip) in [(48_000, 1024), (48_000, 2112), (96_000, 2048)] {
+        let source = primed_source(scale, skip);
+        let inputs = [&source[..], &source[..]];
+        let (summary, output) = compatible_join(&inputs, JoinAudio::First).unwrap();
+        assert_join(&inputs, &output, &summary);
+        assert_eq!(summary.video_edits, 2);
+        assert_eq!(summary.audio_edits, 2);
+        let movie = probe_all(&output);
+        let mut physical = Vec::new();
+        for track in &movie.tracks {
+            for packet in packets(&output, &movie, track.index) {
+                physical.push((
+                    packet.offset,
+                    q(i128::from(packet.dts), u64::from(track.timescale)),
+                ));
+            }
+        }
+        physical.sort_by_key(|sample| sample.0);
+        for pair in physical.windows(2) {
+            assert!(!pair[1].1.checked_lt(pair[0].1).unwrap(), "{pair:?}");
+        }
+        let (_, video_only) = compatible_join(&inputs, JoinAudio::None).unwrap();
+        assert_eq!(probe_all(&video_only).tracks.len(), 1);
+    }
+}
+
+#[test]
+fn unqualified_priming_keeps_compatibility_refusal_and_native_admission() {
+    for (scale, skip) in [(48_000, 1), (48_000, 1023), (96_000, 2047)] {
+        let source = primed_source(scale, skip);
+        for audio in [JoinAudio::First, JoinAudio::None] {
+            assert!(matches!(
+                compatible_join(&[&source, &source], audio),
+                Err(JoinError::Input {
+                    input: 0,
+                    error: ExtractError::Source(Error::Unsupported {
+                        reason: "a concat input with a positive AAC edit offset"
+                    }),
+                })
+            ));
+            assert!(join_with(&[&source, &source], audio).is_ok());
+        }
+    }
+    let mut source = primed_source(48_000, 1024);
+    let at = source
+        .windows(4)
+        .position(|bytes| bytes == [5, 2, 0x11, 0x90])
+        .unwrap();
+    source[at + 2] = 0x09;
+    assert!(matches!(
+        compatible_join(&[&source, &source], JoinAudio::First),
+        Err(JoinError::Input { input: 0, .. })
+    ));
+    assert!(join(&[&source, &source]).is_ok());
+}
+
+fn flac_clock_source(rate: u32, delta: u32) -> Vec<u8> {
+    let mut source = common::av_movie_with(
+        common::lossless_entry(b"fLaC", common::dfla(rate, 16)),
+        false,
+    );
+    let mut fields = Vec::new();
+    for (tag, trak) in children(child(&source, b"moov").unwrap()) {
+        if tag != *b"trak" {
+            continue;
+        }
+        let mdia = child(trak, b"mdia").unwrap();
+        let mdhd = child(mdia, b"mdhd").unwrap();
+        let stts = child(
+            child(child(mdia, b"minf").unwrap(), b"stbl").unwrap(),
+            b"stts",
+        )
+        .unwrap();
+        fields.push((
+            mdhd.as_ptr() as usize - source.as_ptr() as usize + 16,
+            stts.as_ptr() as usize - source.as_ptr() as usize + 12,
+        ));
+    }
+    for (duration, sample_delta) in fields {
+        source[duration..duration + 4].copy_from_slice(&delta.saturating_mul(4).to_be_bytes());
+        source[sample_delta..sample_delta + 4].copy_from_slice(&delta.to_be_bytes());
+    }
+    with_framing_record(&mut source);
+    source
+}
+
+fn flac_statistics(output: &[u8]) -> (u64, Vec<u8>) {
+    let movie = probe_all(output);
+    let config = movie.tracks[1]
+        .description
+        .codec_config
+        .as_ref()
+        .unwrap()
+        .data
+        .clone();
+    assert_eq!(&config[26..42], &[0; 16]);
+    (
+        u64::from_be_bytes(config[18..26].try_into().unwrap()) & ((1 << 36) - 1),
+        config,
+    )
+}
+
+#[test]
+fn native_flac_unproved_clocks_keep_packets_and_unknown_totals() {
+    for rate in [6400, 48_000, 48_001] {
+        let source = flac_clock_source(rate, 512);
+        let (summary, output) = join(&[&source, &source]).unwrap();
+        assert_join(&[&source, &source], &output, &summary);
+        let (total, config) = flac_statistics(&output);
+        assert_eq!(
+            total, 0,
+            "configured rate {rate} differs from media clock12800"
+        );
+        assert_eq!(&config[8..12], &[16, 0, 16, 0]);
+        assert_eq!(&config[12..18], &[0, 0, 0, 0, 0, 100]);
+    }
+    let source = flac_clock_source(48_001, 512);
+    assert!(matches!(
+        compatible_join(&[&source, &source], JoinAudio::First),
+        Err(JoinError::Output(Error::Unsupported {
+            reason: "a FLAC block outside its sample clock"
+        }))
+    ));
+    let source = flac_clock_source(12_800, 512);
+    let (_, native) = join(&[&source, &source]).unwrap();
+    let (_, compatible) = compatible_join(&[&source, &source], JoinAudio::First).unwrap();
+    assert_eq!(flac_statistics(&native), flac_statistics(&compatible));
+    let (total, config) = flac_statistics(&native);
+    assert_eq!(total, 4096);
+    assert_eq!(&config[8..12], &[2, 0, 16, 0]);
+}
+
+#[test]
+fn native_flac_unrepresentable_statistics_do_not_remove_packet_copy() {
+    for (delta, count, reason) in [
+        (
+            8,
+            2,
+            "an internal FLAC block smaller than STREAMINFO permits",
+        ),
+        (
+            u32::MAX,
+            5,
+            "a FLAC total outside STREAMINFO's sample count",
+        ),
+    ] {
+        let source = flac_clock_source(12_800, delta);
+        let inputs = vec![source.as_slice(); count];
+        let (summary, output) = join(&inputs).unwrap();
+        assert_join(&inputs, &output, &summary);
+        let (total, config) = flac_statistics(&output);
+        assert_eq!(total, if delta == 8 { 64 } else { 0 });
+        assert_eq!(&config[8..12], &[16, 0, 16, 0]);
+        assert!(matches!(
+            compatible_join(&inputs, JoinAudio::First),
+            Err(JoinError::Output(Error::Unsupported { reason: actual })) if actual == reason
+        ));
+    }
 }
 
 #[test]

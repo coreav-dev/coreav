@@ -32,3 +32,11 @@ PNS decoder state does not reset at a container edit. A fresh decoder for each i
 This plan is the first commit of one implementation PR and precedes media runs. Do not open that PR until coreav-dev/coreav#436 has merged. Integrate current main and rerun the complete comparator and C02 on that integrated result first.
 
 C02's command, inputs, generator, representative and `bench/guard/baseline.json` remain unchanged. Its instruction count must stay within the existing 5% tolerance of 1,121,797; stop and report if it does not. No timing claim or held-out measurement is planned. Compatible-category registration waits until coreav-dev/coreav#433 merges and is separate work.
+
+## Clock and layout rules
+
+AAC sample entries retain the existing reconstruction with `esds` and no optional `btrt`; video `btrt` must still match the selected source. Complete raw format duration is the span between the earliest sample start and latest sample end, not the absolute end timestamp. Both rules have mutation controls alongside complete stream and format equality.
+
+For direct native FLAC, the media clock proves sample counts only when its timescale equals STREAMINFO's configured rate. The [FLAC binding section 3.3.4](https://github.com/xiph/flac/blob/master/doc/isoflac.txt) derives duration from decoded frame block size and the media timescale. Integer arithmetic across different clocks alone cannot recover a rounded block size. Such native joins write unknown total samples and retain combined declared block bounds without deriving internal tails. A known clock retains exact totals unless they exceed 36 bits. An internal tail below 16 cannot have a legal STREAMINFO minimum, so native copy retains declared bounds and its existing packet-copy deviation rather than refusing. [RFC 9639 section 8.2](https://www.rfc-editor.org/rfc/rfc9639.html#section-8.2) defines the unknown total and MD5, but no unknown block-size encoding.
+
+The compatibility path's existing FLAC statistics and numeric refusals remain unchanged. Its integer conversions at a differing media clock are not payload-backed sample-count evidence and remain unqualified. Resolving that residual and rewriting FLAC frame numbers or checksums are separate work.
