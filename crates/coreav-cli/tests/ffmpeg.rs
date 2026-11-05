@@ -144,6 +144,9 @@ fn copied_video_aac_encoding_preserves_destinations_and_exact_fallback() {
     let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
         return;
     };
+    let audio_inputs: Vec<&str> = include_str!("../../../scripts/oracle-audio-args.txt")
+        .split_whitespace()
+        .collect();
     let dir = oracle_scratch("ffmpeg-copied-video-aac");
     let first = dir.join("first input.mp4");
     let second = dir.join("second input.mp4");
@@ -271,17 +274,14 @@ fn copied_video_aac_encoding_preserves_destinations_and_exact_fallback() {
     ] {
         let output = dir.join("output.mp4");
         let reference = dir.join(format!("{name}-reference.mp4"));
-        let mut args = vec![
-            "-nostdin",
-            "-v",
-            "error",
-            "-y",
-            "-i",
-            first.to_str().unwrap(),
-        ];
-        if inputs == 2 {
-            args.extend(["-i", second.to_str().unwrap()]);
+        let mut original = vec!["-nostdin", "-v", "error", "-y"];
+        let mut args = original.clone();
+        for path in [&first, &second].into_iter().take(inputs) {
+            original.extend(["-i", path.to_str().unwrap()]);
+            args.extend(audio_inputs.iter().copied());
+            args.extend(["-i", path.to_str().unwrap()]);
         }
+        original.extend(options.iter().copied());
         args.extend(options);
         let pin = Command::new(&ffmpeg_bin)
             .args(&args)
@@ -296,6 +296,7 @@ fn copied_video_aac_encoding_preserves_destinations_and_exact_fallback() {
         let expected = std::fs::read(&reference).unwrap();
         assert!(!expected.is_empty(), "{name}");
         args.push(output.to_str().unwrap());
+        original.push(output.to_str().unwrap());
         for existing in [false, true] {
             if existing {
                 std::fs::write(&output, b"existing output").unwrap();
@@ -307,31 +308,33 @@ fn copied_video_aac_encoding_preserves_destinations_and_exact_fallback() {
                     .collect()
             };
             let before = entries();
-            let mut strict = Command::new(bin());
-            strict
-                .args(["--strict-safe", "ffmpeg"])
-                .args(&args)
-                .env_remove("COREAV_FALLBACK_LOG")
-                .env_remove("COREAV_FALLBACK_ACTIVE");
-            #[cfg(unix)]
-            strict
-                .env("COREAV_FALLBACK", &recorder)
-                .env("COREAV_FFMPEG", &recorder)
-                .env("COREAV_TEST_STARTED", dir.join("external-started"));
-            let refused = strict.output().unwrap();
-            assert_eq!(
-                refused.status.code(),
-                Some(4),
-                "{name}: {}",
-                String::from_utf8_lossy(&refused.stderr)
-            );
-            assert!(refused.stdout.is_empty(), "{name}");
-            assert_eq!(entries(), before, "{name}");
-            assert_eq!(std::fs::read(&neighbor).unwrap(), b"unrelated staging file");
-            if existing {
-                assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
-            } else {
-                assert!(!output.exists(), "{name}");
+            for strict_args in [&original, &args] {
+                let mut strict = Command::new(bin());
+                strict
+                    .args(["--strict-safe", "ffmpeg"])
+                    .args(strict_args)
+                    .env_remove("COREAV_FALLBACK_LOG")
+                    .env_remove("COREAV_FALLBACK_ACTIVE");
+                #[cfg(unix)]
+                strict
+                    .env("COREAV_FALLBACK", &recorder)
+                    .env("COREAV_FFMPEG", &recorder)
+                    .env("COREAV_TEST_STARTED", dir.join("external-started"));
+                let refused = strict.output().unwrap();
+                assert_eq!(
+                    refused.status.code(),
+                    Some(4),
+                    "{name}: {}",
+                    String::from_utf8_lossy(&refused.stderr)
+                );
+                assert!(refused.stdout.is_empty(), "{name}");
+                assert_eq!(entries(), before, "{name}");
+                assert_eq!(std::fs::read(&neighbor).unwrap(), b"unrelated staging file");
+                if existing {
+                    assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+                } else {
+                    assert!(!output.exists(), "{name}");
+                }
             }
             let log = dir.join("fallback.jsonl");
             let fallback = Command::new(bin())

@@ -12,6 +12,8 @@ For selected video beside AAC encoding, strict-safe mode must exit 4 with empty 
 
 The fallback reference is the pinned FFmpeg 9.0.2 program. Compare its successful exit, stdout and complete output bytes. Do not discard packet hashes, timing, encoder delay, metadata or container layout from the comparison. Exact argument replay also retains the existing `-hide_banner` prefix and propagates the child exit status.
 
+Build paired reference and fallback arguments from `scripts/oracle-audio-args.txt` before every encoded input. Also retain strict-safe controls without those oracle-only options, so an unsupported thread option cannot hide accidental admission of the copied-video AAC command itself.
+
 ## Verification
 
 - Generate independent H.264/AAC inputs with distinct dimensions, audio rates and tones. Include B-frames, AAC priming and a delayed audio edit.
