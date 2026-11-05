@@ -18,6 +18,35 @@ SPEC.loader.exec_module(runner)
 
 
 class OracleDiagnostics(unittest.TestCase):
+    def test_source_first_picture_oracle_is_bounded_without_changing_official_commands(self):
+        for first_picture in (False, True):
+            with self.subTest(first_picture=first_picture), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                frames = [dict(width=2, height=2, pix_fmt='yuv420p')]
+
+                def child(command, path, label):
+                    self.assertEqual('-frames:v' in command, first_picture)
+                    if first_picture:
+                        self.assertEqual(command[command.index('-frames:v') + 1], '1')
+                        self.assertNotIn('hevc', [command[i + 1] for i, arg in enumerate(command[:-1])
+                                                  if arg == '-f'])
+                        self.assertEqual(label, 'source-first-frame')
+                    else:
+                        self.assertEqual(command[command.index('-f') + 1], 'hevc')
+                        self.assertEqual(label, 'oracle-frames')
+                    stdout, stderr = path / (label + '.stdout'), path / (label + '.stderr')
+                    stdout.write_text('#hash: MD5\n#codec_id 0: rawvideo\n#media_type 0: video\n'
+                                      + '0, 0, 0, 1, 6, ' + 'a' * 32 + '\n')
+                    stderr.write_text('frame=1\ndup_frames=0\ndrop_frames=0\nprogress=end\n')
+                    return 0, stdout, stderr
+
+                with mock.patch.object(runner, 'child', side_effect=child):
+                    result = runner.oracle_frames(root / 'ffmpeg', root / 'source', root,
+                                                  frames, 'self-written', first_picture=first_picture)
+                self.assertEqual(result, [dict(bytes=6, md5='a' * 32)])
+                label = 'source-first-frame' if first_picture else 'oracle-frames'
+                self.assertTrue(json.loads((root / (label + '.json')).read_text())['complete'])
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

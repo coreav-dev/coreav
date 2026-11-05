@@ -920,14 +920,16 @@ def frame_hashes(text, frames, references=None):
     return packets
 
 
-def oracle_frames(binary, path, directory, frames, stream, references=None):
+def oracle_frames(binary, path, directory, frames, stream, references=None, *, first_picture=False):
     formats = {frame['pix_fmt'] for frame in frames}
     require(len(formats) == 1, 'oracle_changing_packing')
     command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned',
-               '-f', 'hevc', '-c:v', 'hevc', *AUDIO_DECODE_INPUT, '-i', path,
+               *([] if first_picture else ['-f', 'hevc']), '-c:v', 'hevc', *AUDIO_DECODE_INPUT, '-i', path,
                '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
-               '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'framemd5', '-']
-    code, stdout, stderr = child(command, directory, 'oracle-frames')
+               '-pix_fmt', '+' + next(iter(formats)), *(['-frames:v', '1'] if first_picture else []),
+               '-progress', 'pipe:2', '-f', 'framemd5', '-']
+    label = 'source-first-frame' if first_picture else 'oracle-frames'
+    code, stdout, stderr = child(command, directory, label)
     require(code == 0, 'oracle_failed')
     collected = []
     for raw in stderr_lines(stderr):
@@ -938,7 +940,7 @@ def oracle_frames(binary, path, directory, frames, stream, references=None):
     progress = reference_progress(collected)
     require(int(progress[-1]['frame']) == len(frames), 'oracle_incomplete_output')
     result = frame_hashes(stdout.read_text(), frames, references)
-    write_json(directory / 'oracle-frames.json', dict(complete=True, command=list(map(str, command)),
+    write_json(directory / (label + '.json'), dict(complete=True, command=list(map(str, command)),
                frames=result, progress=progress, diagnostic_lines=sum(
                    row['kind'] == 'diagnostic' for row in collected),
                diagnostic_policy='exit_completeness_and_published_reference_only'))

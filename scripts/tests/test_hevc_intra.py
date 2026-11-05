@@ -71,6 +71,8 @@ class Packing(unittest.TestCase):
                 self.assertEqual(report['stage'], 'comparison' if changed else 'complete')
                 if changed:
                     self.assertEqual(report['diagnostic']['changed_samples'], [1, 0, 0])
+                    self.assertEqual(report['source_first_frame'], oracle)
+                    self.assertNotEqual(report['native_packing']['md5'], oracle['md5'])
                 self.assertFalse((destination / 'first-irap.hevc').exists())
                 self.assertFalse((destination / 'first-irap.u16le').exists())
 
@@ -100,6 +102,15 @@ class Packing(unittest.TestCase):
             self.assertNotEqual(result['coded_component_md5'], result['visible_component_md5'])
             if depth == 10:
                 self.assertTrue(all(p['above_255'] and p['nonzero_low_two_bits'] for p in result['sample_proof']))
+
+    def test_different_oracle_geometry_cannot_produce_pixel_difference_coordinates(self):
+        _, metadata, candidate, oracle = self.picture()
+        candidate['reference']['bytes'] *= 2
+        stream = dict(record=dict(reference_frames=[oracle]))
+        with mock.patch.object(runner.harness, 'child') as child:
+            result = runner.diagnose_picture(None, None, None, stream, candidate, None, metadata)
+        self.assertEqual(result, dict(available=False, reason='different_output_geometry'))
+        child.assert_not_called()
 
     def test_samples_components_crops_lengths_and_hashes_cannot_be_mutated(self):
         for depth in (8, 10):

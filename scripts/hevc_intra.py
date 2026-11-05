@@ -390,6 +390,11 @@ def diagnose_picture(binary, source, directory, stream, candidate, native, metad
     total = sum(row['bytes'] for row in references)
     if 'output_index' not in candidate['reference'] or total >= harness.CAPTURE_CAP:
         return dict(available=False, reason='no_bounded_output_reference')
+    visible_bytes = sum(((metadata['width'] + scale - 1) // scale)
+                        * ((metadata['height'] + scale - 1) // scale) for scale in (1, 2, 2))
+    visible_bytes *= 2 if metadata['bit_depth'] == 10 else 1
+    if visible_bytes != candidate['reference']['bytes']:
+        return dict(available=False, reason='different_output_geometry')
     formats = {frame['pix_fmt'] for frame in stream['frames']}
     require(len(formats) == 1, 'diagnostic_packing')
     command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc',
@@ -595,6 +600,11 @@ def development_picture(item, source, directory, oracle_bin, *, native, parser, 
                                      record=dict(reference_frames=oracle, reference_packing=oracle[0]))
             report['diagnostic'] = diagnose_picture(oracle_bin / 'ffmpeg', prefix, directory,
                                                      diagnostic_stream, candidate, output, metadata)
+            report['native_packing'] = packed_picture(output, metadata)
+            report['source_first_frame'] = harness.oracle_frames(
+                oracle_bin / 'ffmpeg', source, directory,
+                [dict(frames[0], width=metadata['width'], height=metadata['height'])],
+                item['sha256'], first_picture=True)[0]
             raise
         require(harness.digest(prefix) == report['prefix_sha256'] and harness.digest(source) == item['sha256']
                 and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
