@@ -1707,6 +1707,14 @@ fn may_replace(command: &Command, path: &Path) -> Result<bool, Refusal> {
 }
 
 pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refusal> {
+    if let Some(message) = output::input_alias(Path::new(&command.input), path) {
+        return Err(Refusal::Usage(message));
+    }
+    if output::check_regular_file(path).is_err() {
+        return Err(Refusal::not_native(
+            "output to a non-regular destination, linked file or unwritable file",
+        ));
+    }
     let force = may_replace(command, path)?;
     match output::refuse(Path::new(&command.input), path, force) {
         Some(message) => Err(Refusal::Usage(message)),
