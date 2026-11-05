@@ -1534,13 +1534,17 @@ impl Run<'_> {
             ));
         }
         let (width, height) = (frame.width(), frame.height());
-        let (out_w, out_h) = match self.options.scale {
-            Some(scale) => scale.resolve(width, height).ok_or_else(|| {
-                unsupported(format!("--scale gives no valid size for {width}x{height}"))
-            })?,
-            None => (width, height),
-        };
-        let sample_aspect = sample_aspect(self.video.pixel_aspect, (width, height), (out_w, out_h));
+        let scaled_to = self
+            .options
+            .scale
+            .map(|scale| {
+                scale.resolve(width, height).ok_or_else(|| {
+                    unsupported(format!("--scale gives no valid size for {width}x{height}"))
+                })
+            })
+            .transpose()?;
+        let (out_w, out_h) = scaled_to.unwrap_or((width, height));
+        let sample_aspect = sample_aspect(self.video.pixel_aspect, (width, height), scaled_to);
         let color = output_color(self.video.stream.color.or(frame.color));
         let (num, den) = time_base_terms(self.video.time_base)?;
         let settings = EncoderSettings {
@@ -1598,20 +1602,21 @@ fn output_color(color: ColorInfo) -> ColorInfo {
 
 /// The output's sample aspect ratio: the source's (`pixel_aspect`, 1:1
 /// when not stated) times the change of the pixel grid's shape, so that the
-/// display aspect ratio is kept, reduced; `None` for 1:1.
+/// display aspect ratio is kept, reduced. Unscaled output retains a valid
+/// source declaration; scaled output omits 1:1.
 fn sample_aspect(
     pixel_aspect: Option<(u64, u64)>,
     (in_w, in_h): (u32, u32),
-    (out_w, out_h): (u32, u32),
+    scaled_to: Option<(u32, u32)>,
 ) -> Option<(u32, u32)> {
-    let (h, v) = pixel_aspect
-        .filter(|(h, v)| *h > 0 && *v > 0)
-        .unwrap_or((1, 1));
+    let pixel_aspect = pixel_aspect.filter(|(h, v)| *h > 0 && *v > 0);
+    let (h, v) = pixel_aspect.unwrap_or((1, 1));
+    let (out_w, out_h) = scaled_to.unwrap_or((in_w, in_h));
     let num = u128::from(h) * u128::from(in_w) * u128::from(out_h);
     let den = u128::from(v) * u128::from(in_h) * u128::from(out_w);
     let g = gcd(num, den).max(1);
     let (num, den) = (num / g, den / g);
-    if num == den || num == 0 || den == 0 {
+    if num == 0 || den == 0 || num == den && (pixel_aspect.is_none() || scaled_to.is_some()) {
         return None;
     }
     match (u32::try_from(num), u32::try_from(den)) {
@@ -1632,7 +1637,7 @@ fn sample_aspect(
 }
 
 /// The `avc1` sample entry: `avcC` from the encoder's parameter sets,
-/// `colr` when a code point is known, `pasp` when pixels are not square.
+/// `colr` when a code point is known, `pasp` when the settings state an aspect.
 fn sample_entry(config: &annexb::Config, settings: &EncoderSettings) -> Result<Vec<u8>, Error> {
     let color = settings.color;
     let colour = (color.primaries.is_some() || color.transfer.is_some() || color.matrix.is_some())
@@ -2067,21 +2072,57 @@ mod tests {
 
     #[test]
     fn sample_aspect_keeps_the_display_aspect() {
-        assert_eq!(sample_aspect(None, (320, 240), (320, 240)), None);
+        assert_eq!(sample_aspect(None, (320, 240), Some((320, 240))), None);
         assert_eq!(
-            sample_aspect(None, (320, 240), (162, 121)),
+            sample_aspect(None, (320, 240), Some((162, 121))),
             Some((242, 243))
         );
         assert_eq!(
-            sample_aspect(None, (1280, 544), (848, 360)),
+            sample_aspect(None, (1280, 544), Some((848, 360))),
             Some((900, 901))
         );
         assert_eq!(
-            sample_aspect(Some((2, 1)), (720, 480), (360, 240)),
+            sample_aspect(Some((2, 1)), (720, 480), Some((360, 240))),
             Some((2, 1))
         );
-        assert_eq!(sample_aspect(Some((4, 3)), (720, 480), (960, 480)), None);
-        assert_eq!(sample_aspect(None, (320, 240), (320, 120)), Some((1, 2)));
+        assert_eq!(
+            sample_aspect(Some((4, 3)), (720, 480), Some((960, 480))),
+            None
+        );
+        assert_eq!(
+            sample_aspect(None, (320, 240), Some((320, 120))),
+            Some((1, 2))
+        );
+    }
+
+    #[test]
+    fn unscaled_video_retains_only_valid_declared_sample_aspect() {
+        for (declared, expected) in [
+            (Some((1, 1)), Some((1, 1))),
+            (Some((3072, 3072)), Some((1, 1))),
+            (Some((4, 3)), Some((4, 3))),
+            (None, None),
+            (Some((0, 1)), None),
+            (Some((1, 0)), None),
+            (Some((0, 0)), None),
+        ] {
+            assert_eq!(
+                sample_aspect(declared, (96, 64), None),
+                expected,
+                "{declared:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn identity_scaling_retains_square_aspect_normalization() {
+        for declared in [None, Some((1, 1)), Some((3072, 3072)), Some((0, 1))] {
+            assert_eq!(sample_aspect(declared, (96, 64), Some((96, 64))), None);
+        }
+        assert_eq!(
+            sample_aspect(Some((4, 3)), (96, 64), Some((96, 64))),
+            Some((4, 3))
+        );
     }
 
     #[test]

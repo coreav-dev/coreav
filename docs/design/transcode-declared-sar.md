@@ -23,3 +23,9 @@ The ratio remains a width-to-height pixel ratio, not a display aspect ratio. H.2
 The historical rank-145 result motivates the fix but is not a new measurement. Its upper bound is one exact shape and three repository-shape pairs. No coverage increase is claimed without separate eligible evidence; the published result stays unchanged.
 
 This plan is committed before code changes or new media verification. Implementation and the plan ship in one pull request. Refs: `coreav-dev/coreav#25` and [the transcode design](transcode.md).
+
+## Development controls and retained limitations
+
+The integration control uses independent 96 by 64, seven-frame inputs at 10 fps, with declared square, non-square and absent ratios. It checks the pipeline's summary and `pasp` separately from the encoder's VUI. Declared-source, unscaled outputs use the unchanged exact decoded-output comparator; absence controls verify that CoreAV does not add a declaration.
+
+Separate before/after controls at 12 fps retain their original output clocks and complete scaled file bytes. Their seven-frame default FFmpeg reference has duration 7164 ticks, while CoreAV preserves the input's 7168 ticks at time base 1/12288. That existing timing difference is not repaired or counted here. The timestamped FFmpeg encoder worker also retains its existing square VUI default, including when the pipeline does not state a ratio or supplies another ratio through the container. The native x264 encoder follows the requested VUI. Neither existing worker behavior is changed to make this SAR fix pass.
