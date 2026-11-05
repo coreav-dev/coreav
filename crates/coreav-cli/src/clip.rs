@@ -7,7 +7,7 @@ use crate::output::WriteFailure;
 use coreav_isobmff::{Allowlist, BufferedSource, FileSource, Limits, Rational, SliceSource};
 use coreav_isobmff_write::{
     AudioClipOptions, AudioClipSummary, ClipOptions, ClipSummary, ClipTrack, LeftOut,
-    LeftOutReason, clip_audio_mp4, clip_mp4,
+    LeftOutReason, clip_audio_mp4, clip_mp4, clip_mp4_input_seek,
 };
 use serde_json::{Value, json};
 use std::io::Write;
@@ -57,6 +57,23 @@ pub fn run<W: Write>(
 ) -> Result<ClipSummary, ClipFailure> {
     let source = BufferedSource::new(FileSource::open(path)?);
     Ok(clip_mp4(
+        source,
+        &Limits::default(),
+        allowlist,
+        options,
+        out,
+    )?)
+}
+
+/// Uses the compatibility clip admission for an input-seek stream copy.
+pub fn run_input_seek<W: Write>(
+    path: &Path,
+    options: &ClipOptions,
+    allowlist: &Allowlist,
+    out: W,
+) -> Result<ClipSummary, ClipFailure> {
+    let source = BufferedSource::new(FileSource::open(path)?);
+    Ok(clip_mp4_input_seek(
         source,
         &Limits::default(),
         allowlist,

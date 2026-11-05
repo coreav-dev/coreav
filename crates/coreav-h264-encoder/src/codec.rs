@@ -1,8 +1,16 @@
 use crate::{
-    Encoder, Error, Picture, Plane, Result, api::zeros, bits::Bits, cavlc, syntax, transform as t,
-    vlc::INTRA_CBP,
+    Deblocking, Encoder, Error, Picture, Plane, Result,
+    api::zeros,
+    bits::Bits,
+    cavlc, deblock,
+    motion::{self, Border, MotionMb, Mv},
+    syntax, transform as t,
+    vlc::{INTER_CBP, INTRA_CBP},
 };
 use coreav_kernels_h264::{BlockMut, IntraAvail, IntraMut, Kernels, Scalar};
+
+#[path = "inter.rs"]
+mod inter;
 
 const STRIDE: usize = 40;
 const ORIGIN: usize = STRIDE + 1;
@@ -67,6 +75,7 @@ impl Tile {
 struct Neighbour {
     counts: [[u8; 16]; 3],
     modes: Option<[u8; 16]>,
+    motion: MotionMb,
 }
 
 #[derive(Clone)]
@@ -109,6 +118,15 @@ fn availability(k: usize, mb: IntraAvail) -> IntraAvail {
             _ => true,
         },
         top_right,
+    }
+}
+
+fn intra_availability(border: Border<'_>) -> IntraAvail {
+    IntraAvail {
+        left: border.left.is_some_and(|n| n.intra),
+        top: border.top.is_some_and(|n| n.intra),
+        top_left: border.top_left.is_some_and(|n| n.intra),
+        top_right: border.top_right.is_some_and(|n| n.intra),
     }
 }
 
@@ -189,6 +207,8 @@ fn predicted_mode(
     left: Option<&Neighbour>,
     index: usize,
 ) -> u8 {
+    let top = top.filter(|n| n.motion.intra);
+    let left = left.filter(|n| n.motion.intra);
     if (index % 4 == 0 && left.is_none()) || (index / 4 == 0 && top.is_none()) {
         return 2;
     }
@@ -211,18 +231,18 @@ fn mode_bits(w: &mut Bits, mode: u8, predicted: u8) -> Result<()> {
     Ok(())
 }
 
-fn patterns(luma: &Luma, chroma: &Chroma) -> (u8, u8) {
+fn patterns(luma: &Luma, chroma: &Chroma, inter: bool) -> (u8, u8) {
     let mut y = 0;
     for (k, levels) in luma.levels.iter().enumerate() {
         if levels
             .iter()
-            .skip(usize::from(luma.mode.is_some()))
+            .skip(usize::from(!inter && luma.mode.is_some()))
             .any(|&x| x != 0)
         {
             y |= 1 << (k / 4);
         }
     }
-    if luma.mode.is_some() && y != 0 {
+    if !inter && luma.mode.is_some() && y != 0 {
         y = 15;
     }
     let c = if chroma
@@ -240,19 +260,40 @@ fn patterns(luma: &Luma, chroma: &Chroma) -> (u8, u8) {
     (y, c)
 }
 
+#[derive(Clone, Copy)]
+struct MbContext<'a> {
+    top: Option<&'a Neighbour>,
+    left: Option<&'a Neighbour>,
+    p_slice: bool,
+}
+
 fn macroblock(
     w: &mut Bits,
     luma: &Luma,
     chroma: &Chroma,
-    top: Option<&Neighbour>,
-    left: Option<&Neighbour>,
+    prediction: Option<&inter::Inter>,
+    context: MbContext<'_>,
 ) -> Result<Neighbour> {
     let start = w.len;
-    let (cbpy, cbpc) = patterns(luma, chroma);
-    w.ue(luma.mode.map_or(0, |m| {
-        1 + u32::from(m) + 4 * u32::from(cbpc) + if cbpy == 0 { 0 } else { 12 }
-    }))?;
-    if luma.mode.is_none() {
+    let MbContext { top, left, p_slice } = context;
+    let mut state = Neighbour::default();
+    if let Some(inter) = prediction {
+        state.motion = inter.motion()?;
+        if inter.skip {
+            return Ok(state);
+        }
+        inter.syntax(w)?;
+    }
+    let intra16 = prediction.is_none() && luma.mode.is_some();
+    let intra4 = prediction.is_none() && !intra16;
+    let (cbpy, cbpc) = patterns(luma, chroma, prediction.is_some());
+    if prediction.is_none() {
+        w.ue(u32::from(p_slice) * 5
+            + luma.mode.map_or(0, |m| {
+                1 + u32::from(m) + 4 * u32::from(cbpc) + if cbpy == 0 { 0 } else { 12 }
+            }))?;
+    }
+    if intra4 {
         let mut modes = [2; 16];
         for k in 0..16 {
             let (x, y) = xy(k);
@@ -262,27 +303,22 @@ fn macroblock(
             *modes.get_mut(p).ok_or(Error::Internal)? = mode;
         }
     }
-    w.ue(u32::from(chroma.mode))?;
-    if luma.mode.is_none() {
+    if prediction.is_none() {
+        w.ue(u32::from(chroma.mode))?;
+    }
+    if !intra16 {
         let pattern = cbpy + 16 * cbpc;
-        let code = INTRA_CBP
+        let code = (if intra4 { &INTRA_CBP } else { &INTER_CBP })
             .iter()
             .position(|&p| p == pattern)
             .ok_or(Error::Internal)?;
         w.ue(code as u32)?;
     }
-    let mut state = Neighbour {
-        modes: if luma.mode.is_none() {
-            Some(luma.modes)
-        } else {
-            None
-        },
-        ..Neighbour::default()
-    };
-    if luma.mode.is_some() || cbpy != 0 || cbpc != 0 {
+    state.modes = if intra4 { Some(luma.modes) } else { None };
+    if intra16 || cbpy != 0 || cbpc != 0 {
         w.se(0)?;
     }
-    if luma.mode.is_some() {
+    if intra16 {
         cavlc::residual(w, &t::scan(&luma.dc)?, nc(&[0; 16], top, left, 0, 0))?;
     }
     let counts = state.counts.first_mut().ok_or(Error::Internal)?;
@@ -293,8 +329,7 @@ fn macroblock(
             let scan = t::scan(levels)?;
             let count = cavlc::residual(
                 w,
-                scan.get(usize::from(luma.mode.is_some())..)
-                    .ok_or(Error::Internal)?,
+                scan.get(usize::from(intra16)..).ok_or(Error::Internal)?,
                 nc(counts, top, left, 0, p),
             )?;
             *counts.get_mut(p).ok_or(Error::Internal)? = count;
@@ -357,14 +392,23 @@ fn intra16(base: &Tile, source: &Tile, a: IntraAvail, mode: u8, qp: u8) -> Resul
 }
 
 fn chroma(base: &[Tile; 2], source: &[Tile; 2], a: IntraAvail, mode: u8, qp: u8) -> Result<Chroma> {
+    let mut predicted = base.clone();
+    for tile in &mut predicted {
+        tile.prediction(0, 0, 8, a, mode)?;
+    }
+    let mut out = chroma_residual(&predicted, source, qp)?;
+    out.mode = mode;
+    Ok(out)
+}
+
+fn chroma_residual(base: &[Tile; 2], source: &[Tile; 2], qp: u8) -> Result<Chroma> {
     let mut out = Chroma {
-        mode,
+        mode: 0,
         levels: [[[0; 16]; 4]; 2],
         dc: [[0; 4]; 2],
         tiles: base.clone(),
     };
     for (c, tile) in out.tiles.iter_mut().enumerate() {
-        tile.prediction(0, 0, 8, a, mode)?;
         let original = source.get(c).ok_or(Error::Internal)?;
         let blocks = out.levels.get_mut(c).ok_or(Error::Internal)?;
         let mut sums = [0; 4];
@@ -449,7 +493,7 @@ fn intra4(
     Ok(out)
 }
 
-struct FramePlane {
+pub(crate) struct FramePlane {
     data: Vec<u8>,
     width: usize,
     height: usize,
@@ -461,6 +505,15 @@ impl FramePlane {
             width,
             height,
         })
+    }
+    fn sample(&self, x: i32, y: i32) -> Result<u8> {
+        self.data
+            .get(
+                y.clamp(0, self.height as i32 - 1) as usize * self.width
+                    + x.clamp(0, self.width as i32 - 1) as usize,
+            )
+            .copied()
+            .ok_or(Error::Internal)
     }
     fn tiles(&self, source: Plane<'_>, x: usize, y: usize, n: usize) -> Result<(Tile, Tile)> {
         let mut base = Tile::empty();
@@ -511,25 +564,153 @@ impl FramePlane {
     }
 }
 
-pub(crate) fn picture(e: &Encoder, input: Picture<'_>, id: u32) -> Result<(Vec<u8>, Vec<u8>)> {
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct CandidateKey {
+    cost: u64,
+    bits: usize,
+    not_skip: bool,
+    partitions: usize,
+    motion: [Mv; 16],
+    mode: u32,
+    subshapes: [u8; 4],
+    intra_mode: u8,
+    chroma_mode: u8,
+}
+
+struct Candidate {
+    key: CandidateKey,
+    luma: Luma,
+    chroma: Chroma,
+    inter: Option<inter::Inter>,
+}
+
+struct Decision<'a> {
+    source: &'a Tile,
+    csources: &'a [Tile; 2],
+    context: MbContext<'a>,
+    qp: u8,
+    pending_skip: u32,
+}
+
+impl Decision<'_> {
+    fn candidate(
+        &self,
+        luma: Luma,
+        chroma: Chroma,
+        inter: Option<inter::Inter>,
+        choice: u8,
+    ) -> Result<Candidate> {
+        let mut counter = Bits::count();
+        let skip = inter.as_ref().is_some_and(|i| i.skip);
+        if self.context.p_slice {
+            counter.ue(self.pending_skip + u32::from(skip))?;
+        }
+        macroblock(&mut counter, &luma, &chroma, inter.as_ref(), self.context)?;
+        let mut distortion = luma.tile.error(self.source, 0, 0, 16)?;
+        for (tile, source) in chroma.tiles.iter().zip(self.csources) {
+            distortion += tile.error(source, 0, 0, 8)?;
+        }
+        let (count, vectors, code, shapes) = if let Some(i) = &inter {
+            (
+                i.len,
+                i.motion()?.vectors,
+                i.layout.code(),
+                match i.layout {
+                    motion::Layout::Sub(s) => s,
+                    _ => [0; 4],
+                },
+            )
+        } else {
+            (
+                if choice == 4 { 16 } else { 1 },
+                [Mv::default(); 16],
+                5,
+                [0; 4],
+            )
+        };
+        Ok(Candidate {
+            key: CandidateKey {
+                cost: distortion + (1u64 << (self.qp / 3)) * counter.len as u64,
+                bits: counter.len,
+                not_skip: !skip,
+                partitions: count,
+                motion: vectors,
+                mode: code,
+                subshapes: shapes,
+                intra_mode: choice,
+                chroma_mode: chroma.mode,
+            },
+            luma,
+            chroma,
+            inter,
+        })
+    }
+}
+
+fn consider(best: &mut Option<Candidate>, candidate: Candidate) {
+    if best.as_ref().is_none_or(|b| candidate.key < b.key) {
+        *best = Some(candidate);
+    }
+}
+
+pub(crate) struct EncodedPicture {
+    pub(crate) nal: Vec<u8>,
+    pub(crate) reconstruction: Vec<u8>,
+    pub(crate) planes: [FramePlane; 3],
+    pub(crate) previous_mv_count: u8,
+}
+
+pub(crate) fn picture(
+    e: &Encoder,
+    input: Picture<'_>,
+    slice: syntax::Slice,
+) -> Result<EncodedPicture> {
     let mut planes = [
         FramePlane::new(e.coded_width, e.coded_height)?,
         FramePlane::new(e.coded_width / 2, e.coded_height / 2)?,
         FramePlane::new(e.coded_width / 2, e.coded_height / 2)?,
     ];
-    let mut row: Vec<Neighbour> = zeros(e.coded_width / 16)?;
+    let mb_width = e.coded_width / 16;
+    let mut states: Vec<Neighbour> = zeros(mb_width * (e.coded_height / 16))?;
     let mut writer = Bits::new(e.limits.access_unit_bytes);
-    syntax::slice(&mut writer, e, id)?;
+    syntax::slice(&mut writer, e, slice)?;
+    let mut pending_skip = 0;
+    let mut previous_mv_count = e.previous_mv_count;
     for my in 0..e.coded_height / 16 {
-        let mut left = None;
         for mx in 0..e.coded_width / 16 {
-            let a = IntraAvail {
-                left: mx != 0,
-                top: my != 0,
-                top_left: mx != 0 && my != 0,
-                top_right: my != 0 && mx + 1 < e.coded_width / 16,
+            let address = my * mb_width + mx;
+            let top = if my != 0 {
+                states.get(address - mb_width)
+            } else {
+                None
             };
-            let top = if my != 0 { row.get(mx) } else { None };
+            let left = if mx != 0 {
+                states.get(address - 1)
+            } else {
+                None
+            };
+            let top_left = if mx != 0 && my != 0 {
+                states.get(address - mb_width - 1)
+            } else {
+                None
+            };
+            let top_right = if my != 0 && mx + 1 < mb_width {
+                states.get(address - mb_width + 1)
+            } else {
+                None
+            };
+            let border = Border {
+                left: left.map(|n| &n.motion),
+                top: top.map(|n| &n.motion),
+                top_left: top_left.map(|n| &n.motion),
+                top_right: top_right.map(|n| &n.motion),
+            };
+            let a = intra_availability(border);
+            let context = MbContext {
+                top,
+                left,
+                p_slice: !slice.idr,
+            };
             let (base, source) =
                 planes
                     .first()
@@ -547,6 +728,13 @@ pub(crate) fn picture(e: &Encoder, input: Picture<'_>, id: u32) -> Result<(Vec<u
                     .tiles(input.cr, mx * 8, my * 8, 8)?;
             let cbases = [cb, cr];
             let csources = [scb, scr];
+            let decision = Decision {
+                source: &source,
+                csources: &csources,
+                context,
+                qp: e.settings.qp,
+                pending_skip,
+            };
             let mut chromas: [Option<Chroma>; 4] = [None, None, None, None];
             for mode in 0..4u8 {
                 if !legal(mode, 8, a) {
@@ -562,7 +750,7 @@ pub(crate) fn picture(e: &Encoder, input: Picture<'_>, id: u32) -> Result<(Vec<u
             let mut refusal = Error::Coefficient;
             for choice in 0..5u8 {
                 let luma = if choice == 4 {
-                    intra4(&base, &source, a, e.settings.qp, top, left.as_ref())
+                    intra4(&base, &source, a, e.settings.qp, top, left)
                 } else {
                     if !legal(choice, 16, a) {
                         continue;
@@ -575,37 +763,45 @@ pub(crate) fn picture(e: &Encoder, input: Picture<'_>, id: u32) -> Result<(Vec<u
                     Err(err) => return Err(err),
                 };
                 for chroma in chromas.iter().flatten() {
-                    let mut counter = Bits::count();
-                    match macroblock(&mut counter, &luma, chroma, top, left.as_ref()) {
-                        Ok(_) => {}
-                        Err(Error::Coefficient) => continue,
+                    match decision.candidate(luma.clone(), chroma.clone(), None, choice) {
+                        Ok(candidate) => consider(&mut best, candidate),
+                        Err(Error::Coefficient | Error::Syntax) => continue,
                         Err(Error::MacroblockLimit) => {
                             refusal = Error::MacroblockLimit;
                             continue;
                         }
                         Err(err) => return Err(err),
                     }
-                    let mut distortion = luma.tile.error(&source, 0, 0, 16)?;
-                    for (tile, source) in chroma.tiles.iter().zip(&csources) {
-                        distortion += tile.error(source, 0, 0, 8)?;
-                    }
-                    let key = (
-                        distortion + (1u64 << (e.settings.qp / 3)) * counter.len as u64,
-                        counter.len,
-                        choice == 4,
-                        choice,
-                        chroma.mode,
-                    );
-                    if best
-                        .as_ref()
-                        .is_none_or(|b: &((u64, usize, bool, u8, u8), Luma, Chroma)| key < b.0)
-                    {
-                        best = Some((key, luma.clone(), chroma.clone()));
-                    }
                 }
             }
-            let (_, luma, chroma) = best.ok_or(refusal)?;
-            let state = macroblock(&mut writer, &luma, &chroma, top, left.as_ref())?;
+            if !slice.idr {
+                inter::Search {
+                    reference: e.reference.as_ref().ok_or(Error::Internal)?,
+                    decision: &decision,
+                    border,
+                    mx,
+                    my,
+                    previous: previous_mv_count,
+                }
+                .candidates(&mut best, &mut refusal)?;
+            }
+            let Candidate {
+                luma,
+                chroma,
+                inter,
+                ..
+            } = best.ok_or(refusal)?;
+            let skip = inter.as_ref().is_some_and(|i| i.skip);
+            if !slice.idr {
+                if skip {
+                    pending_skip += 1;
+                } else {
+                    writer.ue(pending_skip)?;
+                    pending_skip = 0;
+                }
+            }
+            let state = macroblock(&mut writer, &luma, &chroma, inter.as_ref(), context)?;
+            previous_mv_count = inter.as_ref().map_or(0, |i| i.len as u8);
             planes
                 .first_mut()
                 .ok_or(Error::Internal)?
@@ -616,8 +812,39 @@ pub(crate) fn picture(e: &Encoder, input: Picture<'_>, id: u32) -> Result<(Vec<u
                     .ok_or(Error::Internal)?
                     .commit(tile, mx * 8, my * 8, 8)?;
             }
-            *row.get_mut(mx).ok_or(Error::Internal)? = state.clone();
-            left = Some(state);
+            *states.get_mut(address).ok_or(Error::Internal)? = state;
+        }
+    }
+    if pending_skip != 0 {
+        writer.ue(pending_skip)?;
+    }
+    if e.settings.deblocking == Deblocking::Enabled {
+        for (c, plane) in planes.iter_mut().enumerate() {
+            let qp = if c == 0 {
+                e.settings.qp
+            } else {
+                t::chroma_qp(e.settings.qp)
+            };
+            deblock::picture(
+                &mut plane.data,
+                plane.width,
+                plane.height,
+                qp,
+                c != 0,
+                |mx, my| {
+                    let n = states.get(my * mb_width + mx).ok_or(Error::Internal)?;
+                    let mut nonzero = 0;
+                    for (p, &count) in n.counts.first().ok_or(Error::Internal)?.iter().enumerate() {
+                        if count != 0 {
+                            nonzero |= 1 << p;
+                        }
+                    }
+                    Ok(deblock::Record {
+                        motion: n.motion,
+                        nonzero,
+                    })
+                },
+            )?;
         }
     }
     let visible = e.settings.width * e.settings.height * 3 / 2;
@@ -643,5 +870,70 @@ pub(crate) fn picture(e: &Encoder, input: Picture<'_>, id: u32) -> Result<(Vec<u
             offset += width;
         }
     }
-    Ok((writer.nal(0x65)?, reconstruction))
+    Ok(EncodedPicture {
+        nal: writer.nal(if slice.idr { 0x65 } else { 0x61 })?,
+        reconstruction,
+        planes,
+        previous_mv_count,
+    })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constrained_intra_availability_is_independent_of_residual_neighbours() {
+        let intra = MotionMb::default();
+        let inter = MotionMb {
+            intra: false,
+            ..MotionMb::default()
+        };
+        for mask in 0..16 {
+            let mb = |bit| if mask & bit != 0 { &intra } else { &inter };
+            let a = intra_availability(Border {
+                left: Some(mb(1)),
+                top: Some(mb(2)),
+                top_left: Some(mb(4)),
+                top_right: Some(mb(8)),
+            });
+            assert_eq!(
+                [a.left, a.top, a.top_left, a.top_right],
+                [mask & 1 != 0, mask & 2 != 0, mask & 4 != 0, mask & 8 != 0]
+            );
+        }
+        let unavailable = intra_availability(Border::default());
+        assert!(
+            !unavailable.top
+                && !unavailable.left
+                && !unavailable.top_left
+                && !unavailable.top_right
+        );
+        for k in 0..16 {
+            let (x, y) = xy(k);
+            let a = availability(k, unavailable);
+            assert_eq!(a.left, x != 0);
+            assert_eq!(a.top, y != 0);
+            assert_eq!(a.top_left, x != 0 && y != 0);
+            assert_eq!(
+                a.top_right,
+                y != 0 && x < 12 && order(x / 4 + 1, y / 4 - 1) < k
+            );
+        }
+        let top = Neighbour {
+            counts: [[7; 16]; 3],
+            modes: Some([0; 16]),
+            motion: inter,
+        };
+        let left = Neighbour {
+            counts: [[11; 16]; 3],
+            modes: Some([1; 16]),
+            motion: intra,
+        };
+        assert_eq!(predicted_mode(&[1; 16], Some(&top), Some(&left), 0), 2);
+        assert_eq!(predicted_mode(&[1; 16], Some(&top), Some(&left), 1), 2);
+        assert_eq!(predicted_mode(&[1; 16], Some(&top), Some(&left), 4), 1);
+        assert_eq!(nc(&[0; 16], Some(&top), Some(&left), 0, 0), 9);
+    }
 }
