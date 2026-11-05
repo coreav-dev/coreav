@@ -129,10 +129,15 @@ def check(coreav, oracle, root):
                  env={**env, 'TMPDIR': str(bad_temp)})
     if failed.returncode == 0 or failed.stdout or bad_temp.read_bytes() != b'preserve':
         raise CheckFailure('temporary-file-failure')
-    with (root / 'write-only').open('wb') as source:
+    source = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
         failed = subprocess.run([str(coreav), 'ffprobe', *args, '-i', 'pipe:0'], stdin=source,
                                 capture_output=True, timeout=30, env=env)
-    if failed.returncode == 0 or failed.stdout or list(root.glob('coreav-encoded-stdin-*')):
+    finally:
+        os.close(source)
+    if failed.returncode != 3 or failed.stdout \
+            or not failed.stderr.startswith(b'coreav ffprobe: could not acquire encoded stdin:') \
+            or list(root.glob('coreav-encoded-stdin-*')):
         raise CheckFailure('input-read-failure')
     minus = [*args, '-i', '-']
     reference = run([oracle.ffprobe, '-hide_banner', *minus], cases[0][1])
