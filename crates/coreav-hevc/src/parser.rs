@@ -1,6 +1,7 @@
 use crate::{
     Error, Limits, NalHeader, OutputEvent, PictureOrder, Result, SeiInfo, SliceHeader,
     bits::Bits,
+    ctu::Layout,
     dpb::Dpb,
     nal,
     params::{self, Pps, Sps, Vps},
@@ -102,6 +103,42 @@ struct PictureState {
     reference_syntax: Option<(usize, [u8; 32])>,
     info: PictureInfo,
     last_address: u32,
+    independent: SliceSyntax,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SliceSyntax {
+    pub kind: u32,
+    pub independent_address: u32,
+    pub qp_y: i32,
+    pub chroma_qp_offsets: [i32; 2],
+    pub cabac_init: bool,
+    pub sao: [bool; 2],
+    pub deblock_disabled: bool,
+}
+
+impl SliceSyntax {
+    fn independent(header: &SliceHeader) -> Result<Self> {
+        Ok(Self {
+            kind: header
+                .slice_type
+                .ok_or(Error::InvalidData("missing_slice_type"))?,
+            independent_address: header.address,
+            qp_y: header
+                .slice_qp_y
+                .ok_or(Error::InvalidData("missing_slice_qp"))?,
+            chroma_qp_offsets: header
+                .chroma_qp_offsets
+                .ok_or(Error::InvalidData("missing_chroma_qp"))?,
+            cabac_init: header
+                .cabac_init_flag
+                .ok_or(Error::InvalidData("missing_cabac_init"))?,
+            sao: header.sao.ok_or(Error::InvalidData("missing_sao_flags"))?,
+            deblock_disabled: header
+                .deblock_disabled
+                .ok_or(Error::InvalidData("missing_deblock_flag"))?,
+        })
+    }
 }
 
 /// Stateful, sans-IO parameter activation and header validation.
@@ -109,6 +146,33 @@ struct PictureState {
 /// After an error the parser is terminal. Construct a new parser for a new
 /// stream rather than continuing with partially accepted sequence state.
 pub struct HeaderParser {
+    core: StreamCore,
+}
+
+impl HeaderParser {
+    /// Fixed parameter-set slots plus at most `max_nal_bytes` of RBSP scratch.
+    pub fn new(limits: Limits) -> Self {
+        Self {
+            core: StreamCore::new(limits),
+        }
+    }
+
+    /// Parse one complete NAL, without framing; never falls back to another decoder.
+    pub fn read_nal(
+        &mut self,
+        bytes: &[u8],
+        emit: impl FnMut(OutputEvent) -> Result<()>,
+    ) -> Result<NalInfo> {
+        self.core.read_nal(bytes, emit)
+    }
+
+    /// Complete a stream inspection. Empty or failed streams cannot pass a gate.
+    pub fn finish(&mut self, emit: impl FnMut(OutputEvent) -> Result<()>) -> Result<Summary> {
+        self.core.finish(emit)
+    }
+}
+
+pub(crate) struct StreamCore {
     limits: Limits,
     vps: [Option<Vps>; 16],
     vps_hash: [[u8; 32]; 16],
@@ -126,9 +190,23 @@ pub struct HeaderParser {
     finished: bool,
 }
 
-impl HeaderParser {
-    /// Fixed parameter-set slots plus at most `max_nal_bytes` of RBSP scratch.
-    pub fn new(limits: Limits) -> Self {
+#[derive(Clone, Copy)]
+pub(crate) struct SliceInput<'a> {
+    pub index: u64,
+    pub header: SliceHeader,
+    pub picture: PictureInfo,
+    pub original: &'a [u8],
+    pub rbsp: &'a [u8],
+    pub entry_lengths: &'a [u64],
+    pub syntax: SliceSyntax,
+    pub sps: &'a Sps,
+    pub pps: &'a Pps,
+    pub layout: &'a Layout,
+    pub scratch_bytes: usize,
+}
+
+impl StreamCore {
+    pub(crate) fn new(limits: Limits) -> Self {
         Self {
             limits,
             vps: core::array::from_fn(|_| None),
@@ -148,11 +226,21 @@ impl HeaderParser {
         }
     }
 
-    /// Parse one complete NAL, without framing; never falls back to another decoder.
-    pub fn read_nal(
+    pub(crate) fn read_nal(
         &mut self,
         bytes: &[u8],
         emit: impl FnMut(OutputEvent) -> Result<()>,
+    ) -> Result<NalInfo> {
+        self.read_selected(bytes, emit, None, usize::MAX, |_| Ok(()))
+    }
+
+    pub(crate) fn read_selected(
+        &mut self,
+        bytes: &[u8],
+        emit: impl FnMut(OutputEvent) -> Result<()>,
+        target: Option<u64>,
+        memory_limit: usize,
+        observe: impl FnMut(SliceInput<'_>) -> Result<()>,
     ) -> Result<NalInfo> {
         if self.failed {
             return Err(Error::InvalidData("parser_failed"));
@@ -160,15 +248,17 @@ impl HeaderParser {
         if self.finished {
             return Err(Error::InvalidData("parser_finished"));
         }
-        let result = self.read(bytes, emit);
+        let result = self.read(bytes, emit, target, memory_limit, observe);
         if result.is_err() {
             self.failed = true;
         }
         result
     }
 
-    /// Complete a stream inspection. Empty or failed streams cannot pass a gate.
-    pub fn finish(&mut self, mut emit: impl FnMut(OutputEvent) -> Result<()>) -> Result<Summary> {
+    pub(crate) fn finish(
+        &mut self,
+        mut emit: impl FnMut(OutputEvent) -> Result<()>,
+    ) -> Result<Summary> {
         if self.failed {
             return Err(Error::InvalidData("parser_failed"));
         }
@@ -194,6 +284,9 @@ impl HeaderParser {
         &mut self,
         bytes: &[u8],
         mut emit: impl FnMut(OutputEvent) -> Result<()>,
+        target: Option<u64>,
+        memory_limit: usize,
+        mut observe: impl FnMut(SliceInput<'_>) -> Result<()>,
     ) -> Result<NalInfo> {
         if self.ended {
             return Err(Error::InvalidData("nal_after_eob"));
@@ -207,6 +300,9 @@ impl HeaderParser {
             return Err(Error::Limit("max_nal_bytes"));
         }
         let nal = NalHeader::parse(bytes)?;
+        if bytes.len().saturating_sub(2) > memory_limit {
+            return Err(Error::Limit("reconstruction_memory"));
+        }
         let rbsp = nal::rbsp(bytes, &self.limits)?;
         let mut bits = Bits::new(&rbsp);
         let info = match nal.unit_type {
@@ -281,11 +377,34 @@ impl HeaderParser {
                     .get(s.vps_id as usize)
                     .and_then(Option::as_ref)
                     .ok_or(Error::InvalidData("missing_vps"))?;
-                activation(v, s, p, nal)?;
-                let header = slice::parse(&mut bits, nal, prefix, s, p, &self.limits)?;
+                let layout = activation(v, s, p, nal)?;
+                let index = self
+                    .summary
+                    .pictures
+                    .saturating_sub(u64::from(!prefix.first));
+                let retain_entries = if target == Some(index) {
+                    Some(
+                        memory_limit
+                            .checked_sub(rbsp.capacity())
+                            .ok_or(Error::Limit("reconstruction_memory"))?,
+                    )
+                } else {
+                    None
+                };
+                let parsed =
+                    slice::parse(&mut bits, nal, prefix, s, p, &self.limits, retain_entries)?;
+                let header = parsed.header;
                 if header.rbsp_header_bytes >= rbsp.len() {
                     return Err(Error::InvalidData("missing_slice_data"));
                 }
+                let syntax = if header.dependent {
+                    self.picture
+                        .as_ref()
+                        .ok_or(Error::InvalidData("missing_first_slice"))?
+                        .independent
+                } else {
+                    SliceSyntax::independent(&header)?
+                };
                 let picture = PictureInfo {
                     width: s.width,
                     height: s.height,
@@ -318,6 +437,7 @@ impl HeaderParser {
                         reference_syntax: header.reference_syntax,
                         info: picture,
                         last_address: 0,
+                        independent: syntax,
                     });
                     self.summary.pictures += 1;
                     self.summary.output_flag_pictures += u64::from(header.output == Some(true));
@@ -333,11 +453,15 @@ impl HeaderParser {
                         || header.output.is_some_and(|output| output != current.output)
                         || header.no_output_of_prior_pics != current.no_output_prior
                         || !header.dependent && header.reference_syntax != current.reference_syntax
-                        || tile_key(s, p, header.address)? <= tile_key(s, p, current.last_address)?
+                        || layout.at_raster(header.address)?.tile_scan
+                            <= layout.at_raster(current.last_address)?.tile_scan
                     {
                         return Err(Error::InvalidData("inconsistent_picture_headers"));
                     }
                     current.last_address = header.address;
+                    if !header.dependent {
+                        current.independent = syntax;
+                    }
                 }
                 let order = if header.first {
                     let hash = *self
@@ -386,6 +510,30 @@ impl HeaderParser {
                     self.summary.dependent_slices += 1;
                 } else {
                     self.summary.independent_slices += 1;
+                }
+                if retain_entries.is_some() {
+                    observe(SliceInput {
+                        index,
+                        header,
+                        picture,
+                        original: bytes,
+                        rbsp: &rbsp,
+                        entry_lengths: &parsed.entry_lengths,
+                        syntax,
+                        sps: s,
+                        pps: p,
+                        layout: &layout,
+                        scratch_bytes: rbsp
+                            .capacity()
+                            .checked_add(
+                                parsed
+                                    .entry_lengths
+                                    .capacity()
+                                    .checked_mul(core::mem::size_of::<u64>())
+                                    .ok_or(Error::Limit("reconstruction_memory"))?,
+                            )
+                            .ok_or(Error::Limit("reconstruction_memory"))?,
+                    })?;
                 }
                 NalInfo::Slice {
                     header,
@@ -439,7 +587,7 @@ impl HeaderParser {
     }
 }
 
-fn activation(v: &Vps, s: &Sps, p: &Pps, nal: NalHeader) -> Result<()> {
+fn activation(v: &Vps, s: &Sps, p: &Pps, nal: NalHeader) -> Result<Layout> {
     if s.sub_layers > v.sub_layers
         || u32::from(nal.temporal_id) > s.sub_layers
         || v.temporal_nesting && !s.temporal_nesting
@@ -463,7 +611,7 @@ fn activation(v: &Vps, s: &Sps, p: &Pps, nal: NalHeader) -> Result<()> {
         || p.parallel_merge_log2 > s.ctb_log2
         || p.init_qp < -6 * (s.bit_depth as i32 - 8)
         || p.init_qp > 51
-        || p.scaling_list_present && !s.scaling_list_enabled
+        || p.scaling_lists.is_some() && s.scaling_lists.is_none()
     {
         return Err(Error::InvalidData("active_pps"));
     }
@@ -475,61 +623,5 @@ fn activation(v: &Vps, s: &Sps, p: &Pps, nal: NalHeader) -> Result<()> {
             return Err(Error::InvalidData("vps_vui_clock"));
         }
     }
-    let width = s.width.div_ceil(1 << s.ctb_log2);
-    let height = s.height.div_ceil(1 << s.ctb_log2);
-    if p.tile_columns > width || p.tile_rows > height {
-        return Err(Error::InvalidData("tile_grid"));
-    }
-    if !p.uniform_tiles {
-        let columns: u64 = p
-            .column_width
-            .iter()
-            .take(p.tile_columns.saturating_sub(1) as usize)
-            .map(|v| u64::from(*v))
-            .sum();
-        let rows: u64 = p
-            .row_height
-            .iter()
-            .take(p.tile_rows.saturating_sub(1) as usize)
-            .map(|v| u64::from(*v))
-            .sum();
-        if columns >= u64::from(width) || rows >= u64::from(height) {
-            return Err(Error::InvalidData("tile_grid"));
-        }
-    }
-    Ok(())
-}
-
-fn tile_key(s: &Sps, p: &Pps, address: u32) -> Result<(u32, u32, u32, u32)> {
-    let width = s.width.div_ceil(1 << s.ctb_log2);
-    let height = s.height.div_ceil(1 << s.ctb_log2);
-    let (x, y) = (address % width, address / width);
-    let col = tile_index(x, width, p.tile_columns, p.uniform_tiles, &p.column_width)?;
-    let row = tile_index(y, height, p.tile_rows, p.uniform_tiles, &p.row_height)?;
-    Ok((row, col, y, x))
-}
-
-fn tile_index(
-    position: u32,
-    length: u32,
-    count: u32,
-    uniform: bool,
-    widths: &[u32],
-) -> Result<u32> {
-    let mut boundary = 0u64;
-    for i in 0..count.saturating_sub(1) {
-        if uniform {
-            boundary = u64::from(i + 1) * u64::from(length) / u64::from(count);
-        } else {
-            boundary += u64::from(
-                *widths
-                    .get(i as usize)
-                    .ok_or(Error::InvalidData("tile_grid"))?,
-            );
-        }
-        if u64::from(position) < boundary {
-            return Ok(i);
-        }
-    }
-    Ok(count.saturating_sub(1))
+    Layout::new(s, p)
 }

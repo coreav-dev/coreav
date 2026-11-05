@@ -12,6 +12,8 @@ pub(super) enum Requirement {
     AacLc,
     OpusMapping0,
     SupportedMp4Timeline,
+    AacNoNoiseOrAllMsIntensity,
+    FfmpegAacMp4Timeline,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,17 +47,29 @@ fn parse(text: &str, codec: Codec, container: &str) -> Option<Admission> {
     let mut names = HashSet::new();
     let mut admitted = None;
     for row in root.get("decoders")?.as_array()? {
-        if !keys(
-            row,
-            &[
-                "codec",
-                "kind",
-                "decoder_eligible",
-                "presentations",
-                "evidence",
-                "limitations",
-            ],
-        ) {
+        let tolerance = row.get("kind")?.as_str()? == "decode_tolerance";
+        let mut fields = vec![
+            "codec",
+            "kind",
+            "decoder_eligible",
+            "presentations",
+            "evidence",
+            "limitations",
+        ];
+        if tolerance {
+            fields.push("tolerance");
+        }
+        if !keys(row, &fields) {
+            return None;
+        }
+        if tolerance
+            && (row.get("codec")?.as_str()? != "aac"
+                || row.get("tolerance")?
+                    != &serde_json::json!({
+                        "f32_absolute": 0.0000152587890625, "s16_lsb": 1,
+                        "sample_count": "exact", "priming": "exact", "timeline": "exact", "feature": "aac"
+                    }))
+        {
             return None;
         }
         let name = row.get("codec")?.as_str()?;
@@ -65,6 +79,7 @@ fn parse(text: &str, codec: Codec, container: &str) -> Option<Admission> {
         let kind = match row.get("kind")?.as_str()? {
             "exact" => DecoderEligibilityKind::Exact,
             "conformance" => DecoderEligibilityKind::Conformance,
+            "decode_tolerance" => DecoderEligibilityKind::DecodeTolerance,
             _ => return None,
         };
         let eligible = row.get("decoder_eligible")?.as_bool()?;
@@ -96,6 +111,8 @@ fn parse(text: &str, codec: Codec, container: &str) -> Option<Admission> {
                     "aac_lc" => Requirement::AacLc,
                     "opus_mapping0" => Requirement::OpusMapping0,
                     "supported_mp4_timeline" => Requirement::SupportedMp4Timeline,
+                    "aac_no_noise_or_all_ms_intensity" => Requirement::AacNoNoiseOrAllMsIntensity,
+                    "ffmpeg_aac_mp4_timeline" => Requirement::FfmpegAacMp4Timeline,
                     _ => return None,
                 };
                 if requirements.contains(&requirement) {
@@ -107,6 +124,19 @@ fn parse(text: &str, codec: Codec, container: &str) -> Option<Admission> {
                 requirements.push(requirement);
             }
             if name == codec.name() && family == container && eligible && presented {
+                if name == "aac"
+                    && (!cfg!(feature = "aac")
+                        || !tolerance
+                        || family != "mp4"
+                        || requirements
+                            != [
+                                Requirement::AacLc,
+                                Requirement::AacNoNoiseOrAllMsIntensity,
+                                Requirement::FfmpegAacMp4Timeline,
+                            ])
+                {
+                    return None;
+                }
                 if name == "opus"
                     && (family != "mp4"
                         || !requirements.contains(&Requirement::OpusMapping0)
@@ -183,8 +213,44 @@ mod tests {
             })
         );
         #[cfg(feature = "aac")]
-        for container in ["mp4", "matroska"] {
-            assert!(admission(Codec::Aac, container).is_none());
+        {
+            assert_eq!(
+                admission(Codec::Aac, "mp4").map(|row| row.kind),
+                Some(DecoderEligibilityKind::DecodeTolerance)
+            );
+            assert!(admission(Codec::Aac, "matroska").is_none());
+        }
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+    fn tolerance_contract_and_predicates_cannot_be_relaxed() {
+        let record: Value = serde_json::from_str(RECORD).unwrap();
+        let index = record["decoders"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|row| row["codec"] == "aac")
+            .unwrap();
+        for (field, value) in [
+            ("f32_absolute", json!(0.0001)),
+            ("s16_lsb", json!(2)),
+            ("timeline", json!("approximate")),
+            ("feature", json!("default")),
+        ] {
+            let mut changed = record.clone();
+            changed["decoders"][index]["tolerance"][field] = value;
+            assert!(parse(&changed.to_string(), Codec::Mp3, "mp4").is_none());
+        }
+        #[cfg(feature = "aac")]
+        for requirements in [
+            json!([]),
+            json!(["aac_lc"]),
+            json!(["aac_lc", "supported_mp4_timeline"]),
+        ] {
+            let mut changed = record.clone();
+            changed["decoders"][index]["presentations"][0]["requirements"] = requirements;
+            assert!(parse(&changed.to_string(), Codec::Aac, "mp4").is_none());
         }
     }
 

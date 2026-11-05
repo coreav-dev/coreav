@@ -1,5 +1,6 @@
 use crate::bits::Bits;
 use crate::rps::{self, Rps};
+use crate::scaling::ScalingLists;
 use crate::vui::{self, Hrd, Timing, Vui};
 use crate::{Error, Limits, Result};
 
@@ -12,6 +13,14 @@ pub(crate) struct Vps {
     pub(crate) max_reorder: [u32; 7],
     pub(crate) max_latency: [u32; 7],
     pub(crate) timing: Option<Timing>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Pcm {
+    pub(crate) luma_depth: u32,
+    pub(crate) chroma_depth: u32,
+    pub(crate) min_log2: u32,
+    pub(crate) max_log2: u32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -42,7 +51,12 @@ pub(crate) struct Sps {
     pub(crate) max_reorder: [u32; 7],
     pub(crate) max_latency: [u32; 7],
     pub(crate) min_cb_log2: u32,
-    pub(crate) scaling_list_enabled: bool,
+    pub(crate) min_tb_log2: u32,
+    pub(crate) max_tb_log2: u32,
+    pub(crate) max_intra_transform_depth: u32,
+    pub(crate) strong_smoothing: bool,
+    pub(crate) pcm: Option<Pcm>,
+    pub(crate) scaling_lists: Option<ScalingLists>,
     pub(crate) vui: Vui,
 }
 
@@ -53,6 +67,7 @@ pub(crate) struct Pps {
     pub(crate) dependent_segments: bool,
     pub(crate) output_flag: bool,
     pub(crate) extra_header_bits: u32,
+    pub(crate) sign_data_hiding: bool,
     pub(crate) cabac_init: bool,
     pub(crate) ref_l0: u32,
     pub(crate) ref_l1: u32,
@@ -70,8 +85,11 @@ pub(crate) struct Pps {
     pub(crate) cb_qp_offset: i32,
     pub(crate) cr_qp_offset: i32,
     pub(crate) qp_delta_depth: u32,
+    pub(crate) qp_delta_enabled: bool,
+    pub(crate) transform_skip: bool,
+    pub(crate) transquant_bypass: bool,
     pub(crate) parallel_merge_log2: u32,
-    pub(crate) scaling_list_present: bool,
+    pub(crate) scaling_lists: Option<ScalingLists>,
     pub(crate) tile_columns: u32,
     pub(crate) tile_rows: u32,
     pub(crate) uniform_tiles: bool,
@@ -305,25 +323,6 @@ pub(crate) fn vps(bits: &mut Bits<'_>, _limits: &Limits) -> Result<Vps> {
     })
 }
 
-fn scaling_list(bits: &mut Bits<'_>) -> Result<()> {
-    for size in 0..4 {
-        let step = if size == 3 { 3 } else { 1 };
-        for matrix in (0..6).step_by(step) {
-            if !bits.flag()? {
-                bits.ue(if size == 3 { matrix / 3 } else { matrix })?;
-            } else {
-                if size > 1 {
-                    bits.se(-7, 247)?;
-                }
-                for _ in 0..if size == 0 { 16 } else { 64 } {
-                    bits.se(-128, 127)?;
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
 pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
     let vps_id = bits.u(4)?;
     let (sub_layers, temporal_nesting) = sub_layers(bits)?;
@@ -380,27 +379,42 @@ pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
     if ctu_count > limits.max_ctus {
         return Err(Error::Limit("HEVC CTU count"));
     }
-    let min_tb = bits.ue(min_cb_log2 - 3)? + 2;
-    bits.ue(ctb_log2.min(5) - min_tb)?;
-    bits.ue(ctb_log2 - min_tb)?;
-    bits.ue(ctb_log2 - min_tb)?;
-    let scaling_list_enabled = bits.flag()?;
-    if scaling_list_enabled && bits.flag()? {
-        scaling_list(bits)?;
-    }
+    let min_tb_log2 = bits.ue(min_cb_log2 - 3)? + 2;
+    let max_tb_log2 = min_tb_log2 + bits.ue(ctb_log2.min(5) - min_tb_log2)?;
+    bits.ue(ctb_log2 - min_tb_log2)?;
+    let max_intra_transform_depth = bits.ue(ctb_log2 - min_tb_log2)?;
+    let scaling_lists = if bits.flag()? {
+        Some(if bits.flag()? {
+            ScalingLists::parse(bits)?
+        } else {
+            ScalingLists::normative()
+        })
+    } else {
+        None
+    };
     bits.flag()?;
     let sao = bits.flag()?;
-    if bits.flag()? {
-        if bits.u(4)? + 1 > bit_depth || bits.u(4)? + 1 > bit_depth {
+    let pcm = if bits.flag()? {
+        let luma_depth = bits.u(4)? + 1;
+        let chroma_depth = bits.u(4)? + 1;
+        if luma_depth > bit_depth || chroma_depth > bit_depth {
             return Err(Error::InvalidData("PCM bit depth"));
         }
         let pcm_min = bits.ue(2)? + 3;
         if pcm_min < min_cb_log2.min(5) || pcm_min > ctb_log2.min(5) {
             return Err(Error::InvalidData("PCM block size"));
         }
-        bits.ue(ctb_log2.min(5) - pcm_min)?;
+        let max_log2 = pcm_min + bits.ue(ctb_log2.min(5) - pcm_min)?;
         bits.flag()?;
-    }
+        Some(Pcm {
+            luma_depth,
+            chroma_depth,
+            min_log2: pcm_min,
+            max_log2,
+        })
+    } else {
+        None
+    };
     let rps_count = bits.ue(64)? as usize;
     let mut rps = [Rps::default(); 64];
     let dpb = *max_dpb
@@ -430,7 +444,7 @@ pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
         *used = bits.flag()?;
     }
     let temporal_mvp = bits.flag()?;
-    bits.flag()?;
+    let strong_smoothing = bits.flag()?;
     let vui = if bits.flag()? {
         vui::parse(bits, sub_layers, visible_width, visible_height)?
     } else {
@@ -464,7 +478,12 @@ pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
         max_reorder,
         max_latency,
         min_cb_log2,
-        scaling_list_enabled,
+        min_tb_log2,
+        max_tb_log2,
+        max_intra_transform_depth,
+        strong_smoothing,
+        pcm,
+        scaling_lists,
         vui,
     })
 }
@@ -475,20 +494,21 @@ pub(crate) fn pps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Pps> {
     let dependent_segments = bits.flag()?;
     let output_flag = bits.flag()?;
     let extra_header_bits = bits.u(3)?;
-    bits.flag()?;
+    let sign_data_hiding = bits.flag()?;
     let cabac_init = bits.flag()?;
     let ref_l0 = bits.ue(14)? + 1;
     let ref_l1 = bits.ue(14)? + 1;
     let init_qp = bits.se(-74, 25)? + 26;
     bits.flag()?;
-    bits.flag()?;
-    let qp_delta_depth = if bits.flag()? { bits.ue(3)? } else { 0 };
+    let transform_skip = bits.flag()?;
+    let qp_delta_enabled = bits.flag()?;
+    let qp_delta_depth = if qp_delta_enabled { bits.ue(3)? } else { 0 };
     let cb_qp_offset = bits.se(-12, 12)?;
     let cr_qp_offset = bits.se(-12, 12)?;
     let chroma_offsets = bits.flag()?;
     let weighted_pred = bits.flag()?;
     let weighted_bipred = bits.flag()?;
-    bits.flag()?;
+    let transquant_bypass = bits.flag()?;
     let tiles = bits.flag()?;
     let wpp = bits.flag()?;
     if tiles && wpp {
@@ -536,10 +556,11 @@ pub(crate) fn pps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Pps> {
             bits.se(-6, 6)?;
         }
     }
-    let scaling_list_present = bits.flag()?;
-    if scaling_list_present {
-        scaling_list(bits)?;
-    }
+    let scaling_lists = if bits.flag()? {
+        Some(ScalingLists::parse(bits)?)
+    } else {
+        None
+    };
     let lists_modification = bits.flag()?;
     let parallel_merge_log2 = bits.ue(4)? + 2;
     let header_extension = bits.flag()?;
@@ -550,6 +571,7 @@ pub(crate) fn pps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Pps> {
         dependent_segments,
         output_flag,
         extra_header_bits,
+        sign_data_hiding,
         cabac_init,
         ref_l0,
         ref_l1,
@@ -567,8 +589,11 @@ pub(crate) fn pps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Pps> {
         cb_qp_offset,
         cr_qp_offset,
         qp_delta_depth,
+        qp_delta_enabled,
+        transform_skip,
+        transquant_bypass,
         parallel_merge_log2,
-        scaling_list_present,
+        scaling_lists,
         tile_columns,
         tile_rows,
         uniform_tiles,

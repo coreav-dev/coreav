@@ -559,10 +559,28 @@ pub fn plan(
         &report.streams
     };
     let selected = select(command, streams)?;
+    if command.muxer == Muxer::Wav
+        && selected.len() == 1
+        && selected
+            .first()
+            .and_then(|index| report.streams.get(*index))
+            .is_some_and(|stream| {
+                stream.entries.iter().any(|(key, value)| {
+                    *key == "codec_name" && matches!(value, Value::Str(name) if name == "aac")
+                })
+            })
+    {
+        return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+    }
     if matches!(command.muxer, Muxer::S16le | Muxer::F32le)
         && !raw_audio::legacy(command, report, &selected)
     {
         return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+    }
+    if command.muxer == Muxer::Wav && args::stdout(&command.output) {
+        return Err(Refusal::not_native(
+            "WAV stdout requires qualified AAC decode tolerance",
+        ));
     }
     if command.muxer == Muxer::Avi {
         return avi::job(command, report, &selected, list.is_some());
@@ -794,9 +812,57 @@ pub fn plan(
         if command.muxer != Muxer::Mp4 {
             return Err(Refusal::not_native("a clip written as M4A"));
         }
+        if command.input_seek.is_some() {
+            if [command.input_seek, command.duration, command.until]
+                .into_iter()
+                .flatten()
+                .any(|time| 1_000_000 % time.den != 0)
+            {
+                return Err(Refusal::not_native(
+                    "an input-seek copy with sub-microsecond time bounds",
+                ));
+            }
+            if input_start(report).num < 0
+                || command.seek.is_some()
+                || command.input_duration.is_some()
+                || command.input_until.is_some()
+            {
+                return Err(Refusal::not_native(
+                    "an input-seek copy with negative or combined seek bounds",
+                ));
+            }
+            if report.iso_names_supported != Some(true)
+                || !report.chapters.is_empty()
+                || report.format_tags.iter().any(|(key, _)| {
+                    !matches!(
+                        key.as_str(),
+                        "major_brand" | "minor_version" | "compatible_brands" | "encoder"
+                    )
+                })
+                || output.iter().any(|(_, stream)| {
+                    stream.kind == StreamKind::Video
+                        && (!stream.side_data.is_empty()
+                            || stream.disposition.iter().any(|(key, value)| {
+                                *key != "default" && !matches!(value, Value::Int(0))
+                            })
+                            || stream.tags.iter().any(|(key, value)| match key.as_str() {
+                                "language" | "encoder" => false,
+                                "handler_name" => value != "VideoHandler",
+                                _ => true,
+                            }))
+                })
+            {
+                return Err(Refusal::not_native(
+                    "an input-seek copy with source metadata the clip writer does not preserve",
+                ));
+            }
+        }
         let (start, end) = clip_range(command, input_start(report))
             .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?;
         if of(StreamKind::Video).next().is_none() {
+            if command.input_seek.is_some() {
+                return Err(Refusal::not_native("an input-seek copy with audio"));
+            }
             return match selected.as_slice() {
                 [stream] if kind(*stream) == Some(StreamKind::Audio) => {
                     Ok(Job::AudioClip(AudioClipOptions {
@@ -1671,6 +1737,14 @@ fn may_replace(command: &Command, path: &Path) -> Result<bool, Refusal> {
 }
 
 pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refusal> {
+    if let Some(message) = output::input_alias(Path::new(&command.input), path) {
+        return Err(Refusal::Usage(message));
+    }
+    if output::check_regular_file(path).is_err() {
+        return Err(Refusal::not_native(
+            "output to a non-regular destination, linked file or unwritable file",
+        ));
+    }
     let force = may_replace(command, path)?;
     match output::refuse(Path::new(&command.input), path, force) {
         Some(message) => Err(Refusal::Usage(message)),
@@ -1812,8 +1886,14 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             out,
         )
         .map(|summary| crate::extract::document(&summary)),
-        Job::Clip(options) => crate::clip::run(input, options, &allowlist, out)
-            .map(|summary| crate::clip::document(&summary)),
+        Job::Clip(options) => {
+            let summary = if command.input_seek.is_some() {
+                crate::clip::run_input_seek(input, options, &allowlist, out)
+            } else {
+                crate::clip::run(input, options, &allowlist, out)
+            }?;
+            Ok(crate::clip::document(&summary))
+        }
         Job::AudioClip(options) => crate::clip::run_audio(input, options, &allowlist, out)
             .map(|summary| crate::clip::audio_document(&summary)),
         Job::Join {
@@ -1922,6 +2002,116 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+
+    #[test]
+    fn input_seek_preflight_refuses_unpreserved_context() {
+        let report = Report {
+            streams: vec![Stream {
+                kind: StreamKind::Video,
+                attached_pic: false,
+                entries: Vec::new(),
+                disposition: Vec::new(),
+                tags: Vec::new(),
+                side_data: Vec::new(),
+            }],
+            format: vec![
+                (
+                    "format_name",
+                    Value::Str("mov,mp4,m4a,3gp,3g2,mj2".to_owned()),
+                ),
+                ("start_time", Value::Time(0.0)),
+            ],
+            iso_names_supported: Some(true),
+            ..Report::default()
+        };
+        let command = args::parse(
+            &[
+                "-ss", "0.2", "-i", "in.mp4", "-an", "-c", "copy", "-t", "1", "out.mp4",
+            ]
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert!(matches!(plan(&command, &report, None), Ok(Job::Clip(_))));
+        for (seek, bound, end) in [
+            ("0.200000001", "-t", "1"),
+            ("0.2", "-t", "1.000000001"),
+            ("0.2", "-to", "1.000000001"),
+        ] {
+            let command = args::parse(
+                &[
+                    "-ss", seek, "-i", "in.mp4", "-an", "-c", "copy", bound, end, "out.mp4",
+                ]
+                .map(str::to_owned),
+            )
+            .unwrap();
+            assert!(matches!(
+                plan(&command, &report, None),
+                Err(Refusal::NotNative(_))
+            ));
+        }
+        let mut negative = report.clone();
+        negative.format.retain(|(key, _)| *key != "start_time");
+        negative.format.push(("start_time", Value::Time(-0.08)));
+        let mut titled = report.clone();
+        titled
+            .format_tags
+            .push(("title".to_owned(), "Source title".to_owned()));
+        let mut chapters = report.clone();
+        chapters.chapters.push(crate::ffprobe::Chapter {
+            entries: Vec::new(),
+            tags: Vec::new(),
+        });
+        for rejected in [negative, titled, chapters] {
+            assert!(matches!(
+                plan(&command, &rejected, None),
+                Err(Refusal::NotNative(_))
+            ));
+        }
+        for completeness in [None, Some(false)] {
+            let mut rejected = report.clone();
+            rejected.iso_names_supported = completeness;
+            assert!(matches!(
+                plan(&command, &rejected, None),
+                Err(Refusal::NotNative(_))
+            ));
+        }
+        let mut side_data = report.clone();
+        side_data
+            .streams
+            .first_mut()
+            .unwrap()
+            .side_data
+            .push(crate::ffprobe::SideData {
+                typ: "display_matrix",
+                entries: Vec::new(),
+            });
+        let mut disposition = report.clone();
+        disposition
+            .streams
+            .first_mut()
+            .unwrap()
+            .disposition
+            .push(("forced", Value::Int(1)));
+        for rejected in [side_data, disposition] {
+            assert!(matches!(
+                plan(&command, &rejected, None),
+                Err(Refusal::NotNative(_))
+            ));
+        }
+        for (key, value) in [("title", "Source stream"), ("handler_name", "Custom video")] {
+            let mut rejected = report.clone();
+            rejected
+                .streams
+                .first_mut()
+                .unwrap()
+                .tags
+                .push((key.to_owned(), value.to_owned()));
+            assert!(matches!(
+                plan(&command, &rejected, None),
+                Err(Refusal::NotNative(_))
+            ));
+        }
+    }
 
     #[test]
     fn ordinary_copy_origin_plans_only_one_iso_video() {
