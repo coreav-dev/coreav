@@ -31,6 +31,8 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 sys.path.insert(0, str(HERE))
 import mediainfo_oracle as mo  # noqa: E402
 
@@ -64,9 +66,9 @@ def failed(name):
     return {'schema': 'coreav-oracle/streams/1', 'file': name, 'probe_ok': False}
 
 
-def oracle_adapter(command, name):
+def oracle_adapter(command, name, env=None):
     try:
-        done = subprocess.run(command, capture_output=True, timeout=TIMEOUT, check=False)
+        done = subprocess.run(command, capture_output=True, timeout=TIMEOUT, check=False, env=env)
     except subprocess.TimeoutExpired:
         return failed(name)
     if done.returncode != 0 or not done.stdout.strip():
@@ -103,7 +105,8 @@ def process(entry, args, env, endpoint):
         if done.returncode != 0:
             return 'download-failed'
         records = {
-            'ffprobe': oracle_adapter([str(ROOT / 'scripts' / 'oracle-ffprobe.sh'), 'streams', str(media)], name),
+            'ffprobe': oracle_adapter([str(ROOT / 'scripts' / 'oracle-ffprobe.sh'), 'streams', str(media)], name,
+                                     env=dict(os.environ, FFMPEG=str(args.oracle.ffmpeg), FFPROBE=str(args.oracle.ffprobe))),
             'coreav': oracle_adapter([args.adapter, 'streams', str(media)], name),
             'mediainfo': mo.capture_one(args.mediainfo, media, name),
         }
@@ -136,7 +139,7 @@ def provenance(args):
     """What produced the captures. Binaries and versions must match to reuse captures."""
     git = subprocess.run(['git', '-C', str(ROOT), 'describe', '--always', '--dirty', '--abbrev=12'],
                          capture_output=True, text=True, check=False).stdout.strip() or None
-    ffprobe = os.environ.get('FFPROBE', 'ffprobe')
+    ffprobe = str(args.oracle.ffprobe)
     return {
         'binaries': {
             'mediainfo': first_line([args.mediainfo, '--Version']),
@@ -172,6 +175,7 @@ def check_provenance(captures, current):
 
 
 def cmd_run(args):
+    args.oracle = test_oracle.require(os.environ.get('FFMPEG'), os.environ.get('FFPROBE'))
     entries = select(args.manifest, args.split, args.set.split(','))
     if args.limit:
         entries = entries[:args.limit]

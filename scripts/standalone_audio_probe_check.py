@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 from pathlib import Path
-import platform
 import struct
 import subprocess
 import sys
@@ -13,6 +12,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
+import test_oracle
 
 
 TIMEOUT = 30
@@ -276,11 +276,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     coreav, oracle = args.coreav.resolve(), args.oracle_dir.resolve()
     try:
-        system = platform.system()
-        if system not in ("Darwin", "Linux"):
-            raise CheckFailure("oracle verification supports Darwin and Linux only")
-        verifier = Path(__file__).with_name("oracle_pin_macos.py" if system == "Darwin" else "oracle_pin.py")
-        run([sys.executable, verifier, "--verify-bin", oracle])
+        problems = list(test_oracle.verify_bin(oracle))
+        if problems:
+            raise CheckFailure('; '.join(problems))
         if args.directory:
             directory = args.directory.resolve()
             directory.mkdir(parents=True, exist_ok=True)

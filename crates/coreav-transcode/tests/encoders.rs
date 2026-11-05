@@ -10,18 +10,18 @@
 //! must give every frame once, in order, and the `avcC` must equal the one
 //! FFmpeg writes for the same stream (`-c copy` to MP4).
 //!
-//! The programs are found through `COREAV_X264` and `COREAV_FFMPEG`, the
-//! pinned paths (`/opt/coreav-oracle-bin/x264`, `/opt/coreav-oracle-bin/ffmpeg`)
-//! or `PATH`; a test whose program is missing (or an `ffmpeg` without
-//! libx264) prints why and passes, unless `COREAV_REQUIRE_FFMPEG=1` (the
-//! fixtures workflow, which installs the pinned FFmpeg) makes a missing
-//! `ffmpeg` a failure. A missing `x264` is always a skip.
+//! FFmpeg uses the shared process-cached qualified pair; a missing or
+//! unverified selection fails before generation. The separate x264 program
+//! uses `COREAV_X264`, the pinned path or `PATH`; a missing x264 is a skip.
 #![allow(
     clippy::expect_used,
     clippy::unwrap_used,
     clippy::panic,
     clippy::indexing_slicing
 )]
+
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -51,7 +51,7 @@ fn x264() -> Option<PathBuf> {
 }
 
 fn ffmpeg() -> Option<PathBuf> {
-    program("COREAV_FFMPEG", "/opt/coreav-oracle-bin/ffmpeg", "ffmpeg")
+    Some(test_oracle::require().ffmpeg().to_path_buf())
 }
 
 /// A missing `ffmpeg`: a skip, or a failure where it must be present.

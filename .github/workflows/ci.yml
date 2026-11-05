@@ -121,6 +121,12 @@ jobs:
             crates/coreav-worker/**
             crates/coreav-transcode/**
             crates/coreav-cli/**
+            test-support/**
+            scripts/test_oracle.py
+            scripts/oracle_free.py
+            scripts/oracle_pin*.py
+            scripts/oracle-ffmpeg*.env
+            scripts/install-oracle-ffmpeg-macos.sh
             crates/coreav-backend-dav1d/**
             crates/coreav-backend-libvpx/**
             crates/coreav-isobmff/src/source.rs
@@ -229,6 +235,30 @@ jobs:
       - run: python3 -I -m unittest discover -s .github/workflows/tests -p 'test_*.py'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
+      # The encoder programs of `coreav transcode`, black boxes for
+      # coreav-transcode's tests (docs/design/transcode.md): the pinned
+      # FFmpeg and an x264 program built from the commit of its libx264
+      # (scripts/oracle-ffmpeg.env), its source deleted after the build.
+      # With `CI` set the tests
+      # fail instead of skipping when either is missing.
+      - name: Cache the encoder programs
+        id: encoders-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-encoders
+          key: linux-x64-encoders-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-x264.sh') }}
+      - name: Install the pinned FFmpeg and build x264
+        if: steps.encoders-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends nasm
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-encoders"
+          scripts/install-x264.sh "$RUNNER_TEMP/coreav-encoders"
+      - name: Verify the pinned encoder oracle
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-encoders"
+          echo "COREAV_FFMPEG=$RUNNER_TEMP/coreav-encoders/ffmpeg" >> "$GITHUB_ENV"
+          echo "COREAV_FFPROBE=$RUNNER_TEMP/coreav-encoders/ffprobe" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/coreav-encoders" >> "$GITHUB_PATH"
       - run: cargo clippy --workspace --all-targets -- -D warnings
       # The H.264 decoder's safe mode, without its default feature `fast`
       # (docs/design/h264.md).
@@ -276,26 +306,6 @@ jobs:
           cargo clippy -p coreav-decode-oracle --features native-vp9,native-h264 --all-targets -- -D warnings
           cargo test -p coreav-backend-libopus --features libopus
           cargo test -p coreav-worker --features libopus
-      # The encoder programs of `coreav transcode`, black boxes for
-      # coreav-transcode's tests (docs/design/transcode.md): the pinned
-      # FFmpeg and an x264 program built from the commit of its libx264
-      # (scripts/oracle-ffmpeg.env), its source deleted after the build.
-      # With `CI` set the tests
-      # fail instead of skipping when either is missing.
-      - name: Cache the encoder programs
-        id: encoders-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/coreav-encoders
-          key: linux-x64-encoders-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-x264.sh') }}
-      - name: Install the pinned FFmpeg and build x264
-        if: steps.encoders-cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get install -y --no-install-recommends nasm
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-encoders"
-          scripts/install-x264.sh "$RUNNER_TEMP/coreav-encoders"
-      - name: Verify the pinned encoder oracle
-        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-encoders"
       - name: Require exact native FFV1 pixels and probe fields
         timeout-minutes: 15
         run: |
@@ -423,6 +433,15 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Provision the registered macOS oracle or select oracle-free tests
+        run: |
+          if [[ "$(uname -m)" == arm64 ]]; then
+            scripts/install-oracle-ffmpeg-macos.sh "$RUNNER_TEMP/coreav-test-oracle"
+            echo "COREAV_FFMPEG=$RUNNER_TEMP/coreav-test-oracle/ffmpeg" >> "$GITHUB_ENV"
+            echo "COREAV_FFPROBE=$RUNNER_TEMP/coreav-test-oracle/ffprobe" >> "$GITHUB_ENV"
+          else
+            echo 'No registered oracle on this architecture; run the explicit oracle-free selection'
+          fi
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo clippy -p coreav-h264 --no-default-features --all-targets -- -D warnings
       - run: cargo clippy -p coreav-cli --features ffmpeg-fallback --all-targets -- -D warnings
@@ -438,12 +457,12 @@ jobs:
             --features coreav-cli/libvpx,coreav-backend-libvpx/libvpx,coreav-worker/libvpx,coreav-decode-oracle/libvpx \
             --all-targets -- -D warnings
           cargo clippy -p coreav-cli --features libvpx,dav1d,ffmpeg-fallback --all-targets -- -D warnings
-          env -u CI cargo test -p coreav-backend-dav1d --features dav1d
-          env -u CI cargo test -p coreav-backend-libvpx --features libvpx
-      - run: env -u CI cargo test --workspace
+          env -u CI python3 -I scripts/oracle_free.py cargo test -p coreav-backend-dav1d --features dav1d
+          env -u CI python3 -I scripts/oracle_free.py cargo test -p coreav-backend-libvpx --features libvpx
+      - run: env -u CI python3 -I scripts/oracle_free.py cargo test --workspace
       - run: |
-          env -u CI cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
-          env -u CI cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
+          env -u CI python3 -I scripts/oracle_free.py cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
+          env -u CI python3 -I scripts/oracle_free.py cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site --test transcode_selection
       - run: |
           cargo test --release -p coreav-isobmff --test hostile -- --ignored
@@ -496,11 +515,11 @@ jobs:
         run: cargo clippy -p coreav-py --features thumbnail --all-targets -- -D warnings
       - name: Test workspace including Windows fallback
         if: ${{ !cancelled() }}
-        run: env -u CI cargo test --workspace --no-fail-fast
+        run: env -u CI python3 -I scripts/oracle_free.py cargo test --workspace --no-fail-fast
       - if: ${{ !cancelled() }}
         run: |
-          env -u CI cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
-          env -u CI cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
+          env -u CI python3 -I scripts/oracle_free.py cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
+          env -u CI python3 -I scripts/oracle_free.py cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
       - if: ${{ !cancelled() }}
         run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site --test transcode_selection
       - if: ${{ !cancelled() }}
@@ -1062,11 +1081,14 @@ jobs:
       - name: Run the 0.1.0 ffmpeg commands on the fixtures and check the outputs
         env:
           COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
+          COREAV_REQUIRE_FFMPEG: '1'
           COREAV_FFMPEG_OUT: ${{ runner.temp }}/coreav-ffmpeg
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           set -euo pipefail
           cargo test --locked --release -p coreav-cli --test ffmpeg the_0_1_0_commands_on_the_fixtures -- --ignored
+          cargo test --locked --release -p coreav-cli --test ffmpeg_concat c02_guard_concat_preserves_complete_native_output -- --ignored
           python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
             --report "$RUNNER_TEMP/coreav-ffmpeg.json"
@@ -2471,6 +2493,58 @@ jobs:
           cargo test --no-run --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
             --test transcode --target-dir target/fallback
 
+  svt-av1:
+    needs: ci-changes
+    if: needs.ci-changes.outputs.run == 'true'
+    concurrency:
+      group: ${{ github.workflow }}-svt-av1-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-musl
+      - run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends musl-tools nasm cmake ninja-build meson pkg-config
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: svt-av1
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/svt-av1
+          key: svt-av1-linux-x64-${{ hashFiles('scripts/encoders/svt-av1/build.py', 'scripts/svt-av1-notices.json') }}
+      - name: Build the pinned static encoder and decoder
+        run: |
+          set -euo pipefail
+          if [ ! -f "$RUNNER_TEMP/svt-av1/lib/libSvtAv1Enc.a" ]; then
+            python3 scripts/encoders/svt-av1/build.py --target x86_64-unknown-linux-musl --prefix "$RUNNER_TEMP/svt-av1" --jobs 2
+          fi
+          packages/cli/scripts/codecs.sh x86_64-unknown-linux-musl "$RUNNER_TEMP/dav1d" dav1d
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Test AV1 frame ownership and worker protocol
+        run: cargo test -p coreav-transcode --features svt-av1 --lib --test av1 --test av1_timeline --test av1_process --test contracts --locked
+      - name: Build the opt-in sandboxed AV1 CLI
+        env:
+          SVT_AV1_PREFIX: ${{ runner.temp }}/svt-av1
+          PKG_CONFIG_PATH: ${{ runner.temp }}/dav1d/lib/pkgconfig
+          PKG_CONFIG_ALLOW_CROSS: '1'
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+        run: cargo build --locked --release -p coreav-cli --target x86_64-unknown-linux-musl --features native-h264,dav1d,svt-av1-native
+      - name: Check both AV1 decoders and the PSNR sanity floor
+        run: |
+          python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-check"
+          python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-motion" --moving
+          python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-shared-input" --shared-input
+
   ci-report:
     # Always runs, including when the filter above skipped every job, so
     # that the branch ruleset has one check name this workflow reports on
@@ -2478,7 +2552,7 @@ jobs:
     # (docs/design/ci-checks.md). It waits for every job of the workflow,
     # and its summary names each job's result. It has no concurrency group:
     # it has to report on a cancelled run too.
-    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-writers, isobmff-decode, transcode-compat-shard, transcode-compat, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard, main-cache]
+    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-writers, isobmff-decode, transcode-compat-shard, transcode-compat, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard, main-cache, svt-av1]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

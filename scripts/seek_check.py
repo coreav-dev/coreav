@@ -18,6 +18,8 @@ import pathlib
 import shutil
 import subprocess
 import sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import test_oracle
 
 EXTS = ('mp4', 'mov', 'm4v', '3gp')
 
@@ -80,12 +82,14 @@ def check(oracle, path, ffprobe, n):
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--decode-oracle', required=True)
-    p.add_argument('--ffprobe', default=shutil.which('ffprobe'))
+    p.add_argument('--ffprobe')
     p.add_argument('--fixtures')
     p.add_argument('--times', type=int, default=64)
     p.add_argument('--report')
     p.add_argument('files', nargs='*')
     a = p.parse_args()
+    probe = test_oracle.executable_path(a.ffprobe) if a.ffprobe else None
+    a.ffprobe = str(test_oracle.require(probe.with_name('ffmpeg') if probe else None, probe).ffprobe)
     paths = [pathlib.Path(f) for f in a.files]
     if a.fixtures:
         paths += sorted(q for q in pathlib.Path(a.fixtures).iterdir() if q.suffix.lstrip('.').lower() in EXTS)

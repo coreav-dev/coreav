@@ -490,5 +490,51 @@ class BuildTests(unittest.TestCase):
                     processes[0].wait(timeout=5)
 
 
+class ProcessRecords(unittest.TestCase):
+    def test_stdin_and_failed_process_keep_complete_diagnostics(self):
+        record = {}
+        with tempfile.TemporaryFile() as source:
+            source.write(b'case')
+            source.seek(0)
+            with self.assertRaisesRegex(build.BuildError, 'command failed'):
+                build.run([sys.executable, '-c',
+                           "import sys; print(sys.stdin.buffer.read().hex()); "
+                           "print('failure-detail',file=sys.stderr); sys.exit(7)"],
+                          os.environ.copy(), stdin=source, record=record)
+        self.assertEqual(record['exit_code'], 7)
+        self.assertFalse(record['timed_out'])
+        self.assertEqual(record['stdout'], '63617365\n')
+        self.assertEqual(record['stderr'], 'failure-detail\n')
+        with self.assertRaises(ProcessLookupError):
+            os.kill(record['pid'], 0)
+
+    def test_timeout_keeps_partial_diagnostics_and_reaps_the_direct_child(self):
+        record = {}
+        spawn = subprocess.Popen
+        read_fd, write_fd = os.pipe()
+        try:
+            def launch(*args, **kwargs):
+                process = spawn(*args, pass_fds=(write_fd,), **kwargs)
+                self.assertTrue(select.select([read_fd], [], [], 5)[0])
+                self.assertEqual(os.read(read_fd, 1), b'R')
+                return process
+            code = ("import os,sys,time; print('before-timeout',flush=True); "
+                    "print('partial-error',file=sys.stderr,flush=True); "
+                    "os.write(int(sys.argv[1]),b'R'); time.sleep(60)")
+            with mock.patch.object(build.subprocess, 'Popen', side_effect=launch):
+                with self.assertRaisesRegex(build.BuildError, 'command timed out'):
+                    build.run([sys.executable, '-c', code, str(write_fd)], os.environ.copy(),
+                              timeout=0.1, record=record)
+            self.assertTrue(record['timed_out'])
+            self.assertIn(record['exit_code'], (-signal.SIGTERM, -signal.SIGKILL))
+            self.assertEqual(record['stdout'], 'before-timeout\n')
+            self.assertEqual(record['stderr'], 'partial-error\n')
+            with self.assertRaises(ProcessLookupError):
+                os.kill(record['pid'], 0)
+        finally:
+            os.close(read_fd)
+            os.close(write_fd)
+
+
 if __name__ == "__main__":
     unittest.main()

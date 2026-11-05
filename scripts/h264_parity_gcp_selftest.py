@@ -17,13 +17,20 @@ from unittest import mock
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import h264_parity_gcp as gcp  # noqa: E402
+import oracle_pin
 
 FAKE = '#!/bin/sh\nsleep 0.2\n'
 
 
+def versioned(program, name='ffmpeg'):
+    build = oracle_pin.load()['BUILD']
+    return program.replace('#!/bin/sh\n', f'#!/bin/sh\nif [ "$1" = "-version" ]; then echo "{name} version {build}"; exit 0; fi\n')
+
+
 def fake(path):
     with open(path, 'w') as f:
-        f.write(FAKE)
+        name = os.path.basename(path)
+        f.write(versioned(FAKE, 'ffprobe' if name == 'ffprobe' else 'ffmpeg') if name in ('ff', 'ffprobe') else FAKE)
     os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR)
 
 
@@ -38,6 +45,12 @@ class Gcp(unittest.TestCase):
         self.dec, self.ff, self.gate = (os.path.join(r, n) for n in ('dec', 'ff', 'gate.h264'))
         fake(self.dec)
         fake(self.ff)
+        fake(os.path.join(r, 'ffprobe'))
+        environment = mock.patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop('COREAV_FFMPEG', None)
+        os.environ.pop('COREAV_FFPROBE', None)
         open(self.gate, 'w').close()
         self.up = os.path.join(r, 'up')
         self.out = os.path.join(r, 'out')
@@ -313,7 +326,7 @@ class Gcp(unittest.TestCase):
         self.build_1t('--rounds', '2')
         if ff_script:
             with open(os.path.join(self.up, 'ffmpeg'), 'w') as f:
-                f.write(ff_script)
+                f.write(versioned(ff_script))
         env = dict(os.environ, REF_SLEEP='1', CHECK_SLEEP='1', PERF_INSTALL='0')
         subprocess.run(['bash', 'job.sh'], cwd=self.up, check=True, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL, env=env)

@@ -1010,7 +1010,8 @@ def main():
         raise ValueError('inventory no longer matches its cutoff or oracle pin')
     sys.path.insert(0, str(ROOT / 'scripts'))
     import oracle_pin
-    problems = list(oracle_pin.verify_bin(args.oracle_dir))
+    import test_oracle
+    problems = list(test_oracle.verify_bin(args.oracle_dir))
     if problems:
         raise ValueError('; '.join(problems))
     os.environ['PATH'] = str(args.oracle_dir.resolve()) + os.pathsep + os.environ['PATH']

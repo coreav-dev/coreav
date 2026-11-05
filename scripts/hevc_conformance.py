@@ -28,6 +28,7 @@ import zipfile
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import oracle_pin
+import test_oracle
 import hevc_oracle_input
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
@@ -1083,7 +1084,7 @@ def run(args):
     exclusions_sha = digest(ROOT / 'bench/hevc-conformance/known-exclusions.json') if exclusions else None
     require(all('archive_sha256' in c and 'extracted' in c for c in data['archives']),
             'run requires the SHA-bound manifest produced by the manifest command')
-    require(not list(oracle_pin.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
+    require(not list(test_oracle.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
     oracle = {name: digest(args.oracle_bin / name) for name in ('ffmpeg', 'ffprobe')}
     oracle['pin_sha256'] = digest(ROOT / oracle_pin.PIN)
     acquisition = read_json(args.data / 'acquisition.json')
@@ -1225,7 +1226,7 @@ def fetch_corpus(args, inspect=False):
     import round_files
     files = roster()
     if inspect:
-        require(not list(oracle_pin.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
+        require(not list(test_oracle.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
         if getattr(args, 'packet_native', None):
             require(args.parser and args.packet_native.is_file() and args.parser.is_file()
                     and 0 < args.decode_memory_bytes <= 4 << 30
@@ -1386,7 +1387,7 @@ def corpus_result(records):
 
 
 def corpus(args):
-    require(not list(oracle_pin.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
+    require(not list(test_oracle.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
     files = roster()
     records = [dict(item, status='not_run') for item in files]
     for index, item in enumerate(files):

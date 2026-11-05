@@ -7,8 +7,8 @@
 //! each summary validated against `docs/schema/transcode-v1.schema.json`,
 //! and the output checked against `ffprobe` of the source: the frame count
 //! and every frame's time from the first, the audio packets' data and
-//! times, and a clean decode. Each check skips, with a line saying why,
-//! when a program or the fixtures are missing.
+//! times, and a clean decode. Fixture and optional encoder selection may
+//! skip; real FFmpeg work requires the shared qualified pair.
 #![cfg(feature = "transcode")]
 #![allow(
     clippy::indexing_slicing,
@@ -24,6 +24,9 @@ mod schema;
 mod bounded;
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod iso_movies;
+
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
 
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -52,11 +55,8 @@ fn dir(name: &str) -> PathBuf {
 
 /// The pinned FFmpeg and its ffprobe.
 fn ffmpeg() -> Option<(PathBuf, PathBuf)> {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
-    (ffmpeg.is_file() && ffprobe.is_file()).then_some((ffmpeg, ffprobe))
+    let pair = test_oracle::require();
+    Some((pair.ffmpeg().to_path_buf(), pair.ffprobe().to_path_buf()))
 }
 
 /// The pinned x264.

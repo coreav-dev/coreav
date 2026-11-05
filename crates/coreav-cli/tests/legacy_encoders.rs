@@ -6,6 +6,9 @@
 #[path = "support/bounded.rs"]
 mod bounded;
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -66,7 +69,7 @@ fn legacy_encoder_choices_keep_media_summaries_errors_and_exit_codes() {
     std::fs::write(&invalid, b"not a media header").unwrap();
     let _ = std::fs::remove_file(&absent);
     let lossless = directory.join("lossless.mkv");
-    let mut make = Command::new(std::env::var_os("COREAV_FFMPEG").unwrap());
+    let mut make = Command::new(test_oracle::require().ffmpeg());
     make.args(["-nostdin", "-v", "error", "-y", "-i"])
         .arg(&valid)
         .args([

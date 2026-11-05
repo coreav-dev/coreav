@@ -27,6 +27,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import test_oracle
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
 DURATION = 10
@@ -194,6 +195,10 @@ def main():
     parser.add_argument('--check-libopus', action='store_true',
                         help='only check and print the libopus each binary links')
     args = parser.parse_args()
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg = str(qualified.ffmpeg)
+    if args.ffprobe is not None:
+        args.ffprobe = str(qualified.ffprobe)
     if not args.check_libopus and None in (args.ffprobe, args.work, args.out):
         parser.error('--ffprobe, --work and --out are required to judge the bars')
     libopus = {'pinned': pinned_libopus(), 'coreav': linked_libopus(args.coreav),

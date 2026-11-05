@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import oracle_pin
 import oracle_pin_macos
+import test_oracle
 import standalone_audio_probe_check as audio_probe
 import mkv_craft
 import stsd_craft
@@ -55,9 +56,8 @@ def run(command, case, *, env=None):
 class Oracle:
     def __init__(self, directory):
         self.directory = Path(directory).resolve()
-        verifier = oracle_pin_macos if sys.platform == "darwin" else oracle_pin
         try:
-            problems = list(verifier.verify_bin(self.directory))
+            problems = list(test_oracle.verify_bin(self.directory))
         except (OSError, subprocess.SubprocessError, ValueError, SystemExit):
             raise CheckFailure("oracle-pin") from None
         if problems:
@@ -72,6 +72,7 @@ class Fixture:
     path: Path
     native: bool = True
     structured_side_data: bool = False
+    structured: bool = False
 
 
 def extract_summary(stderr, case, *, ffmpeg=False):
@@ -187,6 +188,21 @@ def compare_structured_side_data(coreav, oracle, media, name):
     return []
 
 
+def compare_structured(coreav, oracle, media, name):
+    case = f"{case_label(name)}-structured"
+    options = ["-v", "quiet", "-of", "json", "-show_format", "-show_streams", str(media)]
+    try:
+        native = run([coreav, "ffprobe", *options], case,
+                     env={**os.environ, "COREAV_STRICT_SAFE": "1"})
+        reference = run([oracle.ffprobe, *options], case)
+        if native.returncode or reference.returncode or not reference.stdout or \
+                native.stdout != reference.stdout or native.stderr != reference.stderr:
+            raise CheckFailure(case)
+    except CheckFailure as error:
+        return [str(error)]
+    return []
+
+
 def compare_unsupported(coreav, oracle, media, name):
     failures = []
     env = {**os.environ, "COREAV_STRICT_SAFE": "1"}
@@ -282,6 +298,20 @@ def unused_pps(pps):
     return bytes(escaped)
 
 
+def hevc_sample_types(path):
+    _, _, samples, _ = stsd_craft.read_source(str(path))
+    types = set()
+    for sample, *_ in samples:
+        at = 0
+        while at < len(sample):
+            size = int.from_bytes(sample[at:at + 4], "big")
+            if at + 6 > len(sample) or size < 2 or at + 4 + size > len(sample):
+                raise CheckFailure("hevc-fixture-framing")
+            types.add((sample[at + 4] >> 1) & 63)
+            at += 4 + size
+    return types
+
+
 def generate_fixtures(oracle, directory, *, audio=False):
     """Regenerate only owned names; publish no partial fixture generation."""
     directory = Path(directory).resolve()
@@ -294,7 +324,7 @@ def generate_fixtures(oracle, directory, *, audio=False):
         h264 = ["-c:v", "libx264", "-threads:v", "1", "-pix_fmt", "yuv420p"]
         av = [*video, *sound, "-map", "0:v", "-map", "1:a", *h264, "-c:a", "aac"]
 
-        def make(name, extension, options, *, side_data=(), native=True, structured_side_data=False, duration="0.4"):
+        def make(name, extension, options, *, side_data=(), native=True, structured_side_data=False, structured=False, duration="0.4"):
             path = root / f"{name}.{extension}"
             result = run([oracle.ffmpeg, "-hide_banner", "-v", "error", "-nostdin", "-y",
                           *options, "-t", duration, path], f"generate-{name}")
@@ -304,9 +334,32 @@ def generate_fixtures(oracle, directory, *, audio=False):
                 probe = run([oracle.ffprobe, "-hide_banner", path], f"generate-{name}")
                 if probe.returncode or any(field not in probe.stderr for field in side_data):
                     raise CheckFailure(f"generate-{name}")
-            fixtures.append(Fixture(name, path, native, structured_side_data))
+            fixtures.append(Fixture(name, path, native, structured_side_data, structured))
 
         make("mp4-av", "mp4", av)
+        hevc_params = "pools=none:frame-threads=1:log-level=error"
+        hevc = ["-c:v", "libx265", "-threads:v", "1", "-pix_fmt", "yuv420p",
+                "-x265-params", hevc_params]
+        make("mp4-hevc-hev1", "mp4", [*video, *hevc, "-tag:v", "hev1"], structured=True)
+        make("mp4-hevc-hvc1", "mp4", [*video, *hevc, "-tag:v", "hvc1"], structured=True)
+        make("mp4-hevc-main10", "mp4", [*video, *hevc, "-pix_fmt", "yuv420p10le",
+                                           "-tag:v", "hev1"], structured=True)
+        make("mp4-hevc-metadata", "mp4", [*video, *hevc, "-tag:v", "hev1",
+             "-metadata", "title=HEVC summary", "-metadata:s:v:0", "handler_name=Video: café"], structured=True)
+        make("mp4-hevc-hev1-cra", "mp4", ["-f", "lavfi", "-i",
+             "testsrc2=size=64x48:rate=10:duration=1.2", *hevc, "-tag:v", "hev1",
+             "-x265-params", hevc_params + ":keyint=4:min-keyint=4:scenecut=0"], structured=True, duration="1.2")
+        if 21 not in hevc_sample_types(root / "mp4-hevc-hev1-cra.mp4"):
+            raise CheckFailure("hevc-cra-fixture")
+        for label, option, expected in (("inband", "repeat-headers=1", {32, 33, 34}),
+                                         ("aud", "aud=1", {35}), ("hash", "hash=1", {40})):
+            name = "mp4-hevc-hev1-" + label
+            make(name, "mp4", [*video, *hevc, "-tag:v", "hev1", "-x265-params",
+                               hevc_params + ":" + option], native=False)
+            if not expected.issubset(hevc_sample_types(root / (name + ".mp4"))):
+                raise CheckFailure("hevc-" + label + "-fixture")
+        make("mp4-hevc-hev1-with-audio", "mp4", [*video, *sound,
+             "-map", "0:v", "-map", "1:a", *hevc, "-tag:v", "hev1", "-c:a", "aac"], native=False)
         make("mp4-unspecified-aspect", "mp4", [*av, "-vf", "setsar=0"])
         for label, change, native in (
             ("header-only-pps", lambda pps: b"\x68", False),
@@ -416,7 +469,7 @@ def generate_fixtures(oracle, directory, *, audio=False):
         for fixture in fixtures:
             fixture.path.replace(directory / fixture.path.name)
     return [Fixture(fixture.name, directory / fixture.path.name, fixture.native,
-                    fixture.structured_side_data) for fixture in fixtures]
+                    fixture.structured_side_data, fixture.structured) for fixture in fixtures]
 
 
 def flac_constant_frame(number, variable, samples, *, reserved=False, overlong=False, bits=16, bad_padding=False):
@@ -564,6 +617,8 @@ def main(argv=None):
             if fixture.structured_side_data:
                 failures.extend(compare_structured_side_data(args.coreav.resolve(), oracle,
                                                              fixture.path, fixture.name))
+            if fixture.structured:
+                failures.extend(compare_structured(args.coreav.resolve(), oracle, fixture.path, fixture.name))
         print(f"GENERATED {fixture.name}" if args.generate_only else f"CHECKED {fixture.name}")
     if not args.generate_only:
         failures.extend(compare_file(args.coreav.resolve(), oracle, fixtures[0].path,

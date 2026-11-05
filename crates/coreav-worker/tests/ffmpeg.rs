@@ -10,18 +10,19 @@
 )]
 #![cfg(feature = "ffmpeg")]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use coreav_decode::{Codec, CodecConfig, ConfigKind, Decoder, Limits, Packet, StreamConfig};
 use coreav_frame::Pixels;
 use coreav_isobmff::{Allowlist, Budget, FileSource, Source, probe};
-use coreav_worker::{
-    SandboxedDecoder, TransferMode, WorkerBackend, WorkerCommand, WorkerOptions, find_on_path,
-};
+use coreav_worker::{SandboxedDecoder, TransferMode, WorkerBackend, WorkerCommand, WorkerOptions};
 
 fn ffmpeg() -> PathBuf {
-    find_on_path("ffmpeg").expect("ffmpeg on PATH")
+    test_oracle::require().ffmpeg().to_path_buf()
 }
 
 fn reference(file: &Path) -> Vec<u8> {

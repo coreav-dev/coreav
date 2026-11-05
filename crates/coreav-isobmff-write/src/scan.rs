@@ -12,6 +12,10 @@ use coreav_isobmff::{
     BoxHeader, Error, FourCc, LimitKind, Limits, MAX_HEADER_LEN, Parsed, Source, parse_box_header,
 };
 
+#[cfg(test)]
+#[path = "scan_tests.rs"]
+mod tests;
+
 /// Boxes listed per track and per file outside the tracks; the rest are
 /// counted (see [`Report`]).
 pub(crate) const MAX_LISTED: usize = 64;
@@ -102,6 +106,7 @@ pub(crate) struct TrakScan {
     /// The compressor name and depth of a visual sample entry as stored.
     pub(crate) compressor_name: Option<[u8; 32]>,
     pub(crate) depth: Option<u16>,
+    pub(crate) fiel: Option<BoxHeader>,
     /// Boxes of the track the output does not carry (sample entry children
     /// excluded: which of them are kept depends on the codec).
     pub(crate) skipped: Report,
@@ -433,6 +438,13 @@ fn stsd<S: Source>(
     }
     let mut children = Vec::new();
     let result = walk.children(&entry, fixed, 7, &mut |_, child| {
+        if handler == Some(*b"vide")
+            && child.kind.0 == *b"fiel"
+            && child.payload_len() >= 2
+            && out.fiel.is_none()
+        {
+            out.fiel = Some(child);
+        }
         if children.len() < MAX_LISTED {
             children.push(child);
         }

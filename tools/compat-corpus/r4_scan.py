@@ -33,6 +33,8 @@ import tempfile
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import release_round  # noqa: E402
 import speed  # noqa: E402
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / 'scripts'))
+import test_oracle
 
 def cause(line):
     if line.get('not_run') != 'strict_safe':
@@ -129,6 +131,8 @@ def main():
     ap.add_argument('--records')
     ap.add_argument('--jobs', type=int, default=2)
     opts = ap.parse_args()
+    oracle = test_oracle.require(opts.ffmpeg, opts.ffprobe)
+    opts.ffmpeg, opts.ffprobe = str(oracle.ffmpeg), str(oracle.ffprobe)
     files = speed.r4_files(opts)
     pairs = speed.r4_pairs(opts, files, release_round.environment())
     if not pairs:

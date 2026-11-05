@@ -8,6 +8,9 @@
     clippy::panic
 )]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
@@ -28,17 +31,7 @@ fn checked(command: &mut Command) -> Vec<u8> {
 }
 
 fn fixture(name: &str) -> Option<Fixture> {
-    let oracle = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    if !oracle.is_file() {
-        assert!(
-            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-            "install the pinned oracle or set COREAV_FFMPEG"
-        );
-        eprintln!("skipping: no pinned oracle (set COREAV_FFMPEG)");
-        return None;
-    }
+    let oracle = test_oracle::require().ffmpeg().to_path_buf();
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("ffmpeg-frames-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();

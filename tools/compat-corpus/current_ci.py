@@ -14,6 +14,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parents[1] / 'scripts')]
 import decoded_output
 import oracle_pin
+import test_oracle
 
 
 def reporter():
@@ -177,7 +178,7 @@ def main():
     ffmpeg, ffprobe = shutil.which('ffmpeg'), shutil.which('ffprobe')
     if (not ffmpeg or not ffprobe
             or pathlib.Path(ffprobe).resolve() != (pathlib.Path(ffmpeg).parent / 'ffprobe').resolve()
-            or list(oracle_pin.verify_bin(pathlib.Path(ffmpeg).parent))):
+            or list(test_oracle.verify_bin(pathlib.Path(ffmpeg).parent))):
         parser.error('install the pinned ffmpeg and ffprobe with scripts/install-oracle-ffmpeg.sh')
     legacy = reporter()
     records = []

@@ -202,14 +202,12 @@ class StandaloneAudioProbe(unittest.TestCase):
             check.run(["program"])
 
     def test_pin_failure_prevents_fixture_generation(self):
-        with patch.object(check.platform, "system", return_value="Darwin"), \
-                patch.object(check, "run", side_effect=check.CheckFailure("bad pin")) as verify, \
+        with patch.object(check.test_oracle, "verify_bin", return_value=("bad pin",)) as verify, \
                 patch.object(check, "generate") as generate, contextlib.redirect_stderr(io.StringIO()) as stderr:
             result = check.main(["--coreav", "coreav", "--oracle-dir", "oracle", "--directory", str(self.root)])
         self.assertEqual(result, 1)
         self.assertIn("bad pin", stderr.getvalue())
-        self.assertEqual(Path(verify.call_args.args[0][1]).name, "oracle_pin_macos.py")
-        self.assertIn("--verify-bin", verify.call_args.args[0])
+        verify.assert_called_once_with(Path("oracle").resolve())
         generate.assert_not_called()
 
 

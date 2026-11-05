@@ -9,6 +9,9 @@
     clippy::indexing_slicing
 )]
 
+#[path = "../../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -29,24 +32,14 @@ pub fn x264() -> Option<PathBuf> {
         .filter(|p| p.is_file())
 }
 
-/// The pinned FFmpeg: `COREAV_FFMPEG`, else the oracle's, else `PATH`.
+/// The process-cached FFmpeg selection from the shared qualification owner.
 pub fn ffmpeg() -> Option<PathBuf> {
-    if let Some(named) = std::env::var_os("COREAV_FFMPEG") {
-        return Some(PathBuf::from(named)).filter(|p| p.is_file());
-    }
-    let oracle = PathBuf::from("/opt/coreav-oracle-bin/ffmpeg");
-    if oracle.is_file() {
-        return Some(oracle);
-    }
-    coreav_worker::find_on_path("ffmpeg")
+    Some(test_oracle::require().ffmpeg().to_path_buf())
 }
 
-/// `ffprobe` next to [`ffmpeg`], else on `PATH`.
+/// The matching ffprobe of the same qualified selection.
 pub fn ffprobe() -> Option<PathBuf> {
-    ffmpeg()
-        .and_then(|f| f.parent().map(|d| d.join("ffprobe")))
-        .filter(|p| p.is_file())
-        .or_else(|| coreav_worker::find_on_path("ffprobe"))
+    Some(test_oracle::require().ffprobe().to_path_buf())
 }
 
 /// Whether a missing program fails the test instead of skipping it: in CI

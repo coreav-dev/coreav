@@ -48,6 +48,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import transcode_check as tc  # noqa: E402
 import vp9_speed as vs  # noqa: E402
+import test_oracle
 
 MACHINE = 'c4-standard-8'
 USD_PER_HOUR = 0.60
@@ -77,7 +78,7 @@ def job_script(args, gate_name, first_name):
         '{ lscpu; nproc; free -g; uname -a; df -h /dev/shm; echo "smt active: '
         '$(cat /sys/devices/system/cpu/smt/active 2>&1)"; python3 --version; dpkg-query -W libvpx9 libdav1d7; '
         f'for b in {bins}; do echo "== $b"; ldd $b; done; '
-        'sha256sum bin/* vp9_speed.py thumbnail_oracle.py transcode_check.py; bin/ffmpeg -version | head -1; '
+        'sha256sum bin/* scripts/*; bin/ffmpeg -version | head -1; '
         'bin/ffmpeg -hide_banner -decoders | grep -E " (vp9|libvpx-vp9) "; '
         f'echo "default decoder for VP9:"; bin/ffmpeg -hide_banner -v verbose -i files/{shlex.quote(first_name)} '
         '-frames:v 1 -f null - 2>&1 | grep -E "Stream #0:[0-9]+ -> #0:[0-9]+ \\(vp9"; } > out/host.txt 2>&1',
@@ -89,13 +90,13 @@ def job_script(args, gate_name, first_name):
         if phase == 'speed':
             decode = ('--no-decode' if args.no_decode else
                       f'--decode-oracle $PWD/bin/decode-oracle --decode-rounds {args.decode_rounds}')
-            lines.append(f'python3 -I vp9_speed.py run --selection selection.json --files files '
+            lines.append(f'python3 -I scripts/vp9_speed.py run --selection selection.json --files files '
                          f'--coreav libvpx=$PWD/bin/coreav-libvpx --coreav fallback=$PWD/bin/coreav-fallback '
                          f'{tools} --gate files/{shlex.quote(gate_name)} --out out --tmp /dev/shm/vp9-speed '
                          f'{decode}{expect} '
                          f'> out/speed.log 2>&1')
         else:
-            lines.append(f'python3 -I vp9_speed.py oracle --selection selection.json --files files '
+            lines.append(f'python3 -I scripts/vp9_speed.py oracle --selection selection.json --files files '
                          f'--decode-oracle $PWD/bin/decode-oracle {tools} --out out --jobs 2 > out/oracle.log 2>&1')
         lines.append(f'echo "{phase} rc=$? end $(date -u +%T)" >> out/progress.txt')
     return '\n'.join(lines) + '\n'
@@ -196,8 +197,7 @@ def main():
         (up / 'files').mkdir(exist_ok=True)
         for name, path in zip(PROGRAMS, (a.coreav_libvpx, a.coreav_fallback, a.decode_oracle, a.ffmpeg, a.ffprobe)):
             shutil.copy(path, up / 'bin' / name)
-        for name in SCRIPTS:
-            shutil.copy(HERE / name, up / name)
+        test_oracle.bundle(up, SCRIPTS)
         for f in upload:
             name = f'{f["sha256"]}.{f["ext"]}'
             src = pathlib.Path(a.work) / 'files' / name

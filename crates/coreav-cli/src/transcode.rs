@@ -23,6 +23,7 @@ use crate::error::Failure;
 use crate::output::WriteFailure;
 use crate::strict_safe::{Encoder, StrictSafe};
 
+pub mod av1;
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DiagnosticHost {
     Sandbox,
@@ -334,6 +335,32 @@ fn copied_kind(kind: coreav_mkv::TrackKind) -> &'static str {
 /// The `coreav.transcode/1` summary.
 pub fn document(summary: &Summary) -> Value {
     let video = &summary.video;
+    document_common(
+        "coreav.transcode/1",
+        json!({
+            "stream_index": video.stream_index,
+            "codec": video.codec.name(),
+            "frames": video.frames,
+            "dropped_frames": video.dropped_frames,
+            "not_presented": video.not_presented,
+            "backend": video.decoder.backend.name(),
+            "encoder": video.encoder,
+            "width": video.width,
+            "height": video.height,
+            "sample_aspect": video.sample_aspect.map(|(n, d)| format!("{n}:{d}")),
+            "frame_rate": {"num": video.frame_rate.num, "den": video.frame_rate.den},
+        }),
+        &summary.remux,
+        summary.audio.as_ref(),
+    )
+}
+
+fn document_common(
+    schema: &str,
+    video: Value,
+    remux: &Remuxed,
+    encoded_audio: Option<&coreav_transcode::AudioSummary>,
+) -> Value {
     let mut audio = Vec::new();
     let mut other = Vec::new();
     let mut dropped = Vec::new();
@@ -346,7 +373,7 @@ pub fn document(summary: &Summary) -> Value {
             R::Unsupported { reason } => ("unsupported", Some(reason)),
         }
     };
-    match &summary.remux {
+    match remux {
         Remuxed::OutputMatroska(remuxed) => {
             bytes = remuxed.bytes_written;
             for t in remuxed.tracks.iter().filter(|t| !t.replaced) {
@@ -425,47 +452,37 @@ pub fn document(summary: &Summary) -> Value {
         }
     }
     #[cfg_attr(not(feature = "input-capture"), allow(unused_mut))]
-    let mut document = json!({
-        "schema": "coreav.transcode/1",
-        "output": {"bytes": bytes},
-        "video": {
-            "stream_index": video.stream_index,
-            "codec": video.codec.name(),
-            "frames": video.frames,
-            "dropped_frames": video.dropped_frames,
-            "not_presented": video.not_presented,
-            "backend": video.decoder.backend.name(),
-            "encoder": video.encoder,
-            "width": video.width,
-            "height": video.height,
-            "sample_aspect": video.sample_aspect.map(|(n, d)| format!("{n}:{d}")),
-            "frame_rate": {"num": video.frame_rate.num, "den": video.frame_rate.den},
-        },
-        "audio": audio,
-        "encoded_audio": summary.audio.as_ref().map(|a| json!({
-            "stream_index": a.stream_index,
-            "codec": a.codec.name(),
-            "sample_rate": a.sample_rate,
-            "encoder": a.encoder,
-            "channels": a.channels,
-            "bit_rate": a.bitrate,
-            "samples": a.samples,
-            "pre_skip": a.pre_skip,
-            "packets": a.packets,
-        })),
-        "other": other,
-        "dropped": dropped,
-    });
+    let mut document = serde_json::Map::from_iter([
+        ("schema".into(), json!(schema)),
+        ("output".into(), json!({"bytes": bytes})),
+        ("video".into(), video),
+        ("audio".into(), Value::Array(audio)),
+        (
+            "encoded_audio".into(),
+            encoded_audio
+                .map(|a| {
+                    json!({
+                        "stream_index": a.stream_index,
+                        "codec": a.codec.name(),
+                        "sample_rate": a.sample_rate,
+                        "encoder": a.encoder,
+                        "channels": a.channels,
+                        "bit_rate": a.bitrate,
+                        "samples": a.samples,
+                        "pre_skip": a.pre_skip,
+                        "packets": a.packets,
+                    })
+                })
+                .unwrap_or(Value::Null),
+        ),
+        ("other".into(), Value::Array(other)),
+        ("dropped".into(), Value::Array(dropped)),
+    ]);
     #[cfg(feature = "input-capture")]
-    if let Some(capture) = summary
-        .audio
-        .as_ref()
-        .and_then(|audio| audio.input_capture.as_ref())
-        && let Some(object) = document.as_object_mut()
-    {
-        object.insert("input_capture".into(), json!(capture));
+    if let Some(capture) = encoded_audio.and_then(|audio| audio.input_capture.as_ref()) {
+        document.insert("input_capture".into(), json!(capture));
     }
-    document
+    Value::Object(document)
 }
 
 /// The failure of a transcode.

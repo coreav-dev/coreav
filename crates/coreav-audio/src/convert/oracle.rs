@@ -1,8 +1,11 @@
 #![allow(clippy::indexing_slicing, clippy::unwrap_used)]
 
+#[path = "../../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use super::*;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 fn format(format: SampleFormat) -> (&'static str, &'static str) {
@@ -22,6 +25,9 @@ fn reference(
     channels: usize,
     planar: bool,
 ) -> Vec<u8> {
+    // FFmpeg's arm64 SIMD path rounds half-LSB ties away from even;
+    // its C path and CoreAV round to even.
+    const SCALAR_CONVERSION_REFERENCE: [&str; 2] = ["-cpuflags", "0"];
     let (input_format, _) = format(source);
     let (output_format, sample_format) = format(target);
     let layout = format!(
@@ -30,6 +36,7 @@ fn reference(
     );
     let mut child = Command::new(ffmpeg)
         .args(["-v", "error", "-nostdin"])
+        .args(SCALAR_CONVERSION_REFERENCE)
         .args(include_str!("../../../../scripts/oracle-audio-args.txt").split_whitespace())
         .args(["-f", input_format, "-ar", "48000", "-ac"])
         .arg(channels.to_string())
@@ -61,24 +68,7 @@ fn reference(
 
 #[test]
 fn sample_conversion_is_exact_against_the_pinned_oracle() {
-    let Some(ffmpeg) = std::env::var_os("COREAV_FFMPEG").map(PathBuf::from) else {
-        assert!(
-            std::env::var_os("CI").is_none(),
-            "CI requires COREAV_FFMPEG"
-        );
-        eprintln!("skipping sample conversion oracle; set COREAV_FFMPEG");
-        return;
-    };
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    assert!(
-        Command::new("python3")
-            .arg(root.join("scripts/oracle_pin.py"))
-            .arg("--verify-bin")
-            .arg(ffmpeg.parent().unwrap())
-            .status()
-            .unwrap()
-            .success()
-    );
+    let ffmpeg = test_oracle::require().ffmpeg().to_path_buf();
     let formats = [
         SampleFormat::S16,
         SampleFormat::S24,

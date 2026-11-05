@@ -2,7 +2,8 @@
 pinned ffmpeg: V1's fixture check in CI (docs/measurements/compat-0.1.0/
 codec-coverage-plan.md, "The tools"). Set COREAV_DECODE_ORACLE, COREAV_FFMPEG and
 COREAV_FFPROBE to the built decode-oracle (features native-h264,dav1d,libvpx
-on Linux) and the pinned ffmpeg and ffprobe; without them every test skips.
+on Linux) and the pinned ffmpeg and ffprobe. Backend-specific checks are
+selected by COREAV_DECODE_ORACLE; real oracle work always requires a qualified pair.
 Streams CoreAV's build does not decode here (no sandbox off Linux) and
 codecs the ffmpeg has no encoder for are left out. Synthetic media only."""
 import argparse
@@ -21,6 +22,7 @@ HERE = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
 import decode_breadth  # noqa: E402
+import test_oracle
 
 PROGRAMS = {k: os.environ.get(v) for k, v in (('decode_oracle', 'COREAV_DECODE_ORACLE'), ('ffmpeg', 'COREAV_FFMPEG'),
                                               ('ffprobe', 'COREAV_FFPROBE'))}
@@ -28,10 +30,12 @@ SANDBOX = sys.platform.startswith('linux')
 FRAMES = '40'
 
 
-@unittest.skipUnless(all(PROGRAMS.values()), 'COREAV_DECODE_ORACLE, COREAV_FFMPEG and COREAV_FFPROBE are not set')
+@unittest.skipUnless(PROGRAMS['decode_oracle'], 'COREAV_DECODE_ORACLE is not set')
 class Fixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        oracle = test_oracle.require(PROGRAMS['ffmpeg'], PROGRAMS['ffprobe'])
+        PROGRAMS.update(ffmpeg=str(oracle.ffmpeg), ffprobe=str(oracle.ffprobe))
         cls.dir = pathlib.Path(tempfile.mkdtemp(prefix='decode-breadth-fixtures-'))
         cls.entries = []
         cls.made = {}
@@ -115,7 +119,6 @@ class Fixtures(unittest.TestCase):
         self.assertEqual(s['denominator'], len(self.entries))
 
 
-FFMPEG = PROGRAMS['ffmpeg']
 T709 = 'colorprim=bt709:transfer=bt709:colormatrix=bt709'
 T601 = 'colorprim=smpte170m:transfer=smpte170m:colormatrix=smpte170m'
 V709 = ['-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709']
@@ -123,7 +126,6 @@ V601 = ['-colorspace', 'smpte170m', '-color_primaries', 'smpte170m', '-color_trc
 VP9 = ['-c:v', 'libvpx-vp9', '-b:v', '500k', '-g', '25', '-auto-alt-ref', '0']
 
 
-@unittest.skipUnless(FFMPEG, 'COREAV_FFMPEG is not set')
 class UnconvertedReference(unittest.TestCase):
     """The reference's no-conversion pin (codec-coverage-plan.md, "The reference"): a stream whose colour
     description, range, pixel format or size changes mid-stream gives the MD5s of its segments decoded one at a time,
@@ -132,6 +134,8 @@ class UnconvertedReference(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        oracle = test_oracle.require(PROGRAMS['ffmpeg'], PROGRAMS['ffprobe'])
+        cls.ffmpeg, cls.ffprobe = str(oracle.ffmpeg), str(oracle.ffprobe)
         cls.dir = pathlib.Path(tempfile.mkdtemp(prefix='decode-breadth-unconverted-'))
         (cls.dir / 'gconv').mkdir()
         cls.env = {'PATH': os.environ.get('PATH', ''), 'HOME': os.environ.get('HOME', ''),
@@ -142,7 +146,7 @@ class UnconvertedReference(unittest.TestCase):
         __import__('shutil').rmtree(cls.dir, ignore_errors=True)
 
     def ff(self, *args):
-        done = subprocess.run([FFMPEG, '-nostdin', '-v', 'error', '-y', *args], capture_output=True, text=True,
+        done = subprocess.run([self.ffmpeg, '-nostdin', '-v', 'error', '-y', *args], capture_output=True, text=True,
                               env=self.env)
         self.assertEqual(done.returncode, 0, done.stderr)
 
@@ -177,7 +181,7 @@ class UnconvertedReference(unittest.TestCase):
 
     def md5s(self, path, unconverted, codec='h264', pix_fmt='yuv420p', decoder=None):
         backend = 'libvpx' if codec == 'vp9' and not decoder else 'ffmpeg'
-        cmd = decode_breadth.thumbnail_oracle.framemd5_command(FFMPEG, path, path.suffix[1:], 0, None, backend, codec,
+        cmd = decode_breadth.thumbnail_oracle.framemd5_command(self.ffmpeg, path, path.suffix[1:], 0, None, backend, codec,
                                                                pix_fmt, unconverted=unconverted)
         if decoder:
             cmd[cmd.index('-i'):cmd.index('-i')] = ['-c:v', decoder]
@@ -228,7 +232,7 @@ class UnconvertedReference(unittest.TestCase):
 
 
     def pix_fmt(self, path):
-        done = subprocess.run([PROGRAMS['ffprobe'], '-v', 'error', '-select_streams', 'v:0', '-show_entries',
+        done = subprocess.run([self.ffprobe, '-v', 'error', '-select_streams', 'v:0', '-show_entries',
                                'stream=pix_fmt', '-of', 'csv=p=0', str(path)], capture_output=True, text=True,
                               env=self.env)
         self.assertEqual(done.returncode, 0, done.stderr)
@@ -239,14 +243,12 @@ class UnconvertedReference(unittest.TestCase):
         is still converted to the first frame's format without alpha. That path is taken only where ffprobe lists
         an alpha format: VP9 and VP8 with alpha are listed without it, while an alpha codec where the change is
         converted, ProRes, is in group other, which misses as codec_not_in_build before any MD5 is compared."""
-        if not PROGRAMS['ffprobe']:
-            self.skipTest('COREAV_FFPROBE is not set')
         for name, encoder in (('vp9', ['-c:v', 'libvpx-vp9']), ('vp8', ['-c:v', 'libvpx'])):
             path = self.dir / f'{name}_alpha.webm'
             self.ff(*self.source(64, 48, 0), '-pix_fmt', 'yuva420p', *encoder, '-auto-alt-ref', '0', str(path))
             self.assertEqual(self.pix_fmt(path), 'yuv420p', name)
             self.assertNotIn('-pix_fmt', decode_breadth.thumbnail_oracle.framemd5_command(
-                FFMPEG, path, 'webm', 0, None, 'libvpx', name, self.pix_fmt(path), unconverted=True))
+                self.ffmpeg, path, 'webm', 0, None, 'libvpx', name, self.pix_fmt(path), unconverted=True))
         parts = []
         for i, (profile, pix_fmt) in enumerate((('4444', 'yuva444p10le'), ('standard', 'yuv422p10le'))):
             part = self.dir / f'prores.{i}.mov'

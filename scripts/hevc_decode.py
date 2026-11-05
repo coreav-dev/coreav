@@ -266,7 +266,7 @@ def run(args):
     require(sys.platform == 'linux', 'linux_actions_required')
     require(0 < args.max_memory_bytes <= 4 << 30
             and 0 < args.max_picture_bins <= args.max_stream_bins < 1 << 64, 'driver_budgets')
-    require(not list(harness.oracle_pin.verify_bin(args.oracle_bin)), 'pinned_oracle_required')
+    require(not list(harness.test_oracle.verify_bin(args.oracle_bin)), 'pinned_oracle_required')
     args.out.mkdir(parents=True, exist_ok=False)
     census = harness.read_json(args.census)
     selected = streams(args, census)

@@ -23,6 +23,8 @@ import os
 import subprocess
 import sys
 import time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import test_oracle
 
 # (name, size, frames, extra filters, x264 parameters): CABAC and CAVLC, P and B slices, both direct modes,
 # explicit and implicit weighted prediction, 8x8 transforms, several slices a picture, a cropped height, and
@@ -120,6 +122,7 @@ def main():
     ap.add_argument("--report")
     args = ap.parse_args()
     if args.generate:
+        args.generate = str(test_oracle.require(args.generate).ffmpeg)
         generate(args.generate, args.streams)
     streams = sorted(f for f in os.listdir(args.streams) if f.endswith(".h264"))
     if not streams:

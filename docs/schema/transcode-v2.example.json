@@ -1,0 +1,56 @@
+{
+  "schema": "coreav.transcode/2",
+  "output": {
+    "bytes": 4096
+  },
+  "video": {
+    "stream_index": 0,
+    "codec": "h264",
+    "frames": 4,
+    "not_presented": 0,
+    "backend": "native",
+    "width": 64,
+    "height": 64,
+    "sample_aspect": null,
+    "encoding": {
+      "codec": "av1",
+      "backend": "svt-av1",
+      "version": "4.2.0",
+      "kind": "software",
+      "isolation": "sandboxed",
+      "preset": 8,
+      "crf": 32,
+      "cadence": {
+        "num": 120,
+        "den": 7
+      },
+      "bit_depth": 8,
+      "chroma": "4:2:0",
+      "color": {
+        "primaries": 1,
+        "transfer": 1,
+        "matrix": 1,
+        "full_range": false,
+        "chroma_location": "left"
+      },
+      "keyint": 85,
+      "parallelism_level": 1,
+      "thread_limit": null,
+      "retained_budget": 40000,
+      "fixed_retained_bytes": 256,
+      "retained_picture_bytes": 6400,
+      "segment_frames": 6,
+      "segments": 1,
+      "address_space": 1073741824
+    }
+  },
+  "audio": [
+    {
+      "stream_index": 1,
+      "codec": "aac"
+    }
+  ],
+  "encoded_audio": null,
+  "other": [],
+  "dropped": []
+}

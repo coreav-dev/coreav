@@ -66,6 +66,8 @@ import threading
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 POLICY = ROOT / "docs/schema/policy-examples/web-upload.json"
 
 # name: (fixture, command arguments with {} for the fixture's path,
@@ -307,16 +309,14 @@ STATS = re.compile(r'^\{"remote_stats":(\{.*\})\}$', re.MULTILINE)
 REFS = re.compile(r"^==\d+== I\s+refs:\s+([\d,]+)\s*$", re.MULTILINE)
 
 
-REQUIRED_REFUSALS = {"ffmpeg-C02-join", "ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"}
+REQUIRED_REFUSALS = {"ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"}
 
 
 def required_refusal(coreav, command):
     command = [command[0], "-y", *command[1:]]
     environment = {k: v for k, v in os.environ.items()
                    if k not in {"COREAV_STRICT_SAFE", "COREAV_FALLBACK_ACTIVE"}}
-    pin = shutil.which("ffmpeg")
-    if pin is None:
-        return "pinned ffmpeg missing"
+    pin = str(test_oracle.require().ffmpeg)
     output = pathlib.Path(command[-1])
     reference = output.with_name("reference.mp4")
     sentinel = b"preserve existing destination"
@@ -396,7 +396,7 @@ def derive(fixtures, work):
     whose source is missing or that ffmpeg cannot write is left out."""
     for name, (source, form, how) in DERIVED.items():
         if (fixtures / source).is_file():
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(fixtures / source), *how,
+            subprocess.run([str(test_oracle.require().ffmpeg), "-v", "error", "-y", "-i", str(fixtures / source), *how,
                             "-fflags", "+bitexact", "-f", form, str(work / name)],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120, check=False)
 
@@ -425,7 +425,7 @@ def generate(work):
     errors = {}
     for name, encode in GENERATED.items():
         try:
-            done = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", *encode, str(work / name)],
+            done = subprocess.run([str(test_oracle.require().ffmpeg), "-nostdin", "-v", "error", "-y", *encode, str(work / name)],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=600,
                                   check=False)
         except subprocess.TimeoutExpired:

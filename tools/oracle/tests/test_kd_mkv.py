@@ -8,11 +8,14 @@ import pathlib
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "scripts"))
+import test_oracle
 SPEC = importlib.util.spec_from_file_location('oracle_kd_mkv', ROOT / 'scripts' / 'oracle_kd_mkv.py')
 kd = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(kd)
@@ -183,17 +186,6 @@ def ebml(eid, payload=b''):
     return eid.to_bytes((eid.bit_length() + 7) // 8, 'big') + (1 << 56 | len(payload)).to_bytes(8, 'big') + payload
 
 
-def pinned(tool):
-    """Whether the `tool` (`ffmpeg` or `ffprobe`) on the path is the pinned
-    oracle build."""
-    spec = importlib.util.spec_from_file_location('oracle_pin', ROOT / 'scripts' / 'oracle_pin.py')
-    pin = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(pin)
-    try:
-        version = subprocess.run([tool, '-version'], capture_output=True, timeout=60, check=False).stdout
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return version.startswith(f"{tool} version {pin.load()['BUILD']}-".encode())
 
 
 def ac3_frame(bsid=6, acmod=7, xbsi1e=1, mode=1, levels=(4, 4, 4, 4), crc=True):
@@ -336,13 +328,12 @@ class AnnexDDownmix(unittest.TestCase):
             self.assertEqual(data[offset], 0x82)
             self.assertEqual(data[offset + len(payload) - sum(map(len, frames)):offset + len(payload)],
                              b''.join(frames))
-        if pinned('ffprobe'):
-            listed = subprocess.run(['ffprobe', '-v', 'error', '-of', 'json', '-show_streams', '-show_packets',
-                                     str(path)], capture_output=True, timeout=60, check=True).stdout
-            document = json.loads(listed)
-            (stream,) = document['streams']
-            self.assertEqual((stream['index'], stream['codec_name']), (0, 'ac3'))
-            self.assertEqual(tuple((int(p['pos']), int(p['size'])) for p in document['packets']), found.spans)
+        listed = subprocess.run([test_oracle.require().ffprobe, '-v', 'error', '-of', 'json', '-show_streams', '-show_packets',
+                                 str(path)], capture_output=True, timeout=60, check=True).stdout
+        document = json.loads(listed)
+        (stream,) = document['streams']
+        self.assertEqual((stream['index'], stream['codec_name']), (0, 'ac3'))
+        self.assertEqual(tuple((int(p['pos']), int(p['size'])) for p in document['packets']), found.spans)
 
     def test_values_only_where_annex_d_defines_them(self):
         # No surround channels (3/0) keeps no surround level; no centre
@@ -428,18 +419,17 @@ class AnnexDDownmix(unittest.TestCase):
         with mock.patch.object(kd.policy_ref, 'MAX_BLOCK', 3 + len(frame)):
             self.assertEqual(self.evidence(whole), [])
 
-    @unittest.skipUnless(pinned('ffmpeg') and pinned('ffprobe'), 'needs the pinned ffmpeg and ffprobe on the path')
     def test_the_pinned_oracle_still_prints_no_downmix(self):
         directory = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, directory)
         path = directory / 'f.mkv'
-        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'sine=duration=0.2', '-af',
+        subprocess.run([test_oracle.require().ffmpeg, '-v', 'error', '-f', 'lavfi', '-i', 'sine=duration=0.2', '-af',
                         'pan=5.1|c0=c0|c1=c0|c2=c0|c3=c0|c4=c0|c5=c0', '-c:a', 'ac3', '-dmix_mode', 'ltrt',
                         '-ltrt_cmixlev', '0.707', '-ltrt_surmixlev', '0.5', '-loro_cmixlev', '0.595',
                         '-loro_surmixlev', '0.707', str(path)], check=True, timeout=120)
         (found,) = kd.annex_d_downmix(path)
         self.assertEqual(found.coreav, ('1', '0.707107', '0.500000', '0.594604', '0.707107'))
-        listed = subprocess.run(['ffprobe', '-v', 'error', '-of', 'json', '-show_entries',
+        listed = subprocess.run([test_oracle.require().ffprobe, '-v', 'error', '-of', 'json', '-show_entries',
                                  'stream=' + ','.join(kd.DOWNMIX_KEYS), str(path)],
                                 capture_output=True, timeout=60, check=True).stdout
         (stream,) = json.loads(listed)['streams']
@@ -510,16 +500,6 @@ def av1_matroska(private, colour=None, codec=b'V_AV1', encoded=False, before=b''
                    + ebml(0x1F43B675, ebml(0xE7, b'\x00') + block)))
 
 
-def pinned_ffprobe():
-    """Whether the `ffprobe` on the path is the pinned oracle build."""
-    spec = importlib.util.spec_from_file_location('oracle_pin', ROOT / 'scripts' / 'oracle_pin.py')
-    pin = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(pin)
-    try:
-        version = subprocess.run(['ffprobe', '-version'], capture_output=True, timeout=60, check=False).stdout
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return version.startswith(f"ffprobe version {pin.load()['BUILD']}-".encode())
 
 
 # Range 1 is studio swing; ChromaSitingHorz 1 and ChromaSitingVert 2 are
@@ -631,13 +611,12 @@ class Av1CodecStrings(unittest.TestCase):
         private[-1] |= 1
         self.assertEqual(self.evidence(av1_matroska(bytes(private)))[1:], ([], []), 'a set bit after the trailing one')
 
-    @unittest.skipUnless(pinned_ffprobe(), 'needs the pinned ffprobe on the path')
     def test_the_pinned_oracle_still_gives_its_string(self):
         for name, (private, colour, record, _, _) in self.SHAPES.items():
             path, *_ = self.evidence(av1_matroska(private, colour))
             (found,) = record(path)
             record = RECORDS[record]
-            listed = subprocess.run(['ffprobe', '-v', 'error', '-of', 'json', '-show_entries',
+            listed = subprocess.run([test_oracle.require().ffprobe, '-v', 'error', '-of', 'json', '-show_entries',
                                      'stream=mime_codec_string', str(path)],
                                     capture_output=True, timeout=60, check=True).stdout
             strings = [s.get('mime_codec_string') for s in json.loads(listed)['streams']]

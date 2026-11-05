@@ -13,14 +13,14 @@ SPEC.loader.exec_module(checker)
 
 
 class ConcatRefusal(unittest.TestCase):
-    def test_only_the_four_h264_concat_fixtures_require_refusal(self):
+    def test_only_ac3_and_eac3_concat_fixtures_require_refusal(self):
         with tempfile.TemporaryDirectory() as temporary:
             out = Path(temporary)
             for codec in ("ac3", "eac3", "flac", "alac", "other"):
                 with self.subTest(codec=codec):
                     cases = list(checker.cases(out / f"av_{codec}.mp4", out))
                     self.assertEqual(next(c[3] for c in cases if c[0] == "join"), "twice")
-                    self.assertEqual(cases[-1][3], "refused" if codec != "other" else "twice")
+                    self.assertEqual(cases[-1][3], "refused" if codec in {"ac3", "eac3"} else "twice")
                     self.assertTrue(all(c[3] != "refused" for c in cases[:-1]))
 
     def test_unexpected_native_success_wrong_reason_and_published_output_fail(self):
@@ -99,20 +99,19 @@ class ConcatRefusal(unittest.TestCase):
         self.assertEqual(problems, [])
         self.assertEqual(calls, 3)
 
-    def test_h264_refusal_uses_the_same_complete_fallback_contract(self):
-        problems, calls = self.exercise(reason=checker.CONCAT_H264_REASON)
-        self.assertEqual(problems, [])
-        self.assertEqual(calls, 3)
+    def test_lossless_concat_keeps_the_complete_packet_contract(self):
+        packets = [(101, "first", 0), (99, "second", 1)]
+        self.assertTrue(checker.EXPECTED["twice"](packets, packets + packets))
+        self.assertFalse(checker.EXPECTED["twice"](packets, packets))
+        self.assertFalse(checker.EXPECTED["twice"](packets, packets + list(reversed(packets))))
 
     def test_each_fixture_requires_its_own_reason(self):
         self.assertEqual(checker.CONCAT_REFUSALS, {
             "av_ac3.mp4": checker.CONCAT_REASON,
             "av_eac3.mp4": checker.CONCAT_REASON,
-            "av_flac.mp4": checker.CONCAT_H264_REASON,
-            "av_alac.mp4": checker.CONCAT_H264_REASON,
         })
-        for expected, observed in [(checker.CONCAT_REASON, checker.CONCAT_H264_REASON),
-                                   (checker.CONCAT_H264_REASON, checker.CONCAT_REASON)]:
+        for expected, observed in [(checker.CONCAT_REASON, b"another refusal"),
+                                   (b"another refusal", checker.CONCAT_REASON)]:
             with tempfile.TemporaryDirectory() as temporary:
                 problems = []
                 done = subprocess.CompletedProcess([], 4, b"", observed)

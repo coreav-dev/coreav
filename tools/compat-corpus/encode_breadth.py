@@ -60,6 +60,7 @@ sys.path[:0] = [str(HERE), str(HERE.parent.parent / 'scripts')]
 import classify  # noqa: E402
 import decoded_output
 import oracle_pin
+import test_oracle
 import opus_encode_check as opus  # noqa: E402
 import r3  # noqa: E402
 import release_round  # noqa: E402
@@ -867,7 +868,7 @@ def oracle_programs(opts):
         raise ValueError('ffmpeg must be the pinned installation executable')
     if pathlib.Path(opts.ffprobe).resolve() != (directory / 'ffprobe').resolve():
         raise ValueError('ffprobe must be installed beside the pinned ffmpeg')
-    problems = list(oracle_pin.verify_bin(directory))
+    problems = list(test_oracle.verify_bin(directory))
     if problems:
         raise ValueError('; '.join(problems))
     return {name: {'version': subprocess.run([str(getattr(opts, name)), '-version'], capture_output=True,

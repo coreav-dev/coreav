@@ -28,6 +28,9 @@ import json, os, subprocess, sys, time
 
 tool = os.path.basename(sys.argv[0])
 argv = sys.argv[1:]
+if argv == ['-version'] and tool in ('ffmpeg', 'ffprobe'):
+    print(tool + ' version %(build)s')
+    sys.exit(0)
 path = argv[argv.index('-i') + 1] if tool == 'ffmpeg' else argv[-1]
 spec = json.load(open(path + '.spec')).get({'ffprobe': 'probe', 'ffmpeg': 'reference', 'decode-oracle': 'coreav'}[tool], {})
 with open(path + '.calls', 'a') as log:
@@ -76,13 +79,14 @@ def failure(stage, kind, message, sent=3):
     return {'stage': stage, 'kind': kind, 'message': message, 'packets_sent': sent}
 
 
+@unittest.skipUnless(sys.platform == 'linux', 'Linux banner-only stand-in qualification')
 class Harness(unittest.TestCase):
     def setUp(self):
         self.dir = pathlib.Path(tempfile.mkdtemp(prefix='decode-breadth-'))
         self.addCleanup(__import__('shutil').rmtree, self.dir, True)
         for tool in ('ffprobe', 'ffmpeg', 'decode-oracle'):
             path = self.dir / tool
-            path.write_text(STUB % {'python': sys.executable})
+            path.write_text(STUB % {'python': sys.executable, 'build': decode_breadth.test_oracle.oracle_pin.load()['BUILD']})
             path.chmod(path.stat().st_mode | stat.S_IXUSR)
         self.entries = []
 

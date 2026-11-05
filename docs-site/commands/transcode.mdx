@@ -1,18 +1,18 @@
 ---
 title: "coreav transcode"
 sidebarTitle: "transcode"
-description: "Re-encode the video of a file to H.264 in MP4 and copy its audio. Builds with a decoder backend only."
+description: "Re-encode video in MP4 and copy its audio. H.264 is the default; explicit AV1 needs the native SVT-AV1 backend."
 ---
 
 import Help from '/snippets/help/transcode.mdx';
 
 <Note>
-`coreav transcode` is only in builds with a decoder backend ([build features](/build-features)). It is supported for H.264 sources. Other source codecs (HEVC, AV1, VP9, VP8, ProRes) are experimental.
+The command needs an input decoder from the [build's backends](/build-features). H.264 output from H.264 sources is supported. Other source codecs (HEVC, AV1, VP9, VP8, ProRes) and AV1 output are experimental.
 </Note>
 
 `coreav transcode INPUT OUTPUT` re-encodes the video of an MP4, MOV, Matroska or WebM file to H.264 in MP4 and copies its audio, as `ffmpeg -i IN -c:v libx264 -c:a copy OUT.mp4` does. CoreAV decodes the video with the backends of the build, and the encoder is a separate program that you install: an `x264` program, or an `ffmpeg` program built with libx264. CoreAV runs the encoder as a resource-limited process and gives it only raw frames. In [strict-safe mode](/strict-safe#what-strict-safe-mode-covers) the encoder is an `x264` program only, and the build's FFmpeg backend does not decode: what would need an `ffmpeg` program is refused with exit status 4.
 
-With an H.264 source, the options and the summary ([`coreav.transcode/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/transcode-v1.md)) are stable. With other source codecs, what the command does may change, while its options and summary stay the same ([measurements](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/transcode.md)).
+For H.264 output from an H.264 source, the options and the summary ([`coreav.transcode/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/transcode-v1.md)) are stable. With other source codecs, what that H.264 path does may change, while its options and summary stay the same ([measurements](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/transcode.md)).
 
 For output without video, use [`coreav ffmpeg`](/commands/ffmpeg) with `-vn -c:a aac` for MP4 or M4A, `-vn -c:a libopus` for MP4 in a `libopus` build, or a `.mp3` output for external libmp3lame encoding. `coreav transcode` itself still requires video and does not select MP3.
 
@@ -24,6 +24,26 @@ coreav transcode --crf 20 --preset slow --scale 1280:-2 input.mkv output.mp4
 ```
 
 [The transcode design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/transcode.md) has the pipeline, the limits and the bars.
+
+## AV1 output
+
+<Warning>
+AV1 requires a standalone Unix binary built with `svt-av1-native` and an input decoder. The release feature sets do not select this native backend yet. Native correctness and release packaging remain unverified. See the [experimental encoder build requirements](/build-features#experimental-av1-encoder).
+</Warning>
+
+Only explicit `--video av1` selects the built-in SVT-AV1 worker. `--encoder auto` and `--encoder svt-av1` both select that worker, without an external video-encoder fallback. H.264 remains the default.
+
+```sh
+coreav transcode --video av1 --preset 8 --crf 32 input.mp4 output.mp4
+```
+
+AV1 accepts planar 8-bit 4:2:0 pictures with SDR transfer metadata and an applied source range. HDR and ten-bit input are refused. Source timestamps are preserved; the encoder does not repair or snap them to a constant frame rate. Only an explicit `--scale` resizes pictures.
+
+Preset and CRF are integer tokens, with defaults 8 and 32. Fractional and exponent notation are refused, even when a float would round to an integer. AV1 refuses `--bitrate`, `--threads`, named x264 presets and incompatible encoder choices. Parallelism level 1 is not a thread-count limit.
+
+Completed AV1 jobs print [`coreav.transcode/2`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/transcode-v2.md). H.264 jobs keep the version 1 document. The Python embedded command refuses AV1 because it cannot host this private worker. AV1 output is not added to `coreav ffmpeg`.
+
+The worker uses the existing sandbox launcher. Strict-safe mode still refuses AV1 on macOS because the launcher cannot enforce its memory limit there.
 
 ## Options
 

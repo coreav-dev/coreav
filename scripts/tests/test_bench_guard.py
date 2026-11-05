@@ -59,7 +59,7 @@ class InstructionTolerance(unittest.TestCase):
 class FfmpegGuard(unittest.TestCase):
     def test_required_refusals_are_only_the_two_approved_commands(self):
         self.assertEqual(bench_guard.REQUIRED_REFUSALS,
-                         {"ffmpeg-C02-join", "ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"})
+                         {"ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"})
         self.assertEqual(bench_guard.CASES["ffmpeg-C02-join"],
                          ("video.mp4", ["ffmpeg", "-f", "concat", "-i", "{inputs:concat}",
                                         "-c", "copy", "{out}/out.mp4"]))
@@ -99,7 +99,7 @@ class FfmpegGuard(unittest.TestCase):
                     output.write_bytes(b"wrong" if fault == "bytes" else b"exact pinned output")
                     return SimpleNamespace(returncode=1 if fault == "status" else 0, stdout=b"")
 
-                with patch.object(bench_guard.shutil, "which", return_value="/pin/ffmpeg"), \
+                with patch.object(bench_guard.test_oracle, "require", return_value=SimpleNamespace(ffmpeg=pathlib.Path('/pin/ffmpeg'))), \
                      patch.object(bench_guard.subprocess, "run", side_effect=run):
                     error = bench_guard.required_refusal("coreav", command)
                 if fault is None:

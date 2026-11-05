@@ -27,7 +27,7 @@ class FixtureContracts(unittest.TestCase):
             cause = ValueError("private-marker")
             with mock.patch.object(FIXTURES.sys, "platform", "linux"), \
                  mock.patch.object(FIXTURES, "hostile_rows", return_value=[]), \
-                 mock.patch.object(FIXTURES.oracle_pin, "verify_bin", return_value=[]), \
+                 mock.patch.object(FIXTURES.test_oracle, "verify_bin", return_value=[]), \
                  mock.patch.object(FIXTURES.oracle_pin, "load", return_value={"X264_COMMIT": "1234567"}), \
                  mock.patch.object(FIXTURES, "commands", return_value=[{"kind": "inspect-sps", "argv": ["tool"]}]), \
                  mock.patch.object(FIXTURES, "execute", side_effect=[b"x264 1234567", cause]):

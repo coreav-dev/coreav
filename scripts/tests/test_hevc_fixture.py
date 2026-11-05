@@ -152,6 +152,8 @@ class Registration(unittest.TestCase):
                 args = ['hevc_fixture.py', 'verify', '--ffmpeg', '/ffmpeg', '--ffprobe', '/ffprobe',
                         '--output', directory, '--registration', str(registration)]
                 with mock.patch.object(sys, 'argv', args), \
+                     mock.patch.object(runner.test_oracle, 'require', return_value=runner.test_oracle.Oracle(
+                         pathlib.Path('/ffmpeg'), pathlib.Path('/ffprobe'))), \
                      mock.patch.object(runner, 'binary_identity', return_value=expected['oracle']), \
                      mock.patch.object(runner, 'prepare', return_value=expected), \
                      self.assertRaisesRegex(ValueError, 'expected hashes differ'):
@@ -162,6 +164,8 @@ class Registration(unittest.TestCase):
             args = ['hevc_fixture.py', 'verify', '--ffmpeg', '/ffmpeg', '--ffprobe', '/ffprobe',
                     '--output', directory]
             with mock.patch.object(sys, 'argv', args), \
+                 mock.patch.object(runner.test_oracle, 'require', return_value=runner.test_oracle.Oracle(
+                     pathlib.Path('/ffmpeg'), pathlib.Path('/ffprobe'))), \
                  mock.patch.object(runner, 'binary_identity', return_value={}), \
                  mock.patch.object(runner, 'prepare') as prepare, \
                  self.assertRaisesRegex(ValueError, 'oracle identity differs'):

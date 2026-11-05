@@ -64,6 +64,7 @@ on:
       - docs/design/png-bmp-yuv-actions.md
       - scripts/tests/test_registered_candidate.py
       - scripts/oracle-ffmpeg.env
+      - scripts/oracle-ffmpeg-macos.env
       - scripts/install-oracle-ffmpeg.sh
       - scripts/install-x264.sh
       - scripts/clip_check.py
@@ -81,6 +82,8 @@ on:
       - scripts/opus_encode_check.py
       - scripts/oracle_audio.py
       - scripts/oracle_pin.py
+      - scripts/oracle_pin_macos.py
+      - scripts/test_oracle.py
       - scripts/oracle-audio-args.txt
       - scripts/thumbnail_oracle.py
       - scripts/remux_check.py

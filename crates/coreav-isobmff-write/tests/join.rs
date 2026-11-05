@@ -57,6 +57,7 @@ fn join_choosing(
             video,
             audio,
             placement: Placement::AfterVideo,
+            compatibility: None,
         },
         &mut out,
     )?;
@@ -66,6 +67,26 @@ fn join_choosing(
 
 fn join(inputs: &[&[u8]]) -> Result<(JoinSummary, Vec<u8>), JoinError> {
     join_with(inputs, JoinAudio::First)
+}
+
+#[test]
+fn h264_field_metadata_still_reports_its_omission() {
+    let source = movie(&[ibbp_video(24, 24)]);
+    let (summary, output) = join_with(&[&source, &source], JoinAudio::None).unwrap();
+    let field = FourCc(*b"fiel");
+    assert!(
+        probe_all(&source).tracks[0]
+            .description
+            .other_boxes
+            .contains(&field)
+    );
+    assert!(summary.boxes_left_out.contains(&field));
+    assert!(
+        !probe_all(&output).tracks[0]
+            .description
+            .other_boxes
+            .contains(&field)
+    );
 }
 
 fn probe_all(data: &[u8]) -> Movie {
@@ -510,6 +531,7 @@ fn inputs_go_where_they_are_placed() {
                 video: VideoChoice::First,
                 audio: JoinAudio::First,
                 placement: Placement::At(at),
+                compatibility: None,
             },
             &mut out,
         )
@@ -634,6 +656,7 @@ fn unedited_video_keeps_its_full_composition_span() {
                     video: VideoChoice::First,
                     audio: JoinAudio::None,
                     placement: placement.clone(),
+                    compatibility: None,
                 },
                 &mut output,
             )
@@ -646,6 +669,106 @@ fn unedited_video_keeps_its_full_composition_span() {
             };
             assert_eq!(summary.inputs[0].video_end, expected);
         }
+    }
+}
+
+#[test]
+fn decode_duration_does_not_trim_composition_delayed_frames_on_a_round_trip() {
+    let mut video = ibbp_video(25, 25);
+    video.edits.clear();
+    let source = movie(&[video]);
+    let (_, output) = join_with(&[&source, &source], JoinAudio::None).unwrap();
+    let joined = probe_all(&output);
+    let track = &joined.tracks[0];
+    assert_eq!(track.mdhd_duration, track.sample_duration);
+    let expected: Vec<_> = packets(&output, &joined, 0)
+        .into_iter()
+        .filter(|packet| packet.presented)
+        .map(|packet| bytes(&output, &packet))
+        .collect();
+    assert_eq!(expected.len(), 50);
+    let copied = clip(&output, q(0, 1), None).unwrap();
+    let movie = probe_all(&copied);
+    let actual: Vec<_> = packets(&copied, &movie, 0)
+        .into_iter()
+        .filter(|packet| packet.presented)
+        .map(|packet| bytes(&copied, &packet))
+        .collect();
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn lossless_join_metadata_combines_both_inputs_without_changing_packets() {
+    let flac = |minimum: u16, maximum: u16, low: u32, high: u32| {
+        let mut config = common::dfla(12_800, 16)[8..].to_vec();
+        config[8..10].copy_from_slice(&minimum.to_be_bytes());
+        config[10..12].copy_from_slice(&maximum.to_be_bytes());
+        config[12..15].copy_from_slice(&low.to_be_bytes()[1..]);
+        config[15..18].copy_from_slice(&high.to_be_bytes()[1..]);
+        config[26..42].fill(0xaa);
+        common::av_movie_with(
+            common::lossless_entry(b"fLaC", common::bx(b"dfLa", &config)),
+            false,
+        )
+    };
+    let first = flac(256, 4096, 10, 500);
+    let second = flac(128, 8192, 8, 750);
+    let (summary, output) = join(&[&first, &second]).unwrap();
+    assert_join(&[&first, &second], &output, &summary);
+    let movie = probe_all(&output);
+    let config = &movie.tracks[1]
+        .description
+        .codec_config
+        .as_ref()
+        .unwrap()
+        .data;
+    assert_eq!(&config[8..12], &[0, 128, 32, 0]);
+    assert_eq!(&config[12..18], &[0, 0, 8, 0, 2, 238]);
+    assert_eq!(
+        u64::from_be_bytes(config[18..26].try_into().unwrap()) & ((1 << 36) - 1),
+        4096
+    );
+    assert_eq!(&config[26..42], &[0; 16]);
+
+    let alac = |maximum: u32, average: u32| {
+        let mut config = common::alac_cookie(12_800, 16)[8..].to_vec();
+        config[16..20].copy_from_slice(&maximum.to_be_bytes());
+        config[20..24].copy_from_slice(&average.to_be_bytes());
+        common::av_movie_with(
+            common::lossless_entry(b"alac", common::bx(b"alac", &config)),
+            false,
+        )
+    };
+    let first = alac(200, 1000);
+    let second = alac(400, 2000);
+    let (summary, output) = join(&[&first, &second]).unwrap();
+    assert_join(&[&first, &second], &output, &summary);
+    let movie = probe_all(&output);
+    let config = &movie.tracks[1]
+        .description
+        .codec_config
+        .as_ref()
+        .unwrap()
+        .data;
+    assert_eq!(u32::from_be_bytes(config[16..20].try_into().unwrap()), 400);
+    assert_eq!(&config[20..24], &[0; 4]);
+}
+
+#[test]
+fn lossless_join_refuses_different_rate_or_precision_before_output() {
+    for (rate, bits) in [(24_000, 16), (12_800, 24)] {
+        let first = common::av_movie_with(
+            common::lossless_entry(b"fLaC", common::dfla(12_800, 16)),
+            false,
+        );
+        let second = common::av_movie_with(
+            common::lossless_entry(b"fLaC", common::dfla(rate, bits)),
+            false,
+        );
+        assert!(matches!(
+            join(&[&first, &second]),
+            Err(JoinError::Mismatch { .. })
+        ));
     }
 }
 
@@ -692,6 +815,7 @@ fn the_work_limit_is_checked_before_writing() {
                 video: VideoChoice::First,
                 audio: JoinAudio::First,
                 placement: Placement::AfterVideo,
+                compatibility: None,
             },
             &mut out,
         );
@@ -1024,6 +1148,7 @@ fn inputs_that_cannot_be_joined_on_their_own() {
                 video: VideoChoice::First,
                 audio: JoinAudio::First,
                 placement: Placement::AfterVideo,
+                compatibility: None,
             },
             Vec::new()
         ),

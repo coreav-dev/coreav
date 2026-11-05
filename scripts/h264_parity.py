@@ -110,6 +110,10 @@ GATE_BASELINE = 3
 INCOMPLETE = 3
 
 
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import test_oracle
+
 class CommandFailed(Exception):
     """A command of a stream exited with an error: the stream has no time."""
 
@@ -388,6 +392,7 @@ def main():
                     help='frames of the gate stream (default 300)')
     ap.add_argument('streams', nargs='+')
     args = ap.parse_args()
+    args.ffmpeg = str(test_oracle.require(args.ffmpeg).ffmpeg)
     host = machine()
     print(f"machine: {host['cpu_model']} (family {host['cpu_family']}, model "
           f"{host['cpu_model_number']}, stepping {host['cpu_stepping']}), {host['cpu_mhz']} MHz, "

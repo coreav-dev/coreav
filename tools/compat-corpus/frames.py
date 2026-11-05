@@ -28,6 +28,8 @@ import os
 import pathlib
 import subprocess
 import sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / 'scripts'))
+import test_oracle
 
 TIMEOUT = 600
 ENV = {**os.environ, 'COREAV_STRICT_SAFE': '1'}
@@ -143,7 +145,7 @@ def judge(opts, native, args, path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--coreav', required=True)
-    ap.add_argument('--ffprobe', default='ffprobe')
+    ap.add_argument('--ffprobe')
     ap.add_argument('--media', nargs='+', required=True)
     ap.add_argument('--native-h264', action='store_true',
                     help='the coreav binary is built with the native-h264 feature')
@@ -152,6 +154,12 @@ def main():
     ap.add_argument('--report')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
     opts = ap.parse_args()
+    if opts.ffprobe is None:
+        pair = test_oracle.require()
+    else:
+        probe = test_oracle.executable_path(opts.ffprobe)
+        pair = test_oracle.require(probe.with_name('ffmpeg'), probe)
+    opts.ffprobe = str(pair.ffprobe)
     native = NATIVE | ({f'h264 {f}' for f in H264_PIX_FMTS} if opts.native_h264 else set())
     files = media_files(opts.media)
     names = set()

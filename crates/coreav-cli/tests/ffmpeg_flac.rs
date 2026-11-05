@@ -9,6 +9,9 @@ use std::process::{Command, Output, Stdio};
 #[path = "../../coreav-audio/tests/support/flac_ranges.rs"]
 mod flac_ranges;
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 fn scratch(name: &str) -> PathBuf {
     let tag = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -116,24 +119,7 @@ fn success(result: &Output) {
 }
 
 fn pin() -> Option<PathBuf> {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    if !ffmpeg.is_file() {
-        assert!(
-            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-            "set COREAV_FFMPEG to the pin"
-        );
-        return None;
-    }
-    let verified = Command::new("python3")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/oracle_pin.py"))
-        .arg("--verify-bin")
-        .arg(ffmpeg.parent().unwrap())
-        .output()
-        .unwrap();
-    assert!(verified.status.success(), "{verified:?}");
-    Some(ffmpeg)
+    Some(test_oracle::require().ffmpeg().to_path_buf())
 }
 
 #[test]

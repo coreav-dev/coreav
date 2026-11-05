@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'tools/compat-corpus')]
 import encode_breadth as v2
 import oracle_pin
+import test_oracle
 import v2_fixture_inputs as inputs
 
 
@@ -45,11 +46,7 @@ def main():
     opts = parser.parse_args()
     for name in ('ffmpeg', 'fixtures', 'work', 'report'):
         setattr(opts, name, getattr(opts, name).resolve())
-    if sys.platform == 'darwin':
-        import oracle_pin_macos
-        problems = list(oracle_pin_macos.verify_bin(opts.ffmpeg.parent))
-    else:
-        problems = list(oracle_pin.verify_bin(opts.ffmpeg.parent))
+    problems = list(test_oracle.verify_bin(opts.ffmpeg.parent))
     if opts.ffmpeg.name != 'ffmpeg' or problems:
         raise ValueError('reference fixture verification requires the pinned oracle: ' + '; '.join(problems))
     rows = [r for r in inputs.DOCUMENT['cases'] if r['assignments']]
