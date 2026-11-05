@@ -1075,6 +1075,27 @@ pub fn describe_audio_specific_config(config: &[u8]) -> Option<Profile> {
     aac_profile(config)
 }
 
+/// The explicit output clock and channel count of an AAC configuration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AacFrameConfig {
+    /// Configured output samples per second.
+    pub sample_rate: u32,
+    /// Configured output channels.
+    pub channels: u32,
+    /// Output samples per frame, without inferring implicit extensions.
+    pub frame_length: u32,
+}
+
+/// Reads frame parameters using the sample-description configuration owner.
+pub fn aac_frame_config(config: &[u8]) -> Option<AacFrameConfig> {
+    let layout = aac_layout(config)?;
+    Some(AacFrameConfig {
+        sample_rate: layout.rate?,
+        channels: layout.channels?,
+        frame_length: layout.frame?,
+    })
+}
+
 /// Whether an AudioSpecificConfig explicitly signals `sbrPresentFlag=0`
 /// (ISO/IEC 14496-3 1.6.2.1), not merely an LC core without an extension.
 /// This does not certify the rest of the configuration or its packets.
@@ -1972,6 +1993,27 @@ mod tests {
         // AAC LD (object type 23) has frames of 480 or 512 samples; not read.
         assert_eq!(frame(&pack(&[(23, 5), (3, 4), (2, 4), (0, 3)])), None);
         assert_eq!(frame(&[0x11]), None);
+    }
+
+    #[test]
+    fn exported_aac_frame_configuration_uses_the_existing_layout() {
+        for config in [
+            &[0x12, 0x88, 0x56, 0xe5, 0][..],
+            &[0x12, 0x90, 0x56, 0xe5, 0][..],
+            &[0x12, 0x8c][..],
+        ] {
+            let layout = aac_layout(config).unwrap();
+            assert_eq!(
+                aac_frame_config(config),
+                Some(AacFrameConfig {
+                    sample_rate: layout.rate.unwrap(),
+                    channels: layout.channels.unwrap(),
+                    frame_length: layout.frame.unwrap(),
+                })
+            );
+        }
+        assert_eq!(aac_frame_config(&[]), None);
+        assert_eq!(aac_frame_config(&[0x12]), None);
     }
 
     #[test]

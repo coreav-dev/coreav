@@ -63,6 +63,8 @@ What `native` means, option by option. Anything not here is refused.
 | Containers written | MP4, M4A, Matroska (`.mkv`, audio-only `.mka`), WebM, HLS (`.m3u8`), and numbered segments. Builds with a decoder backend also write PNG/BMP images, image sequences, raw video and YUV4MPEG2 |
 | `-f concat` | the input is a list file, and the job is `coreav join` (`docs/design/join.md`), which takes files sharing a codec configuration |
 
+Matroska AAC copy to MP4 additionally requires the bounded [audio-copy clock qualification](matroska-audio-copy-clocks.md). It preserves a proved 32 kHz, audio-only, full-frame subset and refuses unqualified presentation before staging, without changing native remux timing, selected-video-only commands or ISO copy. This is a copy-clock predicate, not AAC decoder eligibility.
+
 **Refused by design,** although common in the set, each because the job
 itself is not native yet: `-vf`, `-af`, `-filter_complex` and `-filter:*` (filtering),
 encoder values outside the native encoders described below, `-f lavfi`,

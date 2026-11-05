@@ -1812,6 +1812,23 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         _ => Vec::new(),
     };
     let mut refused = None;
+    if let Job::Remux {
+        streams,
+        matroska: true,
+        ..
+    } = job
+    {
+        let source =
+            coreav_mkv::BufferedSource::new(FileSource::open(input).map_err(WriteFailure::from)?);
+        coreav_isobmff_write::check_matroska_aac_copy(
+            source,
+            &coreav_mkv::Limits::default(),
+            &Limits::default(),
+            &mkv_allowlist,
+            streams,
+        )
+        .map_err(WriteFailure::from)?;
+    }
     let written = output::to_file(&path, force, |out| match job {
         Job::RemuxInputs {
             streams,
@@ -1877,8 +1894,18 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 on_unsupported: OnUnsupported::Fail,
                 drop_video: false,
             };
-            crate::remux::run_matroska(input, &options, &mkv_allowlist, out)
-                .map(|summary| crate::remux::matroska_document(&summary))
+            coreav_isobmff_write::remux_matroska_compatible(
+                coreav_mkv::BufferedSource::new(
+                    FileSource::open(input).map_err(WriteFailure::from)?,
+                ),
+                &coreav_mkv::Limits::default(),
+                &Limits::default(),
+                &mkv_allowlist,
+                &options,
+                out,
+            )
+            .map_err(WriteFailure::from)
+            .map(|summary| crate::remux::matroska_document(&summary))
         }
         Job::ExtractAudio { stream, metadata } => crate::extract::run(
             input,
