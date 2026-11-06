@@ -141,6 +141,9 @@ pub(super) fn picture(picture: DecodedPicture<'_>, stream: &mut Md5) -> Result<(
         "bit_depth":info.bit_depth,"profile_idc":info.profile_idc,"ctb_log2":info.ctb_log2,
         "conformance_window":info.conformance_window,"packing":if info.bit_depth==8 {"yuv420p"} else {"yuv420p10le"},
         "output_bytes":output_bytes,"output_md5":format!("{:x}",visible_hash.finalize()),"coded_components":coded_components,
+        "color_declarations":{"primaries":info.vui.colour_primaries,"transfer":info.vui.transfer_characteristics,
+            "matrix":info.vui.matrix_coeffs,"full_range":info.vui.full_range,
+            "chroma_location":info.vui.chroma_location.map(|(top,_)|top)},
         "stats":common::reconstruction_stats(picture.stats),"inter":inter_stats(picture.inter)}),
         output_bytes,
     ))

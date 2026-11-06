@@ -102,6 +102,7 @@ impl Config {
             max_height: limits.max_height,
             max_ctus: u32::MAX,
             max_pictures: 0,
+            ..coreav_hevc::Limits::default()
         })?;
         read_sets(parser.first_mut().ok_or(Error::State)?, [vps, sps, pps])?;
         Ok(Self {

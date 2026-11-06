@@ -123,6 +123,32 @@ class HevcWorkflow(unittest.TestCase):
         self.assertIn('--example headers --example intra', job)
         self.assertIn("summary['development_intra']", job)
 
+    def test_full_jobs_prove_c1_c2_and_c5_through_the_decode_boundary(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        build = "- run: cargo build --locked --release -p coreav-backend-hevc --features native-hevc${{ inputs.scalar && ',coreav-hevc/scalar' || '' }} --example boundary\n"
+        vectors = workflow.split('  hevc-vectors:\n', 1)[1].split('  profile-census:\n', 1)[0]
+        census = workflow.split('  profile-census:\n', 1)[1]
+        for job in (vectors, census):
+            self.assertIn(build, job)
+        step = vectors.split('- name: Check complete conformance output and random access through the decode boundary\n', 1)[1]
+        command = step.split('run: |\n', 1)[1].split('\n      - ', 1)[0]
+        arguments = shlex.split(command.replace('\\\n', ''))
+        self.assertEqual(arguments[:3], ['python3', '-I', 'scripts/hevc_boundary.py'])
+        self.assertEqual(arguments[arguments.index('--native') + 1], '$PWD/target/release/examples/boundary')
+        self.assertEqual(arguments[arguments.index('--scalar-result') + 1], '$RUNNER_TEMP/hevc-decode/result.json')
+        self.assertEqual(arguments[arguments.index('--census') + 1], '$RUNNER_TEMP/hevc-intra/g1/census.json')
+        self.assertLess(vectors.index('Check complete scalar conformance output'), vectors.index(command))
+        self.assertIn('${{ runner.temp }}/hevc-boundary\n', vectors)
+        command = census.split('python3 -I scripts/hevc_conformance.py corpus-online', 1)[1].split('\n      - name:', 1)[0]
+        arguments = shlex.split(command.replace('\\\n', ''))
+        self.assertEqual(arguments[arguments.index('--boundary-native') + 1], '$PWD/target/release/examples/boundary')
+        for line in workflow.splitlines():
+            if line.strip().startswith('paths:'):
+                paths = json.loads(line.split(':', 1)[1])
+                for required in ('crates/coreav-backend-hevc/**', 'crates/coreav-thumbnail/**', 'scripts/hevc_boundary.py'):
+                    self.assertIn(required, paths)
+
     def test_feature_isolation_step_rejects_every_native_dependency_leak(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
@@ -136,17 +162,24 @@ case " $* " in
   *" -p coreav-hevc "*)
     printf '%s\\n' 'coreav-hevc v0.0.1'
     if [ "$LEAK" = off ]; then printf '%s\\n' 'sha2 v0.10'; fi ;;
+  *" -p coreav-backend-hevc "*)
+    printf '%s\\n' 'coreav-backend-hevc v0.0.1'
+    case "$LEAK" in
+      backend-decoder) printf '%s\\n' 'coreav-hevc v0.0.1' ;;
+      backend-kernel) printf '%s\\n' 'coreav-kernels-hevc v0.0.1' ;;
+    esac ;;
   *" -p coreav-cli "*)
     printf '%s\\n' 'coreav-cli v0.0.1'
     case "$LEAK" in
       decoder) printf '%s\\n' 'coreav-hevc v0.0.1' ;;
       kernel) printf '%s\\n' 'coreav-kernels-hevc v0.0.1' ;;
+      backend) printf '%s\\n' 'coreav-backend-hevc v0.0.1' ;;
     esac ;;
   *) exit 2 ;;
 esac
 ''')
             cargo.chmod(0o700)
-            for leak in ('none', 'off', 'decoder', 'kernel'):
+            for leak in ('none', 'off', 'decoder', 'kernel', 'backend', 'backend-decoder', 'backend-kernel'):
                 environment = dict(PATH=str(temp) + os.pathsep + os.defpath,
                                    RUNNER_TEMP=str(temp), LEAK=leak)
                 result = subprocess.run(['bash', '-c', script], env=environment,

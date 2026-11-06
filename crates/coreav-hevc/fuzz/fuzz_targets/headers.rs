@@ -10,6 +10,8 @@ fuzz_target!(|data: &[u8]| {
         max_height: 512,
         max_ctus: 1024,
         max_pictures: 1024,
+        max_pixels: 512 * 512,
+        max_reference_frames: 16,
     };
     for width in 1..=4 {
         let mut parser = HeaderParser::new(limits);

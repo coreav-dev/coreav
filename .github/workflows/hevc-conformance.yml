@@ -5,10 +5,10 @@ name: hevc-conformance
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
+    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "crates/coreav-backend-hevc/**", "crates/coreav-thumbnail/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-isobmff/**", "crates/coreav-cli/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_boundary.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
+    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "crates/coreav-backend-hevc/**", "crates/coreav-thumbnail/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-isobmff/**", "crates/coreav-cli/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_boundary.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
   schedule:
     - cron: "45 3 * * *"
   workflow_dispatch:
@@ -40,17 +40,24 @@ jobs:
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-      - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc --no-default-features
-      - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc --features native-hevc --all-targets
+      - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc -p coreav-backend-hevc --no-default-features
+      - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc -p coreav-backend-hevc -p coreav-thumbnail --features native-hevc --all-targets
       - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc --features native-hevc,scalar --all-targets
-      - run: cargo clippy --locked -p coreav-hevc -p coreav-kernels-hevc --features native-hevc --all-targets -- -D warnings
+      - run: cargo clippy --locked -p coreav-hevc -p coreav-kernels-hevc -p coreav-backend-hevc -p coreav-thumbnail --features native-hevc --all-targets -- -D warnings
+      - name: Check the opt-in CLI registration with and without default features
+        run: |
+          cargo test --locked -p coreav-cli --features native-hevc,native-h264 --lib
+          cargo clippy --locked -p coreav-cli --features native-hevc,native-h264 --all-targets -- -D warnings
+          cargo clippy --locked -p coreav-cli --no-default-features --features cli,native-hevc --all-targets -- -D warnings
       - name: Keep HEVC out of feature-disabled and default consumers
         run: |
           set -euo pipefail
           cargo tree --locked -p coreav-hevc --no-default-features -e normal,build > "$RUNNER_TEMP/hevc-off.txt"
           test "$(wc -l < "$RUNNER_TEMP/hevc-off.txt")" -eq 1
+          cargo tree --locked -p coreav-backend-hevc --no-default-features -e normal,build > "$RUNNER_TEMP/backend-off.txt"
+          if grep -E 'coreav-(kernels-)?hevc' "$RUNNER_TEMP/backend-off.txt"; then exit 1; fi
           cargo tree --locked -p coreav-cli -e normal,build > "$RUNNER_TEMP/default-consumer.txt"
-          if grep -E 'coreav-(kernels-)?hevc' "$RUNNER_TEMP/default-consumer.txt"; then exit 1; fi
+          if grep -E 'coreav-(kernels-|backend-)?hevc' "$RUNNER_TEMP/default-consumer.txt"; then exit 1; fi
       - name: Check Linux acquisition and subprocess isolation
         if: runner.os == 'Linux'
         run: python3 -m unittest discover -s scripts/tests -p 'test_hevc*.py'
@@ -100,6 +107,7 @@ jobs:
         with:
           toolchain: stable
       - run: cargo build --locked --release -p coreav-hevc --features native-hevc${{ inputs.scalar && ',scalar' || '' }} --example headers --example intra --example decode
+      - run: cargo build --locked --release -p coreav-backend-hevc --features native-hevc${{ inputs.scalar && ',coreav-hevc/scalar' || '' }} --example boundary
       - name: Install the pinned binary oracle
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Verify registered synthetic references before native classification
@@ -128,6 +136,14 @@ jobs:
             --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/decode" \
             --oracle-bin "$RUNNER_TEMP/oracle" --max-memory-bytes 1073741824 \
             --max-stream-bins 1099511627776 --max-picture-bins 268435456
+      - name: Check complete conformance output and random access through the decode boundary
+        run: |
+          python3 -I scripts/hevc_boundary.py \
+            --registration "$RUNNER_TEMP/archives.pinned.json" \
+            --census "$RUNNER_TEMP/hevc-intra/g1/census.json" \
+            --data "$RUNNER_TEMP/hevc-data" --out "$RUNNER_TEMP/hevc-boundary" \
+            --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/boundary" \
+            --scalar-result "$RUNNER_TEMP/hevc-decode/result.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -138,6 +154,7 @@ jobs:
             ${{ runner.temp }}/hevc-data/*/inventory.json
             ${{ runner.temp }}/hevc-intra
             ${{ runner.temp }}/hevc-decode
+            ${{ runner.temp }}/hevc-boundary
             ${{ runner.temp }}/hevc-synthetic/reference.json
           if-no-files-found: error
           retention-days: 30
@@ -145,7 +162,7 @@ jobs:
   profile-census:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
@@ -158,6 +175,7 @@ jobs:
         with:
           toolchain: stable
       - run: cargo build --locked --release -p coreav-hevc --features native-hevc${{ inputs.scalar && ',scalar' || '' }} --example headers --example intra --example packets
+      - run: cargo build --locked --release -p coreav-backend-hevc --features native-hevc${{ inputs.scalar && ',coreav-hevc/scalar' || '' }} --example boundary
       - name: Install the pinned binary oracle
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Inspect all fixed files with isolated metadata subprocesses
@@ -173,6 +191,7 @@ jobs:
             --out "$RUNNER_TEMP/private" --oracle-bin "$RUNNER_TEMP/oracle" \
             --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/intra" \
             --packet-native "$PWD/target/release/examples/packets" --decode-memory-bytes 1073741824 \
+            --boundary-native "$PWD/target/release/examples/boundary" \
             --stream-bins 1099511627776 --picture-bins 268435456 \
             --shard-count 4 --shard-index "${{ matrix.shard }}"
       - name: Retain only aggregate profile counts publicly

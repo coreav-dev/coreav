@@ -1,5 +1,24 @@
 use crate::{Error, Limits, Result};
 
+/// Removes packet terminal zero padding under the same rule as Annex B framing.
+/// Complete encapsulated CABAC zero words remain part of the original NAL.
+pub fn packet_nal(nal: &[u8], max: usize) -> Result<(&[u8], usize)> {
+    if nal.len() > max {
+        return Err(Error::Limit("max_nal_bytes"));
+    }
+    let payload = nal
+        .get(2..)
+        .ok_or(Error::InvalidData("truncated_nal_header"))?;
+    let end = 2 + payload
+        .iter()
+        .rposition(|&byte| byte != 0)
+        .map_or(0, |i| i + 1);
+    let coded = nal
+        .get(..end)
+        .ok_or(Error::InvalidData("packet_nal_bounds"))?;
+    Ok((coded, nal.len() - end))
+}
+
 /// The two-byte NAL header from H.265 clause 7.3.1.2.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NalHeader {

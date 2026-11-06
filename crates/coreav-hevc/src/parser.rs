@@ -226,7 +226,7 @@ pub(crate) trait PictureObserver {
     fn boundary(&mut self, dpb: &mut Dpb, scratch_bytes: usize) -> Result<()>;
     fn slice(&mut self, input: SliceInput<'_>, dpb: &Dpb) -> Result<()>;
     fn sei(&mut self, info: SeiInfo, dpb: &Dpb, scratch_bytes: usize) -> Result<()>;
-    fn output(&mut self, emission: Emission<'_>) -> Result<()>;
+    fn output(&mut self, emission: Emission<'_>, scratch_bytes: usize) -> Result<()>;
 }
 
 fn output(
@@ -234,9 +234,10 @@ fn output(
     observer: &mut Option<&mut dyn PictureObserver>,
     emit: &mut impl FnMut(OutputEvent) -> Result<()>,
     summary: &mut Summary,
+    scratch_bytes: usize,
 ) -> Result<()> {
     if let Some(observer) = observer.as_mut() {
-        observer.output(emission)?;
+        observer.output(emission, scratch_bytes)?;
     } else {
         emit(emission.event)?;
     }
@@ -253,7 +254,7 @@ fn boundary(
 ) -> Result<()> {
     if let Some(visitor) = observer.as_mut() {
         visitor.boundary(dpb, scratch_bytes)?;
-        dpb.resume(|emission| output(emission, observer, emit, summary))?;
+        dpb.resume(|emission| output(emission, observer, emit, summary, scratch_bytes))?;
     }
     Ok(())
 }
@@ -389,7 +390,7 @@ impl StreamCore {
             )?;
             let result = self
                 .dpb
-                .finish(|event| output(event, &mut observer, &mut emit, &mut self.summary));
+                .finish(|event| output(event, &mut observer, &mut emit, &mut self.summary, 0));
             if let Err(error) = result {
                 self.failed = true;
                 return Err(error);
@@ -587,6 +588,16 @@ impl StreamCore {
                     }
                 }
                 let order = if header.first {
+                    let scratch_bytes = rbsp
+                        .capacity()
+                        .checked_add(
+                            parsed
+                                .entry_lengths
+                                .capacity()
+                                .checked_mul(core::mem::size_of::<u64>())
+                                .ok_or(Error::Limit("reconstruction_memory"))?,
+                        )
+                        .ok_or(Error::Limit("reconstruction_memory"))?;
                     boundary(
                         &mut self.dpb,
                         &mut observer,
@@ -611,7 +622,13 @@ impl StreamCore {
                         .is_some_and(|previous| previous != hash)
                     {
                         self.dpb.start_cvsg(nal, &header, |event| {
-                            output(event, &mut observer, &mut emit, &mut self.summary)
+                            output(
+                                event,
+                                &mut observer,
+                                &mut emit,
+                                &mut self.summary,
+                                scratch_bytes,
+                            )
                         })?;
                     }
                     self.active_vps_hash = Some(hash);
@@ -631,7 +648,13 @@ impl StreamCore {
                         return Err(Error::InvalidData("sps_change_within_cvs"));
                     }
                     let order = self.dpb.picture(nal, &header, s, &self.limits, |event| {
-                        output(event, &mut observer, &mut emit, &mut self.summary)
+                        output(
+                            event,
+                            &mut observer,
+                            &mut emit,
+                            &mut self.summary,
+                            scratch_bytes,
+                        )
                     })?;
                     if starts_cvs {
                         self.active_sps = Some(sps_identity);

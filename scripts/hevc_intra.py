@@ -550,7 +550,7 @@ def run(args):
     return result
 
 
-def development_picture(item, source, directory, oracle_bin, *, native, parser, max_memory_bytes, max_bins):
+def development_picture(item, source, directory, qualified, *, native, parser, max_memory_bytes, max_bins):
     require(item['partition'] == 'development' and source.stat().st_size == item['size']
             and harness.digest(source) == item['sha256'], 'development_source_identity')
     require(parser and 0 < max_memory_bytes <= 4 << 30 and 0 < max_bins < 1 << 64, 'development_options')
@@ -558,9 +558,9 @@ def development_picture(item, source, directory, oracle_bin, *, native, parser, 
     prefix, output = directory / 'first-irap.hevc', directory / 'first-irap.u16le'
     report = dict(complete=False, stage='extract_first_picture', source_sha256=item['sha256'],
                   source_bytes=item['size'], native_sha256=harness.digest(native), parser_sha256=harness.digest(parser),
-                  oracle={name: harness.digest(oracle_bin / name) for name in ('ffmpeg', 'ffprobe')})
+                  oracle={name: harness.digest(getattr(qualified, name)) for name in ('ffmpeg', 'ffprobe')})
     try:
-        code, _, _ = harness.child([oracle_bin / 'ffmpeg', '-nostdin', '-v', 'error', '-i', source,
+        code, _, _ = harness.child([qualified.ffmpeg, '-nostdin', '-v', 'error', '-i', source,
             '-map', '0:v:0', '-c:v', 'copy', '-bsf:v', 'hevc_mp4toannexb', '-frames:v', '1',
             '-f', 'hevc', '-y', prefix], directory, 'extract-first-picture')
         require(code == 0 and 0 < prefix.stat().st_size <= harness.BITSTREAM_CAP, 'development_prefix_failed')
@@ -574,10 +574,10 @@ def development_picture(item, source, directory, oracle_bin, *, native, parser, 
         rows = [json.loads(line, object_pairs_hook=harness.unique_object) for line in stdout.read_text().splitlines()]
         hashes = selected_hashes(rows, 0)
         report['stage'] = 'oracle'
-        frames = harness.probe(oracle_bin / 'ffprobe', prefix, directory, frames=True)['frames']
+        frames = harness.probe(qualified.ffprobe, prefix, directory, frames=True)['frames']
         require(len(frames) == 1 and frames[0]['pict_type'] == 'I' and frames[0]['key_frame'] == 1,
                 'development_oracle_irap')
-        oracle = harness.oracle_frames(oracle_bin / 'ffmpeg', prefix, directory, frames, item['sha256'])
+        oracle = harness.oracle_frames(qualified.ffmpeg, prefix, directory, frames, item['sha256'])
         candidate = dict(picture_index=0, gate='G3', source_kind='development_first_independent_irap',
                          stream_sha256=report['prefix_sha256'], source_sha256=item['sha256'],
                          bit_depth=picture['bit_depth'], tiles=picture['tiles'], wpp=picture['wpp'],
@@ -599,17 +599,17 @@ def development_picture(item, source, directory, oracle_bin, *, native, parser, 
         except ValueError:
             diagnostic_stream = dict(test='development_first_irap', frames=frames,
                                      record=dict(reference_frames=oracle, reference_packing=oracle[0]))
-            report['diagnostic'] = diagnose_picture(oracle_bin / 'ffmpeg', prefix, directory,
+            report['diagnostic'] = diagnose_picture(qualified.ffmpeg, prefix, directory,
                                                      diagnostic_stream, candidate, output, metadata)
             report['native_packing'] = packed_picture(output, metadata)
             report['source_first_frame'] = harness.oracle_frames(
-                oracle_bin / 'ffmpeg', source, directory,
+                qualified.ffmpeg, source, directory,
                 [dict(frames[0], width=metadata['width'], height=metadata['height'])],
                 item['sha256'], first_picture=True)[0]
             raise
         require(harness.digest(prefix) == report['prefix_sha256'] and harness.digest(source) == item['sha256']
                 and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
-                and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),
+                and all(harness.digest(getattr(qualified, name)) == sha for name, sha in report['oracle'].items()),
                 'development_identity_changed')
         report.update(complete=True, stage='complete')
         return report

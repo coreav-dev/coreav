@@ -5,6 +5,7 @@ use crate::{
 pub(crate) struct Emission<'a> {
     pub(crate) event: OutputEvent,
     pub(crate) picture: Option<&'a RetainedPicture>,
+    pub(crate) retained_bytes: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -474,6 +475,9 @@ impl Dpb {
             .ok_or(Error::InvalidData("DPB HighestTid"))?;
         if capacity == 0 || capacity > 16 || reorder >= capacity {
             return Err(Error::InvalidData("DPB ordering limits"));
+        }
+        if capacity as u32 > limits.max_reference_frames {
+            return Err(Error::Limit("reference_picture_budget"));
         }
         let latency = if increase == 0 {
             None
@@ -993,6 +997,7 @@ impl Dpb {
 
     fn bump(&mut self, emit: &mut impl FnMut(Emission<'_>) -> Result<()>) -> Result<()> {
         let index = self.next_output()?;
+        let retained_bytes = self.heap_bytes()?;
         let picture = self
             .pictures
             .get_mut(index)
@@ -1012,6 +1017,7 @@ impl Dpb {
         emit(Emission {
             event: picture.event,
             picture: picture.samples.as_ref(),
+            retained_bytes,
         })?;
         self.last_output = Some(picture.event.poc);
         picture.output = false;
