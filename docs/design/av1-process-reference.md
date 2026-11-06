@@ -18,6 +18,8 @@ Use preset 8, integer CRF 32, tune 1, adaptive quantization 2, parallelism level
 
 The hidden in-process selector and continuous-session configuration require a non-default Cargo feature. Default builds cannot select them. Release and distribution profiles must reject that feature. A separate optimized measurement profile enables the experiment without changing release flags or default features. Check both feature absence and explicit release-profile refusal.
 
+The in-process arm gives up crash isolation, a separately enforceable address-space limit, and the ability to kill a stuck encoder without killing the caller. Its native calls cannot be interrupted safely. The capture driver therefore puts the complete command in its own process group and enforces an external timeout. None of these experimental failure semantics apply to production builds.
+
 ## Inputs and host
 
 Select three to five existing lossy H.264 inputs of at least 30 seconds, spanning available resolutions. Prefer fixed even geometry, SDR, planar 8-bit 4:2:0, and a constant cadence that both pipelines can preserve without conversion. Select by metadata before timing, record every admission refusal, and do not replace an input because of its speed. Use the whole admitted input or a single preselected stream-copy interval of at least 30 seconds. Record private object keys outside the repository. Public evidence uses neutral labels, content hashes, durations, frame counts, and geometry only.
