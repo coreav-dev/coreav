@@ -1,0 +1,215 @@
+{
+  "host": {
+    "cpu": "AMD EPYC",
+    "logical_cpus": 2,
+    "affinity": [
+      0
+    ],
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)"
+  },
+  "settings": {
+    "frames": 60,
+    "fps": 30,
+    "qp": 28,
+    "gop": 32,
+    "references": 1,
+    "deblocking": true,
+    "native_driver_includes_verification_and_io": true,
+    "x264_preset": "medium",
+    "x264_tune": "psnr",
+    "x264_profile": "baseline",
+    "x264_level": "3.0",
+    "x264_threads": 1,
+    "x264_no_b_frames_or_lookahead": true,
+    "x264_qp_offsets_zero": true,
+    "colour": "bt709 tv, left chroma",
+    "ffmpeg": "9.0.2 n9.0.2-17-g2a571b6068",
+    "samples_per_cell": 1
+  },
+  "inputs": {
+    "a": {
+      "lossy": true,
+      "resize": null,
+      "distinct_prepared_pictures": 48
+    },
+    "b": {
+      "lossy": true,
+      "native_geometry": [
+        414,
+        900
+      ],
+      "resize": [
+        368,
+        800
+      ],
+      "distinct_prepared_pictures": 5
+    }
+  },
+  "source_commits": {
+    "main": "4464759f2ceda9ca572a0d04e27b13da2c3c5c71",
+    "inter": "58e7abc0b73a89d0665d62feec56e478193cb99e",
+    "bounded": "66bf1b80a13f0f6b5f0d7e8c11d20318d87c51cf"
+  },
+  "calls": [
+    {
+      "clip": "a",
+      "arm": "main",
+      "width": 640,
+      "height": 480,
+      "frames": 60,
+      "binding": {
+        "input_sha256": "756fa818691a60fa95f987bc606b00c95776a81142e7500cb39fac263cae9583",
+        "binary_sha256": "791c969e70da8a2572016a6021a5356ded7bb6ef96b375d5af422cc8538733ee"
+      },
+      "wall": 53.58057085600001,
+      "cpu": 53.537737,
+      "fps": 1.1198088979166063,
+      "bytes": 86740,
+      "kbps": 346.96,
+      "oracle_exact": true,
+      "stream_sha256": "26e139c6f54b809565934ab1048c47527973b6589fa14d75b1efa9775ddc8a59",
+      "psnr": 45.637606,
+      "ssim": 0.998474
+    },
+    {
+      "clip": "a",
+      "arm": "inter",
+      "width": 640,
+      "height": 480,
+      "frames": 60,
+      "binding": {
+        "input_sha256": "756fa818691a60fa95f987bc606b00c95776a81142e7500cb39fac263cae9583",
+        "binary_sha256": "00b0a80271dc44522351e8e8ab5b2b8e581e4c7c60d6a95c4d277593d1a7b21d"
+      },
+      "wall": 5.782097179999937,
+      "cpu": 5.778724000000004,
+      "fps": 10.376857761494879,
+      "bytes": 90493,
+      "kbps": 361.972,
+      "oracle_exact": true,
+      "stream_sha256": "ab20e8cdfe37b8ad493a034deb592700236bbf2bec534af842fdeebfb021b4a4",
+      "psnr": 44.987874,
+      "ssim": 0.998169
+    },
+    {
+      "clip": "a",
+      "arm": "bounded",
+      "width": 640,
+      "height": 480,
+      "frames": 60,
+      "binding": {
+        "input_sha256": "756fa818691a60fa95f987bc606b00c95776a81142e7500cb39fac263cae9583",
+        "binary_sha256": "c1aab0dcd48ac474f53808dd67a11aed56674c13456695a5428dd81c14c95e63"
+      },
+      "wall": 3.432698665999851,
+      "cpu": 3.418401999999986,
+      "fps": 17.47895922071087,
+      "bytes": 99886,
+      "kbps": 399.544,
+      "oracle_exact": true,
+      "stream_sha256": "65f631425a6174957c345d603a6ca772edbebe73c1ab28791db7a105ba48e6a8",
+      "psnr": 44.976752,
+      "ssim": 0.998128
+    },
+    {
+      "clip": "a",
+      "arm": "x264",
+      "width": 640,
+      "height": 480,
+      "frames": 60,
+      "binding": {
+        "input_sha256": "756fa818691a60fa95f987bc606b00c95776a81142e7500cb39fac263cae9583",
+        "binary_sha256": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d"
+      },
+      "wall": 0.24937491500008946,
+      "cpu": 0.24541300000000002,
+      "fps": 240.60158576887525,
+      "bytes": 87535,
+      "kbps": 350.14,
+      "oracle_exact": null,
+      "stream_sha256": "2076c9b7eb0e4585c07ab14d70bea4c2a0bce3bbd9ea0bcc9b302cfdbefea12b",
+      "psnr": 42.052419,
+      "ssim": 0.99824
+    },
+    {
+      "clip": "b",
+      "arm": "main",
+      "width": 368,
+      "height": 800,
+      "frames": 60,
+      "binding": {
+        "input_sha256": "927826f9a28494d3e5230cead67555bbf20aab63817b94bbd595eb8b11f99efd",
+        "binary_sha256": "791c969e70da8a2572016a6021a5356ded7bb6ef96b375d5af422cc8538733ee"
+      },
+      "wall": 80.18810128299992,
+      "cpu": 79.575084,
+      "fps": 0.748240687084583,
+      "bytes": 31694,
+      "kbps": 126.776,
+      "oracle_exact": true,
+      "stream_sha256": "7fbeba360fed0f98e3ef8e070a2af5f35ba7bce29bdb2ffd444f88331fe52892",
+      "psnr": 44.152652,
+      "ssim": 0.992678
+    },
+    {
+      "clip": "b",
+      "arm": "inter",
+      "width": 368,
+      "height": 800,
+      "frames": 60,
+      "binding": {
+        "input_sha256": "927826f9a28494d3e5230cead67555bbf20aab63817b94bbd595eb8b11f99efd",
+        "binary_sha256": "00b0a80271dc44522351e8e8ab5b2b8e581e4c7c60d6a95c4d277593d1a7b21d"
+      },
+      "wall": 7.601950842000065,
+      "cpu": 7.598741000000002,
+      "fps": 7.8927108642304855,
+      "bytes": 31694,
+      "kbps": 126.776,
+      "oracle_exact": true,
+      "stream_sha256": "7fbeba360fed0f98e3ef8e070a2af5f35ba7bce29bdb2ffd444f88331fe52892",
+      "psnr": 44.152652,
+      "ssim": 0.992678
+    },
+    {
+      "clip": "b",
+      "arm": "bounded",
+      "width": 368,
+      "height": 800,
+      "frames": 60,
+      "binding": {
+        "input_sha256": "927826f9a28494d3e5230cead67555bbf20aab63817b94bbd595eb8b11f99efd",
+        "binary_sha256": "c1aab0dcd48ac474f53808dd67a11aed56674c13456695a5428dd81c14c95e63"
+      },
+      "wall": 4.246845045999862,
+      "cpu": 4.239735000000001,
+      "fps": 14.128134968454875,
+      "bytes": 31694,
+      "kbps": 126.776,
+      "oracle_exact": true,
+      "stream_sha256": "7fbeba360fed0f98e3ef8e070a2af5f35ba7bce29bdb2ffd444f88331fe52892",
+      "psnr": 44.152652,
+      "ssim": 0.992678
+    },
+    {
+      "clip": "b",
+      "arm": "x264",
+      "width": 368,
+      "height": 800,
+      "frames": 60,
+      "binding": {
+        "input_sha256": "927826f9a28494d3e5230cead67555bbf20aab63817b94bbd595eb8b11f99efd",
+        "binary_sha256": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d"
+      },
+      "wall": 0.22369210600004408,
+      "cpu": 0.216744,
+      "fps": 268.22582644015245,
+      "bytes": 29577,
+      "kbps": 118.308,
+      "oracle_exact": null,
+      "stream_sha256": "ca63ef5e98851f81f66aa0f9ea29d01eabced78de03a77b5fcf2206602500202",
+      "psnr": 40.896873,
+      "ssim": 0.990054
+    }
+  ]
+}
