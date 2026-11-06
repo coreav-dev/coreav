@@ -90,7 +90,7 @@ pub fn document(summary: &coreav_transcode::Av1Summary) -> serde_json::Value {
                 "backend": "svt-av1",
                 "version": encoding.version,
                 "kind": "software",
-                "isolation": "sandboxed",
+                "isolation": isolation(encoding),
                 "preset": encoding.preset,
                 "crf": encoding.crf,
                 "cadence": {"num": encoding.cadence.num, "den": encoding.cadence.den},
@@ -126,6 +126,15 @@ pub fn document(summary: &coreav_transcode::Av1Summary) -> serde_json::Value {
     )
 }
 
+fn isolation(encoding: &coreav_transcode::Av1Encoding) -> &'static str {
+    #[cfg(feature = "av1-measurement")]
+    if encoding.in_process {
+        return "in-process-measurement";
+    }
+    let _ = encoding;
+    "sandboxed"
+}
+
 #[cfg(feature = "svt-av1")]
 pub(crate) fn worker_main(args: impl IntoIterator<Item = OsString>) -> ExitCode {
     let mut args = args.into_iter().peekable();
@@ -147,7 +156,11 @@ pub(crate) fn worker_main(args: impl IntoIterator<Item = OsString>) -> ExitCode 
     }
     #[cfg(feature = "svt-av1-native")]
     {
-        if coreav_backend_svt_av1::worker::run().is_ok() {
+        #[cfg(feature = "av1-measurement")]
+        let result = coreav_backend_svt_av1::worker::measurement_run();
+        #[cfg(not(feature = "av1-measurement"))]
+        let result = coreav_backend_svt_av1::worker::run();
+        if result.is_ok() {
             ExitCode::SUCCESS
         } else {
             ExitCode::FAILURE

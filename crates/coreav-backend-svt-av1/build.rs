@@ -26,6 +26,16 @@ fn text(path: &Path) -> Result<&str, String> {
 }
 
 fn run() -> Result<(), String> {
+    if env::var_os("CARGO_FEATURE_MEASUREMENT").is_some() {
+        let out = PathBuf::from(env::var_os("OUT_DIR").ok_or("missing Cargo output directory")?);
+        let profile = out.ancestors().nth(3).and_then(Path::file_name);
+        if profile != Some(std::ffi::OsStr::new("av1-measurement")) {
+            return Err(
+                "measurement requires --profile av1-measurement; release and dist are forbidden"
+                    .into(),
+            );
+        }
+    }
     println!("cargo::rerun-if-env-changed=SVT_AV1_PREFIX");
     println!("cargo::rerun-if-changed=src/native.c");
     if env::var_os("CARGO_FEATURE_NATIVE").is_none() {

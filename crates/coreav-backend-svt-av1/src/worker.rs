@@ -24,6 +24,65 @@ pub fn run() -> Result<(), Error> {
     result.and(flushed)
 }
 
+#[cfg(feature = "measurement")]
+#[doc(hidden)]
+pub fn measurement_retention(request: Request) -> Result<Retention, Error> {
+    Session::measurement_plan(request.settings, request.limits.retained_bytes())
+}
+
+#[cfg(feature = "measurement")]
+#[doc(hidden)]
+pub fn measurement_run() -> Result<(), Error> {
+    let mut input = InputReader::measurement(std::io::stdin().lock())?;
+    let request = input.request();
+    let mut output = std::io::stdout().lock();
+    measurement_encode(request, &mut output, || {
+        input
+            .next_frame_header()?
+            .map(|_| input.read_picture())
+            .transpose()
+    })?;
+    output.flush()?;
+    Ok(())
+}
+
+#[cfg(feature = "measurement")]
+#[doc(hidden)]
+pub fn measurement_encode<W: Write>(
+    request: Request,
+    output: &mut W,
+    mut next: impl FnMut() -> Result<Option<Vec<u8>>, Error>,
+) -> Result<(), Error> {
+    let plan = measurement_retention(request)?;
+    if request.limits.frames() > u64::from(plan.pictures()) {
+        return Err(Error::Limit(
+            "measurement requires one continuous AV1 session",
+        ));
+    }
+    let version = native::version()?;
+    let mut output = OutputWriter::new(output, &version, request.limits)?;
+    let mut session = Session::measurement(request.settings, request.limits.retained_bytes())?;
+    if session.plan() != plan {
+        return Err(Error::Output("measurement retained layout changed"));
+    }
+    output.begin(0, plan, request.settings.keyint())?;
+    let mut frames = 0u64;
+    let mut packets = 0;
+    while let Some(picture) = next()? {
+        if frames >= request.limits.frames() {
+            return Err(Error::Limit("measurement picture limit exceeded"));
+        }
+        session.submit(picture)?;
+        frames += 1;
+        receive(&mut session, &mut output, &mut packets)?;
+    }
+    if frames != request.limits.frames() {
+        return Err(Error::Output("measurement input frame count differs"));
+    }
+    finish_segment(Some(session), &mut output, 0, &mut packets)?;
+    output.complete(frames, 1)
+}
+
 pub(crate) fn encode<R: Read, W: Write>(input: R, output: &mut W) -> Result<(), Error> {
     let mut input = match InputReader::new(input) {
         Ok(input) => input,
