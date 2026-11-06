@@ -189,6 +189,7 @@ class FixtureCacheInputs(unittest.TestCase):
         generator = (ROOT / 'scripts/gen-fixtures.sh').read_text()
         inputs = {'scripts/gen-fixtures.sh', 'scripts/install-oracle-ffmpeg.sh',
                   'scripts/oracle-ffmpeg.env', *('scripts/' + name for name in test_oracle.SUPPORT),
+                  'docs/design/composed-opus-aac-v2.json', 'scripts/composed_audio.py', 'scripts/composed_audio_fixtures.py',
                   *('scripts/' + name for name in re.findall(r'\$SCRIPTS/([A-Za-z0-9_.-]+)', generator))}
         for workflow in ('.github/actions/ci-fixtures/action.yml', '.github/workflows/wasm.yml'):
             with self.subTest(workflow=workflow), tempfile.TemporaryDirectory() as directory:
@@ -216,7 +217,9 @@ class FixtureCacheInputs(unittest.TestCase):
                     path = root / 'scripts' / name
                     original = path.read_bytes()
                     path.write_bytes(original + b'\n')
-                    self.assertNotEqual(key(), baseline, (workflow, name))
+                    changed = key().splitlines()
+                    self.assertEqual(len(changed), len(baseline.splitlines()), (workflow, name))
+                    self.assertTrue(all(a != b for a, b in zip(changed, baseline.splitlines())), (workflow, name))
                     path.write_bytes(original)
                 for name in test_oracle.SUPPORT:
                     path = root / 'scripts' / name
