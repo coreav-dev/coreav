@@ -1,6 +1,6 @@
 {
  "dependencies": {
-  ".github/actions/ci-fixtures/action.yml": "0f1ae67beaee54b824705864d1c72d7b15d0f931193a6a3ec91949ffd7032b0a",
+  ".github/actions/ci-fixtures/action.yml": "f436915d338bd1d6caa675f8099dac721aeec2f28d84a527eabda79644a9321a",
   ".github/scripts/wasm-memory-failure.cjs": "75a688444375c7ec306718cb494d2235c9e418daa4211f88833961823a772614",
   ".github/workflows/aac-encode.yml": "922a43d86c9c29f5637f31611182f959011d974b727a3b5c16e4aa70f8d00105",
   ".github/workflows/audio-conformance.yml": "a9f9fa7fb515afe22f970a496a2374b50772d1c088f10cdd535512ef7f8714e2",
@@ -2755,6 +2755,7 @@
     "crates/coreav-transcode/tests/common/mod.rs",
     "crates/coreav-vp9/tests/common/mod.rs",
     "crates/coreav-vp9/tests/data/vectors.json",
+    "docs/design/composed-opus-aac-v2.json",
     "docs/design/oracle-historical-records.json",
     "docs/measurements/h264-gap-2/tools/cg.py",
     "docs/measurements/h264-gap-2/tools/report.py",
@@ -3103,16 +3104,16 @@
     "tools/stage3-report/report.py",
     "tools/stage3-report/run.py"
    ],
-   "sha256": "0f1ae67beaee54b824705864d1c72d7b15d0f931193a6a3ec91949ffd7032b0a",
+   "sha256": "f436915d338bd1d6caa675f8099dac721aeec2f28d84a527eabda79644a9321a",
    "sites": [
     {
      "class": "reviewed-reference",
-     "evidence": ".github/actions/ci-fixtures/action.yml:55 The Python child is the real fixture generator, not a fake; its --ffmpeg is a selector only. scripts/composed_audio_fixtures.py:86-89 obtains pair = test_oracle.require(args.ffmpeg) and passes pair.ffmpeg unchanged to generate; scripts/composed_audio_fixtures.py:59-75 executes that parameter for all fixture encodes. scripts/test_oracle.py:73-108 supplies the qualified path. The separate builder uses only curl/tar/cc at scripts/composed_audio_fixtures.py:23-31, not an oracle. scripts/composed_audio.py:326-334 stringifies cmd without changing its program before Popen; qualification here applies to this call, not every use of bounded.",
+     "evidence": ".github/actions/ci-fixtures/action.yml:58 (shell, occurrence 0). .github/actions/ci-fixtures/action.yml:55-68 retries the same fixture entry point at most three times, removing its output before each attempt; .github/actions/ci-fixtures/action.yml:58-59 supplies only the requested ffmpeg selector. scripts/composed_audio_fixtures.py:78-89 parses that selector, calls test_oracle.require(args.ffmpeg) at scripts/composed_audio_fixtures.py:86, and passes pair.ffmpeg unchanged to generate at scripts/composed_audio_fixtures.py:89. scripts/composed_audio_fixtures.py:53-75 uses that ffmpeg as argv[0] in every generation call; scripts/composed_audio.py:326-334 passes the same command through list(map(str, cmd)) into subprocess.Popen. scripts/test_oracle.py:18-21 defines the immutable pair; scripts/test_oracle.py:73-108 resolves both executable paths, verifies the complete selection with the platform pin owner and returns that pair. scripts/oracle_pin.py:108-121 verifies both pinned version banners; scripts/oracle_pin_macos.py:48-78 also checks binary digests, architecture and signing before accepting the pair. The failure diagnostic at .github/actions/ci-fixtures/action.yml:63-64 is a 0-1023 byte curl probe to the registration URL read at .github/actions/ci-fixtures/action.yml:55; docs/design/composed-opus-aac-v2.json:60-64 identifies an Opus source archive, not an FFmpeg executable. scripts/composed_audio_fixtures.py:16-40 downloads that digest-pinned archive and compiles the separate comparator; these curl/tar/cc commands are not reference FFmpeg executions.",
      "site": [
-      55,
+      58,
       "shell",
       "<shell>",
-      "python3 -I scripts/composed_audio_fixtures.py \\\n  --ffmpeg \"$RUNNER_TEMP/coreav-oracle-bin/ffmpeg\" --out \"$RUNNER_TEMP/coreav-composed-fixtures\""
+      "python3 -I scripts/composed_audio_fixtures.py \\\n      --ffmpeg \"$RUNNER_TEMP/coreav-oracle-bin/ffmpeg\" --out \"$RUNNER_TEMP/coreav-composed-fixtures\""
      ],
      "verdict": "qualified-via-owner"
     }
@@ -163813,7 +163814,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "Current site scripts/tests/test_ci_fixtures.py:114. scripts/tests/test_ci_fixtures.py:85-111 selects only the action's key run block, constructs a temporary scripts tree, and runs bash -e -c key['run']; all callers at :114-137 repeat it after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 runs grep/sed/sort, Python importing the inert SUPPORT tuple, cat/sha256sum/cut and echo. Helper, installer, pin and composed-source text is hashed, not executed; none of the generation/install steps is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:114 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
      "site": [
       114,
       "delegated",
@@ -163824,7 +163825,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "Current site scripts/tests/test_ci_fixtures.py:115. scripts/tests/test_ci_fixtures.py:85-111 selects only the action's key run block, constructs a temporary scripts tree, and runs bash -e -c key['run']; all callers at :114-137 repeat it after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 runs grep/sed/sort, Python importing the inert SUPPORT tuple, cat/sha256sum/cut and echo. Helper, installer, pin and composed-source text is hashed, not executed; none of the generation/install steps is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:115 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
      "site": [
       115,
       "delegated",
@@ -163835,7 +163836,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "Current site scripts/tests/test_ci_fixtures.py:120. scripts/tests/test_ci_fixtures.py:85-111 selects only the action's key run block, constructs a temporary scripts tree, and runs bash -e -c key['run']; all callers at :114-137 repeat it after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 runs grep/sed/sort, Python importing the inert SUPPORT tuple, cat/sha256sum/cut and echo. Helper, installer, pin and composed-source text is hashed, not executed; none of the generation/install steps is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:120 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
      "site": [
       120,
       "delegated",
@@ -163846,7 +163847,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "Current site scripts/tests/test_ci_fixtures.py:129. scripts/tests/test_ci_fixtures.py:85-111 selects only the action's key run block, constructs a temporary scripts tree, and runs bash -e -c key['run']; all callers at :114-137 repeat it after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 runs grep/sed/sort, Python importing the inert SUPPORT tuple, cat/sha256sum/cut and echo. Helper, installer, pin and composed-source text is hashed, not executed; none of the generation/install steps is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:129 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
      "site": [
       129,
       "delegated",
@@ -163857,7 +163858,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "Current site scripts/tests/test_ci_fixtures.py:135. scripts/tests/test_ci_fixtures.py:85-111 selects only the action's key run block, constructs a temporary scripts tree, and runs bash -e -c key['run']; all callers at :114-137 repeat it after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 runs grep/sed/sort, Python importing the inert SUPPORT tuple, cat/sha256sum/cut and echo. Helper, installer, pin and composed-source text is hashed, not executed; none of the generation/install steps is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:135 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
      "site": [
       135,
       "delegated",
@@ -163868,7 +163869,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "Current site scripts/tests/test_ci_fixtures.py:137. scripts/tests/test_ci_fixtures.py:85-111 selects only the action's key run block, constructs a temporary scripts tree, and runs bash -e -c key['run']; all callers at :114-137 repeat it after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 runs grep/sed/sort, Python importing the inert SUPPORT tuple, cat/sha256sum/cut and echo. Helper, installer, pin and composed-source text is hashed, not executed; none of the generation/install steps is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:137 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
      "site": [
       137,
       "delegated",
@@ -192446,7 +192447,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "At scripts/tests/test_shell_oracle_qualification.py:215, key executes only the extracted cache-key shell block at scripts/tests/test_shell_oracle_qualification.py:201-213. The blocks at .github/actions/ci-fixtures/action.yml:10-16 and .github/workflows/wasm.yml:162-165 use grep/sed/sort/cat/hash/cut and a Python import of SUPPORT, not fixture generation or oracle execution. scripts/test_oracle.py:28-32 initializes metadata and its import does not call require(); copied helpers from scripts/gen-fixtures.sh are read as bytes, not executed. The later key() call hashes modified copied support bytes, still without an FFmpeg/ffprobe invocation.",
+     "evidence": "scripts/tests/test_shell_oracle_qualification.py:215 (delegated, occurrence 0). scripts/tests/test_shell_oracle_qualification.py:187-204 copies input bytes and extracts only the shell block from helpers=$(grep through the first GITHUB_OUTPUT line in each of the action and WASM workflow. scripts/tests/test_shell_oracle_qualification.py:207-213 runs that extracted command in bash; scripts/tests/test_shell_oracle_qualification.py:215-223 calls key before and after copied support-byte mutations. .github/actions/ci-fixtures/action.yml:11-15 and .github/workflows/wasm.yml:162-165 only discover helpers, import SUPPORT, hash source bytes, and echo the key. The action extraction stops at its first output line and does not include its second composed output or generation/retry/probe block. scripts/test_oracle.py:28-32 initializes metadata, while scripts/test_oracle.py:73-108 is an uncalled function and scripts/test_oracle.py:137-138 guards its CLI. Its imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 do not execute reference processes on import. These two sites are cache-text tests, not real reference-oracle invocations; the synthetic shell-consumer tests elsewhere in that file are not on this key() path.",
      "site": [
       215,
       "delegated",
@@ -192457,7 +192458,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "At scripts/tests/test_shell_oracle_qualification.py:220, key executes only the extracted cache-key shell block at scripts/tests/test_shell_oracle_qualification.py:201-213. The blocks at .github/actions/ci-fixtures/action.yml:10-16 and .github/workflows/wasm.yml:162-165 use grep/sed/sort/cat/hash/cut and a Python import of SUPPORT, not fixture generation or oracle execution. scripts/test_oracle.py:28-32 initializes metadata and its import does not call require(); copied helpers from scripts/gen-fixtures.sh are read as bytes, not executed. The later key() call hashes modified copied support bytes, still without an FFmpeg/ffprobe invocation.",
+     "evidence": "scripts/tests/test_shell_oracle_qualification.py:220 (delegated, occurrence 0). scripts/tests/test_shell_oracle_qualification.py:187-204 copies input bytes and extracts only the shell block from helpers=$(grep through the first GITHUB_OUTPUT line in each of the action and WASM workflow. scripts/tests/test_shell_oracle_qualification.py:207-213 runs that extracted command in bash; scripts/tests/test_shell_oracle_qualification.py:215-223 calls key before and after copied support-byte mutations. .github/actions/ci-fixtures/action.yml:11-15 and .github/workflows/wasm.yml:162-165 only discover helpers, import SUPPORT, hash source bytes, and echo the key. The action extraction stops at its first output line and does not include its second composed output or generation/retry/probe block. scripts/test_oracle.py:28-32 initializes metadata, while scripts/test_oracle.py:73-108 is an uncalled function and scripts/test_oracle.py:137-138 guards its CLI. Its imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 do not execute reference processes on import. These two sites are cache-text tests, not real reference-oracle invocations; the synthetic shell-consumer tests elsewhere in that file are not on this key() path.",
      "site": [
       220,
       "delegated",
