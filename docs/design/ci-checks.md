@@ -14,7 +14,7 @@ Each full workflow first checks daily scheduled runs through the existing `merge
 
 The claim is pinned in the coverage step's name. Trusted failure reporting independently verifies that exact attempt using Actions metadata and the same full-proof predicate, so legitimate covered skips do not become missing-work issues. No artifacts or logs are read with its issue-writing token. Other skipped or failed full jobs retain the existing failure path. Manual final-head verification never accepts push or scheduled coverage in place of its dispatches.
 
-Coverage has no age limit. While main remains at one SHA, a successful covering push can suppress later daily runs. Each of `ci-full`, `vp9-corpus`, `vp9-conformance` and `hevc-conformance` also has one Sunday weekly schedule that bypasses the coverage gate and always runs the existing full jobs, even at a covered SHA. These weekly runs check external toolchain, runner-image and remote-input drift and use the same trusted failure reporter as daily runs.
+Coverage has no age limit. While main remains at one SHA, a successful covering push can suppress later daily runs. Each of `ci-full`, `vp9-corpus`, `vp9-conformance` and `hevc-conformance` also has one Sunday weekly schedule that bypasses the coverage gate and always runs the existing full jobs, even at a covered SHA. These weekly runs check external toolchain and runner-image drift and use the same trusted failure reporter as daily runs. Existing pinned-input caches remain in use: a cache hit can avoid remote acquisition, so weekly execution does not guarantee detection of changed or unavailable remote inputs.
 
 ## Verify a correctness PR's final head
 
