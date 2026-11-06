@@ -11,19 +11,25 @@ set -euo pipefail
 
 OUT="${1:?usage: gen-fixtures-mkv.sh /absolute/output/dir}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ORACLE_PATHS="$(python3 -I -B "$ROOT/scripts/test_oracle.py" --resolve)"
+if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+   [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+  echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+  exit 1
+fi
 mkdir -p "$OUT"
 MANIFEST="$OUT/MANIFEST"
 : > "$MANIFEST"
 REQUIRE_ALL="${COREAV_REQUIRE_ALL_FIXTURES:-1}"
 CRAFT=(python3 -I "$ROOT/scripts/mkv_craft.py")
 
-FF=(ffmpeg -hide_banner -loglevel error -y)
+FF=("$FFMPEG" -hide_banner -loglevel error -y)
 VSRC=(-f lavfi -i "testsrc2=size=320x240:rate=25:duration=2")
 ASRC=(-f lavfi -i "sine=frequency=440:duration=2:sample_rate=48000")
 H264=(-c:v libx264 -pix_fmt yuv420p -g 25 -bf 3)
 VP9=(-c:v libvpx-vp9 -deadline realtime -cpu-used 8 -g 25)
 
-ENCODERS="$(ffmpeg -hide_banner -encoders 2>/dev/null || true)"
+ENCODERS="$("$FFMPEG" -hide_banner -encoders 2>/dev/null || true)"
 
 generated() { echo "generated $1" >> "$MANIFEST"; }
 

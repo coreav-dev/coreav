@@ -17,6 +17,13 @@ on:
       - tools/compat-corpus/v2-fixtures.json
       - tools/compat-corpus/encode_breadth.py
       - scripts/oracle-ffmpeg.env
+      - scripts/gen-fixtures*.sh
+      - scripts/test_oracle.py
+      - scripts/oracle_pin.py
+      - scripts/oracle_pin_macos.py
+      - scripts/oracle_audio.py
+      - scripts/oracle-ffmpeg-macos.env
+      - scripts/oracle-audio-args.txt
       - scripts/install-oracle-ffmpeg.sh
       - .github/workflows/avi-output.yml
   workflow_dispatch:

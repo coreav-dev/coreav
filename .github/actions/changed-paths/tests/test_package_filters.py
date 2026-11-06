@@ -3,11 +3,14 @@ import json
 import pathlib
 import re
 import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 SPEC = importlib.util.spec_from_file_location(
     'changed_paths', ROOT / '.github/actions/changed-paths/changed_paths.py')
 cp = importlib.util.module_from_spec(SPEC)
@@ -66,6 +69,24 @@ class PackageFilters(unittest.TestCase):
                     selected, _ = cp.decide([path], patterns if key == 'paths' else [],
                                             patterns if key == 'paths-ignore' else [])
                     self.assertTrue(selected, f'add {path} to the WASM {event} trigger')
+
+    def test_release_and_avi_triggers_cover_qualification_and_fixture_inputs(self):
+        support = {'scripts/' + name for name in test_oracle.SUPPORT}
+        for workflow, inputs in (
+                ('release', support | {'packages/cli/test/release-clips.sh'}),
+                ('avi-output', support | {'scripts/gen-fixtures.sh', 'scripts/gen-fixtures-mkv.sh',
+                                          'scripts/gen-fixtures-ts.sh'})):
+            filters = workflow_check.trigger_filters(
+                (ROOT / '.github/workflows' / (workflow + '.yml')).read_text())
+            pull_filters = [(key, patterns) for event, key, patterns in filters
+                            if event == 'pull_request']
+            self.assertTrue(pull_filters, workflow)
+            for key, patterns in pull_filters:
+                for path in sorted(inputs):
+                    with self.subTest(workflow=workflow, path=path):
+                        selected, _ = cp.decide([path], patterns if key == 'paths' else [],
+                                                patterns if key == 'paths-ignore' else [])
+                        self.assertTrue(selected, f'add {path} to the {workflow} pull-request trigger')
 
     def test_wasm_triggers_cover_notice_record_inputs(self):
         script = ('import { requiredInputs } from "./scripts/notices/record.mjs"; '

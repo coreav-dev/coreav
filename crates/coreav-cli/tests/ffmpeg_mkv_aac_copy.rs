@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct FixtureDir(PathBuf);
 impl Drop for FixtureDir {
@@ -22,20 +25,6 @@ fn fixtures() -> FixtureDir {
     ));
     std::fs::create_dir(&path).unwrap();
     FixtureDir(path)
-}
-
-fn oracle() -> Option<PathBuf> {
-    let path = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    if path.is_file() && path.with_file_name("ffprobe").is_file() {
-        return Some(path);
-    }
-    assert!(
-        std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-        "set COREAV_FFMPEG to the pinned oracle"
-    );
-    None
 }
 
 fn success(output: Output) -> Output {
@@ -142,10 +131,9 @@ fn payloads(path: &Path) -> Vec<Vec<u8>> {
 
 #[test]
 fn aac_copy_is_exactly_clocked_or_preserved_fallback() {
-    let Some(ffmpeg) = oracle() else {
-        return;
-    };
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
+    let oracle = test_oracle::require();
+    let ffmpeg = oracle.ffmpeg();
+    let ffprobe = oracle.ffprobe();
     let owner = fixtures();
     let dir = &owner.0;
     let variants: &[&[&str]] = &[
@@ -165,7 +153,7 @@ fn aac_copy_is_exactly_clocked_or_preserved_fallback() {
     for rate in [32_000, 44_100, 48_000] {
         for channels in [1, 2] {
             for samples in [1024, 4096, 4097] {
-                let source = generate(&ffmpeg, dir, rate, channels, samples);
+                let source = generate(ffmpeg, dir, rate, channels, samples);
                 for &options in variants {
                     let extension = if options.contains(&"-f") {
                         "m4a"
@@ -177,7 +165,7 @@ fn aac_copy_is_exactly_clocked_or_preserved_fallback() {
                     let mut args = vec!["-v", "error", "-y", "-i", source.to_str().unwrap()];
                     args.extend_from_slice(options);
                     let pin = success(
-                        Command::new(&ffmpeg)
+                        Command::new(ffmpeg)
                             .args(["-v", "error", "-y"])
                             .args(
                                 include_str!("../../../scripts/oracle-audio-args.txt")
@@ -201,8 +189,8 @@ fn aac_copy_is_exactly_clocked_or_preserved_fallback() {
                                 .unwrap(),
                         );
                         assert_eq!(
-                            clocks(&ffprobe, &actual),
-                            clocks(&ffprobe, &expected),
+                            clocks(ffprobe, &actual),
+                            clocks(ffprobe, &expected),
                             "{rate}/{channels}/{samples}/{options:?}"
                         );
                         assert_eq!(edits(&actual), edits(&expected));
@@ -239,7 +227,7 @@ fn aac_copy_is_exactly_clocked_or_preserved_fallback() {
                                 .arg("ffmpeg")
                                 .args(&args)
                                 .arg(&actual)
-                                .env("COREAV_FALLBACK", &ffmpeg)
+                                .env("COREAV_FALLBACK", ffmpeg)
                                 .env_remove("COREAV_STRICT_SAFE")
                                 .env_remove("COREAV_FALLBACK_ACTIVE")
                                 .output()
@@ -263,16 +251,15 @@ fn aac_copy_is_exactly_clocked_or_preserved_fallback() {
 
 #[test]
 fn unselected_aac_and_iso_copy_keep_their_native_paths() {
-    let Some(ffmpeg) = oracle() else {
-        return;
-    };
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
+    let oracle = test_oracle::require();
+    let ffmpeg = oracle.ffmpeg();
+    let ffprobe = oracle.ffprobe();
     let owner = fixtures();
     let dir = &owner.0;
-    let source = generate(&ffmpeg, dir, 48_000, 1, 4096);
+    let source = generate(ffmpeg, dir, 48_000, 1, 4096);
     let av = dir.join("av.mkv");
     success(
-        Command::new(&ffmpeg)
+        Command::new(ffmpeg)
             .args([
                 "-v",
                 "error",
@@ -341,10 +328,10 @@ fn unselected_aac_and_iso_copy_keep_their_native_paths() {
     assert!(output.stdout.is_empty());
     assert!(!refused.exists());
 
-    let aligned = generate(&ffmpeg, dir, 32_000, 2, 4096);
+    let aligned = generate(ffmpeg, dir, 32_000, 2, 4096);
     let iso = dir.join("iso.mp4");
     success(
-        Command::new(&ffmpeg)
+        Command::new(ffmpeg)
             .args(["-v", "error"])
             .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
             .arg("-i")
@@ -356,7 +343,7 @@ fn unselected_aac_and_iso_copy_keep_their_native_paths() {
     );
     let expected = dir.join("iso-reference.mp4");
     success(
-        Command::new(&ffmpeg)
+        Command::new(ffmpeg)
             .args(["-v", "error"])
             .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
             .arg("-i")
@@ -376,7 +363,7 @@ fn unselected_aac_and_iso_copy_keep_their_native_paths() {
             .output()
             .unwrap(),
     );
-    assert_eq!(clocks(&ffprobe, &actual), clocks(&ffprobe, &expected));
+    assert_eq!(clocks(ffprobe, &actual), clocks(ffprobe, &expected));
     assert_eq!(payloads(&actual), payloads(&expected));
     let a = edits(&actual);
     let b = edits(&expected);
@@ -414,12 +401,10 @@ fn unselected_aac_and_iso_copy_keep_their_native_paths() {
 
 #[test]
 fn one_tick_source_changes_refuse_without_changing_fallback() {
-    let Some(ffmpeg) = oracle() else {
-        return;
-    };
+    let ffmpeg = test_oracle::require().ffmpeg();
     let owner = fixtures();
     let dir = &owner.0;
-    let source = generate(&ffmpeg, dir, 32_000, 1, 4096);
+    let source = generate(ffmpeg, dir, 32_000, 1, 4096);
     let bytes = std::fs::read(source).unwrap();
     let demux = coreav_mkv::Limits::default();
     let segment = coreav_mkv::probe(
@@ -473,7 +458,7 @@ fn one_tick_source_changes_refuse_without_changing_fallback() {
         let expected = dir.join("reference.mp4");
         let actual = dir.join("actual.mp4");
         let pin = success(
-            Command::new(&ffmpeg)
+            Command::new(ffmpeg)
                 .args(["-v", "error", "-y"])
                 .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
                 .arg("-i")
@@ -511,7 +496,7 @@ fn one_tick_source_changes_refuse_without_changing_fallback() {
                 .arg(&input)
                 .args(["-c", "copy"])
                 .arg(&actual)
-                .env("COREAV_FALLBACK", &ffmpeg)
+                .env("COREAV_FALLBACK", ffmpeg)
                 .env_remove("COREAV_STRICT_SAFE")
                 .env_remove("COREAV_FALLBACK_ACTIVE")
                 .output()
