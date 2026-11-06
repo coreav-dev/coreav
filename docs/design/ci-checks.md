@@ -16,6 +16,8 @@ The claim is pinned in the coverage step's name. Trusted failure reporting indep
 
 Coverage has no age limit. While main remains at one SHA, a successful covering push can suppress later daily runs. Each of `ci-full`, `vp9-corpus`, `vp9-conformance` and `hevc-conformance` also has one Sunday weekly schedule that bypasses the coverage gate and always runs the existing full jobs, even at a covered SHA. These weekly runs check external toolchain and runner-image drift and use the same trusted failure reporter as daily runs. Existing pinned-input caches remain in use: a cache hit can avoid remote acquisition, so weekly execution does not guarantee detection of changed or unavailable remote inputs.
 
+HEVC's kernel-differential campaign is manual-only and runs only with automatic kernels, not with the scalar-forced input. It is separate from the registered C1 vector and four C2 census jobs, so a push or schedule does not need a job it cannot select. A failing campaign still makes its dispatch fail verification through the workflow conclusion; a scalar dispatch supplies no C3 credit. The campaign's two architectures, 600-second target budgets and private findings remain unchanged.
+
 ## Verify a correctness PR's final head
 
 Prerequisite: all workflow files must be registered on the default branch. Before first use, register the new `ci-full.yml` in a dispatch-only change, then dispatch this branch's full implementation. Registration itself is not full-suite evidence.

@@ -63,9 +63,12 @@ class Tiers(unittest.TestCase):
     def test_full_evidence_names_are_wired_to_real_nonempty_workflow_steps(self):
         for workflow, spec in ci_full.FULL_WORKFLOWS.items():
             document = load(spec['file'])
-            for event in ('push', 'schedule', 'workflow_dispatch'):
+            events = [('push', ''), ('workflow_dispatch', '')]
+            events += [('schedule', item['cron']) for item in document['on']['schedule']]
+            for (event, cron), scalar in itertools.product(events, (False, True)):
                 context = {'github': {'event_name': event, 'ref': 'refs/heads/main',
-                                      'repository': ci_full.REPOSITORY},
+                                      'repository': ci_full.REPOSITORY, 'event': {'schedule': cron}},
+                           'inputs': {'mode': 'conformance', 'scalar': scalar},
                            'needs': {key: {'result': 'success', 'outputs': {'reuse': 'false'}}
                                      for key in document['jobs']}}
                 expanded = set()
@@ -74,7 +77,7 @@ class Tiers(unittest.TestCase):
                         continue
                     if workflow == 'hevc-conformance' and job_id in ('headers', 'hevc-smoke'):
                         continue
-                    condition = job.get('if', 'true').replace('inputs.mode', repr('conformance'))
+                    condition = job.get('if', 'true')
                     if not test_main_ci_plan.evaluate(condition, context):
                         continue
                     matrix = job.get('strategy', {}).get('matrix')
@@ -83,7 +86,14 @@ class Tiers(unittest.TestCase):
                                         for values in itertools.product(*matrix.values()))
                     else:
                         expanded.add(job_id)
-                self.assertEqual(expanded, {name for group in spec['areas'].values() for name in group})
+                expected = {name for group in spec['areas'].values() for name in group}
+                if workflow == 'hevc-conformance' and event == 'workflow_dispatch' and not scalar:
+                    expected |= {'kernel-differential (ubuntu-24.04)', 'kernel-differential (macos-15)'}
+                with self.subTest(workflow=workflow, event=event, cron=cron, scalar=scalar):
+                    self.assertEqual(expanded, expected)
+            self.assertNotIn((workflow, 'kernel-differential'), ci_full.PROOF_STEPS)
+            self.assertFalse(any(name.startswith('kernel-differential')
+                                 for group in spec['areas'].values() for name in group))
             for expected in spec['areas'].values():
                 for name in expected:
                     job_id = name.split(' (', 1)[0]

@@ -15,6 +15,8 @@ from test_ci_full import FakeApi, HEAD
 from test_main_ci_plan import evaluate
 
 TREE = 'd' * 40
+DISPATCH_ONLY = {('vp9-conformance', 'build-round'), ('vp9-conformance', 'pixel-ceiling'),
+                 ('hevc-conformance', 'kernel-differential')}
 
 
 def document(name):
@@ -181,8 +183,43 @@ class Coverage(unittest.TestCase):
         self.assertEqual(ci.verify(26, self.api, ['hevc-conformance'])[1], [('hevc-conformance', 45, 1)])
         self.assertFalse(any('event=push' in call[1] or 'event=schedule' in call[1] for call in self.api.calls))
 
+    def test_manual_only_c3_skips_preserve_hevc_push_coverage_and_reporting(self):
+        push = self.api.runs[45]
+        for host in ('ubuntu-24.04', 'macos-15'):
+            self.api.jobs[45].append(dict(self.api.jobs[45][0], name=f'kernel-differential ({host})',
+                                         conclusion='skipped', steps=[]))
+        scheduled = dict(push, id=900, event='schedule', created_at='2026-11-09T01:00:00Z')
+        self.assertTrue(ci.covers('hevc-conformance', scheduled, push, self.api.jobs[45]))
+        self.api.runs[900] = scheduled
+        self.api.jobs[900] = [dict(job, run_id=900, conclusion='skipped', steps=[])
+                              for job in self.api.jobs[45]]
+        self.gate['name'] = 'hevc-conformance-coverage'
+        self.gate['steps'][0]['name'] = 'Covered by run 45 attempt 1'
+        self.api.jobs[900].append(self.gate)
+        self.assertEqual(ci.report(self.api.event(900), self.api), [])
+
 
 class Wiring(unittest.TestCase):
+    def test_manual_only_jobs_never_run_on_automatic_events(self):
+        for name, job_id in DISPATCH_ONLY:
+            workflow = document(name)
+            job = workflow['jobs'][job_id]
+            self.assertFalse(job.get('needs'))
+            events = [(event, '') for event in ('push', 'pull_request', 'merge_group', 'workflow_dispatch')]
+            events += [('schedule', item['cron']) for item in workflow['on']['schedule']]
+            for event, cron in events:
+                for mode in ('conformance', 'ceiling', 'build-round'):
+                    for scalar in (False, True):
+                        with self.subTest(workflow=name, job=job_id, event=event, cron=cron,
+                                          mode=mode, scalar=scalar):
+                            context = {'github': {'event_name': event, 'event': {'schedule': cron},
+                                                  'ref': 'refs/heads/main', 'repository': ci.REPOSITORY},
+                                       'inputs': {'mode': mode, 'scalar': scalar}}
+                            selected = event == 'workflow_dispatch' and (
+                                not scalar if name == 'hevc-conformance' else
+                                mode == ('ceiling' if job_id == 'pixel-ceiling' else 'build-round'))
+                            self.assertEqual(bool(evaluate(job['if'], context)), selected)
+
     def test_gates_are_schedule_only_fail_open_and_share_the_registry(self):
         self.assertEqual(set(reuse.FULL_WORKFLOW_FILES), {spec['file'] for spec in ci.FULL_WORKFLOWS.values()})
         for name, spec in ci.FULL_WORKFLOWS.items():
@@ -241,8 +278,7 @@ class Wiring(unittest.TestCase):
             for job_id, job in jobs.items():
                 if job_id == 'full-coverage':
                     continue
-                if name == 'vp9-conformance' and job_id in ('build-round', 'pixel-ceiling'):
-                    self.assertIn("github.event_name == 'workflow_dispatch'", job['if'])
+                if (name, job_id) in DISPATCH_ONLY:
                     continue
                 condition = job.get('if', '')
                 needs = job.get('needs', [])

@@ -243,6 +243,20 @@ class FailureReporting(unittest.TestCase):
 
 
 class FinalHead(unittest.TestCase):
+    def test_manual_c3_failure_blocks_verification_but_scalar_skip_has_no_c3_credit(self):
+        for scalar in (False, True):
+            api = FakeApi()
+            api.manual()
+            for host in ('ubuntu-24.04', 'macos-15'):
+                api.jobs[45].append(dict(api.jobs[45][0], name=f'kernel-differential ({host})',
+                                         conclusion='skipped' if scalar else 'failure', steps=[]))
+            if scalar:
+                self.assertEqual(ci.verify(26, api, ['hevc-conformance'])[1], [('hevc-conformance', 45, 1)])
+            else:
+                api.runs[45]['conclusion'] = 'failure'
+                with self.assertRaisesRegex(ci.Failure, 'final_head_dispatch_not_green'):
+                    ci.verify(26, api, ['hevc-conformance'])
+
     def test_verifier_requires_every_unique_shard_and_complete_scalar_proof(self):
         for index in range(4):
             for mutation in ('missing', 'duplicate', 'skipped_proof'):
