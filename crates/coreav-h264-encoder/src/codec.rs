@@ -17,6 +17,9 @@ mod inter;
 const STRIDE: usize = 40;
 const ORIGIN: usize = STRIDE + 1;
 const P_INTRA_TYPE_BASE: u32 = 5;
+const FINALISTS: usize = 2;
+const UNRANKED: (u64, u8) = (u64::MAX, u8::MAX);
+type Ranked = [(u64, u8); 4];
 
 #[derive(Clone)]
 struct Tile([u8; STRIDE * 18]);
@@ -488,23 +491,26 @@ fn intra4(
         let p = y / 4 * 4 + x / 4;
         let a = availability(k, a);
         let predicted = predicted_mode(&out.modes, top, left, p);
-        if cheap {
-            let mut proposal = None;
-            let mut tile = out.tile.clone();
-            for mode in 0..9 {
-                if !legal(mode, 4, a) {
-                    continue;
-                }
-                tile.prediction(x, y, 4, a, mode)?;
-                let mut bits = Bits::count();
-                mode_bits(&mut bits, mode, predicted)?;
-                let score = tile.satd(source, x, y, 4)? + (1u64 << (qp / 6)) * bits.len as u64;
-                let value = (score, mode);
-                if proposal.is_none_or(|best| value < best) {
-                    proposal = Some(value);
-                }
+        let mut ranked = [UNRANKED; 9];
+        let mut tile = out.tile.clone();
+        for (slot, mode) in ranked.iter_mut().zip(0..9) {
+            if !legal(mode, 4, a) {
+                continue;
             }
-            let (score, mode) = proposal.ok_or(Error::Internal)?;
+            tile.prediction(x, y, 4, a, mode)?;
+            let mut bits = Bits::count();
+            mode_bits(&mut bits, mode, predicted)?;
+            *slot = (
+                tile.satd(source, x, y, 4)? + (1u64 << (qp / 6)) * bits.len as u64,
+                mode,
+            );
+        }
+        ranked.sort_unstable();
+        if cheap {
+            let (score, mode) = *ranked
+                .first()
+                .filter(|r| **r != UNRANKED)
+                .ok_or(Error::Internal)?;
             cheap_score += score;
             out.tile.prediction(x, y, 4, a, mode)?;
             let levels = t::quantize(&t::forward(&out.tile.residual(source, x, y)?)?, qp, false)?;
@@ -520,10 +526,10 @@ fn intra4(
             continue;
         }
         let mut best = None;
-        let mut tile = out.tile.clone();
-        for mode in 0..9 {
-            if !legal(mode, 4, a) {
-                continue;
+        let mut trials = 0;
+        for &(_, mode) in ranked.iter().filter(|r| **r != UNRANKED) {
+            if trials == FINALISTS {
+                break;
             }
             let result = (|| {
                 tile.prediction(x, y, 4, a, mode)?;
@@ -544,6 +550,7 @@ fn intra4(
             })();
             match result {
                 Ok(candidate) => {
+                    trials += 1;
                     if best.as_ref().is_none_or(
                         |b: &((u64, usize, u8), [u8; 16], [i32; 16], u8)| candidate.0 < b.0,
                     ) {
@@ -758,23 +765,19 @@ impl Decision<'_> {
         })
     }
 
-    fn quick_intra(
+    fn ranked_modes(
         &self,
         base: &Tile,
         cbases: &[Tile; 2],
         a: IntraAvail,
-        four: bool,
-    ) -> Result<Candidate> {
-        let mut luma = None;
-        let mut chroma_mode = None;
-        for mode in 0..4 {
+    ) -> Result<(Ranked, Ranked)> {
+        let mut lumas = [UNRANKED; 4];
+        let mut chromas = [UNRANKED; 4];
+        for (mode, (luma, chroma)) in (0..4).zip(lumas.iter_mut().zip(chromas.iter_mut())) {
             if legal(mode, 16, a) {
                 let mut tile = base.clone();
                 tile.prediction(0, 0, 16, a, mode)?;
-                let score = (tile.satd(self.source, 0, 0, 16)?, mode);
-                if luma.is_none_or(|best| score < best) {
-                    luma = Some(score);
-                }
+                *luma = (tile.satd(self.source, 0, 0, 16)?, mode);
             }
             if legal(mode, 8, a) {
                 let mut bits = Bits::count();
@@ -785,14 +788,32 @@ impl Decision<'_> {
                     tile.prediction(0, 0, 8, a, mode)?;
                     score += tile.satd(source, 0, 0, 8)?;
                 }
-                let score = (score, mode);
-                if chroma_mode.is_none_or(|best| score < best) {
-                    chroma_mode = Some(score);
-                }
+                *chroma = (score, mode);
             }
         }
-        let luma_mode = luma.ok_or(Error::Internal)?.1;
-        let chroma_mode = chroma_mode.ok_or(Error::Internal)?.1;
+        lumas.sort_unstable();
+        chromas.sort_unstable();
+        Ok((lumas, chromas))
+    }
+
+    fn quick_intra(
+        &self,
+        base: &Tile,
+        cbases: &[Tile; 2],
+        a: IntraAvail,
+        four: bool,
+    ) -> Result<Candidate> {
+        let (lumas, chromas) = self.ranked_modes(base, cbases, a)?;
+        let luma = *lumas
+            .first()
+            .filter(|r| **r != UNRANKED)
+            .ok_or(Error::Internal)?;
+        let luma_mode = luma.1;
+        let chroma_mode = chromas
+            .first()
+            .filter(|r| **r != UNRANKED)
+            .ok_or(Error::Internal)?
+            .1;
         let four = if four {
             Some(intra4(
                 base,
@@ -807,7 +828,7 @@ impl Decision<'_> {
             None
         };
         let (luma, choice) = match four {
-            Some((score, four)) if score < luma.ok_or(Error::Internal)?.0 => (four, 4),
+            Some((score, four)) if score < luma.0 => (four, 4),
             _ => (
                 intra16(base, self.source, a, luma_mode, self.qp)?,
                 luma_mode,
@@ -858,18 +879,29 @@ impl Decision<'_> {
                 Err(err) => return Err(err),
             }
         }
-        let mut chromas: [Option<Chroma>; 4] = [None, None, None, None];
-        for mode in 0..4u8 {
-            if !legal(mode, 8, a) {
-                continue;
-            }
+        let (lumas, chroma_ranks) = self.ranked_modes(base, cbases, a)?;
+        let mut chromas: [Option<Chroma>; FINALISTS] = [None, None];
+        let mut filled = 0;
+        for &(_, mode) in chroma_ranks.iter().filter(|r| **r != UNRANKED) {
+            let Some(slot) = chromas.get_mut(filled) else {
+                break;
+            };
             match chroma(cbases, self.csources, a, mode, t::chroma_qp(self.qp)) {
-                Ok(c) => *chromas.get_mut(usize::from(mode)).ok_or(Error::Internal)? = Some(c),
+                Ok(c) => {
+                    *slot = Some(c);
+                    filled += 1;
+                }
                 Err(Error::Coefficient) => {}
                 Err(err) => return Err(err),
             }
         }
-        for choice in 0..5u8 {
+        let mut sixteens = 0;
+        let choices = lumas
+            .iter()
+            .filter(|r| **r != UNRANKED)
+            .map(|r| r.1)
+            .chain([4]);
+        for choice in choices {
             let luma = if choice == 4 {
                 intra4(
                     base,
@@ -882,7 +914,7 @@ impl Decision<'_> {
                 )
                 .map(|(_, luma)| luma)
             } else {
-                if !legal(choice, 16, a) {
+                if sixteens == FINALISTS {
                     continue;
                 }
                 intra16(base, self.source, a, choice, self.qp)
@@ -892,6 +924,9 @@ impl Decision<'_> {
                 Err(Error::Coefficient) => continue,
                 Err(err) => return Err(err),
             };
+            if choice != 4 {
+                sixteens += 1;
+            }
             for chroma in chromas.iter().flatten() {
                 match self.candidate(luma.clone(), chroma.clone(), None, choice) {
                     Ok(candidate) => consider(best, candidate),
