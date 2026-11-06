@@ -43,6 +43,12 @@ jobs:
           persist-credentials: false
           ref: ${{ env.CANDIDATE }}
           path: candidate
+      - name: Admit only commits on this repository's branches
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          git fetch --quiet --unshallow --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+          test -n "$(git branch -r --contains "$CANDIDATE")"
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable

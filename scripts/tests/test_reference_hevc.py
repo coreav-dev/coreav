@@ -44,6 +44,14 @@ class Reference(unittest.TestCase):
             accepted = subprocess.run(command, capture_output=True, check=True, timeout=10)
             self.assertEqual(json.loads(accepted.stdout)['candidate'], expected)
 
+    def test_candidate_must_be_on_a_branch_before_it_builds_or_sees_credentials(self):
+        workflow = (SCRIPTS.parent / '.github/workflows/hevc-reference.yml').read_text()
+        admission = workflow.index("Admit only commits on this repository's branches")
+        self.assertLess(workflow.index('path: candidate'), admission)
+        self.assertLess(admission, workflow.index('cargo build'))
+        self.assertLess(admission, workflow.index('secrets.'))
+        self.assertIn('test -n "$(git branch -r --contains "$CANDIDATE")"', workflow[admission:workflow.index('cargo build')])
+
     def test_diagnostic_mode_never_times_verified_files(self):
         args = type('Args', (), dict(native=pathlib.Path('/native'), oracle_bin=pathlib.Path('/oracle'), diagnose_only=True))()
         with tempfile.TemporaryDirectory() as temp:
