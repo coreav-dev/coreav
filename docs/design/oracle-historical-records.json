@@ -75,7 +75,7 @@
     "docs/measurements/codec-v2-images/summary.json": "33592f331f5abb9d797b3f5b86ab02d1b8600182caaeaeffd670e63887799dab",
     "docs/measurements/compat-0.1.0/README.md": "cebf260d561b52ab98698c4b25477b7c2c759689c2b52d54fe5e4ce4c00cce96",
     "docs/measurements/compat-0.1.0/codec-coverage-plan.md": "722de736d9d46c516fdec7eb30773773b8eb67b0cc3068cbd78e1d86ddcfed80",
-    "docs/measurements/compat-0.1.0/judging.json": "321f82552c211ed09bf477108f6217df4678a4ce167e97484ab88ed07066b8b2",
+    "docs/measurements/compat-0.1.0/judging.json": "d2a5488f8cd910e09def7e290558dbb1cd6509f3153299d33baf3f3fcbda8fc7",
     "docs/measurements/compat-0.1.0/r4-refusal-plan.md": "3fa09b8f9354a8ca66ce645bb5128aa1442a554d81b6301d17a711c1874f47fc",
     "docs/measurements/compat-ffprobe.md": "210cc9fe2bccc4a8e0cbc80a9783d8a5d54fadf60a621206bc20b4a1a6793b57",
     "docs/measurements/compat-ffprobe/b3a-round1.json": "05f3f8dfbc64a3d31a7ae5397bef7a9151b72610ce0ab4a8e8af00996c7fcc73",
