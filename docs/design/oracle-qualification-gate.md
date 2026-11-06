@@ -94,7 +94,7 @@ The new report has valid evidence and exact reconciliation of 6,229 rows: 5,939 
 
 ## Completion plan after the evidence mechanism
 
-coreav-dev/coreav#438 merged as `1d8c263806b31f5ff99d0978fa04c9c02d0a85e0`. This follow-up completes exact-site classification and repairs remaining qualification bypasses before making the existing classifier required. The plan is committed before implementation. The reviewed schema-2 mechanism remains the evidence owner; no new general-purpose flow analyzer or automatic verdict inheritance is introduced.
+coreav-dev/coreav#438 merged as `1d8c263806b31f5ff99d0978fa04c9c02d0a85e0`. This follow-up classifies every row at its exact site, repairs the qualification bypasses it can change, and makes the existing classifier required only once the predicate below holds. The plan is committed before implementation. The reviewed schema-2 mechanism remains the evidence owner; no new general-purpose flow analyzer or automatic verdict inheritance is introduced.
 
 ### Baseline and completion predicate
 
