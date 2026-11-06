@@ -16,6 +16,10 @@ pub struct DecodeLimits {
     pub max_stream_bins: u64,
     /// Maximum bins in any one reconstructed picture.
     pub max_picture_bins: u64,
+    /// Maximum bytes of a packed visible output picture, checked before sample allocation.
+    pub max_frame_bytes: u64,
+    /// Optional absolute decoder-session deadline, including filtering and output work.
+    pub deadline: Option<std::time::Instant>,
 }
 
 impl Default for DecodeLimits {
@@ -25,6 +29,8 @@ impl Default for DecodeLimits {
             max_memory_bytes: 512 * 1024 * 1024,
             max_stream_bins: 1 << 40,
             max_picture_bins: 268_435_456,
+            max_frame_bytes: u64::MAX,
+            deadline: None,
         }
     }
 }
@@ -38,6 +44,8 @@ pub struct DecodedPicture<'a> {
     pub poc: i32,
     /// Caller timestamp supplied with the first slice, in the caller's own clock.
     pub timestamp: Option<i64>,
+    /// Opaque caller identity supplied with the picture's first slice.
+    pub origin: Option<u64>,
     /// Activated geometry, crop and original display declarations.
     pub info: PictureInfo,
     /// Complete coded Y, Cb and Cr planes; cropping is not applied to these views.
@@ -46,6 +54,36 @@ pub struct DecodedPicture<'a> {
     pub stats: IntraStats,
     /// Effective inter prediction and boundary-strength work.
     pub inter: InterStats,
+}
+
+/// A callback-scoped reservation in the decoder's combined live-memory account.
+pub struct OutputMemory<'a> {
+    codec_bytes: usize,
+    reserved: &'a mut usize,
+    limit: usize,
+}
+
+impl OutputMemory<'_> {
+    /// Charges external capacity before allocating output or queue storage.
+    pub fn reserve(&mut self, bytes: usize) -> Result<()> {
+        let reserved = self
+            .reserved
+            .checked_add(bytes)
+            .ok_or(Error::Limit("reconstruction_memory"))?;
+        let mut memory = Memory::new(self.codec_bytes, self.limit)?;
+        memory.charge(reserved)?;
+        *self.reserved = reserved;
+        Ok(())
+    }
+
+    /// Releases external capacity after it is freed or transferred to the caller.
+    pub fn release(&mut self, bytes: usize) -> Result<()> {
+        *self.reserved = self
+            .reserved
+            .checked_sub(bytes)
+            .ok_or(Error::InvalidData("output_reservation_underflow"))?;
+        Ok(())
+    }
 }
 
 /// Successful complete-stream accounting, including pictures not selected for output.
@@ -81,6 +119,8 @@ struct Pictures {
     limits: DecodeLimits,
     frame: Option<Frame>,
     timestamp: Option<i64>,
+    origin: Option<u64>,
+    external_memory: usize,
     skipped: Option<u64>,
     stream_remaining: u64,
     picture_remaining: u64,
@@ -143,6 +183,8 @@ impl PictureDecoder {
                 limits,
                 frame: None,
                 timestamp: None,
+                origin: None,
+                external_memory: 0,
                 skipped: None,
                 stream_remaining: limits.max_stream_bins,
                 picture_remaining: limits.max_picture_bins,
@@ -163,6 +205,28 @@ impl PictureDecoder {
         timestamp: Option<i64>,
         mut emit: impl FnMut(DecodedPicture<'_>) -> Result<()>,
     ) -> Result<()> {
+        self.read(bytes, timestamp, None, |picture, _| emit(picture))
+    }
+
+    /// Feeds an original NAL with an opaque picture identity, independently of PTS.
+    /// Later slices with an identity must match the first slice's identity.
+    pub fn read_nal_with_origin(
+        &mut self,
+        bytes: &[u8],
+        timestamp: Option<i64>,
+        origin: u64,
+        emit: impl FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>,
+    ) -> Result<()> {
+        self.read(bytes, timestamp, Some(origin), emit)
+    }
+
+    fn read(
+        &mut self,
+        bytes: &[u8],
+        timestamp: Option<i64>,
+        origin: Option<u64>,
+        mut emit: impl FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>,
+    ) -> Result<()> {
         if self.state != State::Active {
             self.fail();
             return Err(Error::InvalidData("picture_decoder_closed"));
@@ -182,6 +246,7 @@ impl PictureDecoder {
             let live = fixed
                 .checked_add(session.core.heap_bytes()?)
                 .and_then(|n| n.checked_add(frame_bytes))
+                .and_then(|n| n.checked_add(session.pictures.external_memory))
                 .ok_or(Error::Limit("reconstruction_memory"))?;
             let mut memory = Memory::new(live, session.pictures.limits.max_memory_bytes)?;
             memory.charge(bytes.len().saturating_sub(2))?;
@@ -200,6 +265,7 @@ impl PictureDecoder {
                     pictures: &mut session.pictures,
                     fixed,
                     incoming_timestamp: timestamp,
+                    incoming_origin: origin,
                     emit: &mut emit,
                 },
             )?;
@@ -217,6 +283,14 @@ impl PictureDecoder {
         &mut self,
         mut emit: impl FnMut(DecodedPicture<'_>) -> Result<()>,
     ) -> Result<DecodeSummary> {
+        self.finish_with_output(|picture, _| emit(picture))
+    }
+
+    /// Drains pictures with callback-scoped output reservations in the same account.
+    pub fn finish_with_output(
+        &mut self,
+        mut emit: impl FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>,
+    ) -> Result<DecodeSummary> {
         if self.state == State::Failed {
             return Err(Error::InvalidData("picture_decoder_failed"));
         }
@@ -230,6 +304,7 @@ impl PictureDecoder {
                 pictures: &mut session.pictures,
                 fixed,
                 incoming_timestamp: None,
+                incoming_origin: None,
                 emit: &mut emit,
             })?;
             session.pictures.summary.headers = headers;
@@ -242,16 +317,54 @@ impl PictureDecoder {
         }
         result
     }
+
+    /// Sets retained external capacity between operations, charging live codec state too.
+    /// Reservation failure is terminal, like a decode or output-callback failure.
+    pub fn set_external_memory(&mut self, bytes: usize) -> Result<()> {
+        if self.state == State::Failed {
+            return Err(Error::InvalidData("picture_decoder_failed"));
+        }
+        let result = (|| {
+            self.initialize()?;
+            let fixed = self.fixed_memory()?;
+            let session = self
+                .session
+                .first_mut()
+                .ok_or(Error::InvalidData("decoder_state"))?;
+            let frame = session
+                .pictures
+                .frame
+                .as_ref()
+                .map_or(Ok(0), Frame::heap_bytes)?;
+            let live = fixed
+                .checked_add(session.core.heap_bytes()?)
+                .and_then(|n| n.checked_add(frame))
+                .ok_or(Error::Limit("reconstruction_memory"))?;
+            let mut memory = Memory::new(live, self.limits.max_memory_bytes)?;
+            memory.charge(bytes)?;
+            session.pictures.external_memory = bytes;
+            session.pictures.summary.memory_bytes =
+                session.pictures.summary.memory_bytes.max(memory.used);
+            Ok(())
+        })();
+        if result.is_err() {
+            self.fail();
+        }
+        result
+    }
 }
 
 struct Observer<'a, F> {
     pictures: &'a mut Pictures,
     fixed: usize,
     incoming_timestamp: Option<i64>,
+    incoming_origin: Option<u64>,
     emit: &'a mut F,
 }
 
-impl<F: FnMut(DecodedPicture<'_>) -> Result<()>> PictureObserver for Observer<'_, F> {
+impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureObserver
+    for Observer<'_, F>
+{
     fn boundary(&mut self, dpb: &mut Dpb, scratch_bytes: usize) -> Result<()> {
         self.pictures.skipped = None;
         let Some(mut frame) = self.pictures.frame.take() else {
@@ -261,6 +374,7 @@ impl<F: FnMut(DecodedPicture<'_>) -> Result<()>> PictureObserver for Observer<'_
             .fixed
             .checked_add(dpb.heap_bytes()?)
             .and_then(|n| n.checked_add(scratch_bytes))
+            .and_then(|n| n.checked_add(self.pictures.external_memory))
             .ok_or(Error::Limit("reconstruction_memory"))?;
         let peak = frame.finalize(fixed, self.pictures.limits.max_memory_bytes)?;
         self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(peak);
@@ -269,10 +383,26 @@ impl<F: FnMut(DecodedPicture<'_>) -> Result<()>> PictureObserver for Observer<'_
         self.pictures
             .summary
             .add(frame.stats, frame.inter_stats())?;
-        dpb.attach(frame.retain(self.pictures.timestamp)?)
+        dpb.attach(frame.retain(self.pictures.timestamp, self.pictures.origin)?)
     }
 
     fn slice(&mut self, input: SliceInput<'_>, dpb: &Dpb) -> Result<()> {
+        if input.header.first {
+            if self.incoming_origin.is_some() && self.incoming_origin == self.pictures.origin {
+                return Err(Error::InvalidData("multiple_pictures_in_access_unit"));
+            }
+            self.pictures.timestamp = self.incoming_timestamp;
+            self.pictures.origin = self.incoming_origin;
+        } else {
+            if self.incoming_timestamp.is_some()
+                && self.incoming_timestamp != self.pictures.timestamp
+            {
+                return Err(Error::InvalidData("picture_timestamp_changed"));
+            }
+            if self.incoming_origin.is_some() && self.incoming_origin != self.pictures.origin {
+                return Err(Error::InvalidData("picture_origin_changed"));
+            }
+        }
         if !dpb.reconstructs(input.index) {
             if self.pictures.skipped != Some(input.index) {
                 self.pictures.summary.skipped_pictures = self
@@ -288,22 +418,29 @@ impl<F: FnMut(DecodedPicture<'_>) -> Result<()>> PictureObserver for Observer<'_
         let fixed = self
             .fixed
             .checked_add(dpb.heap_bytes()?)
+            .and_then(|n| n.checked_add(self.pictures.external_memory))
             .ok_or(Error::Limit("reconstruction_memory"))?;
         if self.pictures.frame.is_none() {
+            let bytes = (u64::from(input.picture.visible_width)
+                * u64::from(input.picture.visible_height))
+            .checked_mul(3)
+            .and_then(|n| n.checked_mul(if input.picture.bit_depth == 10 { 2 } else { 1 }))
+            .and_then(|n| n.checked_div(2))
+            .ok_or(Error::Limit("output_frame_bytes"))?;
+            if bytes > self.pictures.limits.max_frame_bytes {
+                return Err(Error::Limit("output_frame_bytes"));
+            }
             let identity = dpb.current_identity(input.index)?;
-            self.pictures.frame = Some(Frame::new_full(
+            let mut frame = Frame::new_full(
                 &input,
                 identity.poc,
                 dpb.current_references(),
                 fixed,
                 self.pictures.limits.max_memory_bytes,
-            )?);
-            self.pictures.timestamp = self.incoming_timestamp;
+            )?;
+            frame.deadline = self.pictures.limits.deadline;
+            self.pictures.frame = Some(frame);
             self.pictures.picture_remaining = self.pictures.limits.max_picture_bins;
-        } else if self.incoming_timestamp.is_some()
-            && self.incoming_timestamp != self.pictures.timestamp
-        {
-            return Err(Error::InvalidData("picture_timestamp_changed"));
         }
         let frame = self
             .pictures
@@ -343,6 +480,7 @@ impl<F: FnMut(DecodedPicture<'_>) -> Result<()>> PictureObserver for Observer<'_
                 .fixed
                 .checked_add(dpb.heap_bytes()?)
                 .and_then(|n| n.checked_add(scratch_bytes))
+                .and_then(|n| n.checked_add(self.pictures.external_memory))
                 .ok_or(Error::Limit("reconstruction_memory"))?;
             let peak = frame.hash(info, fixed, self.pictures.limits.max_memory_bytes)?;
             self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(peak);
@@ -365,20 +503,44 @@ impl<F: FnMut(DecodedPicture<'_>) -> Result<()>> PictureObserver for Observer<'_
         Ok(())
     }
 
-    fn output(&mut self, emission: Emission<'_>) -> Result<()> {
+    fn output(&mut self, emission: Emission<'_>, scratch_bytes: usize) -> Result<()> {
         let samples = emission
             .picture
             .ok_or(Error::InvalidData("missing_output_samples"))?;
         let picture = samples.view();
-        (self.emit)(DecodedPicture {
-            index: picture.index,
-            poc: emission.event.poc,
-            timestamp: samples.timestamp(),
-            info: picture.info,
-            planes: picture.planes,
-            stats: picture.stats,
-            inter: samples.inter_stats(),
-        })
+        let frame = self
+            .pictures
+            .frame
+            .as_ref()
+            .map_or(Ok(0), Frame::heap_bytes)?;
+        let codec_bytes = self
+            .fixed
+            .checked_add(emission.retained_bytes)
+            .and_then(|n| n.checked_add(frame))
+            .and_then(|n| n.checked_add(scratch_bytes))
+            .ok_or(Error::Limit("reconstruction_memory"))?;
+        let mut memory = OutputMemory {
+            codec_bytes,
+            reserved: &mut self.pictures.external_memory,
+            limit: self.pictures.limits.max_memory_bytes,
+        };
+        (self.emit)(
+            DecodedPicture {
+                index: picture.index,
+                poc: emission.event.poc,
+                timestamp: samples.timestamp(),
+                origin: samples.origin(),
+                info: picture.info,
+                planes: picture.planes,
+                stats: picture.stats,
+                inter: samples.inter_stats(),
+            },
+            &mut memory,
+        )?;
+        let mut used = Memory::new(codec_bytes, self.pictures.limits.max_memory_bytes)?;
+        used.charge(self.pictures.external_memory)?;
+        self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(used.used);
+        Ok(())
     }
 }
 
@@ -512,11 +674,14 @@ mod tests {
             .first_mut()
             .ok_or(Error::InvalidData("test_session"))?;
         session.pictures.skipped = Some(7);
-        let mut emit = |_: DecodedPicture<'_>| Err(Error::InvalidData("unexpected_output"));
+        let mut emit = |_: DecodedPicture<'_>, _: &mut OutputMemory<'_>| {
+            Err(Error::InvalidData("unexpected_output"))
+        };
         let mut observer = Observer {
             pictures: &mut session.pictures,
             fixed,
             incoming_timestamp: None,
+            incoming_origin: None,
             emit: &mut emit,
         };
         let mut dpb = Dpb::new_reconstruction();

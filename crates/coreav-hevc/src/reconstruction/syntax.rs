@@ -649,6 +649,7 @@ impl Frame {
                 .ok_or(Error::InvalidData("intra_substream_range"))?;
             let mut cabac = Cabac::new(bytes, remaining)?;
             loop {
+                self.check_deadline()?;
                 let location = input.layout.at_tile_scan(self.next_ctu)?;
                 self.start_ctu(&input, location, slice)?;
                 self.read_sao(&input, location, slice, &mut cabac)?;

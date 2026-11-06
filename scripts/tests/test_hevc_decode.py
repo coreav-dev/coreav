@@ -355,7 +355,7 @@ class PacketDecode(unittest.TestCase):
             error = runner.harness.test_oracle.QualificationError('changed')
             with mock.patch.object(runner.sys, 'platform', 'linux'), \
                  mock.patch.object(runner.harness.test_oracle, 'require', side_effect=error) as owner:
-                with self.assertRaisesRegex(ValueError, '^pinned_oracle_required$'):
+                with self.assertRaisesRegex(ValueError, '^pinned oracle binaries are required: changed$'):
                     runner.run(args)
             owner.assert_called_once_with(root / 'bin' / 'ffmpeg', root / 'bin' / 'ffprobe')
             self.assertFalse(args.out.exists())

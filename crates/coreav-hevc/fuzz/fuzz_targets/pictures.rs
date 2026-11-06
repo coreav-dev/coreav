@@ -14,10 +14,13 @@ fuzz_target!(|data: &[u8]| {
             max_height: 256,
             max_ctus: 256,
             max_pictures: 16,
+            max_pixels: 256 * 256,
+            max_reference_frames: 16,
         },
         max_memory_bytes: 2 * 1024 * 1024,
         max_stream_bins: 32768,
         max_picture_bins: 16384,
+        ..DecodeLimits::default()
     };
     let mut decoder = PictureDecoder::new(limits);
     let mut outputs = 0u64;

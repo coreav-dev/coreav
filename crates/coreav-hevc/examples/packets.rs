@@ -1,7 +1,9 @@
 //! Container-packet test adapter; not a registered decode backend.
 
 use coreav_decode::{Codec, ConfigKind};
-use coreav_hevc::{DecodeLimits, Error, LengthPrefixed, NalHeader, PictureDecoder, Result};
+use coreav_hevc::{
+    DecodeLimits, Error, LengthPrefixed, NalHeader, PictureDecoder, Result, packet_nal,
+};
 use coreav_isobmff::{EditList, FileSource, Rational, Source};
 use coreav_thumbnail::{Container, StreamPacket, ThumbnailOptions, VideoStream};
 use serde_json::{Value, json};
@@ -14,23 +16,6 @@ mod decoded;
 
 const PACKET_LIMIT: u64 = 64 << 20;
 const PACKET_COUNT_LIMIT: usize = 1_000_000;
-
-fn packet_nal(nal: &[u8], max: usize) -> Result<(&[u8], usize)> {
-    if nal.len() > max {
-        return Err(Error::Limit("max_nal_bytes"));
-    }
-    let payload = nal
-        .get(2..)
-        .ok_or(Error::InvalidData("truncated_nal_header"))?;
-    let end = 2 + payload
-        .iter()
-        .rposition(|&byte| byte != 0)
-        .map_or(0, |i| i + 1);
-    let coded = nal
-        .get(..end)
-        .ok_or(Error::InvalidData("packet_nal_bounds"))?;
-    Ok((coded, nal.len() - end))
-}
 
 fn integer<T: std::str::FromStr>(value: Option<std::ffi::OsString>) -> Result<T> {
     value

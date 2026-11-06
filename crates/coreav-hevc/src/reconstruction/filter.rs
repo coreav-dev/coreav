@@ -158,6 +158,7 @@ impl Frame {
         let edge_extent = if horizontal { height } else { width };
         let along_extent = if horizontal { width } else { height };
         for edge in (8..edge_extent).step_by(8) {
+            self.check_deadline()?;
             for along in (0..along_extent).step_by(4) {
                 let [x, y] = if horizontal {
                     [along, edge]
@@ -308,6 +309,7 @@ impl Frame {
         let height = self.info.height as usize / scale;
         let side = (1usize << self.info.ctb_log2) / scale;
         for cy in (0..height).step_by(side) {
+            self.check_deadline()?;
             for cx in (0..width).step_by(side) {
                 let sao = *self
                     .filter_ctu(cx * scale, cy * scale)?
@@ -556,6 +558,7 @@ mod tests {
             };
             let retained = RetainedPicture::for_test(0, info, None);
             let mut frame = Frame {
+                deadline: None,
                 index: 0,
                 info,
                 depth: kernels::BitDepth::new(bits as u8)?,

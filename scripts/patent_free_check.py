@@ -25,6 +25,9 @@ import sys
 # (HEVC, for example) adds a line in the pull request that adds it; a line
 # goes only after the project's patent review.
 PATENTED = {
+    'coreav-hevc': 'HEVC',
+    'coreav-kernels-hevc': 'HEVC',
+    'coreav-backend-hevc': 'HEVC',
     'coreav-h264-encoder': 'H.264',
     'coreav-h264': 'H.264',
     'coreav-kernels-h264': 'H.264',
@@ -40,9 +43,12 @@ PATENTED = {
 # without being listed.
 BUILDS = [
     ('coreav-cli for npm (packages/cli/scripts/build.sh)',
-     ['-p', 'coreav-cli', '--no-default-features', '--features', 'cli']),
+     ['-p', 'coreav-cli', '--no-default-features', '--features', 'cli'], None),
     ('coreav-cli, the release default build (packages/cli/scripts/platform.sh)',
-     ['-p', 'coreav-cli', '--features', 'release-default']),
+     ['-p', 'coreav-cli', '--features', 'release-default'], None),
+    ('coreav-cli, release-full without HEVC (packages/cli/scripts/platform.sh)',
+     ['-p', 'coreav-cli', '--features', 'release-full'],
+     {name for name, codec in PATENTED.items() if codec == 'HEVC'}),
 ]
 
 
@@ -67,10 +73,10 @@ def main():
     meta = json.loads(cargo(args.root, ['metadata', '--locked', '--no-deps', '--format-version', '1']))
     members = sorted(pkg['name'] for pkg in meta['packages'])
     problems = [f'{name} is in PATENTED but is no workspace member' for name in PATENTED if name not in members]
-    builds = [(f'{name}, default features', ['-p', name]) for name in members if name not in PATENTED]
+    builds = [(f'{name}, default features', ['-p', name], None) for name in members if name not in PATENTED]
     builds += BUILDS
-    for label, cargo_args in builds:
-        found = sorted(tree(args.root, cargo_args) & set(PATENTED))
+    for label, cargo_args, forbidden in builds:
+        found = sorted(tree(args.root, cargo_args) & (set(PATENTED) if forbidden is None else forbidden))
         for name in found:
             problems.append(f'{label}: links {name} ({PATENTED[name]})')
     for problem in problems:

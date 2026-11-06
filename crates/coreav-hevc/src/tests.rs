@@ -1,29 +1,13 @@
 use crate::{bits::Bits, nal, sei, *};
 
+#[path = "../test-support/pcm.rs"]
+mod pcm;
+#[path = "../test-support/writer.rs"]
+pub(crate) mod writer;
+use pcm::{escaped, padded, pcm_fixture};
+
 #[path = "../fuzz/fuzz_targets/intra_parameters.rs"]
 mod intra_parameters;
-
-fn escaped(kind: u8, rbsp: &[u8]) -> Vec<u8> {
-    let mut nal = vec![kind << 1, 1];
-    let mut zeros = 0;
-    for &byte in rbsp {
-        if zeros == 2 && byte <= 3 {
-            nal.push(3);
-            zeros = 0;
-        }
-        nal.push(byte);
-        zeros = if byte == 0 { zeros + 1 } else { 0 };
-    }
-    nal
-}
-
-fn padded(mut w: params::tests::Writer) -> Vec<u8> {
-    w.flag(true);
-    while w.len() % 8 != 0 {
-        w.flag(false);
-    }
-    w.bytes()
-}
 
 fn synthetic_parameter_nals() -> [Vec<u8>; 3] {
     let mut w = params::tests::Writer::default();
@@ -122,139 +106,6 @@ fn profile_admission_preserves_depth_limits_and_requires_a_main10_claim() {
 
 fn idr() -> Vec<u8> {
     idr_segment(true)
-}
-
-struct PcmFixture {
-    sets: [Vec<u8>; 3],
-    nal: Vec<u8>,
-    planes: [Vec<u16>; 3],
-}
-
-fn fixture_profile(writer: &mut params::tests::Writer, depth: u32) {
-    writer.u(2, 0);
-    writer.flag(false);
-    writer.u(5, if depth == 10 { 2 } else { 1 });
-    writer.u(32, 0);
-    writer.u(4, 0);
-    writer.u(32, 0);
-    writer.u(12, 0);
-    writer.u(8, 120);
-}
-
-fn pcm_fixture(depth: u32, pcm_depth: u32, filtered: bool) -> Result<PcmFixture> {
-    let mut vps = params::tests::Writer::default();
-    vps.u(4, 0);
-    vps.flag(true);
-    vps.flag(true);
-    vps.u(6, 0);
-    vps.u(3, 0);
-    vps.flag(true);
-    vps.u(16, 0xffff);
-    fixture_profile(&mut vps, depth);
-    vps.flag(false);
-    for _ in 0..3 {
-        vps.ue(0);
-    }
-    vps.u(6, 0);
-    vps.ue(0);
-    vps.flag(false);
-    vps.flag(false);
-    let mut sps = params::tests::Writer::default();
-    sps.u(4, 0);
-    sps.u(3, 0);
-    sps.flag(true);
-    fixture_profile(&mut sps, depth);
-    for value in [0, 1, 8, 8] {
-        sps.ue(value);
-    }
-    sps.flag(false);
-    sps.ue(depth - 8);
-    sps.ue(depth - 8);
-    sps.ue(0);
-    sps.flag(false);
-    for value in [0, 0, 0, 0, 1, 0, 1, 0, 0] {
-        sps.ue(value);
-    }
-    for flag in [false, false, false, true] {
-        sps.flag(flag);
-    }
-    sps.u(4, pcm_depth - 1);
-    sps.u(4, pcm_depth - 1);
-    sps.ue(0);
-    sps.ue(0);
-    sps.flag(true);
-    sps.ue(0);
-    for _ in 0..5 {
-        sps.flag(false);
-    }
-    let mut pps = params::tests::Writer::default();
-    pps.ue(0);
-    pps.ue(0);
-    pps.flag(false);
-    pps.flag(false);
-    pps.u(3, 0);
-    pps.flag(false);
-    pps.flag(false);
-    pps.ue(0);
-    pps.ue(0);
-    pps.se(0);
-    for _ in 0..3 {
-        pps.flag(false);
-    }
-    pps.se(0);
-    pps.se(0);
-    for _ in 0..7 {
-        pps.flag(false);
-    }
-    pps.flag(true);
-    pps.flag(false);
-    pps.flag(!filtered);
-    if filtered {
-        pps.se(0);
-        pps.se(0);
-    }
-    pps.flag(false);
-    pps.flag(false);
-    pps.ue(0);
-    pps.flag(false);
-    pps.flag(false);
-    let mut slice = params::tests::Writer::default();
-    slice.flag(true);
-    slice.flag(false);
-    slice.ue(0);
-    slice.ue(2);
-    slice.se(0);
-    let mut rbsp = padded(slice);
-    rbsp.extend([0x86, 0x80]);
-    let raw: [Vec<u16>; 3] = core::array::from_fn(|component| {
-        let length = if component == 0 { 64 } else { 16 };
-        (0..length)
-            .map(|i| ((i * 17 + component * 67) & ((1 << pcm_depth) - 1)) as u16)
-            .collect()
-    });
-    let mut samples = params::tests::Writer::default();
-    for plane in &raw {
-        for value in plane {
-            samples.u(pcm_depth, u32::from(*value));
-        }
-    }
-    rbsp.extend(samples.bytes());
-    rbsp.extend([0xfe, 0x80]);
-    let planes = raw.map(|plane| {
-        plane
-            .into_iter()
-            .map(|v| v << (depth - pcm_depth))
-            .collect()
-    });
-    Ok(PcmFixture {
-        sets: [
-            escaped(32, &padded(vps)),
-            escaped(33, &padded(sps)),
-            escaped(34, &padded(pps)),
-        ],
-        nal: escaped(19, &rbsp),
-        planes,
-    })
 }
 
 #[test]
@@ -446,6 +297,87 @@ fn complete_decoder_never_publishes_a_bad_suffix_or_incomplete_picture() -> Resu
         );
         assert!(decoder.read_nal(&fixture.nal, None, |_| Ok(())).is_err());
     }
+    Ok(())
+}
+
+#[test]
+fn complete_decoder_preserves_origins_with_duplicate_or_absent_timestamps() -> Result<()> {
+    let fixture = pcm_fixture(8, 8, false)?;
+    for timestamp in [None, Some(7)] {
+        let mut decoder = PictureDecoder::new(DecodeLimits::default());
+        for nal in &fixture.sets {
+            decoder.read_nal(nal, None, |_| Err(Error::InvalidData("early_output")))?;
+        }
+        let mut output = Vec::new();
+        for origin in [44, 66, 88] {
+            decoder.read_nal_with_origin(&fixture.nal, timestamp, origin, |picture, _| {
+                output.push((picture.index, picture.timestamp, picture.origin));
+                Ok(())
+            })?;
+        }
+        decoder.finish(|picture| {
+            output.push((picture.index, picture.timestamp, picture.origin));
+            Ok(())
+        })?;
+        assert_eq!(
+            output,
+            vec![
+                (0, timestamp, Some(44)),
+                (1, timestamp, Some(66)),
+                (2, timestamp, Some(88)),
+            ]
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn output_reservations_share_the_live_codec_budget_across_callbacks() -> Result<()> {
+    let fixture = pcm_fixture(10, 10, false)?;
+    let decode = |maximum| -> Result<DecodeSummary> {
+        let mut decoder = PictureDecoder::new(DecodeLimits {
+            max_memory_bytes: maximum,
+            ..DecodeLimits::default()
+        });
+        decoder.set_external_memory(1024)?;
+        for set in &fixture.sets {
+            decoder.read_nal(set, None, |_| Ok(()))?;
+        }
+        for origin in 0..3 {
+            decoder.read_nal_with_origin(&fixture.nal, None, origin, |_, memory| {
+                memory.reserve(4096)
+            })?;
+        }
+        decoder.finish_with_output(|_, memory| memory.reserve(4096))
+    };
+    let peak = decode(usize::MAX)?.memory_bytes;
+    assert_eq!(decode(peak)?.memory_bytes, peak);
+    assert!(matches!(
+        decode(peak - 1),
+        Err(Error::Limit("reconstruction_memory"))
+    ));
+    let mut decoder = PictureDecoder::new(DecodeLimits::default());
+    assert!(decoder.set_external_memory(usize::MAX).is_err());
+    assert!(decoder.read_nal(&fixture.nal, None, |_| Ok(())).is_err());
+    assert!(decoder.finish(|_| Ok(())).is_err());
+    Ok(())
+}
+
+#[test]
+fn an_expired_session_deadline_closes_reconstruction() -> Result<()> {
+    let fixture = pcm_fixture(8, 8, false)?;
+    let mut decoder = PictureDecoder::new(DecodeLimits {
+        deadline: Some(std::time::Instant::now()),
+        ..DecodeLimits::default()
+    });
+    for set in &fixture.sets {
+        decoder.read_nal(set, None, |_| Ok(()))?;
+    }
+    assert_eq!(
+        decoder.read_nal(&fixture.nal, None, |_| Ok(())),
+        Err(Error::Limit("decode_deadline"))
+    );
+    assert!(decoder.finish(|_| Ok(())).is_err());
     Ok(())
 }
 

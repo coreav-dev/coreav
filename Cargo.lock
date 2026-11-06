@@ -265,6 +265,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-backend-hevc"
+version = "0.0.1"
+dependencies = [
+ "coreav-decode",
+ "coreav-frame",
+ "coreav-hevc",
+ "coreav-isobmff",
+ "coreav-thumbnail",
+ "md-5",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "coreav-backend-libopus"
 version = "0.0.1"
 dependencies = [
@@ -309,6 +323,7 @@ dependencies = [
  "coreav-avi",
  "coreav-backend-dav1d",
  "coreav-backend-h264",
+ "coreav-backend-hevc",
  "coreav-backend-libvpx",
  "coreav-backend-svt-av1",
  "coreav-backend-vp9",

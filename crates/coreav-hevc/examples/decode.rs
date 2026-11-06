@@ -128,6 +128,7 @@ mod tests {
                 index,
                 poc,
                 timestamp: Some(9000 + i64::from(poc)),
+                origin: None,
                 info: self.info,
                 planes: std::array::from_fn(|component| {
                     let side = if component == 0 { 8 } else { 4 };

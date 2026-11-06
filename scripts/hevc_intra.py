@@ -461,7 +461,7 @@ def diagnose_picture(binary, source, directory, stream, candidate, native, metad
 def run(args):
     require(sys.platform == 'linux', 'linux_actions_required')
     require(0 < args.max_memory_bytes <= 4 << 30 and 0 < args.max_bins < 1 << 64, 'driver_budgets')
-    qualified = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+    qualified = harness.qualified_oracle(args.oracle_bin)
     args.out.mkdir(parents=True, exist_ok=False)
     identities = dict(registration=harness.digest(args.registration), parser=harness.digest(args.parser),
                       native=harness.digest(args.native), synthetic_registration=harness.digest(fixture.REGISTRATION),
