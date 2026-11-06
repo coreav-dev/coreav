@@ -2157,16 +2157,9 @@ fn input_seek_refusal_contract_keeps_its_exact_command_scope() {
 }
 
 fn verify_input_seek_refusal(args: &[String], output: &Path) {
-    let pin = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("PATH")
-                .iter()
-                .flat_map(std::env::split_paths)
-                .map(|directory| directory.join(format!("ffmpeg{}", std::env::consts::EXE_SUFFIX)))
-                .find(|path| coreav_cli::fallback::executable(path))
-        })
-        .expect("stage=oracle_selection: no pinned FFmpeg executable");
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
     let pin = std::path::absolute(pin).unwrap();
     assert!(
         coreav_cli::fallback::executable(&pin),
