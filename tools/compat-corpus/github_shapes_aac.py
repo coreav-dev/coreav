@@ -119,7 +119,7 @@ def compare(command, base, source, mapping, verdict, programs, scratch):
                 return 'different'
             if command.outputs[0] != '-' and any((folder / 'stdout').read_bytes() for folder in (reference, candidate)):
                 return 'different'
-            oracle = Path(programs['$FFMPEG']).parent
+            oracle = qualification.test_oracle.require(programs['$FFMPEG'], programs['$FFPROBE'])
             pns = qualification.pns_check(oracle, input_path, diagnostic, metadata) if noise else None
             capture = {}
             row = qualification.check_output(programs['$COREAV'], oracle, input_path, work, metadata, pns, capture)
