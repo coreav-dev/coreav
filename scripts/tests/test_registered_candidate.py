@@ -3,6 +3,7 @@ import copy
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -16,6 +17,11 @@ README = pathlib.Path('docs/measurements/compat-0.1.0/README.md')
 CANDIDATE = 'a' * 40
 REGISTRATION = f'Release candidate: `{CANDIDATE}`.\n'
 WORKFLOWS = ('compat-0.1.0.yml', 'codec-coverage.yml')
+OWNER_CHECKOUT = {'ref': '${{ github.sha }}', 'path': 'oracle-owner', 'persist-credentials': False,
+                  'sparse-checkout': '/scripts/test_oracle.py\n/scripts/oracle_pin.py\n/scripts/oracle_pin_macos.py\n'
+                                     '/scripts/oracle-ffmpeg.env\n/scripts/oracle-ffmpeg-macos.env\n',
+                  'sparse-checkout-cone-mode': False}
+GIT_FETCH = re.compile(r'\bgit\b(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+fetch\b')
 
 
 def load_workflow(name):
@@ -176,10 +182,18 @@ class Workflows(unittest.TestCase):
                 self.assertIn(key, [needs] if isinstance(needs, str) else needs)
                 if 'always()' in job.get('if', ''):
                     self.assertIn(f"needs.{key}.result == 'success'", job['if'])
+            checkouts = [s for s in job['steps'] if s.get('uses', '').startswith('actions/checkout@') and s is not checkout]
+            owners = [s for s in checkouts if key == 'coverage-plan' and s['with'].get('path') == 'oracle-owner']
+            self.assertLessEqual(len(owners), 1)
+            for owner in owners:
+                self.assertEqual(owner['with'], OWNER_CHECKOUT)
+                self.assertGreater(checkouts.index(owner), 0)
             for step in job['steps']:
                 if step is not guard:
                     self.assertNotIn('inputs.commit', json.dumps(step))
-                if step.get('uses', '').startswith('actions/checkout@') and step is not checkout:
+                if key == 'coverage-plan':
+                    self.assertIsNone(GIT_FETCH.search(step.get('run', '')))
+                if step in checkouts and step not in owners:
                     source = 'tooling' if key == 'compat-plan' and step['with'].get('path') != 'candidate' else 'commit'
                     self.assertEqual(step['with']['ref'], '${{ needs.' + key + '.outputs.' + source + ' }}')
 
@@ -206,6 +220,27 @@ class Workflows(unittest.TestCase):
                         report['if'] = 'always()'
                     with self.assertRaises(AssertionError):
                         self.assert_gated(broken)
+
+    def test_codec_coverage_takes_only_the_oracle_owner_from_its_own_commit(self):
+        workflow = self.workflows['codec-coverage.yml']
+        for name in ('coverage-v1', 'coverage-v2-v3', 'coverage-v2-images'):
+            with self.subTest(job=name):
+                self.assertIn(OWNER_CHECKOUT, [s.get('with') for s in workflow['jobs'][name]['steps']])
+        for mutation in ('second', 'paths', 'ref', 'fetch'):
+            with self.subTest(mutation=mutation):
+                broken = copy.deepcopy(workflow)
+                steps = broken['jobs']['coverage-v1']['steps']
+                index, owner = next((i, s) for i, s in enumerate(steps) if s.get('with') == OWNER_CHECKOUT)
+                if mutation == 'second':
+                    steps.insert(index + 1, copy.deepcopy(owner))
+                elif mutation == 'paths':
+                    owner['with']['sparse-checkout'] += '/scripts/oracle_audio.py\n'
+                elif mutation == 'ref':
+                    owner['with']['ref'] = 'main'
+                else:
+                    steps.insert(index + 1, {'run': 'git -C "$RUNNER_TEMP/owner" fetch --depth 1 origin "$GITHUB_SHA"'})
+                with self.assertRaises(AssertionError):
+                    self.assert_gated(broken)
 
 
 class Candidate(unittest.TestCase):
