@@ -8,6 +8,12 @@ outputs:
   reuse:
     description: Whether this workflow has eligible successful same-tree evidence.
     value: ${{ steps.result.outputs.reuse }}
+  run:
+    description: Covering push run for a scheduled full suite.
+    value: ${{ steps.result.outputs.run }}
+  attempt:
+    description: Covering push attempt for a scheduled full suite.
+    value: ${{ steps.result.outputs.attempt }}
 runs:
   using: composite
   steps:

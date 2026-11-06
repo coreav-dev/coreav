@@ -2,6 +2,7 @@
 """Reuse successful checks only for the same tested tree and event boundary."""
 import argparse
 import datetime
+import importlib.util
 import json
 import os
 import pathlib
@@ -13,6 +14,56 @@ import urllib.parse
 import urllib.request
 
 SHA = re.compile('[0-9a-f]{40}')
+REQUIRED_WORKFLOWS = ('ci.yml', 'deny.yml', 'python.yml', 'npm.yml')
+
+
+def load_full():
+    try:
+        spec = importlib.util.spec_from_file_location('ci_full_coverage', pathlib.Path(__file__).with_name('ci_full.py'))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except Exception:
+        return None
+
+
+def find_push_run(request, env, tree, workflow, full):
+    name = next((name for name, spec in full.FULL_WORKFLOWS.items() if spec['file'] == workflow), None)
+    if (name is None or env.get('GITHUB_EVENT_NAME') != 'schedule'
+            or env.get('GITHUB_REF') != 'refs/heads/main' or env.get('GITHUB_REPOSITORY') != full.REPOSITORY):
+        return None
+    root = f'/repos/{full.REPOSITORY}/actions'
+    current = request(f'{root}/runs/{env["GITHUB_RUN_ID"]}')
+    if (str(current['id']) != env['GITHUB_RUN_ID']
+            or str(current['run_attempt']) != env['GITHUB_RUN_ATTEMPT']
+            or current['event'] != 'schedule' or current['head_sha'] != env['GITHUB_SHA']
+            or current['head_commit']['id'] != env['GITHUB_SHA']
+            or current['head_commit']['tree_id'] != tree):
+        return None
+    query = urllib.parse.urlencode({'event': 'push', 'branch': 'main', 'head_sha': env['GITHUB_SHA'], 'per_page': 20})
+    path = f'{root}/workflows/{workflow}/runs?{query}'
+    runs = run_index(request, path)
+    if not runs:
+        return None
+    latest = max(runs, key=run_order)
+    if latest['status'] != 'completed' or latest['conclusion'] != 'success':
+        return None
+    attempt_path = f'{root}/runs/{latest["id"]}/attempts/{latest["run_attempt"]}'
+    covering = request(attempt_path)
+    if any(covering[key] != latest[key] for key in
+           ('id', 'run_attempt', 'name', 'path', 'workflow_id', 'head_sha', 'head_branch',
+            'event', 'status', 'conclusion')):
+        return None
+    data = request(attempt_path + '/jobs?per_page=100')
+    jobs = data['jobs']
+    if not isinstance(jobs, list) or type(data['total_count']) is not int or data['total_count'] != len(jobs) or len(jobs) > 100:
+        return None
+    if not full.covers(name, current, covering, jobs):
+        return None
+    fresh = run_index(request, path)
+    if not fresh or max(fresh, key=run_order) != latest:
+        return None
+    return covering['id'], covering['run_attempt']
 
 
 def eligible_pull(pull, repo):
@@ -180,7 +231,7 @@ def result(env, request, tree, now, workflow, event=None, parents=()):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--workflow', choices=('ci.yml', 'deny.yml', 'python.yml', 'npm.yml'), required=True)
+    parser.add_argument('--workflow', required=True)
     args = parser.parse_args()
     env = os.environ
     deadline = time.monotonic() + 60
@@ -213,12 +264,26 @@ def main():
                 event = json.loads(raw)
     except (OSError, ValueError):
         pass
-    run, message = result(env, request, tree, datetime.datetime.now(datetime.timezone.utc), args.workflow,
-                          event, parents)
+    if args.workflow in REQUIRED_WORKFLOWS:
+        run, message = result(env, request, tree, datetime.datetime.now(datetime.timezone.utc), args.workflow,
+                              event, parents)
+    else:
+        run = None
+        try:
+            full = load_full()
+            if full is not None:
+                run = find_push_run(request, env, tree, args.workflow, full)
+        except Exception:
+            pass
+        message = (f'Covered by successful push run https://github.com/{full.REPOSITORY}/actions/runs/{run[0]}'
+                   f'/attempts/{run[1]} at {env["GITHUB_SHA"]}; full suite skipped.' if run is not None
+                   else 'No covering main push; run the full work.')
     print(message)
     with pathlib.Path(env['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
         output.write(f'reuse={"true" if run is not None else "false"}\n')
-        receipt = pr_receipt(env, event, tree, commit, parents)
+        if isinstance(run, tuple):
+            output.write(f'run={run[0]}\nattempt={run[1]}\n')
+        receipt = pr_receipt(env, event, tree, commit, parents) if args.workflow in REQUIRED_WORKFLOWS else None
         if receipt is not None:
             try:
                 path = pathlib.Path(env['RUNNER_TEMP']) / 'tested-tree.txt'
