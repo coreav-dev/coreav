@@ -646,6 +646,16 @@ struct Decision<'a> {
 }
 
 impl Decision<'_> {
+    fn cost(&self, distortion: u64, bits: usize) -> Result<u64> {
+        let weight = if self.context.p_slice {
+            let step = t::norm(self.qp, 0)?.unsigned_abs() << (self.qp / 6);
+            step * step / 4
+        } else {
+            512 * (1u64 << (self.qp / 3))
+        };
+        Ok(512 * distortion + weight * bits as u64)
+    }
+
     fn candidate(
         &self,
         luma: Luma,
@@ -687,7 +697,7 @@ impl Decision<'_> {
         };
         Ok(Candidate {
             key: CandidateKey {
-                cost: distortion + (1u64 << (self.qp / 3)) * counter.len as u64,
+                cost: self.cost(distortion, counter.len)?,
                 bits: counter.len,
                 not_skip: !skip,
                 partitions: count,
@@ -771,7 +781,7 @@ impl Decision<'_> {
             floor.ue(self.pending_skip)?;
             floor.ue(P_INTRA_TYPE_BASE)?;
             floor.ue(0)?;
-            let cost = (1u64 << (self.qp / 3)) * floor.len as u64;
+            let cost = self.cost(0, floor.len)?;
             if best
                 .as_ref()
                 .is_some_and(|candidate| candidate.key.cost < cost)
@@ -941,11 +951,12 @@ pub(crate) fn picture(
                 }
                 .candidates(&mut best, &mut refusal)?;
             }
-            let exact_skip = best.as_ref().is_some_and(|candidate| {
-                candidate.inter.as_ref().is_some_and(|inter| inter.skip)
-                    && candidate.key.cost
-                        == (1u64 << (e.settings.qp / 3)) * candidate.key.bits as u64
-            });
+            let exact_skip = match best.as_ref() {
+                Some(candidate) if candidate.inter.as_ref().is_some_and(|inter| inter.skip) => {
+                    candidate.key.cost == decision.cost(0, candidate.key.bits)?
+                }
+                _ => false,
+            };
             if !exact_skip {
                 decision.intra(&base, &cbases, a, slice.idr, &mut best, &mut refusal)?;
             }
@@ -1049,6 +1060,49 @@ mod tests {
 
     std::thread_local! {
         pub(super) static INTRA_PAIRS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    #[test]
+    fn complete_cost_uses_quantizer_energy_and_keeps_idr_ordering() {
+        let source = Tile::empty();
+        let csources = [Tile::empty(), Tile::empty()];
+        for qp in 10..=51 {
+            for p_slice in [false, true] {
+                let decision = Decision {
+                    source: &source,
+                    csources: &csources,
+                    context: MbContext {
+                        top: None,
+                        left: None,
+                        p_slice,
+                    },
+                    qp,
+                    pending_skip: 0,
+                };
+                let v = [10u64, 11, 13, 14, 16, 18][usize::from(qp % 6)];
+                let weight = if p_slice {
+                    (v * v * (1 << (2 * (qp / 6)))) / 4
+                } else {
+                    512 * (1 << (qp / 3))
+                };
+                for bits in [1, 9, 53, 3233] {
+                    let floor = decision.cost(0, bits).unwrap();
+                    assert_eq!(floor, weight * bits as u64);
+                    assert_eq!(decision.cost(1, bits).unwrap(), floor + 512);
+                    assert_eq!(
+                        decision.cost(384 * 255 * 255, bits).unwrap(),
+                        floor + 512 * 384 * 255 * 255
+                    );
+                    if p_slice && qp <= 45 {
+                        let higher = Decision {
+                            qp: qp + 6,
+                            ..decision
+                        };
+                        assert_eq!(higher.cost(0, bits).unwrap(), floor * 4);
+                    }
+                }
+            }
+        }
     }
 
     #[test]

@@ -23,7 +23,7 @@ pub(crate) fn chroma_qp(qp: u8) -> u8 {
     }
 }
 
-fn norm(qp: u8, position: usize) -> Result<i64> {
+pub(crate) fn norm(qp: u8, position: usize) -> Result<i64> {
     let row = (position / 4) % 2;
     let col = position % 2;
     let column = if row == col { row } else { 2 };

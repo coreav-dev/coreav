@@ -26,6 +26,8 @@ Initial calibration is confined to complete P-picture candidate decisions and th
 
 ## Correctness and delivery
 
+The initial implementation retains the `q^2 / 8` starting scale after the four-point sequence comparison. The lower neighbour gives only a small additional improvement on A and a worse curve on C; the higher neighbour loses compression on both inputs. Lowering the rate weight also increases runtime, so the result is a compression/runtime tradeoff rather than a speed improvement. Proposal regret is evaluated only after this objective is fixed; it does not justify widening search by itself.
+
 Keep scalar and dispatched output byte-identical at the new policy. Existing decoder conformance, level and caller limits, transactional failure, exact syntax counting, equality boundaries and the original all-IDR byte test remain intact. Tests cover all admitted QPs, the quantizer normalization remainders, fixed-point score units, exact bounds and zero-error decisions. Existing cost-projection assertions follow the shared owner without dropping their predicates. No new unsafe code or public tuning API is needed.
 
 Run both encoder build modes, their complete-stream identity comparison, encoder Clippy, formatting, Python receipt/metric tests, the existing three-decoder CI and the current-main similarity guard. Reference observations, input/executable identities, compiler notes and comparison intervals are sanitized and committed with the outcome. These are small local reference figures under the maintainer's speed-over-audit direction, not representative or perceptual quality claims. The plan, implementation, review fixes and evidence ship in one signed-off pull request.
