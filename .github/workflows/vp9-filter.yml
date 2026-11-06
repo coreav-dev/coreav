@@ -4,9 +4,9 @@ name: vp9-filter
 on:
   push:
     branches: [main]
-    paths: ["scripts/vp9_filter*.py", "scripts/tests/test_vp9_filter*.py", "scripts/vp9_corpus.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "docs/measurements/vp9-filter-coverage/plan.json", "tools/vp9-corpus-oracle/**", "crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-filter.yml"]
+    paths: ["scripts/vp9_filter*.py", "scripts/tests/test_vp9_filter*.py", "scripts/vp9_corpus.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "scripts/oracle_pin.py", "scripts/test_oracle.py", "scripts/oracle_pin_macos.py", "scripts/oracle_from_r2.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "docs/measurements/vp9-filter-coverage/plan.json", "tools/vp9-corpus-oracle/**", "crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-filter.yml"]
   pull_request:
-    paths: ["scripts/vp9_filter*.py", "scripts/tests/test_vp9_filter*.py", "scripts/vp9_corpus.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "docs/measurements/vp9-filter-coverage/plan.json", "tools/vp9-corpus-oracle/**", "crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-filter.yml"]
+    paths: ["scripts/vp9_filter*.py", "scripts/tests/test_vp9_filter*.py", "scripts/vp9_corpus.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "scripts/oracle_pin.py", "scripts/test_oracle.py", "scripts/oracle_pin_macos.py", "scripts/oracle_from_r2.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "docs/measurements/vp9-filter-coverage/plan.json", "tools/vp9-corpus-oracle/**", "crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-filter.yml"]
   workflow_dispatch:
     inputs:
       mode:

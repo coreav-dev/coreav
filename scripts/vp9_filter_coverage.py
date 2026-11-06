@@ -20,7 +20,8 @@ ROOT = corpus.ROOT
 PLAN = ROOT / 'docs/measurements/vp9-filter-coverage/plan.json'
 SOURCES = ('scripts/vp9_filter_coverage.py', 'scripts/vp9_filter_frames.py',
            'scripts/vp9_corpus.py', 'scripts/oracle_audio.py', 'scripts/oracle-audio-args.txt',
-           'scripts/oracle_pin.py', 'scripts/oracle-ffmpeg.env',
+           'scripts/oracle_pin.py', 'scripts/oracle-ffmpeg.env', 'scripts/test_oracle.py',
+           'scripts/oracle_pin_macos.py',
            '.github/workflows/vp9-filter.yml',
            'docs/measurements/vp9-filter-coverage/plan.json')
 HEX = re.compile('[0-9a-f]{64}')
