@@ -1,4 +1,4 @@
-//! Allocation-free scalar kernels for Main and Main10 HEVC reconstruction and filters.
+//! Allocation-free kernels for Main and Main10 HEVC reconstruction and filters.
 //!
 //! Enable `native-hevc` explicitly. The caller owns bitstream syntax, effective
 //! QP/scaling-list derivation, neighbour availability and picture storage.
@@ -7,19 +7,40 @@
 //! Range-extension tools are not implemented.
 
 #![no_std]
+#![cfg_attr(feature = "scalar", forbid(unsafe_code))]
 
 #[cfg(feature = "native-hevc")]
+#[forbid(unsafe_code)]
 mod domain;
 #[cfg(feature = "native-hevc")]
+#[forbid(unsafe_code)]
 mod filter;
 #[cfg(feature = "native-hevc")]
+#[forbid(unsafe_code)]
 mod inter;
 #[cfg(feature = "native-hevc")]
+#[forbid(unsafe_code)]
 mod intra;
 #[cfg(feature = "native-hevc")]
+#[forbid(unsafe_code)]
 mod inverse;
 #[cfg(feature = "native-hevc")]
+#[forbid(unsafe_code)]
 mod tables;
+
+#[cfg(all(
+    feature = "native-hevc",
+    not(feature = "scalar"),
+    target_arch = "x86_64"
+))]
+extern crate std;
+#[cfg(all(
+    feature = "native-hevc",
+    not(feature = "scalar"),
+    target_arch = "x86_64"
+))]
+#[allow(unsafe_code)]
+mod simd;
 
 #[cfg(feature = "native-hevc")]
 pub use domain::{
@@ -31,6 +52,9 @@ pub use filter::{
     BoundaryStrength, SaoClass, deblock_chroma, deblock_luma, deblock_luma_with_strength,
     sao_sample,
 };
+#[cfg(all(feature = "native-hevc", feature = "test-support"))]
+#[doc(hidden)]
+pub use inter::interpolate_inter_scalar;
 #[cfg(feature = "native-hevc")]
 pub use inter::{
     InterPrediction, MotionVector, PredictionWeight, RefPlane, interpolate_inter, predict_bi,
@@ -53,7 +77,11 @@ pub const SCRATCH_BYTES: usize = {
     if inverse > inter { inverse } else { inter }
 };
 
-#[cfg(all(test, feature = "native-hevc"))]
+#[cfg(all(
+    test,
+    feature = "native-hevc",
+    any(feature = "scalar", not(target_arch = "x86_64"))
+))]
 extern crate std;
 #[cfg(all(test, feature = "native-hevc"))]
 mod inter_tests;

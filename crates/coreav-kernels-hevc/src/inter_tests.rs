@@ -1,6 +1,85 @@
 use crate::*;
 use std::{vec, vec::Vec};
 
+#[test]
+fn automatic_and_scalar_match_all_widths_phases_and_tails() {
+    let mut seed = 0x18a5_92c3_u32;
+    for bits in [8, 10] {
+        for component in [Component::Luma, Component::Chroma] {
+            let phases = if component == Component::Luma { 4 } else { 8 };
+            let limit = if component == Component::Luma { 64 } else { 32 };
+            for width in 1..=limit {
+                let height = 9;
+                let mut source = vec![u16::MAX; 83 * 19 + 79];
+                for y in 0..20 {
+                    for x in 0..79 {
+                        seed ^= seed << 13;
+                        seed ^= seed >> 17;
+                        seed ^= seed << 5;
+                        source[y * 83 + x] = (seed & ((1 << bits) - 1)) as u16;
+                    }
+                }
+                for py in 0..phases {
+                    for px in 0..phases {
+                        let motion = if width % 2 == 0 { -phases * 4 } else { 0 };
+                        let request =
+                            config(bits, component, 1, 1, motion + px, motion + py).unwrap();
+                        let stride = width + 3;
+                        let length = stride * (height - 1) + width;
+                        let mut automatic = vec![i32::MAX; length];
+                        let mut scalar = automatic.clone();
+                        let reference = RefPlane::new(&source, 83, 79, 20).unwrap();
+                        interpolate_inter(
+                            request,
+                            reference,
+                            RectMut::new(&mut automatic, stride, width, height).unwrap(),
+                        )
+                        .unwrap();
+                        inter::interpolate_inter_scalar(
+                            request,
+                            reference,
+                            RectMut::new(&mut scalar, stride, width, height).unwrap(),
+                        )
+                        .unwrap();
+                        assert_eq!(automatic, scalar, "{bits}/{component:?}/{width}/{px}/{py}");
+                        for y in 0..height {
+                            for x in 0..width {
+                                assert_eq!(
+                                    automatic[y * stride + x],
+                                    equation_sample(request, (&source, 83, 79, 20), (x, y))
+                                        .unwrap()
+                                );
+                            }
+                            if y + 1 < height {
+                                assert!(
+                                    automatic[y * stride + width..(y + 1) * stride]
+                                        .iter()
+                                        .all(|&v| v == i32::MAX)
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn inter_scratch_fits_existing_reconstruction_envelope() {
+    assert!(core::mem::size_of::<inter::InterScratch>() <= 17_416);
+    assert_eq!(SCRATCH_BYTES, 17_416);
+}
+
+#[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+#[test]
+fn avx2_capability_matches_runtime_detection() {
+    assert_eq!(
+        crate::simd::Avx2::detect().is_some(),
+        std::is_x86_feature_detected!("avx2")
+    );
+}
+
 fn equation_luma(a: [i64; 8], phase: i16) -> Result<i64, Error> {
     let [m3, m2, m1, z, p1, p2, p3, p4] = a;
     Ok(match phase {

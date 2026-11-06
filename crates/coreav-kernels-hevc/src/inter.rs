@@ -124,6 +124,27 @@ pub fn interpolate_inter(
     reference: RefPlane<'_>,
     output: RectMut<'_, i32>,
 ) -> Result<(), Error> {
+    interpolate(config, reference, output, true)
+}
+
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn interpolate_inter_scalar(
+    config: InterPrediction,
+    reference: RefPlane<'_>,
+    output: RectMut<'_, i32>,
+) -> Result<(), Error> {
+    interpolate(config, reference, output, false)
+}
+
+fn interpolate(
+    config: InterPrediction,
+    reference: RefPlane<'_>,
+    output: RectMut<'_, i32>,
+    _automatic: bool,
+) -> Result<(), Error> {
+    #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+    let vector = _automatic.then(crate::simd::Avx2::detect).flatten();
     if config.x > i32::MAX as usize || config.y > i32::MAX as usize {
         return Err(Error::Buffer);
     }
@@ -203,6 +224,13 @@ pub fn interpolate_inter(
                     *value = i32::from(sample) << internal_shift;
                 }
             } else {
+                #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+                if let Some(vector) = vector {
+                    vector.horizontal(input, x_filter, first_shift, row)?;
+                } else {
+                    horizontal_row(input, x_filter, first_shift, row)?;
+                }
+                #[cfg(any(feature = "scalar", not(target_arch = "x86_64")))]
                 horizontal_row(input, x_filter, first_shift, row)?;
             }
             next_row += 1;
@@ -225,6 +253,13 @@ pub fn interpolate_inter(
             for (j, row) in rows.iter_mut().take(row_count).enumerate() {
                 *row = scratch.rows.get((y + j) % 8).ok_or(Error::Buffer)?;
             }
+            #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+            if let Some(vector) = vector {
+                vector.vertical(&rows, y_filter, destination)?;
+            } else {
+                vertical_row(&rows, y_filter, destination)?;
+            }
+            #[cfg(any(feature = "scalar", not(target_arch = "x86_64")))]
             vertical_row(&rows, y_filter, destination)?;
         }
     }
