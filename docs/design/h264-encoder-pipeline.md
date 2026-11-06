@@ -18,7 +18,7 @@ These inputs are low-motion. Verification therefore adds one existing real-motio
 
 ## Target pipeline
 
-Each P macroblock passes a cost ladder: a cheap exact test settles most skips without transforms; a predictor-seeded integer search with early termination proposes motion; fractional refinement reads precomputed half-sample planes; candidates are ranked by SAD, then SATD plus known syntax lengths; only the one or two finalists are reconstructed and counted exactly. IDR macroblocks use the same ladder for intra modes. Picture-level work (padded reference planes, half-sample planes, deblocking) is done once per picture in row order, which prepares row-parallel encoding.
+Each P macroblock passes a cost ladder: a cheap exact test settles most skips without transforms; a predictor-seeded, bounded integer search proposes motion; fractional refinement reads precomputed half-sample planes; candidates are ranked by SAD, then SATD plus known syntax lengths; only the one or two finalists are reconstructed and counted exactly. IDR macroblocks use the same ladder for intra modes. Picture-level work (padded reference planes, half-sample planes, deblocking) is done once per picture in row order, which prepares row-parallel encoding.
 
 ## Steps
 
