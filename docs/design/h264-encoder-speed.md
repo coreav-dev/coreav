@@ -27,7 +27,9 @@ Run both encoder build modes and their complete-stream identity comparison, enco
 
 ## Reference outcome
 
-The [reference record](h264-encoder-speed-reference.json) keeps every compression cell, both identity summaries and every timed call. The byte-identical commit reproduces the rate-weight stream and reconstruction in all 57 identity cases: A and C at four QPs, B at QP28 and 48 small synthetic cases. The final commit changes only the nine real-input cells, leaves the synthetic cases unchanged, and keeps dispatched and scalar builds byte-identical. Pinned FFmpeg 9.0.2 decodes every stream to the encoder reconstruction.
+The [reference record](h264-encoder-speed-reference.json) keeps every compression cell, the identity summaries of two case sets and every timed call. The byte-identical commit reproduces the rate-weight stream and reconstruction in every case of both sets: 57 cases covering A and C at four QPs, B at QP28 and 48 small synthetic cases, and the 48 cases of `scripts/h264_g1_simd_identity.py`. Pinned FFmpeg 9.0.2 decodes every stream of the first set to the encoder reconstruction.
+
+The early decisions change output, so identity to the rate-weight build is not expected after them. In the first set they change the nine real-input cells and none of the 48 small synthetic cases. In the second set they change one case: 80x48 edge pattern, QP51, deblocking enabled, IDR interval 3, four pictures, whose stream goes from 868 to 867 bytes. The narrower intra proposal causes it: a P macroblock whose coded P16x16 at the skip vector does not beat skip no longer gets a 4x4 intra proposal, while quiet skip alone leaves this case unchanged. Dispatched and scalar builds remain byte-identical in every case of both sets, and the native decoder matches every reconstruction.
 
 Against the rate-weight curves, BD-rate is +0.032% on A and −0.242% on C. At QP28, B moves from 127.448 to 127.360 kbit/s and from 44.448141 to 44.434092 dB.
 

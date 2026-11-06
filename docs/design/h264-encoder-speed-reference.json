@@ -136,6 +136,7 @@
     ]
   },
   "identity": {
+    "set": "57 cases: A and C at QP22/28/34/40, B at QP28, 48 small synthetic cases at QP10/11/12/28/40/51",
     "byte_identical_commit": {
       "cases": 57,
       "changed_versus_rate_weight": []
@@ -155,6 +156,37 @@
       ]
     },
     "checks": "dispatched and scalar builds byte-identical; pinned FFmpeg 9.0.2 decodes every stream to the encoder reconstruction"
+  },
+  "simd_identity_set": {
+    "set": "scripts/h264_g1_simd_identity.py: 48 cases, 32x32 and 80x48, ramp and edge, QP10/28/51, deblocking off and on, IDR interval 1 and 3, four pictures",
+    "byte_identical_commit": {
+      "cases": 48,
+      "changed_versus_rate_weight": []
+    },
+    "final_commit": {
+      "cases": 48,
+      "changed_versus_rate_weight": [
+        {
+          "width": 80,
+          "height": 48,
+          "pattern": "edge",
+          "qp": 51,
+          "deblocking": true,
+          "idr_interval": 3,
+          "frames": 4,
+          "rate_weight": {
+            "stream_sha256": "929bb743093e581471bdec07b931700db493ca2e7c5f6c924b41a07a3d8dc7d9",
+            "reconstruction_sha256": "b05e5ce89fc9610b04d91b14903b3f7951028bc384d343b7ac7cbbe3aa4433be"
+          },
+          "final": {
+            "stream_sha256": "d8af9ef04f6089e42baaff5c89169cb049957a48da30a50502d051704c37999f",
+            "reconstruction_sha256": "07e9b3699006e275a1771f00fb63dcbbaaaf25c465666b6f7656eb1068dc831c"
+          }
+        }
+      ]
+    },
+    "cause": "the narrower intra proposal; quiet skip alone leaves this case unchanged",
+    "checks": "dispatched and scalar builds byte-identical; native decoder matches the reconstruction"
   },
   "throughput": {
     "host": "GitHub-hosted ubuntu-24.04 runner",
