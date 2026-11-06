@@ -1,0 +1,88 @@
+name: frame-reuse-reference
+on:
+  push:
+    branches: [gunwooterry/frame-reuse-reference]
+permissions:
+  contents: read
+jobs:
+  reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+      CARGO_PROFILE_DIST_DEBUG: '1'
+      BEFORE: c6d0413ab1312efbdf9f3648588cc92da563ad47
+      AFTER: 2f45401fc7ef59e4c0bd5d58327582313f81f793
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-musl
+      - run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends musl-tools strace cmake nasm g++
+      - name: Build matched before and after binaries
+        run: |
+          set -euo pipefail
+          B="$RUNNER_TEMP/bin"; mkdir -p "$B"
+          git worktree add --detach "$RUNNER_TEMP/before" "$BEFORE"
+          git worktree add --detach "$RUNNER_TEMP/after" "$AFTER"
+          for version in before after; do
+            cd "$RUNNER_TEMP/$version"
+            for pair in musl:x86_64-unknown-linux-musl glibc:x86_64-unknown-linux-gnu; do
+              libc="${pair%%:*}"; target="${pair#*:}"
+              cargo build --locked -p coreav-cli --no-default-features --features cli,native-h264 --target "$target" --profile dist
+              cp "target/$target/dist/coreav" "$B/coreav-$libc-$version"
+              if [[ "$version" == before ]]; then
+                cargo build --locked -p coreav-h264 --example decode --target "$target" --profile dist
+                cp "target/$target/dist/examples/decode" "$B/decode-$libc"
+              fi
+            done
+          done
+          cd "$GITHUB_WORKSPACE"
+          scripts/install-oracle-ffmpeg.sh "$B"
+          python3 scripts/encoders/svt-av1/build.py --target x86_64-unknown-linux-musl --prefix "$RUNNER_TEMP/svt" --jobs 4
+          for version in before after; do
+            cd "$RUNNER_TEMP/$version"
+            SVT_AV1_PREFIX="$RUNNER_TEMP/svt" cargo build --locked -p coreav-cli --no-default-features --features cli,native-h264,svt-av1-native --target x86_64-unknown-linux-musl --profile dist
+            cp target/x86_64-unknown-linux-musl/dist/coreav "$B/av1-$version"
+          done
+          cd "$GITHUB_WORKSPACE"
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'bin'
+          data = {'before': os.environ['BEFORE'], 'after': os.environ['AFTER'],
+                  'profile': 'dist with debug=1 (same optimization as prior reference)',
+                  'rust': subprocess.check_output(['rustc', '-vV'], text=True),
+                  'binaries': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in root.iterdir() if p.is_file()}}
+          (root / 'build.json').write_text(json.dumps(data, indent=2) + '\n')
+          PY
+      - name: Check real fixtures and exact memory budgets
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/bin/ffmpeg
+          COREAV_REQUIRE_FFMPEG: '1'
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/after"
+          cargo test --locked -p coreav-backend-h264 --release --test memory -- --ignored --nocapture
+          cargo test --locked -p coreav-cli --features native-h264 --release --test ffmpeg_frames
+      - name: Capture reference figures and packet identities
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet 'boto3==1.35.36'
+          mkdir -p "$RUNNER_TEMP/reference"
+          "$RUNNER_TEMP/venv/bin/python" -I scripts/frame_reuse_reference.py "$RUNNER_TEMP/media" "$RUNNER_TEMP/bin" "$RUNNER_TEMP/reference/reference.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: frame-reuse-reference
+          path: ${{ runner.temp }}/reference/
+          retention-days: 7
