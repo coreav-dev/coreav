@@ -76,8 +76,7 @@
   "crates/coreav-backend-ffmpeg/src/showinfo.rs": "02b6ceced4a68ca458295c6e00f6268a421454fbda0d4d570f601045138364bd",
   "crates/coreav-backend-svt-av1/build.rs": "c0f71fb3ac4982494b95450ddc1f90283254ca89c59e5d2d49218e2fbb25f3cc",
   "crates/coreav-backend-svt-av1/tests/frames.rs": "02bf68ce1aa8276baf06f67df7f18f6d63a47a56018402c27a317fa0f2ac70c2",
-  "crates/coreav-cli/src/compat_cmd.rs": "75028ae149fe84f067e8b27d909c0b861f406188643f11a8b3b9c924365cd8dd",
-  "crates/coreav-cli/src/compat_cmd/probe_stdin.rs": "6cebafd21c78c304661e4691ea4484c70f487fedd275b45237207f8833b87d82",
+  "crates/coreav-cli/Cargo.toml": "11c77dbeffbc3127bd5d8af3fe05704c644068e48e01a5f76c3925d01a251b36",
   "crates/coreav-cli/src/fallback.rs": "5e56e738943199851a4e7230119709c5d6ebb1d6d4bd105ecb0e528660e954fa",
   "crates/coreav-cli/src/fallback/names.rs": "8bcdf27732b0cfb49e4bc90844e9f05632f117205927f68f1d74de7912facd11",
   "crates/coreav-cli/src/fallback_cmd.rs": "fb55a2c244f528f351f8651437f517e894c753f3391d4f53b70c0e8798a06aae",
@@ -101,12 +100,9 @@
   "crates/coreav-cli/src/ffmpeg/raw_audio/wav.rs": "f1a0542435cc369e0ab2608653432ba3235849ff4cda72bfe66df2862bc14790",
   "crates/coreav-cli/src/ffmpeg/raw_audio/wav_tests.rs": "5dc4e9639efa3bab11697ec100733ce0de7fe22555f4d81b1f9d2272d1fba2fb",
   "crates/coreav-cli/src/ffmpeg/ts.rs": "bbfff2d54c0895d9b51866d2ef9e11bcda2e5d226e6ca923a72b5d297ee97a01",
-  "crates/coreav-cli/src/join.rs": "ae4b4337cadfe550190005245007eebeecf3932d54aa66bc122eae80d2a5cdef",
-  "crates/coreav-cli/src/main.rs": "00022a94e20a7e3e1414b6aa5f1c3b2979a93ab6bc9ca531565d85dd1189d7ee",
   "crates/coreav-cli/src/names.rs": "4ce5129e696890caa77920ccfc6667ea81f31587064c8603d56f8bbc242e5759",
   "crates/coreav-cli/src/strict_safe.rs": "ab963fb8fc77e439005f870bbbcf7aa399c9363b23d3bbf8512746d2fc78c92b",
   "crates/coreav-cli/src/thumbnail.rs": "d0f5c3b781bfd11418c38cc513548dba5a38eb938f9b79fed1ffa8b0a8d3850a",
-  "crates/coreav-cli/src/transcode.rs": "10927e078aae2c248027c9c347475e0f552138da53a003a7b4bf8d14f4303032",
   "crates/coreav-cli/src/transcode/av1.rs": "370b8560dbda142a40a719f8c8498c4d1734a4a1bc4fa60bd701c2dace158f03",
   "crates/coreav-cli/tests/common/standalone_audio.rs": "7ade8d3cfc3731fb32289dc89f39bc163c89869fa20720588f7945e53189fc4a",
   "crates/coreav-cli/tests/docs_site.rs": "bd3979d63545179b8066a2132a1d31e25b72af558a3c60cb34d144c280471db1",
@@ -1577,10 +1573,10 @@
   "scripts/mp3_worker_check.py": "32ee00bc93ccc7859a8f8242634348fb6d7da9fb314317ef162108f96d313e91",
   "scripts/notices/record.mjs": "76a530777652c76cea83564a63b137846b4b00368edefcc5cc7b999a5a482c12",
   "scripts/notices/render.mjs": "96332bca2d2437a58f8f3d8e3e5dc04cd16d99829be621e697bfe55bd3baaa06",
-  "scripts/notices/runtime.mjs": "431e38b1534286f4344ef1d576437acaa81ffeaa5bc544b954e48d4c63698b79",
+  "scripts/notices/runtime.mjs": "fd5490c61f63f9d1c01258ed92deffe2496d9f61234bf92a7e8807226bad8a8d",
   "scripts/notices/select.mjs": "1ea5039523e5f0c3dfbb665e6f01d264dd9a78b4ab3c069ea0017670aafa6e44",
   "scripts/notices/test/fixtures/LLVM-exception.txt": "e34c58338bd89d43e709e226610d8f32b3e3c47f4ad9a99a8dc1d4ac7842488e",
-  "scripts/notices/upstream/runtime/manifest.json": "670b02a84a155587abb6edd1cac4595aad73a1469b9f49162898126cb82ba9e6",
+  "scripts/notices/upstream/runtime/manifest.json": "f3871283a31350078e3e775c670e900e4bba5406e0b63ff17dccf43e6833dfea",
   "scripts/opus_encode_check.py": "18e0e70f63ccf1dba5fc5caf04dd897491a7213c13ec7761fbe6c13c4d6a08fb",
   "scripts/opus_matroska_padding.py": "1b0409269b779a1368400496ba08e1c8effda07c19cc8c4f1bea400ebe019147",
   "scripts/opus_mp4_presentation.py": "7c3869b8641e8e61f820476b938a82ec4cb3a16100a955383a51527fc674ec51",
@@ -1730,7 +1726,6 @@
   "tools/compat-corpus/tests/test_github_shapes_aac.py": "b29751df3929c9354c30212e6c28e2d314c3534fedd301ac782078b0d5d21673",
   "tools/compat-corpus/tests/test_png_bmp_yuv.py": "f85b797e98121d17589e82a684c8f1105250b6da028dbcd42f7a7723bc76347f",
   "tools/decode-oracle/Cargo.toml": "dbd1feefe5f46d2ae4f45fb02b49759f3ba4f99241c30850d23bcb85f59e64a2",
-  "tools/decode-oracle/src/main.rs": "751108a12f3eed58103506077d826f26e45948fc38ec0eb1ac2a7c0d744a7d69",
   "tools/decode-oracle/src/stream.rs": "326c6ce8637889138087dc83eac8e0ee1bb8d55bd9721d4d8227b6d81910c355",
   "tools/edge-native/src/main.rs": "82ab5851448d795393d3bb85c76e5b71b4c17531c26205d7b6d0176d6167ca29",
   "tools/fuzz-campaign/campaign.py": "240cd19734a7d74d83e5d2d758ad078a126c5e462cd8d1ea14af40db9ca10418",
@@ -25910,10 +25905,7 @@
     "request": "f7e8d84a6064f1a4a2b33e09c09a16d5225557cab32af3a024dfab88eba054b7",
     "resource": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "run": "bfff3de28af5f638703c3f43bd0e6900f20f7c25e24b1e94262215272f2707b7",
-    "rust:crates/coreav-cli/src/compat_cmd.rs:probe_stdin": "abb265e1e3dc464972603e673cca2d8f501ccf35c096dcf8a92fba86223f13d9",
     "rust:crates/coreav-cli/src/fallback.rs:names": "557e5c99695d4fb79910ee0eb291cb7757ba81c0a71e32796827fdefc544492b",
-    "rust:crates/coreav-cli/src/main.rs:compat_cmd": "ccf5049a20c2dd26e433f9ae7d9de2cfd6e2d070729a048f6c1924ec92a99390",
-    "rust:crates/coreav-cli/src/main.rs:fallback_cmd": "a9c07257236976aede760fab0e994d31bf0d6e347952f7a75469797c7d468d75",
     "rust:crates/coreav-cli/tests/ffmpeg_concat.rs:concat_output": "d2530ceeb7511fcff82c5dc4e993d5784d8f0b938838d5bf33de4a6663e47b1c",
     "rust:crates/coreav-cli/tests/ffmpeg_concat.rs:test_oracle": "db66fd177b7e16b40914564a87edf7b09d10f42201d758fa805a7f6d380d926b",
     "rust:crates/coreav-isobmff/tests/common/mod.rs:fragments": "4ed8836bea24e1d427f591ed2e3661253355b3c62a36203ee663aa8bd5e05c17",
@@ -25977,13 +25969,10 @@
     "crates/coreav-backend-apple/examples/common/compare.rs",
     "crates/coreav-backend-apple/examples/common/h264_decode.rs",
     "crates/coreav-backend-apple/tests/common/h264.rs",
-    "crates/coreav-cli/src/compat_cmd.rs",
-    "crates/coreav-cli/src/compat_cmd/probe_stdin.rs",
+    "crates/coreav-cli/Cargo.toml",
     "crates/coreav-cli/src/fallback.rs",
     "crates/coreav-cli/src/fallback/names.rs",
     "crates/coreav-cli/src/fallback_cmd.rs",
-    "crates/coreav-cli/src/join.rs",
-    "crates/coreav-cli/src/main.rs",
     "crates/coreav-cli/src/names.rs",
     "crates/coreav-cli/src/strict_safe.rs",
     "crates/coreav-cli/tests/common/standalone_audio.rs",
@@ -26500,7 +26489,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "crates/coreav-cli/tests/ffmpeg_concat.rs:389-394 executes bin(), defined at :17-19 as the Cargo CoreAV executable, with the native join command. crates/coreav-cli/src/main.rs:1047,2448-2487 dispatches join to the native join::run writer rather than the FFmpeg compatibility fallback. The separately selected reference comparator is not executed by this site.",
+     "evidence": "crates/coreav-cli/tests/ffmpeg_concat.rs:389: This command executes the CoreAV join candidate, not an oracle: bin() at crates/coreav-cli/tests/ffmpeg_concat.rs:18-20 returns CARGO_BIN_EXE_coreav, and the call at crates/coreav-cli/tests/ffmpeg_concat.rs:389-394 supplies join --audio none and executes output(). crates/coreav-cli/Cargo.toml:15-20 identifies that Cargo binary as src/main.rs. The separately invoked comparisons do not change this program identity.",
      "program_span": {
       "end": 13096,
       "start": 12947
@@ -26515,7 +26504,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "crates/coreav-cli/tests/ffmpeg_concat.rs:389-394 executes bin(), defined at :17-19 as the Cargo CoreAV executable, with the native join command. crates/coreav-cli/src/main.rs:1047,2448-2487 dispatches join to the native join::run writer rather than the FFmpeg compatibility fallback. The separately selected reference comparator is not executed by this site.",
+     "evidence": "crates/coreav-cli/tests/ffmpeg_concat.rs:389: This command executes the CoreAV join candidate, not an oracle: bin() at crates/coreav-cli/tests/ffmpeg_concat.rs:18-20 returns CARGO_BIN_EXE_coreav, and the call at crates/coreav-cli/tests/ffmpeg_concat.rs:389-394 supplies join --audio none and executes output(). crates/coreav-cli/Cargo.toml:15-20 identifies that Cargo binary as src/main.rs. The separately invoked comparisons do not change this program identity.",
      "program_span": {
       "end": 12965,
       "start": 12960
@@ -40707,14 +40696,8 @@
     "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "pathlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "re": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "rust:crates/coreav-cli/src/compat_cmd.rs:probe_stdin": "abb265e1e3dc464972603e673cca2d8f501ccf35c096dcf8a92fba86223f13d9",
-    "rust:crates/coreav-cli/src/main.rs:compat_cmd": "ccf5049a20c2dd26e433f9ae7d9de2cfd6e2d070729a048f6c1924ec92a99390",
-    "rust:crates/coreav-cli/src/main.rs:fallback_cmd": "a9c07257236976aede760fab0e994d31bf0d6e347952f7a75469797c7d468d75",
-    "rust:crates/coreav-cli/src/transcode.rs:av1": "6a74e96d4e17276aa916c2472e754b2b3ab37af9b113529d3e308f00f97a5b27",
     "rust:crates/coreav-cli/tests/strict_safe.rs:test_oracle": "773d41f51f2f362d021c65022b6ab859cda26f32ceb09987ea41562b73fbc837",
     "rust:crates/coreav-worker/tests/ffmpeg.rs:test_oracle": "41bf9371506cc5c7ecf36f8abaedc7a0f0a6c2ae7522e21f70aa0d689c160779",
-    "rust:tools/decode-oracle/src/main.rs:stream": "c4fc6a08248479cb73fff4f23554f1b0f4c589faa29e86a9f748f9fd5032e4e5",
-    "rust:tools/decode-oracle/src/main.rs:test_oracle": "5bde92a4b57ec09c227ea93028e02a74e474ac4b902f8b0b01718583dac24b88",
     "shlex": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "shutil": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "subprocess": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -40722,16 +40705,9 @@
     "threading": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
    },
    "requires": [
-    "crates/coreav-cli/src/compat_cmd.rs",
-    "crates/coreav-cli/src/compat_cmd/probe_stdin.rs",
-    "crates/coreav-cli/src/fallback_cmd.rs",
-    "crates/coreav-cli/src/main.rs",
     "crates/coreav-cli/src/thumbnail.rs",
-    "crates/coreav-cli/src/transcode.rs",
-    "crates/coreav-cli/src/transcode/av1.rs",
     "crates/coreav-cli/tests/strict_safe.rs",
-    "crates/coreav-worker/src/child.rs",
-    "crates/coreav-worker/src/protocol.rs",
+    "crates/coreav-worker/src/bin/coreav-worker.rs",
     "crates/coreav-worker/tests/ffmpeg.rs",
     "crates/coreav-worker/tests/hostile.rs",
     "docs/design/oracle-historical-records.json",
@@ -40744,15 +40720,13 @@
     "scripts/oracle_pin.py",
     "scripts/oracle_pin_macos.py",
     "scripts/test_oracle.py",
-    "test-support/oracle.rs",
-    "tools/decode-oracle/src/main.rs",
-    "tools/decode-oracle/src/stream.rs"
+    "test-support/oracle.rs"
    ],
    "sha256": "1ff3e26eaa8cb027f145916c203c50c293332118d2aa70ec24b6f5b1a15ed476",
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Excluded: this command launches the CoreAV protocol worker, not the backend's FFmpeg executable. WorkerOptions retains WorkerCommand separately from its ffmpeg field; open serializes the latter into Open.ffmpeg but constructs and spawns options.command.program, then exchanges framed decoder messages. CLI backends receive main's current_exe and pass it with WORKER_ARG; decode-oracle's packet, thumbnail and streaming callers likewise use current_exe. Worker integration tests use CARGO_BIN_EXE_coreav-worker at each construction (75,216,309,423,515); hostile tests instead use controlled /bin/sh protocol responders or the built worker. Strict-safe tests use the Cargo CoreAV binary directly or /usr/bin/env with that binary in argv. WorkerCommand::installed selects only sibling/PATH coreav-worker, and current_exe retains the running product path. Backend FFmpeg payloads remain distinct downstream execution sites; this exclusion does not qualify those payloads or infer a worker identity from a directory name.",
+     "evidence": "crates/coreav-worker/src/parent.rs:460: This is the outer worker launch, not the FFmpeg child: crates/coreav-worker/src/parent.rs:32-60 constructs current-executable or coreav-worker commands; crates/coreav-worker/src/parent.rs:453-458 serializes the separate ffmpeg option into the Open message, while crates/coreav-worker/src/parent.rs:460-471 spawns only options.command.program and its worker arguments. The standalone worker enters the binary protocol at crates/coreav-worker/src/bin/coreav-worker.rs:8-14. CLI decoding selects its own executable and __coreav_worker at crates/coreav-cli/src/thumbnail.rs:249-258, with the dispatch at crates/coreav-cli/src/thumbnail.rs:77-86. Real fallback tests launch CARGO_BIN_EXE_coreav-worker, keeping ffmpeg separately in options, at crates/coreav-worker/tests/ffmpeg.rs:71-81, crates/coreav-worker/tests/ffmpeg.rs:214-226, crates/coreav-worker/tests/ffmpeg.rs:306-319, crates/coreav-worker/tests/ffmpeg.rs:420-434 and crates/coreav-worker/tests/ffmpeg.rs:512-527. Hostile-worker tests use shell protocol fakes at crates/coreav-worker/tests/hostile.rs:68-85, crates/coreav-worker/tests/hostile.rs:275-280, crates/coreav-worker/tests/hostile.rs:322-332, crates/coreav-worker/tests/hostile.rs:372-382 and crates/coreav-worker/tests/hostile.rs:434-439; strict-safe tests use env wrapping the CoreAV worker or the CoreAV binary at crates/coreav-cli/tests/strict_safe.rs:560-575 and crates/coreav-cli/tests/strict_safe.rs:610-615. These transport launches do not establish qualification of any later FFmpeg child, which is a separate site.",
      "program_span": {
       "end": 15912,
       "start": 15888
@@ -40767,7 +40741,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "Excluded: this command launches the CoreAV protocol worker, not the backend's FFmpeg executable. WorkerOptions retains WorkerCommand separately from its ffmpeg field; open serializes the latter into Open.ffmpeg but constructs and spawns options.command.program, then exchanges framed decoder messages. CLI backends receive main's current_exe and pass it with WORKER_ARG; decode-oracle's packet, thumbnail and streaming callers likewise use current_exe. Worker integration tests use CARGO_BIN_EXE_coreav-worker at each construction (75,216,309,423,515); hostile tests instead use controlled /bin/sh protocol responders or the built worker. Strict-safe tests use the Cargo CoreAV binary directly or /usr/bin/env with that binary in argv. WorkerCommand::installed selects only sibling/PATH coreav-worker, and current_exe retains the running product path. Backend FFmpeg payloads remain distinct downstream execution sites; this exclusion does not qualify those payloads or infer a worker identity from a directory name. This row is the spawn continuation of the unchanged Command created at line 460.",
+     "evidence": "crates/coreav-worker/src/parent.rs:471: This is the outer worker launch, not the FFmpeg child: crates/coreav-worker/src/parent.rs:32-60 constructs current-executable or coreav-worker commands; crates/coreav-worker/src/parent.rs:453-458 serializes the separate ffmpeg option into the Open message, while crates/coreav-worker/src/parent.rs:460-471 spawns only options.command.program and its worker arguments. The standalone worker enters the binary protocol at crates/coreav-worker/src/bin/coreav-worker.rs:8-14. CLI decoding selects its own executable and __coreav_worker at crates/coreav-cli/src/thumbnail.rs:249-258, with the dispatch at crates/coreav-cli/src/thumbnail.rs:77-86. Real fallback tests launch CARGO_BIN_EXE_coreav-worker, keeping ffmpeg separately in options, at crates/coreav-worker/tests/ffmpeg.rs:71-81, crates/coreav-worker/tests/ffmpeg.rs:214-226, crates/coreav-worker/tests/ffmpeg.rs:306-319, crates/coreav-worker/tests/ffmpeg.rs:420-434 and crates/coreav-worker/tests/ffmpeg.rs:512-527. Hostile-worker tests use shell protocol fakes at crates/coreav-worker/tests/hostile.rs:68-85, crates/coreav-worker/tests/hostile.rs:275-280, crates/coreav-worker/tests/hostile.rs:322-332, crates/coreav-worker/tests/hostile.rs:372-382 and crates/coreav-worker/tests/hostile.rs:434-439; strict-safe tests use env wrapping the CoreAV worker or the CoreAV binary at crates/coreav-cli/tests/strict_safe.rs:560-575 and crates/coreav-cli/tests/strict_safe.rs:610-615. These transport launches do not establish qualification of any later FFmpeg child, which is a separate site.",
      "program_span": {
       "end": 16337,
       "start": 16330
@@ -143339,18 +143313,17 @@
     "scripts/oracle_invocation_classify.py",
     "scripts/oracle_pin.py",
     "scripts/oracle_pin_macos.py",
-    "scripts/rust-dist.env",
     "scripts/test_oracle.py",
     "test-support/oracle.rs"
    ],
-   "sha256": "0de45740501249d301bf802fd92955ce96f1ac9ff36b1bded9dd2650c2f9e971",
+   "sha256": "bb934368674e8ceb7e587a32cbaaa107c30b8350942549540350024fce6b21d7",
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "toolchain is the imported local Rust-toolchain metadata selector (6). Both calls at 43/99 call that JS function, which uses pinned rustc -vV and --print sysroot (select.mjs:68\u201380), not an arbitrary executable from the repo string.",
+     "evidence": "scripts/notices/main.mjs:43: The argument is a repository directory passed to projectGraph at scripts/notices/main.mjs:43 or prepareFlags at scripts/notices/main.mjs:100, not an executable. scripts/notices/select.mjs:30-39 and scripts/notices/select.mjs:56-65 execute literal cargo with metadata/tree/fetch arguments; scripts/notices/select.mjs:68-85 executes literal rustc for toolchain facts. Neither helper invokes FFmpeg/ffprobe. The new bundled-runtime check at scripts/notices/main.mjs:44 is a notice-inventory validation, not a media execution.",
      "program_span": {
-      "end": 2374,
-      "start": 2370
+      "end": 2396,
+      "start": 2392
      },
      "site": [
       43,
@@ -143362,13 +143335,13 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "toolchain is the imported local Rust-toolchain metadata selector (6). Both calls at 43/99 call that JS function, which uses pinned rustc -vV and --print sysroot (select.mjs:68\u201380), not an arbitrary executable from the repo string.",
+     "evidence": "scripts/notices/main.mjs:100: The argument is a repository directory passed to projectGraph at scripts/notices/main.mjs:43 or prepareFlags at scripts/notices/main.mjs:100, not an executable. scripts/notices/select.mjs:30-39 and scripts/notices/select.mjs:56-65 execute literal cargo with metadata/tree/fetch arguments; scripts/notices/select.mjs:68-85 executes literal rustc for toolchain facts. Neither helper invokes FFmpeg/ffprobe. The new bundled-runtime check at scripts/notices/main.mjs:44 is a notice-inventory validation, not a media execution.",
      "program_span": {
-      "end": 6689,
-      "start": 6679
+      "end": 6781,
+      "start": 6771
      },
      "site": [
-      99,
+      100,
       "JavaScript",
       "<structural>",
       "repository"
@@ -143865,7 +143838,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/compiler-rt/LICENSE.TXT:1: Retained legal/notice text begins '============================================================================== / The LLVM Project is under the Apache License v2.0 with LLVM Exceptions: / ============================================================================== /  /                                  Apache License /                            Version 2.0, January 2004'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:73 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -143920,7 +143893,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/libunwind/LICENSE.TXT:1: Retained legal/notice text begins '============================================================================== / The LLVM Project is under the Apache License v2.0 with LLVM Exceptions: / ============================================================================== /  /                                  Apache License /                            Version 2.0, January 2004'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:53 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -143975,7 +143948,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/microsoft/ucrt-NOTICE:1: Retained legal/notice text begins 'The statically linked Microsoft C runtime component UCRT is distributed under the Windows SDK terms: / https://learn.microsoft.com/en-us/legal/windows-sdk/license'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:32 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144030,7 +144003,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/microsoft/vcruntime-NOTICE:1: Retained legal/notice text begins 'The statically linked Microsoft C runtime component vcruntime is distributed under the Visual Studio redistribution terms: / https://visualstudio.microsoft.com/license-terms/vs2026-ga-pro-enterprise/'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:31 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144085,7 +144058,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/musl/COPYRIGHT:1: Retained legal/notice text begins 'musl as a whole is licensed under the following standard MIT license: /  / ---------------------------------------------------------------------- / Copyright \u00a9 2005-2020 Rich Felker, et al. /  / Permission is hereby granted, free of charge, to any person obtaining'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:39 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144140,7 +144113,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/musl/aarch64-memcpy-LICENSE:1: Retained legal/notice text begins '/* /  * memcpy - copy memory area /  * /  * Copyright (c) 2012-2020, Arm Limited. /  * SPDX-License-Identifier: MIT /  */'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:40 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144195,7 +144168,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/musl/aarch64-memset-LICENSE:1: Retained legal/notice text begins '/* /  * memset - fill memory with a constant byte /  * /  * Copyright (c) 2012-2020, Arm Limited. /  * SPDX-License-Identifier: MIT /  */'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:41 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144250,7 +144223,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/musl/math-__cos-LICENSE:1: Retained legal/notice text begins '/* /  * ==================================================== /  * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved. /  * /  * Developed at SunSoft, a Sun Microsystems, Inc. business. /  * Permission to use, copy, modify, and distribute this'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:43 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144305,7 +144278,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/musl/math-cos-LICENSE:1: Retained legal/notice text begins '/* /  * ==================================================== /  * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved. /  * /  * Developed at SunPro, a Sun Microsystems, Inc. business. /  * Permission to use, copy, modify, and distribute this'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:42 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144360,7 +144333,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/musl/math-exp-LICENSE:1: Retained legal/notice text begins '/* /  * Double-precision e^x function. /  * /  * Copyright (c) 2018, Arm Limited. /  * SPDX-License-Identifier: MIT /  */'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:44 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144415,7 +144388,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/musl/math-log-LICENSE:1: Retained legal/notice text begins '/* /  * Double-precision log(x) function. /  * /  * Copyright (c) 2018, Arm Limited. /  * SPDX-License-Identifier: MIT /  */'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:45 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144470,7 +144443,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/musl/math-pow-LICENSE:1: Retained legal/notice text begins '/* /  * Double-precision x^y function. /  * /  * Copyright (c) 2018, Arm Limited. /  * SPDX-License-Identifier: MIT /  */'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:46 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144525,7 +144498,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/wasi-libc/LICENSE-APACHE:1: Retained legal/notice text begins 'Apache License /                         Version 2.0, January 2004 /                      http://www.apache.org/licenses/ /  / TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION /'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:61 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144580,7 +144553,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/wasi-libc/LICENSE-APACHE-LLVM:1: Retained legal/notice text begins '/                                  Apache License /                            Version 2.0, January 2004 /                         http://www.apache.org/licenses/ /  /    TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:62 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144635,7 +144608,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/wasi-libc/LICENSE-MIT:1: Retained legal/notice text begins 'Permission is hereby granted, free of charge, to any / person obtaining a copy of this software and associated / documentation files (the \"Software\"), to deal in the / Software without restriction, including without / limitation the rights to use, copy, modify, merge, / publish, distribute, sublicense, and/or sell copies of'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:63 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144690,7 +144663,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/wasi-libc/fts/musl-fts/COPYING:1: Retained legal/notice text begins 'Copyright (c) 1989, 1993 /    The Regents of the University of California.  All rights reserved. /  / Redistribution and use in source and binary forms, with or without / modification, are permitted provided that the following conditions / are met:'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:66 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -144745,7 +144718,7 @@
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "Individually inspected legal-text header and regular mode-0644/no-shebang metadata identify retained licence/notice prose, not executable code or a program selector. runtime.mjs reads registered component files as bytes, validates identity and decodes/appends their text into notice sections, not an executable loader.",
+     "evidence": "scripts/notices/upstream/runtime/wasi-libc/libc-top-half/musl/COPYRIGHT:1: Retained legal/notice text begins 'musl as a whole is licensed under the following standard MIT license: /  / ---------------------------------------------------------------------- / Copyright \u00a9 2005-2020 Rich Felker, et al. /  / Permission is hereby granted, free of charge, to any person obtaining'; the file is regular mode 0644 without a shebang, not executable code or a program selector. scripts/notices/upstream/runtime/manifest.json:64 lists it as component notice data. scripts/notices/runtime.mjs:20-31 reads the selected file as bytes, checks its SHA-256, decodes UTF-8 and appends its text to notice sections; it never executes the text. No FFmpeg/ffprobe oracle is invoked by this row.",
      "site": [
       1,
       "inventory",
@@ -219601,28 +219574,6 @@
     "request": "f7e8d84a6064f1a4a2b33e09c09a16d5225557cab32af3a024dfab88eba054b7",
     "resource": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "run": "bfff3de28af5f638703c3f43bd0e6900f20f7c25e24b1e94262215272f2707b7",
-    "rust:crates/coreav-cli/src/compat_cmd.rs:probe_stdin": "abb265e1e3dc464972603e673cca2d8f501ccf35c096dcf8a92fba86223f13d9",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:args": "a170edc0e4737f764c7aade5f4ead81505cfced40ee66cb6068f3991b9ea2920",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:audio": "e5714f85633e6c9c870319df3bb410db845fc8812d816114098d5e2f0af1f9ca",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:avi": "a20943ab15fd79dd7ddfcbce382681694f920c44e6cb60c813722b84e10d7bcb",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:capture": "788447ffc5ea2a31c62472dd02edcb696af8587db2c232118169ace44b8e0f05",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:encode": "3369bdc75ae7b7b3554aaf5cf97f0a464806ce396bff5ff93ab55549a2efcb94",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:ffv1": "9b6573e81c31bca56f7fac1854719e0719c8fb071fe28392df081774edad10d5",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:frames": "11184bade2fffd66ee44bf1164158e754e7239745dd4f7e013e677bbb877d830",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:image_capture": "a34016b7edda5a3fe43c09cda2eb0e16c7e542e921aad0f172e9fa12c4b25dd4",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:pcm": "9b07f437408f77b6be1353180123c79d8c164d68dacb2925749ba9c2d3ae236e",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:raw_audio": "130fa53de64dfedf0195268aac57ead2b63282031fabaf90ac58ccc4eb6eacbf",
-    "rust:crates/coreav-cli/src/ffmpeg/mod.rs:ts": "8dcf23e24e2d41798c924c7a8631440a4c00f8bb72fd16c4b94fcfd0d9d7f76f",
-    "rust:crates/coreav-cli/src/ffmpeg/raw_audio/mod.rs:aac": "42dca5f3769a746288b85b30c1a46e77aeb708609ad8bde71a0a8415a243cc2b",
-    "rust:crates/coreav-cli/src/ffmpeg/raw_audio/mod.rs:exact": "ff5587575357f182586bef068e9405eb1c1579698b25d5a8665e8c3bd16145bf",
-    "rust:crates/coreav-cli/src/ffmpeg/raw_audio/mod.rs:flac": "0bb01104d84c7fd3af5642b8753e8a0f1c3c2aeba7efb95aa362dccc30aaa482",
-    "rust:crates/coreav-cli/src/ffmpeg/raw_audio/mod.rs:mp4": "da56815faddf0da90e3433dcb51a1c010a0924e0439e132306c5ec6c31b0a3e5",
-    "rust:crates/coreav-cli/src/ffmpeg/raw_audio/mod.rs:record": "b6b7ed9425a84ad409c1d34152a82a459afd6d7e81ee86e9a08f6499d6b99ad5",
-    "rust:crates/coreav-cli/src/ffmpeg/raw_audio/mod.rs:tests": "731173513404f680a31cc9a1be61fea46b0e6c527c2a10b478e3ae2e12a25ef1",
-    "rust:crates/coreav-cli/src/ffmpeg/raw_audio/mod.rs:wav": "1b5338d66c0c2b22ce0a91376dc38d9648a05c89a6dae41cc5bf5549f7f4abaf",
-    "rust:crates/coreav-cli/src/ffmpeg/raw_audio/wav.rs:tests": "de6b30a8e76a7e84d9e97091fe1e1ec724a2a545e7711e1ac22d78fbc1b2e07f",
-    "rust:crates/coreav-cli/src/main.rs:compat_cmd": "ccf5049a20c2dd26e433f9ae7d9de2cfd6e2d070729a048f6c1924ec92a99390",
-    "rust:crates/coreav-cli/src/main.rs:fallback_cmd": "a9c07257236976aede760fab0e994d31bf0d6e347952f7a75469797c7d468d75",
     "rust:crates/coreav-isobmff/tests/common/mod.rs:fragments": "4ed8836bea24e1d427f591ed2e3661253355b3c62a36203ee663aa8bd5e05c17",
     "rust:crates/coreav-isobmff/tests/common/mod.rs:sound": "a9ef159bc29a40d8442c344c0d7a129aa9f4265ed8d343e4f7058628c5894b58",
     "rust:crates/coreav-transcode/tests/common/mod.rs:test_oracle": "b7c62dc42fa6bdd23845f8ee909748efebe9913b946a81c9e552c661d60c32cb",
@@ -219683,30 +219634,6 @@
     "crates/coreav-backend-apple/examples/common/compare.rs",
     "crates/coreav-backend-apple/examples/common/h264_decode.rs",
     "crates/coreav-backend-apple/tests/common/h264.rs",
-    "crates/coreav-cli/src/compat_cmd.rs",
-    "crates/coreav-cli/src/compat_cmd/probe_stdin.rs",
-    "crates/coreav-cli/src/fallback_cmd.rs",
-    "crates/coreav-cli/src/ffmpeg/args.rs",
-    "crates/coreav-cli/src/ffmpeg/audio.rs",
-    "crates/coreav-cli/src/ffmpeg/avi.rs",
-    "crates/coreav-cli/src/ffmpeg/capture.rs",
-    "crates/coreav-cli/src/ffmpeg/encode.rs",
-    "crates/coreav-cli/src/ffmpeg/ffv1.rs",
-    "crates/coreav-cli/src/ffmpeg/frames.rs",
-    "crates/coreav-cli/src/ffmpeg/image_capture.rs",
-    "crates/coreav-cli/src/ffmpeg/mod.rs",
-    "crates/coreav-cli/src/ffmpeg/pcm.rs",
-    "crates/coreav-cli/src/ffmpeg/raw_audio/aac.rs",
-    "crates/coreav-cli/src/ffmpeg/raw_audio/exact.rs",
-    "crates/coreav-cli/src/ffmpeg/raw_audio/flac.rs",
-    "crates/coreav-cli/src/ffmpeg/raw_audio/mod.rs",
-    "crates/coreav-cli/src/ffmpeg/raw_audio/mp4.rs",
-    "crates/coreav-cli/src/ffmpeg/raw_audio/record.rs",
-    "crates/coreav-cli/src/ffmpeg/raw_audio/tests.rs",
-    "crates/coreav-cli/src/ffmpeg/raw_audio/wav.rs",
-    "crates/coreav-cli/src/ffmpeg/raw_audio/wav_tests.rs",
-    "crates/coreav-cli/src/ffmpeg/ts.rs",
-    "crates/coreav-cli/src/main.rs",
     "crates/coreav-cli/src/strict_safe.rs",
     "crates/coreav-cli/tests/common/standalone_audio.rs",
     "crates/coreav-h264/tests/common/streams.rs",
@@ -219721,10 +219648,7 @@
     "crates/coreav-transcode/tests/common/mod.rs",
     "crates/coreav-vp9/tests/common/mod.rs",
     "crates/coreav-vp9/tests/data/vectors.json",
-    "docs/compat/audio-decoder-eligibility.json",
-    "docs/design/composed-opus-aac-v2.json",
     "docs/design/oracle-historical-records.json",
-    "docs/design/png-bmp-yuv-v1.md",
     "docs/measurements/compat-0.1.0/judging.json",
     "docs/measurements/h264-gap-2/tools/cg.py",
     "docs/measurements/h264-gap-2/tools/report.py",
@@ -220133,7 +220057,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "tools/compat-corpus/current_ci.py:136: This invocation executes the resolved CoreAV candidate from tools/compat-corpus/current_ci.py:176, with ffmpeg as its subcommand argument, not as its executable. Its env comes from legacy.ENV at tools/compat-corpus/current_ci.py:132: tools/compat-corpus/run.py:79 obtains tools/compat-corpus/release_round.py:79-88, which forces COREAV_STRICT_SAFE=1. crates/coreav-cli/src/main.rs:1028-1029 constructs StrictSafe and dispatches the compatibility command; crates/coreav-cli/src/strict_safe.rs:59-62 reads that environment. crates/coreav-cli/src/compat_cmd.rs:110-136 forwards the mode to native work or refusal, and crates/coreav-cli/src/fallback_cmd.rs:92-123 prevents launching the FFmpeg fallback in this mode. Encoder authorization at crates/coreav-cli/src/ffmpeg/mod.rs:404, crates/coreav-cli/src/ffmpeg/mod.rs:461-491, crates/coreav-cli/src/ffmpeg/audio.rs:124 and crates/coreav-cli/src/ffmpeg/encode.rs:92-119 reaches the refusals in crates/coreav-cli/src/strict_safe.rs:117-134, crates/coreav-cli/src/strict_safe.rs:145-171 and crates/coreav-cli/src/strict_safe.rs:181-199. The separate oracle reference command is at tools/compat-corpus/current_ci.py:81, outside this invocation.",
+     "evidence": "At tools/compat-corpus/current_ci.py:136 (delegated decoded_output.invoke, occurrence 0), This launches opts.coreav with the ffmpeg subcommand, not FFmpeg. tools/compat-corpus/current_ci.py:176 selects the CoreAV candidate; tools/compat-corpus/run.py:79 obtains release_round.environment, which sets COREAV_STRICT_SAFE=1 at tools/compat-corpus/release_round.py:84. crates/coreav-cli/src/strict_safe.rs:59-62 reads the mode; crates/coreav-cli/src/strict_safe.rs:145-171 and crates/coreav-cli/src/strict_safe.rs:181-198 refuse FFmpeg encoders in that mode. The reference execution is separate at tools/compat-corpus/current_ci.py:81.",
      "site": [
       136,
       "delegated",
@@ -220155,7 +220079,7 @@
     },
     {
      "class": "reviewed-reference",
-     "evidence": "tools/compat-corpus/current_ci.py:188: This lambda delegates only refusals, not legacy.cmd_commands. Its reference branch reaches verify at tools/compat-corpus/current_ci.py:155 with the retained pair; the candidate invocation at tools/compat-corpus/current_ci.py:136 is CoreAV, not an oracle. tools/compat-corpus/current_ci.py:179-182 retains the exact resolved pair returned by scripts/test_oracle.py:73-108; tools/compat-corpus/current_ci.py:188 forwards str(pair.ffmpeg) and str(pair.ffprobe) unchanged into refusals, which passes them to verify at tools/compat-corpus/current_ci.py:155. The other real verify callers use fields retained at tools/compat-corpus/tests/test_current_ci.py:372-373 and pass self.ffmpeg/self.ffprobe at tools/compat-corpus/tests/test_current_ci.py:435, tools/compat-corpus/tests/test_current_ci.py:503, tools/compat-corpus/tests/test_current_ci.py:540 and tools/compat-corpus/tests/test_current_ci.py:545. The bare test arguments at tools/compat-corpus/tests/test_current_ci.py:42-43 and tools/compat-corpus/tests/test_current_ci.py:363-364 are mocked at tools/compat-corpus/tests/test_current_ci.py:37-39 and tools/compat-corpus/tests/test_current_ci.py:360-362 and execute no oracle. tools/compat-corpus/decoded_output.py:27 passes argv unchanged to subprocess.Popen; tools/compat-corpus/decoded_output.py:46-47 executes the supplied ffprobe, tools/compat-corpus/decoded_output.py:160-161 and tools/compat-corpus/decoded_output.py:246-249 execute the supplied ffmpeg. No lookup or sibling reconstruction replaces those fields. The candidate side at tools/compat-corpus/current_ci.py:136 is not an oracle: This invocation executes the resolved CoreAV candidate from tools/compat-corpus/current_ci.py:176, with ffmpeg as its subcommand argument, not as its executable. Its env comes from legacy.ENV at tools/compat-corpus/current_ci.py:132: tools/compat-corpus/run.py:79 obtains tools/compat-corpus/release_round.py:79-88, which forces COREAV_STRICT_SAFE=1. crates/coreav-cli/src/main.rs:1028-1029 constructs StrictSafe and dispatches the compatibility command; crates/coreav-cli/src/strict_safe.rs:59-62 reads that environment. crates/coreav-cli/src/compat_cmd.rs:110-136 forwards the mode to native work or refusal, and crates/coreav-cli/src/fallback_cmd.rs:92-123 prevents launching the FFmpeg fallback in this mode. Encoder authorization at crates/coreav-cli/src/ffmpeg/mod.rs:404, crates/coreav-cli/src/ffmpeg/mod.rs:461-491, crates/coreav-cli/src/ffmpeg/audio.rs:124 and crates/coreav-cli/src/ffmpeg/encode.rs:92-119 reaches the refusals in crates/coreav-cli/src/strict_safe.rs:117-134, crates/coreav-cli/src/strict_safe.rs:145-171 and crates/coreav-cli/src/strict_safe.rs:181-199. The separate oracle reference command is at tools/compat-corpus/current_ci.py:81, outside this invocation.",
+     "evidence": "At tools/compat-corpus/current_ci.py:188 (delegated refusals, occurrence 0), tools/compat-corpus/current_ci.py:179-188 retains require() fields, forwards them via refusals at tools/compat-corpus/current_ci.py:155 into verify at tools/compat-corpus/current_ci.py:63, then to source/output probes, reference command and decoded comparison at tools/compat-corpus/current_ci.py:71, tools/compat-corpus/current_ci.py:81, tools/compat-corpus/current_ci.py:101 and tools/compat-corpus/current_ci.py:111. The real direct test caller retains the owner pair at tools/compat-corpus/tests/test_current_ci.py:372-373 and forwards it at tools/compat-corpus/tests/test_current_ci.py:435. tools/compat-corpus/decoded_output.py:46-47 and tools/compat-corpus/decoded_output.py:343-344 use the supplied ffprobe; tools/compat-corpus/decoded_output.py:160-161 and tools/compat-corpus/decoded_output.py:246-249 use supplied ffmpeg, with no selection or reconstruction. tools/compat-corpus/decoded_output.py:27 executes argv unchanged; tools/compat-corpus/decoded_output.py:363 and tools/compat-corpus/decoded_output.py:432 forward the same pair through carriage checks. scripts/test_oracle.py:73-108 returns the resolved immutable Oracle pair after admission, not just a pin-verifier result.",
      "site": [
       188,
       "delegated",
@@ -265733,6 +265657,7 @@
   "scripts/notices/upstream/runtime/manifest.json": "data",
   "scripts/notices/upstream/runtime/microsoft/ucrt-NOTICE": "unscanned-file",
   "scripts/notices/upstream/runtime/microsoft/vcruntime-NOTICE": "unscanned-file",
+  "scripts/notices/upstream/runtime/mimalloc/LICENSE": "data",
   "scripts/notices/upstream/runtime/musl/COPYRIGHT": "unscanned-file",
   "scripts/notices/upstream/runtime/musl/aarch64-memcpy-LICENSE": "unscanned-file",
   "scripts/notices/upstream/runtime/musl/aarch64-memset-LICENSE": "unscanned-file",
