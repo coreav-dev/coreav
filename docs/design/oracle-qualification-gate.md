@@ -154,6 +154,10 @@ Commit the registered code change first, then generate registration from that im
 
 The judging roster requires every module a judging source imports to be a judging source itself. Since the nested-probe repair, `scripts/oracle_kd.py` imports `scripts/test_oracle.py`, which imports `scripts/oracle_pin_macos.py`; neither is in `JUDGING`, so the existing roster regression fails. The maintainer approved adding exactly these two owner modules to `JUDGING` in `scripts/compat_sources.py` on 2026-11-06. Commit that roster change first, then register from it in its own following commit. The only `judging.json` changes are the two new entries and the new `compat_sources.py` hash, plus the registration file's diagnostic historical-snapshot digest. The roster regression must pass unchanged.
 
+### VideoToolbox tool freeze
+
+The macOS encoder tools reconstruct oracle paths from a directory or run the pin verifier without retaining the owner's pair. Repairing `baseline_smoke.py`, `preparation.py`, `producer.py`, `registration.py`, `smoke.py`, `timing.py` and their tests changes files whose hashes `scripts/encoders/macos/videotoolbox-sources.json` freezes under `tools`. The maintainer approved a forward-only move of those hashes on 2026-11-06. The repair and the new hashes land in one commit, so the freeze always matches the tools beside it. Only the `tools` values of changed files move; inputs, selection, native inputs, commands, bars and the seal validator stay unchanged. Results recorded before the move stay bound to the old hashes and are not rerun or rejudged.
+
 ### Implementation order and verification
 
 1. Commit this plan. Capture the invalid fresh merged baseline and the original-row obligations without claiming classification progress.
