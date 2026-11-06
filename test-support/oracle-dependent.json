@@ -194,6 +194,7 @@
     "the_opus_encode_selects_the_first_decoded_stream_before_flac",
     "the_opus_encode_takes_opus_before_a_flac_stream",
     "times_in_decode_order_keep_every_frame",
+    "unscaled_encoding_preserves_declared_sar_without_changing_scale",
     "unsnapped_h264_times_keep_the_vui_rate",
     "variable_rate_sources_encode_as_ffmpeg_does"
   ],

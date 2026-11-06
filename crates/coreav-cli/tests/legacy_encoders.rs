@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct ResultBytes {
     code: Option<i32>,
     stdout: Vec<u8>,
@@ -95,6 +95,9 @@ fn legacy_encoder_choices_keep_media_summaries_errors_and_exit_codes() {
         String::from_utf8_lossy(&made.stderr)
     );
     let output = directory.join("output.mp4");
+    let valid_sar = declared_sar(&valid);
+    let lossless_sar = declared_sar(&lossless);
+    let mut counts = [0usize; 2];
     for encoder in [None, Some("auto"), Some("x264"), Some("ffmpeg")] {
         let mut choice = Vec::new();
         if let Some(encoder) = encoder {
@@ -110,14 +113,20 @@ fn legacy_encoder_choices_keep_media_summaries_errors_and_exit_codes() {
             };
             let before = run(&baseline, input, &output, &args, false);
             let after = run(candidate, input, &output, &args, false);
-            assert!(
-                after == before,
-                "legacy request {args:?}: code {} stdout {} stderr {} media {}",
-                after.code == before.code,
-                after.stdout == before.stdout,
-                after.stderr == before.stderr,
-                after.media == before.media,
-            );
+            let declared = if input == &valid {
+                valid_sar
+            } else {
+                lossless_sar
+            };
+            counts[usize::from(compare(
+                &before,
+                &after,
+                declared,
+                encoder,
+                &directory,
+                Path::new(make.get_program()),
+                &format!("legacy request {args:?}"),
+            ))] += 1;
             assert_eq!(
                 after.code,
                 Some(0),
@@ -130,10 +139,15 @@ fn legacy_encoder_choices_keep_media_summaries_errors_and_exit_codes() {
                     let mut explicit = args.clone();
                     explicit.extend(["--audio-encoder", selected]);
                     let selected = run(candidate, input, &output, &explicit, false);
-                    assert!(
-                        selected == before,
-                        "explicit AAC choice {explicit:?} changed output"
-                    );
+                    counts[usize::from(compare(
+                        &before,
+                        &selected,
+                        declared,
+                        encoder,
+                        &directory,
+                        Path::new(make.get_program()),
+                        &format!("explicit AAC choice {explicit:?}"),
+                    ))] += 1;
                 }
             }
         }
@@ -146,17 +160,113 @@ fn legacy_encoder_choices_keep_media_summaries_errors_and_exit_codes() {
                     }
                     let before = run(&baseline, input, &output, &args, missing);
                     let after = run(candidate, input, &output, &args, missing);
-                    assert!(
-                        after == before,
-                        "legacy {args:?}, {input:?}, missing={missing}: code {} stdout {} stderr {} media {}",
-                        after.code == before.code,
-                        after.stdout == before.stdout,
-                        after.stderr == before.stderr,
-                        after.media == before.media,
-                    );
+                    let declared = if input == &valid { valid_sar } else { None };
+                    counts[usize::from(compare(
+                        &before,
+                        &after,
+                        declared,
+                        encoder,
+                        &directory,
+                        Path::new(make.get_program()),
+                        &format!("legacy {args:?}, {input:?}, missing={missing}"),
+                    ))] += 1;
                 }
             }
         }
     }
+    eprintln!(
+        "legacy comparisons: {} exact, {} verified SAR-only with decoded-frame and mdat-mutation controls",
+        counts[0], counts[1]
+    );
     let _ = std::fs::remove_dir_all(directory);
 }
+
+fn declared_sar(input: &Path) -> Option<(u64, u64)> {
+    let video = coreav_thumbnail::video_stream(
+        coreav_isobmff::FileSource::open(input).unwrap(),
+        &coreav_thumbnail::ThumbnailOptions::at(coreav_isobmff::Rational::from_int(0)),
+    )
+    .unwrap();
+    if video.container == coreav_thumbnail::Container::Mp4 {
+        let probed = coreav_isobmff::probe(
+            coreav_isobmff::FileSource::open(input).unwrap(),
+            &coreav_isobmff::Limits::default(),
+            &coreav_isobmff::Allowlist::default(),
+        )
+        .unwrap();
+        let track = probed
+            .tracks
+            .iter()
+            .find(|t| t.stream_index == video.stream_index)
+            .unwrap();
+        assert_eq!(
+            video.pixel_aspect,
+            track
+                .description
+                .pixel_aspect
+                .map(|(n, d)| (u64::from(n), u64::from(d))),
+            "source pasp declaration"
+        );
+    }
+    video.pixel_aspect
+}
+
+fn compare(
+    before: &ResultBytes,
+    after: &ResultBytes,
+    declared: Option<(u64, u64)>,
+    encoder: Option<&str>,
+    directory: &Path,
+    ffmpeg: &Path,
+    request: &str,
+) -> bool {
+    let rule = if encoder == Some("ffmpeg") {
+        sar_delta::SpsRule::Exact
+    } else {
+        sar_delta::SpsRule::Declared
+    };
+    let changed = sar_delta::check(before, after, declared, rule).expect(request);
+    if !changed {
+        return false;
+    }
+    sar_delta::require_payload_negative(before, after, declared, rule).expect(request);
+    let mut decoded = Vec::new();
+    for (name, media) in [("before", &before.media), ("after", &after.media)] {
+        let path = directory.join(format!("decode-{name}.mp4"));
+        std::fs::write(&path, media.as_ref().unwrap()).unwrap();
+        let mut decode = Command::new(ffmpeg);
+        decode
+            .args(["-nostdin", "-v", "error", "-noautorotate", "-i"])
+            .arg(&path)
+            .args([
+                "-map",
+                "0:v:0",
+                "-an",
+                "-fps_mode",
+                "passthrough",
+                "-f",
+                "rawvideo",
+                "-",
+            ]);
+        let output = bounded::output(&mut decode, None, Duration::from_secs(60)).unwrap();
+        assert!(
+            output.status.success(),
+            "{request}: decoded video status: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            !output.stdout.is_empty(),
+            "{request}: decoded video is empty"
+        );
+        decoded.push(output.stdout);
+    }
+    assert!(decoded[0] == decoded[1], "{request}: decoded video frames");
+    eprintln!(
+        "{request}: verified SAR signalling growth {} bytes",
+        after.media.as_ref().unwrap().len() - before.media.as_ref().unwrap().len()
+    );
+    true
+}
+
+#[path = "support/sar_delta.rs"]
+mod sar_delta;

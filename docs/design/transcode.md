@@ -386,11 +386,15 @@ same rule (`decode.md`, "The FFmpeg fallback").
   display aspect ratio) rounded to the nearest pixel, halves up; `-2` the
   same rounded to the nearest even number, halves up; both sides negative
   keep the input's size, odd or not; a side that rounds to 0 is refused.
-  The output's sample aspect ratio is the source's (`pasp` or Matroska's
-  display size; 1:1 when not stated) times `(in_w × out_h) / (in_h ×
-  out_w)`, reduced; it reaches the encoder (and `pasp`, and the track
-  header's width, stretched by it as FFmpeg writes it) only when it is not
-  1:1. The size comes from the first presented frame, and the encoder
+  Without a scale request, a valid source sample-aspect declaration
+  (`pasp` or Matroska's display size) reaches the encoder, output `pasp`
+  and summary, including a declared square ratio reduced to 1:1. An
+  unstated or invalid source ratio stays unstated by the pipeline.
+  With a scale request, the output ratio is the source's (1:1 when not
+  stated) times `(in_w × out_h) / (in_h × out_w)`, reduced; it reaches the
+  encoder, `pasp` and the track header's stretched width only when it is
+  not 1:1. An identity scale request retains this normalization. The size
+  comes from the first presented frame, and the encoder
   starts with it: a format the encoder does not take, an odd size, or a
   `--scale` that gives none is refused then, before the encoder runs; a
   later frame in another pixel format is `Unsupported`.
@@ -572,7 +576,7 @@ existing remux paths unchanged (`remux_mp4` for MP4 and MOV,
 `coreav remux` copies it, with its edit list, priming and language. The
 replaced stream keeps the source track's place, language, matrix and
 presentation timeline, and takes the new sample entry (`avc1`, `avcC`;
-`pasp` when the sample aspect ratio is not 1:1; `colr` with the colour
+`pasp` when the pipeline states a sample aspect ratio; `colr` with the colour
 code points when they are known), the samples above and an edit list
 shifted by the new decode times. The source track's per-sample boxes
 (`sdtp`, sample groups) are not copied: they describe the old samples.

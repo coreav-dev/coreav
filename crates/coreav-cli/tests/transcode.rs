@@ -680,6 +680,213 @@ fn scale_bitrate_and_no_audio() {
 }
 
 #[test]
+fn unscaled_encoding_preserves_declared_sar_without_changing_scale() {
+    let pair = test_oracle::require();
+    let x264 = x264().expect("the pinned x264 program is required");
+    struct Fixture(PathBuf);
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let owner = Fixture(
+        Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join(format!("transcode-declared-sar-{}", std::process::id())),
+    );
+    std::fs::create_dir(&owner.0).unwrap();
+    let tools = Tools {
+        ffmpeg: pair.ffmpeg().to_path_buf(),
+        ffprobe: pair.ffprobe().to_path_buf(),
+        x264,
+        fixtures: owner.0.clone(),
+    };
+    let capture = |command: &mut Command| {
+        bounded::output(command, None, std::time::Duration::from_secs(90)).unwrap()
+    };
+    let pasp = |path: &Path| {
+        let bytes = std::fs::read(path).unwrap();
+        let movie = coreav_isobmff::probe(
+            coreav_isobmff::SliceSource::new(&bytes),
+            &coreav_isobmff::Limits::default(),
+            &coreav_isobmff::Allowlist::default(),
+        )
+        .unwrap();
+        assert_eq!(movie.tracks.len(), 1);
+        movie.tracks[0].description.pixel_aspect
+    };
+    let exact = |output: &Path, reference: &Path| {
+        let compare = capture(Command::new("python3")
+            .args(["-I", "-c", "import os,pathlib,sys; sys.path.insert(0,sys.argv[1]); import decoded_output; verdict,reason=decoded_output.compare(pathlib.Path(sys.argv[2]),pathlib.Path(sys.argv[3]),sys.argv[4],sys.argv[5],dict(os.environ),pathlib.Path(sys.argv[6]),registered_codecs=('h264',)); print(verdict,reason); assert verdict=='verified',reason"])
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/compat-corpus"))
+            .arg(output)
+            .arg(reference)
+            .arg(&tools.ffmpeg)
+            .arg(&tools.ffprobe)
+            .arg(&owner.0));
+        assert!(
+            compare.status.success(),
+            "{}: {} {}",
+            output.display(),
+            String::from_utf8_lossy(&compare.stdout),
+            String::from_utf8_lossy(&compare.stderr)
+        );
+    };
+    let mut encoded_outputs = 0;
+    let mut strict_refusals = 0;
+    for (name, declaration, ratio) in [
+        ("square", "1", Some((1, 1))),
+        ("nonsquare", "4/3", Some((4, 3))),
+        ("absent", "0", None),
+    ] {
+        let source = owner.0.join(format!("{name}.mp4"));
+        let made = capture(
+            Command::new(&tools.ffmpeg)
+                .args(["-v", "error", "-f", "lavfi", "-i"])
+                .arg(format!("testsrc2=size=96x64:rate=10,setsar={declaration}"))
+                .args([
+                    "-frames:v",
+                    "7",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-an",
+                ])
+                .arg(&source),
+        );
+        assert!(
+            made.status.success(),
+            "{}",
+            String::from_utf8_lossy(&made.stderr)
+        );
+        assert_eq!(pasp(&source), ratio);
+        let reference = owner.0.join(format!("{name}-reference.mp4"));
+        let made = capture(
+            Command::new(&tools.ffmpeg)
+                .args(["-v", "error", "-i"])
+                .arg(&source)
+                .args(["-an", "-c:v", "libx264"])
+                .arg(&reference),
+        );
+        assert!(
+            made.status.success(),
+            "{}",
+            String::from_utf8_lossy(&made.stderr)
+        );
+        for (encoder, encoder_args) in encoders(&tools) {
+            for scale in [None, Some("96:64"), Some("64:32")] {
+                let output = owner.0.join(format!(
+                    "{name}-{encoder}-{}.mp4",
+                    scale.unwrap_or("unscaled").replace(':', "x")
+                ));
+                let mut args = vec![
+                    source.to_str().unwrap().to_owned(),
+                    output.to_str().unwrap().to_owned(),
+                    "--audio".into(),
+                    "none".into(),
+                ];
+                args.extend(encoder_args.clone());
+                if let Some(scale) = scale {
+                    args.extend(["--scale".into(), scale.into()]);
+                }
+                let args: Vec<_> = args.iter().map(String::as_str).collect();
+                let run = transcode(Some(&tools), &args);
+                assert_eq!(run.code, 0, "{name}/{encoder}/{scale:?}: {}", run.stderr);
+                let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+                let expected = match scale {
+                    None => ratio,
+                    Some("96:64") => ratio.filter(|(n, d)| n != d),
+                    Some(_) if ratio == Some((4, 3)) => None,
+                    Some(_) => Some((3, 4)),
+                };
+                let text = expected.map(|(n, d)| format!("{n}:{d}"));
+                assert_eq!(summary["video"]["sample_aspect"], serde_json::json!(text));
+                assert_eq!(summary["video"]["frames"], 7);
+                assert_eq!(pasp(&output), expected);
+                let extracted = capture(
+                    Command::new(&tools.ffmpeg)
+                        .args(["-v", "error", "-i"])
+                        .arg(&output)
+                        .args(["-map", "0:v:0", "-c:v", "copy", "-an", "-f", "h264", "-"]),
+                );
+                assert!(extracted.status.success());
+                let mut annexb = coreav_transcode::annexb::AnnexBReader::new(Default::default());
+                annexb.push(&extracted.stdout).unwrap();
+                annexb.finish().unwrap();
+                assert_eq!(
+                    annexb.config().unwrap().sample_aspect_ratio,
+                    if encoder == "ffmpeg" {
+                        Some((1, 1))
+                    } else {
+                        expected
+                            .map(|(n, d)| (u16::try_from(n).unwrap(), u16::try_from(d).unwrap()))
+                    },
+                    "{name}/{encoder}/{scale:?}"
+                );
+                if scale.is_none() && ratio.is_some() {
+                    exact(&output, &reference);
+                }
+                encoded_outputs += 1;
+            }
+        }
+        for strict in [false, true] {
+            let output = owner.0.join(format!("{name}-compat-{strict}.mp4"));
+            let mut command = Command::new(bin());
+            if strict {
+                command.arg("--strict-safe");
+            }
+            let run = capture(
+                command
+                    .args(["ffmpeg", "-i"])
+                    .arg(&source)
+                    .arg("-an")
+                    .arg(&output)
+                    .env("COREAV_FFMPEG", &tools.ffmpeg)
+                    .env("COREAV_X264", &tools.x264)
+                    .env("COREAV_FALLBACK", NO_FALLBACK),
+            );
+            if strict && !coreav_worker::enforces_memory_limit() {
+                assert_eq!(run.status.code(), Some(4));
+                assert!(run.stdout.is_empty());
+                assert_eq!(run.stderr, b"coreav ffmpeg: strict-safe: no enforceable memory limit for the sandbox on this platform, so it starts no sandboxed decoder or encoder, or run without --strict-safe and COREAV_STRICT_SAFE\n");
+                assert!(!output.exists());
+                strict_refusals += 1;
+                continue;
+            }
+            if strict && !cfg!(feature = "native-h264") {
+                assert_eq!(run.status.code(), Some(4));
+                assert!(!output.exists());
+                strict_refusals += 1;
+                continue;
+            }
+            assert!(
+                run.status.success(),
+                "{}",
+                String::from_utf8_lossy(&run.stderr)
+            );
+            assert!(run.stdout.is_empty());
+            assert_eq!(pasp(&output), ratio);
+            if ratio.is_some() {
+                exact(&output, &reference);
+            }
+            encoded_outputs += 1;
+        }
+    }
+    assert_eq!(encoded_outputs + strict_refusals, 24);
+    assert_eq!(
+        strict_refusals,
+        if cfg!(feature = "native-h264") && coreav_worker::enforces_memory_limit() {
+            0
+        } else {
+            3
+        }
+    );
+    eprintln!(
+        "SAR matrix: {encoded_outputs} encoded outputs, {strict_refusals} strict-safe refusals"
+    );
+}
+
+#[test]
 fn an_edit_list_that_trims_the_start() {
     let Some(tools) = tools() else { return };
     let dir = dir("trimmed");

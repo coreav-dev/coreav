@@ -37,7 +37,7 @@ change.
 | `backend` | string | The decoder that ran: `nvdec`, `native`, `dav1d`, `libvpx` or `ffmpeg` (the sandboxed FFmpeg fallback). |
 | `encoder` | string | The encoder program: `x264`, or `ffmpeg` (FFmpeg's libx264). |
 | `width`, `height` | integer | The output's size in pixels (after `--scale`). |
-| `sample_aspect` | string or `null` | The output's sample aspect ratio as `N:D` when it is not 1:1 (`--scale` changes it to keep the display aspect ratio, as FFmpeg's `scale` filter does); `null` otherwise. |
+| `sample_aspect` | string or `null` | The output's sample aspect ratio as `N:D`. Without `--scale`, a valid source declaration is retained, including `1:1`; an unstated or invalid ratio gives `null`. With `--scale`, the ratio preserves the display aspect and is `null` when square, including an identity scale request. |
 | `frame_rate.num`, `frame_rate.den` | integer | The presented frames' average rate in frames a second, snapped to an integer or `N×1000/1001` rate within 0.1% of one, for information: the encoder is given every frame's own time (`docs/design/transcode.md`, "Rate control and timestamps"), and the output's timestamps are the source's. |
 
 ## Encoded audio
