@@ -58,6 +58,16 @@ The three libraries are built from source as static libraries and linked into th
 
 **Sandbox (policy record 0001, point 5).** Static linking does not move dav1d, libvpx or libopus into the main process. The CLI decodes AV1, VP8 and VP9 only in the sandboxed worker, and encodes Opus only in the sandboxed encoder process, each the `coreav` binary run again with a hidden argument. The libraries' code is in the binary and runs in those processes alone, as it did with shared libraries. On macOS the memory budget stays advisory, so strict-safe mode starts no worker there (`decode.md`, "Memory").
 
+### Allocator
+
+The Linux binaries allocate through mimalloc instead of musl's allocator. musl returns freed memory to the kernel eagerly, so a decode on a musl binary spends system time on `mmap`, `munmap` and page faults that a glibc build does not; mimalloc keeps freed memory for reuse. `crates/coreav-cli/src/main.rs` sets `mimalloc::MiMalloc` as the global allocator behind `cfg(all(target_os = "linux", target_env = "musl"))`, and `mimalloc` is a dependency of `coreav-cli` for that target configuration alone.
+
+- **Linux musl only.** macOS, Windows, WebAssembly and Linux GNU builds keep the system allocator; their Cargo graphs do not include the crate, so their builds do not change. Only the `coreav` binary sets the allocator: the `coreav-cli` library and the programs that link it keep their own.
+- **Rust allocations only.** The `mimalloc` crate is used with no features (`default-features = false`; its default set is empty), so neither `override` nor `v2` is on: dav1d, libvpx and libopus still allocate through musl's `malloc`, and `libmimalloc-sys` 0.1.49 compiles its `c_src/mimalloc/v3` source, mimalloc 3.3.2.
+- **Built like `ring`.** `libmimalloc-sys` compiles that C source (MIT) into the binary with the C compiler `platform.sh` sets for each musl target (`CC_<target>`, zig), on both architectures.
+- **The sandboxed processes too.** The decode worker and the encoder processes are the same binary, so they allocate through mimalloc under the same resource limits. The release workflow's strict-safe transcodes run those processes on both Linux targets.
+- **Notices.** The binaries carry the crates' notices and, in the C-runtime inventory, mimalloc's own licence, which the crate's licence file does not include (`docs/release/notices.md`, "C runtime notices").
+
 ### npm
 
 The five native packages (`@coreav/cli-PLATFORM`) carry the default build, with `NOTICE` and the `licenses` directory. Their names are unchanged, and no full build goes to npm.

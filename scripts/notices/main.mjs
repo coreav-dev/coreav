@@ -6,7 +6,7 @@ import { licensePolicy, renderNotices, renderToolchain } from "./render.mjs";
 import { toolchain, projectGraph, toolchainCrates, vendoredCrates, inTreeCrates, prepareFlags } from "./select.mjs";
 import { moduleEvidence, nativeEvidence, noticeSections, validateEvidence } from "./evidence.mjs";
 import { makeRecord, verifyRecord, buildScript, NOTICE_FILE, RECORD_FILE } from "./record.mjs";
-import { renderRuntimes } from "./runtime.mjs";
+import { checkBundledRuntimes, renderRuntimes } from "./runtime.mjs";
 
 const repository = fileURLToPath(new URL("../..", import.meta.url));
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
@@ -42,6 +42,7 @@ function flags(encoded) {
 function compute(directory, repo, distribution, artifact, raw) {
   const tc = toolchain(repo, distribution.target), policy = licensePolicy(repo);
   const graph = projectGraph(repo, tc, distribution);
+  checkBundledRuntimes(distribution.target, tc.commit, graph.crates);
   const closure = toolchainCrates(readFileSync(join(tc.library, "Cargo.lock"), "utf8"), readdirSync(tc.targetLib));
   const repoNotice = readFileSync(join(repo, "NOTICE"), "utf8");
   const header = distribution.package === "coreav-wasm"
