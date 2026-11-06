@@ -5,7 +5,7 @@
 //! (`coreav_worker::opus`, through the sandbox launcher), on samples
 //! resampled to 48 kHz; the AAC encoder is the operator's `ffmpeg` program
 //! (`crate::aac`), on samples at the stream's own rate. MP3 uses the
-//! operator's `ffmpeg -c:a libmp3lame`, with checked Matroska readback and
+//! operator's `ffmpeg -c:a libmp3lame`, with checked MP3 readback and
 //! an explicit EOF zero guard removed by the MP3 writer's gapless tag.
 //!
 //! The audio is encoded before the video, so that a stream CoreAV does not
@@ -503,10 +503,10 @@ fn encode_with(
             Encode::Mp3(..) => "mp3",
         },
     )?;
-    // The AAC encoder's Matroska, read back once it has ended.
     let raw = match encode {
         Encode::Opus(_) => None,
-        Encode::Aac(..) | Encode::Mp3(..) => Some(Spool::create(output, "mkv")?),
+        Encode::Aac(..) => Some(Spool::create(output, "mkv")?),
+        Encode::Mp3(..) => Some(Spool::create(output, "mp3-raw")?),
     };
     let mut feed = Feed {
         encode,
@@ -563,7 +563,13 @@ fn encode_with(
     } else {
         0
     };
-    let (sizes, pre_skip, description, duration) = match process.finish().map_err(Error::Encode)? {
+    let (output, stderr) = if matches!(encode, Encode::Mp3(..)) {
+        process.finish_with_stderr()
+    } else {
+        process.finish().map(|sink| (sink, String::new()))
+    }
+    .map_err(Error::Encode)?;
+    let (sizes, pre_skip, description, duration) = match output {
         Output::Opus(Packets {
             reader,
             mut file,
@@ -641,10 +647,12 @@ fn encode_with(
                             )
                         ),
                     };
-                    let read = checked_readback(
+                    let mut read = checked_readback(
                         mp3::read_output(&mut written, &expected, &limits.matroska),
                         deadline,
                     )?;
+                    read.info.encoder =
+                        mp3::encoder_identity(&stderr).map_err(|e| encoder_error(e.to_string()))?;
                     (
                         read.frames
                             .iter()
@@ -750,31 +758,43 @@ fn probe_encoder(
     deadline: Instant,
     codec: &str,
 ) -> Result<(), Error> {
-    struct Answer(Vec<u8>);
+    struct Answer(Vec<u8>, bool);
     impl Sink for Answer {
         fn write(&mut self, bytes: &[u8]) -> Result<(), coreav_decode::Error> {
             let room = PROBE_ANSWER.saturating_sub(self.0.len());
+            if self.1 && bytes.len() > room {
+                return Err(coreav_decode::Error::new(
+                    ErrorKind::Limit,
+                    "the MP3 encoder probe exceeded its output limit",
+                ));
+            }
             self.0
                 .extend_from_slice(bytes.get(..room.min(bytes.len())).unwrap_or_default());
             Ok(())
         }
     }
-    let command = command(
-        program,
-        &[
+    let args = if codec == "libmp3lame" {
+        mp3::encode_args(48000, 1, mp3::Mode::Constant(None))
+    } else {
+        [
             "-hide_banner",
             "-loglevel",
             "error",
             "-h",
             &format!("encoder={codec}"),
         ]
-        .map(std::ffi::OsString::from),
+        .map(std::ffi::OsString::from)
+        .to_vec()
+    };
+    let command = command(
+        program,
+        &args,
         HugePages::Kept,
         launcher,
         &EncoderLimits::new(AAC_ENCODER_MEMORY),
         deadline,
     );
-    let Answer(answer) = Process::spawn(
+    let Answer(answer, _) = Process::spawn(
         if codec == "aac" {
             "the AAC encoder"
         } else {
@@ -784,10 +804,28 @@ fn probe_encoder(
         command,
         program,
         deadline,
-        Answer(Vec::new()),
+        Answer(Vec::new(), codec == "libmp3lame"),
     )
     .and_then(Process::finish)
-    .map_err(Error::Encode)?;
+    .map_err(|error| {
+        if codec == "libmp3lame"
+            && error.kind == ErrorKind::Backend
+            && error
+                .message
+                .starts_with("the MP3 encoder failed (exit status: 1)")
+            && error.message.contains("Unknown encoder 'libmp3lame'")
+        {
+            Error::Unsupported("the ffmpeg program has no libmp3lame encoder".into())
+        } else {
+            Error::Encode(error)
+        }
+    })?;
+    if codec == "libmp3lame" && !answer.is_empty() {
+        if !answer.starts_with(b"ID3\x04\0\0") {
+            return Err(encoder_error("invalid MP3 encoder probe output".into()));
+        }
+        return Ok(());
+    }
     if !answer.starts_with(format!("Encoder {codec} [").as_bytes()) {
         return Err(Error::Unsupported(format!(
             "the ffmpeg program {} has no {codec} encoder; install FFmpeg with that encoder",
@@ -1353,12 +1391,7 @@ mod tests {
         }
         let mut frame = vec![0xff, 0xfb, 0x54, 0xc4];
         frame.resize(192, 0);
-        let bytes = crate::mp3::tests::fixture(
-            "A_MPEG/L3",
-            23_020_833,
-            &[frame.clone(), frame],
-            &[None, Some(979_167)],
-        );
+        let bytes = crate::mp3::tests::fixture(&[frame.clone(), frame]);
         let reads = Cell::new(0);
         let deadline = Instant::now() + std::time::Duration::from_millis(20);
         let source = TimedSource {
@@ -1581,6 +1614,37 @@ mod tests {
                 (Err(e), Some(says)) => assert!(e.to_string().contains(says), "{name}: {e}"),
                 (result, _) => panic!("{name}: {result:?}"),
             }
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn mp3_availability_errors_keep_their_classification_and_output_bound() {
+        for (name, body, unsupported) in [
+            ("mp3-silent", "true", true),
+            (
+                "mp3-unavailable",
+                "printf \"Unknown encoder 'libmp3lame'\\n\" >&2; exit 1",
+                true,
+            ),
+            ("mp3-invalid", "printf bad", false),
+            ("mp3-flood", "exec yes", false),
+            ("mp3-failure", "echo 'other failure' >&2; exit 1", false),
+        ] {
+            let (dir, script) = ffmpeg_stand_in(name, body);
+            let result = probe_encoder(
+                &script,
+                None,
+                Instant::now() + Duration::from_secs(5),
+                "libmp3lame",
+            );
+            assert!(result.is_err(), "{name}");
+            assert_eq!(
+                matches!(result, Err(Error::Unsupported(_))),
+                unsupported,
+                "{name}"
+            );
+            std::fs::remove_dir_all(dir).unwrap();
         }
     }
 

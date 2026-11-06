@@ -997,6 +997,9 @@ to a bounded spool, using only raw-input and encoder options. CoreAV owns
 the ID3 and Xing/Info adaptation and every destination container. The
 encoder keeps its existing pipe transport, process limits and sandbox;
 allowing it to write a seekable file would weaken the no-file-writes rule.
+MP3 checks availability with an empty raw-PCM encode, not an encoder-help
+command. Both starts are encoder-only MP3 invocations; an unavailable
+encoder is refused before source decoding or output publication.
 At EOF, CoreAV adds
 an explicit zero guard to finish a complete codec frame: for N presented
 samples and a frame size F, G = (F - N mod F) mod F. F is 1,152 at
@@ -1032,6 +1035,14 @@ documented by the [LAME technical FAQ](https://lame.sourceforge.io/tech-FAQ.txt)
 it is not counted twice in the stored encoder-delay field. ID3 text uses
 the [ID3v2.4 structure](https://id3.org/id3v2.4.0-structure) and
 [frame specification](https://id3.org/id3v2.4.0-frames).
+The raw output's `Lavf` software identity is retained in ID3. The real
+encoding command's bounded standard-error tail supplies its declared
+`Lavc` encoder identity for the information tag. Progress statistics are
+disabled, and missing or ambiguous identities fail closed. No version is
+inferred from a different library's version.
+The fixed delay and flush contract is qualified against the pinned
+FFmpeg build, not independently signalled by raw MP3 frames. An operator's
+custom libmp3lame build with a changed encoder delay is outside this contract.
 
 The compatibility surface is `-c:a` or `-acodec libmp3lame`, default MP3
 encoding for `.mp3` or `-f mp3`, `-b:a` and `-q:a`/`-qscale:a`, with `-vn`
@@ -1086,6 +1097,15 @@ Committed before the MP3 correctness matrix runs:
    settings, strict-safe mode and failed readback leave no published
    output. Every command in the requested MP3 command set is reported as
    passed or blocked, with a reason; unsupported containers stay blocked.
+
+The worker-protocol regression uses generated lossless sources at all nine
+rates, mono and stereo, with default rate control, an explicit constant
+rate and variable-rate quality. It records every actual encoder start
+through the existing sandbox-safe FIFO logger and passes them to the
+unchanged compatibility classifier. The frozen output comparator checks
+complete decoded samples and exact frame timing against FFmpeg 9.0.2.
+This is development evidence, not a new command-set measurement or a claim
+that AAC source decoding is byte-identical to the oracle.
 
 ## Through `coreav ffmpeg`
 
