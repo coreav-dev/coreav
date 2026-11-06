@@ -19,6 +19,7 @@ import urllib.parse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import h264_parity_bars as bars
+import test_oracle
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / 'scripts/h264_pgo_registration.json'
@@ -473,9 +474,9 @@ def execute(argv, maximum=0, timeout=180, capture=False):
                 pass
 
 
-def command(root, row, arm, threads, raw, plan):
+def command(root, row, arm, threads, raw, plan, oracle):
     path = str(root / 'media' / (row['label'] + '.h264'))
-    prefix = ['taskset', '-c', '2' if threads == 1 else '0-7', str(root / arm)]
+    prefix = ['taskset', '-c', '2' if threads == 1 else '0-7', str(oracle.ffmpeg if arm == 'ffmpeg' else root / arm)]
     count = str(plan['frames'][row['class']])
     if arm != 'ffmpeg':
         return prefix + ['--threads', str(threads), '--frames', count] + ([] if raw else ['--discard']) + [path]
@@ -484,8 +485,8 @@ def command(root, row, arm, threads, raw, plan):
         ['-f', 'rawvideo', '-pix_fmt', 'yuv420p', '-'] if raw else ['-f', 'null', '-'])
 
 
-def stream_metadata(root, row):
-    result = execute([str(root / 'ffprobe'), '-v', 'error', '-threads', '1', '-select_streams', 'v:0',
+def stream_metadata(root, row, oracle):
+    result = execute([str(oracle.ffprobe), '-v', 'error', '-threads', '1', '-select_streams', 'v:0',
                       '-show_entries', 'stream=codec_name,pix_fmt,width,height,field_order,profile', '-of', 'json',
                       str(root / 'media' / (row['label'] + '.h264'))], maximum=65536, timeout=30, capture=True)
     streams = json.loads(result['stdout'])['streams']
@@ -676,6 +677,7 @@ def run(root, plan, allocation_sha256, acquisition_sha256=None):
                       json.loads((root / 'exclusions.json').read_text()), plan, expected_counts=cohort['counts'])
             subprocess.run([sys.executable, '-I', str(ROOT / 'scripts/oracle_pin.py'), '--verify-bin', str(root)],
                            check=True, timeout=30)
+            oracle = test_oracle.require(root / 'ffmpeg', root / 'ffprobe')
             refs = json.loads((root / 'references.json').read_text())
             reference_evidence(refs)
             build_evidence(root, revision)
@@ -694,7 +696,7 @@ def run(root, plan, allocation_sha256, acquisition_sha256=None):
                         samples = {'base': [], arm: []}
                         for n in range(plan['rounds']):
                             for a in (('base', arm) if n % 2 == 0 else (arm, 'base')):
-                                value = execute(command(root, row, a, threads, False, plan))
+                                value = execute(command(root, row, a, threads, False, plan, oracle))
                                 samples[a].append(value['wall'])
                                 emit({'kind': 'calibration-call', 'class': row['class'], 'comparison': comparison,
                                       'arm': a, 'threads': threads, 'round': n, **value})
@@ -703,17 +705,17 @@ def run(root, plan, allocation_sha256, acquisition_sha256=None):
                     emit({'kind': 'calibration', 'threads': threads, 'comparison': comparison, 'ratio': ratio})
                     require(plan['calibration_min'] <= ratio <= plan['calibration_max'], 'failed calibration')
             def health(phase):
-                references = {str(t): {r['class']: statistics.median(execute(command(root, r, 'base', t, False, plan))['wall']
+                references = {str(t): {r['class']: statistics.median(execute(command(root, r, 'base', t, False, plan, oracle))['wall']
                               for _ in range(3)) for r in refs} for t in (1, 8)}
                 emit({'kind': 'health', 'phase': phase, 'references': references})
             health('before')
             for row in rows:
-                emit({'kind': 'metadata', 'label': row['label'], 'value': stream_metadata(root, row)})
+                emit({'kind': 'metadata', 'label': row['label'], 'value': stream_metadata(root, row, oracle)})
                 pixels = row['width'] * row['height'] + 2 * ((row['width'] + 1) // 2) * ((row['height'] + 1) // 2)
                 outputs = set()
                 for threads in (1, 8):
                     for arm in ARMS:
-                        value = execute(command(root, row, arm, threads, True, plan), pixels * plan['frames'][row['class']])
+                        value = execute(command(root, row, arm, threads, True, plan, oracle), pixels * plan['frames'][row['class']])
                         require(value['bytes'] > 0 and value['bytes'] % pixels == 0, 'invalid raw frame length')
                         outputs.add((value['bytes'], value['sha256']))
                         emit({'kind': 'qualification', 'label': row['label'], 'arm': arm, 'threads': threads,
@@ -722,11 +724,11 @@ def run(root, plan, allocation_sha256, acquisition_sha256=None):
             for row in rows:
                 for threads in (1, 8):
                     for arm in ARMS:
-                        execute(command(root, row, arm, threads, False, plan))
+                        execute(command(root, row, arm, threads, False, plan, oracle))
                         emit({'kind': 'warmup', 'label': row['label'], 'arm': arm, 'threads': threads})
             lookup = {r['label']: r for r in rows}
             for cell in schedule(rows, plan):
-                value = execute(command(root, lookup[cell['label']], cell['arm'], cell['threads'], False, plan))
+                value = execute(command(root, lookup[cell['label']], cell['arm'], cell['threads'], False, plan, oracle))
                 emit({'kind': 'timed', **cell, **value})
             status = diagnostics.run(root, plan, execute)
             emit({'kind': 'diagnostics', 'status': status})

@@ -109,7 +109,7 @@ def coreav_encode(program, source, output, env):
 
 def diagnose(args, source, rate, directory):
     ffmpeg = args.ffmpeg
-    ffprobe = ffmpeg.with_name('ffprobe')
+    ffprobe = args.ffprobe
     streams = json.loads(run([ffprobe, '-v', 'error', '-select_streams', 'a:0',
                                '-show_entries', 'stream=codec_name,sample_rate,channels',
                                '-of', 'json', source]))['streams']
@@ -168,14 +168,15 @@ def main():
     report = {'diagnostic_only': True, 'completed': False, 'results': []}
     report_path = args.out / 'report.json'
     try:
-        args.ffmpeg = test_oracle.require(args.ffmpeg).ffmpeg
+        qualified = test_oracle.require(args.ffmpeg)
+        args.ffmpeg, args.ffprobe = qualified.ffmpeg, qualified.ffprobe
         manifest = (args.fixtures / 'MANIFEST').read_text().splitlines()
         if 'generated browser.webm' not in manifest:
             raise ValueError('browser fixture is not registered as generated')
         report.update({
             'coreav_sha256': hashlib.sha256(args.coreav.read_bytes()).hexdigest(),
             'ffmpeg_sha256': hashlib.sha256(args.ffmpeg.read_bytes()).hexdigest(),
-            'ffprobe_sha256': hashlib.sha256(args.ffmpeg.with_name('ffprobe').read_bytes()).hexdigest(),
+            'ffprobe_sha256': hashlib.sha256(args.ffprobe.read_bytes()).hexdigest(),
             'ffmpeg_version': run([args.ffmpeg, '-version']).decode().splitlines()[0],
         })
         sources = [(args.fixtures / 'browser.webm', 48_000)]

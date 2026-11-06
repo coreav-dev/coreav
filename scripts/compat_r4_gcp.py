@@ -60,6 +60,8 @@ ROOT = os.path.dirname(HERE)
 TOOLS = os.path.join(ROOT, 'tools', 'compat-corpus')
 sys.path.insert(0, TOOLS)
 import round_files  # noqa: E402
+sys.path.insert(0, HERE)
+import test_oracle
 
 MACHINE = 'c4-standard-16'
 USD_PER_HOUR = 1.20            # an upper bound on the on-demand price of c4-standard-16 and its disk
@@ -76,8 +78,8 @@ UPLOADED = ['tools/compat-corpus/speed.py', 'tools/compat-corpus/release_round.p
 def job_script(rounds, cpus, rehearsal):
     """job.sh: `bash job.sh POWEROFF_MINUTES` (0: no power-off). Only a rehearsal, whose draw is spent files, reads
     its draw after a failed gate."""
-    r4 = (f'python3 -I repo/tools/compat-corpus/speed.py r4 --coreav bin/coreav --ffmpeg bin/ffmpeg '
-          f'--ffprobe bin/ffprobe --scratch scratch --rounds {rounds} --cpus {shlex.quote(cpus)}')
+    r4 = (f'python3 -I repo/tools/compat-corpus/speed.py r4 --coreav bin/coreav --ffmpeg "$ffmpeg" '
+          f'--ffprobe "$ffprobe" --scratch scratch --rounds {rounds} --cpus {shlex.quote(cpus)}')
     report = 'python3 -I repo/tools/compat-corpus/speed.py r4-report'
     fetch = 'python3 -I repo/tools/compat-corpus/round_files.py fetch'
     return f'''set -u
@@ -86,6 +88,8 @@ trap finish EXIT
 mkdir -p out
 if [ "${{1:-0}}" != 0 ]; then sudo shutdown -P "+$1" > out/poweroff.log 2>&1; fi
 chmod 700 bin/coreav bin/ffmpeg bin/ffprobe
+oracle_paths=$(python3 -I repo/scripts/test_oracle.py --resolve --ffmpeg bin/ffmpeg --ffprobe bin/ffprobe) || exit $?
+{{ IFS= read -r ffmpeg; IFS= read -r ffprobe; }} <<< "$oracle_paths" || exit $?
 python3 -I - > out/host.json <<'PY'
 import hashlib, json, os, platform
 model = next((l.split(':', 1)[1].strip() for l in open('/proc/cpuinfo') if l.startswith('model name')), None)
@@ -94,7 +98,7 @@ binaries = {{n: hashlib.sha256(open(f'bin/{{n}}', 'rb').read()).hexdigest() for 
 print(json.dumps({{'cpu_model': model, 'vcpus': os.cpu_count(), 'smt_active': smt, 'kernel': platform.release(),
                   'sha256': binaries}}, indent=1))
 PY
-bin/ffmpeg -version | head -1 > out/ffmpeg-version.txt
+"$ffmpeg" -version | head -1 > out/ffmpeg-version.txt
 set -a; . ./r2.env; set +a
 {fetch} --files gate.json --dest data/gate > out/fetch-gate.log 2>&1 || {{ echo 'fetch failed' > out/gate.verdict; exit 1; }}
 gate=pass
@@ -118,6 +122,7 @@ exit 0
 
 
 def build(args, up):
+    test_oracle.bundle(os.path.join(up, 'repo'), [])
     for rel in UPLOADED:
         os.makedirs(os.path.join(up, 'repo', os.path.dirname(rel)), exist_ok=True)
         shutil.copy2(os.path.join(ROOT, rel), os.path.join(up, 'repo', rel))

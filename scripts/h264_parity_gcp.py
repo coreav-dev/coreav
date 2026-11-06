@@ -68,7 +68,7 @@ check: a measurement compared with the median of the references, appended to out
 import json, os, statistics, subprocess, sys, time
 sys.path.insert(0, 'scripts')
 import test_oracle
-test_oracle.require('./ffmpeg', './ffprobe')
+oracle = test_oracle.require('./ffmpeg', './ffprobe')
 R = json.load(open('refs/refs.json'))
 S, CORE = R['streams'], str(R['core'])
 def measure():
@@ -77,7 +77,7 @@ def measure():
         ts = []
         for _ in range(3):
             t = time.perf_counter()
-            subprocess.run(['taskset', '-c', CORE, './ffmpeg', '-nostdin', '-v', 'error', '-threads', '1', '-i', f'refs/{n}',
+            subprocess.run(['taskset', '-c', CORE, str(oracle.ffmpeg), '-nostdin', '-v', 'error', '-threads', '1', '-i', f'refs/{n}',
                             '-frames:v', str(f), '-f', 'null', '-'], check=True, stderr=subprocess.DEVNULL)
             ts.append(time.perf_counter() - t)
         out[n] = statistics.median(ts)
@@ -89,7 +89,7 @@ if mode == 'freq':
     p = 'out/freq.json'
     d = json.load(open(p)) if os.path.exists(p) else []
     try:
-        r = subprocess.run(['perf', 'stat', '-x,', '-e', 'cycles,task-clock', '--', 'taskset', '-c', CORE, './ffmpeg', '-nostdin',
+        r = subprocess.run(['perf', 'stat', '-x,', '-e', 'cycles,task-clock', '--', 'taskset', '-c', CORE, str(oracle.ffmpeg), '-nostdin',
                             '-v', 'error', '-threads', '1', '-i', f'refs/{n}', '-frames:v', str(f), '-f', 'null', '-'],
                            capture_output=True, text=True, check=True)
         c = {l.split(',')[2].split(':')[0]: float(l.split(',')[0]) for l in r.stderr.splitlines() if l.count(',') >= 2
@@ -168,8 +168,8 @@ def job_script(args, calls):
            'import argparse, json, sys\n'
            'sys.path.insert(0, "scripts")\n'
            'import h264_parity as h\n'
-           'h.test_oracle.require("./ffmpeg", "./ffprobe")\n'
-           'ns = argparse.Namespace(ffmpeg="./ffmpeg", gate_stream="gate.h264", gate_frames='
+           'oracle = h.test_oracle.require("./ffmpeg", "./ffprobe")\n'
+           'ns = argparse.Namespace(ffmpeg=str(oracle.ffmpeg), gate_stream="gate.h264", gate_frames='
            f'{args.gate_frames}, gate_threads=8, gate_pin=None, prefix=[], min_seconds={args.min_seconds})\n'
            'median, repeat = h.gate_sample(ns)\n'
            'try:\n'

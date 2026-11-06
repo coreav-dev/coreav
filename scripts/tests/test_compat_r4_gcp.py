@@ -6,6 +6,7 @@ import json
 import os
 import pathlib
 import select
+import shlex
 import signal
 import shutil
 import subprocess
@@ -496,6 +497,27 @@ finally:
 
 
 class Job(unittest.TestCase):
+    def test_version_executes_the_owner_returned_program(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            selected = root / 'selected encoder'
+            selected.write_text('#!/bin/sh\nprintf "qualified version\\n"\n')
+            selected.chmod(0o700)
+            probe = root / 'separate probe'
+            code = (f'import sys; from pathlib import Path; sys.path.insert(0, {str(ROOT / "scripts")!r}); '
+                    'import test_oracle; '
+                    f'test_oracle.require = lambda *a: test_oracle.Oracle(Path({str(selected)!r}), Path({str(probe)!r})); '
+                    'sys.exit(test_oracle.main())')
+            job = compat_r4_gcp.job_script(1, '0', rehearsal=False)
+            job = job.split('python3 -I - > out/host.json')[0] + job.split('\nPY\n', 1)[1]
+            job = job.split('set -a;')[0]
+            job = job.replace('chmod 700 bin/coreav bin/ffmpeg bin/ffprobe', 'true')
+            job = job.replace('python3 -I repo/scripts/test_oracle.py',
+                              f'{shlex.quote(sys.executable)} -I -B -c {shlex.quote(code)}')
+            done = subprocess.run(['bash', '-c', job, 'job', '0'], cwd=root, capture_output=True, timeout=10)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual((root / 'out/ffmpeg-version.txt').read_text(), 'qualified version\n')
+
     def test_exit_before_host_setup_removes_credentials(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
@@ -509,7 +531,9 @@ class Job(unittest.TestCase):
         job = compat_r4_gcp.job_script(1, '0', rehearsal=False)
         job = job.split('python3 -I - > out/host.json')[0] + job.split('\nPY\n', 1)[1]
         job = job.replace('chmod 700 bin/coreav bin/ffmpeg bin/ffprobe', 'true')
-        job = job.replace('bin/ffmpeg -version', 'echo')
+        job = job.replace('"$ffmpeg" -version', 'echo')
+        job = job.replace('python3 -I repo/scripts/test_oracle.py --resolve --ffmpeg bin/ffmpeg --ffprobe bin/ffprobe',
+                          "printf '%s\\n' ffmpeg ffprobe")
         for source, code in (('exit 23', 23), ('kill -s INT $$', 130),
                              ('kill -s TERM $$', 143), ('kill -s HUP $$', 129)):
             with self.subTest(source=source), tempfile.TemporaryDirectory() as tmp:
@@ -543,7 +567,9 @@ class Job(unittest.TestCase):
                 job = job.replace('python3 -I repo/tools/compat-corpus/speed.py r4 ', 'true ')
                 job = job.replace('python3 -I repo/tools/compat-corpus/round_files.py fetch', 'true')
                 job = job.replace('chmod 700 bin/coreav bin/ffmpeg bin/ffprobe', 'true')
-                job = job.replace('bin/ffmpeg -version', 'echo')
+                job = job.replace('"$ffmpeg" -version', 'echo')
+                job = job.replace('python3 -I repo/scripts/test_oracle.py --resolve --ffmpeg bin/ffmpeg --ffprobe bin/ffprobe',
+                                  "printf '%s\\n' ffmpeg ffprobe")
                 (d / 'report.sh').write_text('n=$(cat n 2>/dev/null || echo 0); echo $((n + 1)) > n\n'
                                              f'[ "$n" = 0 ] && exit {codes[0]}; exit {codes[1]}\n')
                 (d / 'r2.env').write_text('')
@@ -575,7 +601,9 @@ class Job(unittest.TestCase):
                               f'{sys.executable} {fake} runner ')
             job = job.replace('python3 -I repo/tools/compat-corpus/round_files.py fetch', 'true')
             job = job.replace('chmod 700 bin/coreav bin/ffmpeg bin/ffprobe', 'true')
-            job = job.replace('bin/ffmpeg -version', 'echo')
+            job = job.replace('"$ffmpeg" -version', 'echo')
+            job = job.replace('python3 -I repo/scripts/test_oracle.py --resolve --ffmpeg bin/ffmpeg --ffprobe bin/ffprobe',
+                              "printf '%s\\n' ffmpeg ffprobe")
             (root / 'r2.env').write_text('')
             done = subprocess.run(['bash', '-c', job.split('python3 -I - > out/host.json')[0]
                                    + job.split('\nPY\n', 1)[1], 'job', '0'], cwd=root,

@@ -7,6 +7,7 @@ the bars as it fixes them. No media is made and no program runs.
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -14,6 +15,39 @@ import aac_encode_check  # noqa: E402
 
 
 class Arms(unittest.TestCase):
+    def test_main_executes_the_owner_returned_pair(self):
+        qualified = aac_encode_check.test_oracle.Oracle(pathlib.Path('/qualified/encoder'),
+                                                       pathlib.Path('/qualified/probe'))
+        argv = ['aac', '--coreav', 'coreav', '--ffmpeg', 'original-encoder', '--ffprobe', 'original-probe',
+                '--work', 'work', '--out', 'report']
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(command)
+            return mock.Mock(returncode=0, stderr=b'', stdout=b'{"streams":[{"sample_rate":"48000"}]}')
+
+        def timed(command):
+            commands.append(command)
+            return mock.Mock(returncode=0, stderr=b'', stdout=b'{"encoded_audio":{"samples":1}}'), 1.0
+
+        with mock.patch.object(sys, 'argv', argv), \
+                mock.patch.object(aac_encode_check.test_oracle, 'require', return_value=qualified) as require, \
+                mock.patch.object(aac_encode_check.os, 'makedirs'), \
+                mock.patch.object(aac_encode_check, 'TONAL', set()), \
+                mock.patch.object(aac_encode_check, 'RATES', [None]), \
+                mock.patch.object(aac_encode_check.opus, 'SOURCES', [('S4',)]), \
+                mock.patch.object(aac_encode_check.opus, 'make_sources', return_value={'S4': 'source'}) as sources, \
+                mock.patch.object(aac_encode_check.opus, 'timed', side_effect=timed), \
+                mock.patch.object(aac_encode_check.opus, 'run', side_effect=run), \
+                mock.patch('builtins.open', mock.mock_open()), mock.patch('builtins.print'):
+            with self.assertRaises(SystemExit):
+                aac_encode_check.main()
+        require.assert_called_once_with('original-encoder', 'original-probe')
+        sources.assert_called_once_with(str(qualified.ffmpeg), 'work')
+        self.assertIn(str(qualified.ffmpeg), [c[0] for c in commands])
+        self.assertIn(str(qualified.ffprobe), [c[0] for c in commands])
+        self.assertTrue(all(c[0] in ('coreav', str(qualified.ffmpeg), str(qualified.ffprobe)) for c in commands))
+
     def test_the_default_rate_names_none(self):
         ours, theirs = aac_encode_check.arms('coreav', 'ffmpeg9', 'S1.mp4', 'o.mp4', 't.mp4', None)
         self.assertEqual(ours, ['coreav', 'transcode', 'S1.mp4', 'o.mp4', '--force', '--audio', 'aac',

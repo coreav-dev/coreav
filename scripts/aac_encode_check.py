@@ -19,6 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import opus_encode_check as opus  # noqa: E402
+import test_oracle
 
 RATES = [None, 64, 192]
 # The sources A4 judges: the tonal ones, at 48 and 44.1 kHz.
@@ -79,6 +80,8 @@ def main():
     parser.add_argument('--work', required=True)
     parser.add_argument('--out', required=True)
     args = parser.parse_args()
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     os.makedirs(args.work, exist_ok=True)
     sources = opus.make_sources(args.ffmpeg, args.work)
     references = {name: opus.pcm(args.ffmpeg, sources[name]) for name in TONAL}

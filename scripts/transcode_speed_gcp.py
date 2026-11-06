@@ -58,23 +58,25 @@ RESERVE_MARGIN = 5
 
 
 def job_script(gate_name, classes):
-    arms = (f'--arm "ffmpeg=--encoder ffmpeg --ffmpeg $PWD/bin/ffmpeg" '
+    arms = (f'--arm "ffmpeg=--encoder ffmpeg --ffmpeg $ffmpeg" '
             f'--arm "x264=--encoder x264 --x264 $PWD/bin/x264"')
     return '\n'.join([
         'set -u',
         'mkdir -p out',
         'chmod +x bin/*',
+        'oracle_paths=$(python3 -I scripts/test_oracle.py --resolve --ffmpeg bin/ffmpeg --ffprobe bin/ffprobe) || exit $?',
+        '{ IFS= read -r ffmpeg; IFS= read -r ffprobe; } <<< "$oracle_paths" || exit $?',
         '(sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libdav1d7 libvpx9) '
         '> out/apt.log 2>&1',
         '{ lscpu; nproc; free -g; uname -a; df -h /dev/shm; echo "smt active: '
         '$(cat /sys/devices/system/cpu/smt/active 2>&1)"; python3 --version; ldd bin/coreav; '
-        'sha256sum bin/* scripts/*; bin/ffmpeg -version | head -1; } '
+        'sha256sum bin/* scripts/*; "$ffmpeg" -version | head -1; } '
         '> out/host.txt 2>&1',
         'if ldd bin/coreav | grep -q "not found"; then echo "missing libraries" >> out/progress.txt; exit 2; fi',
         'export PATH="$PWD/bin:$PATH"',
         'echo "start $(date -u +%T)" >> out/progress.txt',
         f'python3 -I scripts/transcode_speed.py run --selection selection.json --files files --coreav bin/coreav '
-        f'--ffmpeg bin/ffmpeg --ffprobe bin/ffprobe {arms} --gate {shlex.quote(gate_name)} --out out '
+        f'--ffmpeg "$ffmpeg" --ffprobe "$ffprobe" {arms} --gate {shlex.quote(gate_name)} --out out '
         f'--tmp /dev/shm/transcode-speed --classes {",".join(classes)} > out/speed.log 2>&1',
         'echo "rc=$? end $(date -u +%T)" >> out/progress.txt',
     ]) + '\n'

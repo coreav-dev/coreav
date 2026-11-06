@@ -19,6 +19,34 @@ def pcm(values):
 
 
 class AudioSourceDiagnostic(unittest.TestCase):
+    def test_main_passes_the_owner_returned_pair_to_diagnosis(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            qualified = diagnostic.test_oracle.Oracle(root / 'encoder', root / 'separate-probe')
+            for path in (root / 'coreav', qualified.ffmpeg, qualified.ffprobe):
+                path.write_bytes(b'controlled identity')
+            (root / 'MANIFEST').write_text('generated browser.webm\n')
+            output = root / 'out'
+            argv = ['diagnostic', '--coreav', str(root / 'coreav'), '--ffmpeg', 'original',
+                    '--fixtures', str(root), '--out', str(output)]
+            commands = []
+
+            def run(command, **kwargs):
+                commands.append(command)
+                if command[0] == qualified.ffprobe:
+                    raise RuntimeError('probe boundary')
+                return b'controlled version\n'
+
+            with mock.patch.object(sys, 'argv', argv), \
+                    mock.patch.object(diagnostic.test_oracle, 'require', return_value=qualified) as require, \
+                    mock.patch.object(diagnostic, 'run', side_effect=run):
+                with self.assertRaisesRegex(RuntimeError, 'probe boundary'):
+                    diagnostic.main()
+            require.assert_called_once_with(Path('original'))
+            self.assertEqual([c[0] for c in commands], [qualified.ffmpeg] * 3 + [qualified.ffprobe])
+            report = diagnostic.json.loads((output / 'report.json').read_text())
+            self.assertEqual(report['ffprobe_sha256'], diagnostic.hashlib.sha256(b'controlled identity').hexdigest())
+
     def test_command_failures_retain_a_bounded_stderr_tail(self):
         self.assertEqual(diagnostic.run([sys.executable, '-I', '-c', 'print("ok")']), b'ok\n')
         command = [sys.executable, '-I', '-c',

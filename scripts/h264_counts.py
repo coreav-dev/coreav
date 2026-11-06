@@ -12,11 +12,15 @@ Usage:
 import argparse
 import json
 import os
+from pathlib import Path
 import re
 import statistics
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import test_oracle
 
 VALGRIND = os.environ.get('VALGRIND_BIN', '/tmp/vgroot/usr/bin/valgrind')
 VALGRIND_LIB = os.environ.get('VALGRIND_LIB', '/tmp/vgroot/usr/libexec/valgrind')
@@ -80,6 +84,12 @@ def main():
     argv = args.command[1:] if args.command[:1] == ['--'] else args.command
     if not argv:
         raise SystemExit('no command given')
+    if Path(argv[0]).name == 'ffmpeg':
+        oracle = test_oracle.require(argv[0])
+        argv[0] = str(oracle.ffmpeg)
+    elif Path(argv[0]).name == 'ffprobe':
+        oracle = test_oracle.require(ffprobe=argv[0])
+        argv[0] = str(oracle.ffprobe)
 
     row = {'label': args.label, 'command': argv}
     row['seconds'] = seconds(argv, args.reps)

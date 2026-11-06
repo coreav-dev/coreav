@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -57,11 +58,24 @@ class Host(Binaries, unittest.TestCase):
         fixtures.mkdir()
         for name in ccg.fixture_files():
             (fixtures / name).write_bytes(name.encode())
-        h = ccg.host('v2-v3', self.bin, fixtures, self.bin)
+        with mock.patch.object(ccg.test_oracle, 'require', return_value=ccg.test_oracle.Oracle(
+                self.bin / 'ffmpeg', self.bin / 'ffprobe')):
+            h = ccg.host('v2-v3', self.bin, fixtures, self.bin)
         self.assertEqual(h['ffmpeg']['ffprobe']['version'], f'ffprobe version {BUILD_ID} Copyright')
         self.assertEqual(h['fixtures']['basic.mp4'], sha(b'basic.mp4'))
         self.assertEqual(h['decode-oracle'], self.manifest['decode-oracle']['sha256'])
         self.assertEqual(h['cores'], os.cpu_count())
+
+    def test_host_executes_the_owner_returned_pair(self):
+        qualified = ccg.test_oracle.Oracle(pathlib.Path('/qualified/encoder'), pathlib.Path('/qualified/probe'))
+        with mock.patch.object(ccg.test_oracle, 'require', return_value=qualified) as require, \
+                mock.patch.object(ccg, 'sha256', return_value='digest') as digest, \
+                mock.patch.object(ccg.subprocess, 'run', return_value=mock.Mock(stdout='version\n')) as run:
+            ccg.host('host', self.bin)
+        require.assert_called_once_with(self.bin / 'ffmpeg', self.bin / 'ffprobe')
+        self.assertEqual([c.args[0][0] for c in run.call_args_list],
+                         [str(qualified.ffmpeg), str(qualified.ffprobe)])
+        self.assertEqual([c.args[0] for c in digest.call_args_list], [qualified.ffmpeg, qualified.ffprobe])
 
 
 class Manifest(unittest.TestCase):
