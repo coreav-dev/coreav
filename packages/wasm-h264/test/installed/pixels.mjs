@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { failCapture } from "./ledger.mjs";
 import { canonical, sha } from "./roster.mjs";
@@ -26,10 +26,12 @@ export function compareSamples(actual, native, anchor) {
 
 export function createPixelOracle(directory, output, run = spawnSync) {
   const root = fileURLToPath(new URL("../../../..", import.meta.url));
-  const checked = run("python3", ["-I", resolve(root, "scripts/oracle_pin.py"), "--verify-bin", directory], { timeout: 15000, encoding: "utf8" });
+  const checked = run("python3", ["-I", resolve(root, "scripts/test_oracle.py"), "--resolve", "--ffmpeg", join(directory, "ffmpeg"), "--ffprobe", join(directory, "ffprobe")], { timeout: 15000, encoding: "utf8" });
   appendFileSync(join(output, "pixel-oracle.log"), `${checked.stdout ?? ""}${checked.stderr ?? ""}`);
   if (checked.error || checked.status !== 0 || checked.signal) failCapture("pixel oracle identity");
-  const programs = Object.fromEntries(["ffmpeg", "ffprobe"].map(name => [name, { path: join(directory, name), sha256: sha(readFileSync(join(directory, name))) }]));
+  const paths = String(checked.stdout ?? "").replace(/\n$/, "").split("\n");
+  if (paths.length !== 2 || paths.some(path => !isAbsolute(path) || path.includes("\r"))) failCapture("pixel oracle identity");
+  const programs = Object.fromEntries(["ffmpeg", "ffprobe"].map((name, index) => [name, { path: paths[index], sha256: sha(readFileSync(paths[index])) }]));
   function execute(name, args, input, maxBuffer) {
     const program = programs[name];
     if (sha(readFileSync(program.path)) !== program.sha256) failCapture("pixel oracle changed");

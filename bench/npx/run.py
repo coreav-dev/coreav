@@ -53,16 +53,17 @@ def run(cmd, cwd=None):
             'stdout': done.stdout, 'stderr': done.stderr}
 
 
-def operations(src, duration):
+def operations(src, duration, oracle):
     """[(name, coreav arguments, output suffix or None, FFmpeg command builder)]."""
-    probe = ['ffprobe', '-v', 'error', '-of', 'json', '-show_format', '-show_streams', str(src)]
+    ffmpeg, ffprobe = str(oracle.ffmpeg), str(oracle.ffprobe)
+    probe = [ffprobe, '-v', 'error', '-of', 'json', '-show_format', '-show_streams', str(src)]
     ops = [
         ('probe', ['--strict-safe', 'ffprobe', '-v', 'error', '-of', 'json', '-show_format', '-show_streams', str(src)], None, lambda out, summary: probe),
         ('check', ['check', '--policy', str(POLICY), str(src)], None, lambda out, summary: probe),
         ('chapters', ['chapters', str(src)], None,
-         lambda out, summary: ['ffprobe', '-v', 'error', '-of', 'json', '-show_chapters', str(src)]),
+         lambda out, summary: [ffprobe, '-v', 'error', '-of', 'json', '-show_chapters', str(src)]),
         ('extract-audio', ['extract-audio', str(src), 'OUT'], '.m4a',
-         lambda out, summary: ['ffmpeg', *FF, '-i', str(src), '-map', '0:a:0', '-c', 'copy', '-f', 'mp4', out]),
+         lambda out, summary: [ffmpeg, *FF, '-i', str(src), '-map', '0:a:0', '-c', 'copy', '-f', 'mp4', out]),
     ]
     # The clips: [0, 10 s) and [floor(d/2), floor(d/2) + 10 s).
     starts = [('clip-head', 0)]
@@ -71,24 +72,24 @@ def operations(src, duration):
     for name, start in starts:
         ops.append((name, ['clip', '--start', str(start), '--end', str(start + CLIP_SECONDS), str(src), 'OUT'],
                     '.mp4', lambda out, summary, start=start: [
-                        'ffmpeg', *FF, '-ss', str(start), '-i', str(src), '-t', str(CLIP_SECONDS),
+                        ffmpeg, *FF, '-ss', str(start), '-i', str(src), '-t', str(CLIP_SECONDS),
                         '-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy', '-f', 'mp4', out]))
 
     def remux(extra):
         def build(out, summary):
             maps = [arg for s in summary['streams'] for arg in ('-map', f'0:{s["stream_index"]}')]
-            return ['ffmpeg', *FF, '-i', str(src), *maps, '-c', 'copy', *extra, '-movflags', '+faststart', out]
+            return [ffmpeg, *FF, '-i', str(src), *maps, '-c', 'copy', *extra, '-movflags', '+faststart', out]
         return build
 
     ops.append(('remux', ['remux', str(src), 'OUT'], '.mp4', remux([])))
     ops.append(('sanitize', ['sanitize', str(src), 'OUT'], '.mp4', remux(['-map_metadata', '-1', '-map_chapters', '-1'])))
     # As docs/design/split.md, with the streams `coreav split` keeps by default.
     ops.append(('split', ['split', '--every', str(CLIP_SECONDS), str(src), 'OUT'], '/%03d.mp4',
-                lambda out, summary: ['ffmpeg', *FF, '-i', str(src), '-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy',
+                lambda out, summary: [ffmpeg, *FF, '-i', str(src), '-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy',
                                       '-f', 'segment', '-segment_time', str(CLIP_SECONDS), '-reset_timestamps', '1',
                                       out]))
     ops.append(('extract-subtitles', ['extract-subtitles', str(src), 'OUT'], '.vtt',
-                lambda out, summary: ['ffmpeg', *FF, '-i', str(src), '-map', '0:s:0', '-f', 'webvtt', out]))
+                lambda out, summary: [ffmpeg, *FF, '-i', str(src), '-map', '0:s:0', '-f', 'webvtt', out]))
     return ops
 
 
@@ -217,7 +218,7 @@ def main():
     parser.add_argument('--cache', default='/tmp/npx-cache')
     parser.add_argument('--path', choices=('native', 'wasi'), default='native')
     args = parser.parse_args()
-    test_oracle.require('ffmpeg', 'ffprobe')
+    oracle = test_oracle.require('ffmpeg', 'ffprobe')
     native = os.environ.get('COREAV_BIN')
     if not native or not MODULE.exists() or not (NATIVE_PACKAGE / 'bin' / 'coreav').exists():
         raise SystemExit('needs COREAV_BIN, packages/cli/scripts/build.sh and scripts/platform.sh linux-x64')
@@ -259,7 +260,7 @@ def main():
                 'module_sha256': build[0], 'module_bytes': MODULE.stat().st_size,
                 'native_sha256': build[1], 'package_binary_sha256': build[2],
                 'versions': {'node': version(['node', '--version']), 'npm': version(['npm', '--version']),
-                             'ffmpeg': version(['ffmpeg', '-version']), 'coreav': version([native, '--version'])},
+                             'ffmpeg': version([str(oracle.ffmpeg), '-version']), 'coreav': version([native, '--version'])},
                 'machine': machine(), 'rounds': ROUNDS,
                 'npm_overhead': launcher_costs(project),
             })
@@ -283,7 +284,7 @@ def main():
             work = scratch / 'work'
             shutil.rmtree(work, ignore_errors=True)
             work.mkdir()
-            ops = [measure_op(native, launcher, op, work) for op in operations(src, duration)]
+            ops = [measure_op(native, launcher, op, work) for op in operations(src, duration, oracle)]
             if duration is None:
                 ops.append({'op': 'clip-middle', 'status': 'skipped', 'equal': True,
                             'reason': 'the native probe gave no duration'})

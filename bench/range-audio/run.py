@@ -66,10 +66,10 @@ def native_extract(path, scratch):
     return result
 
 
-def ffmpeg_run(url, stream, scratch):
+def ffmpeg_run(url, stream, scratch, ffmpeg):
     out = scratch / 'ffmpeg.m4a'
     out.unlink(missing_ok=True)
-    cmd = ['ffmpeg', '-nostdin', '-v', 'error', '-i', url, '-map', f'0:{stream}', '-c', 'copy', '-f', 'mp4',
+    cmd = [ffmpeg, '-nostdin', '-v', 'error', '-i', url, '-map', f'0:{stream}', '-c', 'copy', '-f', 'mp4',
            '-y', str(out)]
     started = time.perf_counter()
     try:
@@ -128,7 +128,7 @@ def main():
     parser.add_argument('--max-requests', type=int, default=400_000,
                         help='R2 requests the whole run may make (Class B, 0.36 USD per million)')
     args = parser.parse_args()
-    test_oracle.require('ffmpeg', 'ffprobe')
+    oracle = test_oracle.require('ffmpeg', 'ffprobe')
     data = json.loads(Path(args.inputs).read_text())
     files = (data['held_out'] if args.held_out else data['files'])[:args.limit]
     if args.only:
@@ -159,7 +159,7 @@ def main():
             raise SystemExit(f'{out} holds a run of other engines or another commit; use another OUT')
     write_json(out / 'meta.json', {'inputs': args.inputs, 'held_out': args.held_out, 'machine': machine(),
                                    'engines': sorted(engines), 'commit': commit, 'dirty': dirty,
-                                   'tools': {**tool_versions(), **{k: v for n, e in EXTRA.items() if n in engines
+                                   'tools': {**tool_versions(str(oracle.ffmpeg)), **{k: v for n, e in EXTRA.items() if n in engines
                                                                    for k, v in e.versions().items()}},
                                    'native_sha256': sha256_file(NATIVE),
                                    'cli_sha256': sha256_file(CLI) if 'cli' in engines else None,
@@ -192,8 +192,8 @@ def main():
                     EXTRA[block].run(record, url, args)
                 elif block == 'ffmpeg':
                     if stream is not None:
-                        record['ffmpeg_warmup'] = ffmpeg_run(url, stream, scratch)
-                    record['ffmpeg'] = ([ffmpeg_run(url, stream, scratch) for _ in range(args.trials)]
+                        record['ffmpeg_warmup'] = ffmpeg_run(url, stream, scratch, str(oracle.ffmpeg))
+                    record['ffmpeg'] = ([ffmpeg_run(url, stream, scratch, str(oracle.ffmpeg)) for _ in range(args.trials)]
                                         if stream is not None else [])
                 else:
                     record['cli_warmup'] = cli_run(url, scratch)

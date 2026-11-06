@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -10,6 +10,27 @@ import { optionsSha256, sha } from "./roster.mjs";
 const hash = "a".repeat(64), other = "b".repeat(64), pngHash = "c".repeat(64);
 const samples = Buffer.from([12, 34, 56, 255, 78, 90, 123, 255]);
 const picture = bytes => ({ width: 2, height: 1, pixelFormat: "rgba", samples: Buffer.from(bytes) });
+
+test("pixel executions retain both resolver paths instead of reconstructing the requested directory", () => {
+  const directory = mkdtempSync(join(tmpdir(), "thumbnail-selection-"));
+  try {
+    const ffmpeg = join(directory, "qualified-decoder"), ffprobe = join(directory, "qualified-probe");
+    for (const path of [ffmpeg, ffprobe]) writeFileSync(path, "synthetic executable identity");
+    const image = join(directory, "image"); writeFileSync(image, "synthetic image identity");
+    const bytes = Buffer.from("synthetic image identity"), calls = [];
+    const record = { image, bytes: bytes.length, outputSha256: sha(bytes), summary: { output: { width: 2, height: 1, format: "png" } } };
+    const run = (program, args) => {
+      calls.push(program);
+      if (program === "python3") return { status: 0, stdout: `${ffmpeg}\n${ffprobe}\n` };
+      return { status: 0, stdout: program === ffprobe ? Buffer.from(JSON.stringify({ streams: [{ codec_name: "png", width: 2, height: 1, pix_fmt: "rgba" }] })) : samples };
+    };
+    createPixelOracle(join(directory, "requested"), directory, run).compare(record, record, { actual: record, native: record });
+    assert.deepEqual(calls, ["python3", ffprobe, ffmpeg, ffprobe, ffmpeg, ffprobe, ffmpeg]);
+    for (const stdout of ["", `${ffmpeg}\n`, `relative\n${ffprobe}\n`, `${ffmpeg}\n${ffprobe}\nextra\n`, `${ffmpeg}\r\n${ffprobe}\n`]) {
+      assert.throws(() => createPixelOracle(directory, directory, () => ({ status: 0, stdout })), /identity/);
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
 
 test("every changed WebP sample fails, including alpha and two equally wrong outputs", () => {
   compareSamples(picture(samples), picture(samples), picture(samples));
@@ -79,7 +100,9 @@ test("PNG anchor identity preserves every option other than format", () => {
 test("the oracle verifies supplied binaries and compares complete unquantized RGBA samples", () => {
   const directory = mkdtempSync(join(tmpdir(), "thumbnail-pixels-"));
   try {
-    for (const name of ["ffmpeg", "ffprobe"]) writeFileSync(join(directory, name), `fake ${name}, never executed`);
+    const qualified = join(directory, "qualified");
+    mkdirSync(qualified);
+    for (const name of ["ffmpeg", "ffprobe"]) writeFileSync(join(qualified, name), `fake ${name}, never executed`);
     const record = (name, format) => {
       const image = join(directory, name), bytes = Buffer.from(name); writeFileSync(image, bytes);
       return { image, bytes: bytes.length, outputSha256: sha(bytes), summary: { output: { width: 2, height: 1, format } } };
@@ -89,7 +112,7 @@ test("the oracle verifies supplied binaries and compares complete unquantized RG
     const run = (program, args, options) => {
       calls.push({ program, args, options });
       assert.equal(options.timeout, 15000);
-      if (program === "python3") return { status: mutation === "identity" ? 1 : 0, stdout: "", stderr: "" };
+      if (program === "python3") return { status: mutation === "identity" ? 1 : 0, stdout: `${join(qualified, "ffmpeg")}\n${join(qualified, "ffprobe")}\n`, stderr: "" };
       if (program.endsWith("ffprobe")) return { status: mutation === "probe-failure" ? 1 : 0, stdout: Buffer.from(mutation === "malformed" ? "{" : JSON.stringify(mutation === "null" ? null : { streams: [{ codec_name: options.input.toString().startsWith("png") ? "png" : "webp", width: mutation === "geometry" ? 3 : 2, height: 1, pix_fmt: mutation === "format" ? "rgb48le" : "rgba" }] })) };
       const decoded = Buffer.from(samples);
       if (mutation === "sample" && options.input.toString() === "webp-actual") decoded[0] ^= 1;
@@ -100,7 +123,8 @@ test("the oracle verifies supplied binaries and compares complete unquantized RG
     const oracle = createPixelOracle(directory, directory, run);
     const result = oracle.compare(actual, native, { actual: anchor, native: anchor });
     assert.equal(result.actual.sha256, sha(samples));
-    assert.deepEqual(calls[0].args.slice(-2), ["--verify-bin", directory]);
+    assert.deepEqual(calls[0].args.slice(-5), ["--resolve", "--ffmpeg", join(directory, "ffmpeg"), "--ffprobe", join(directory, "ffprobe")]);
+    assert.ok(calls.slice(1).every(call => [join(qualified, "ffmpeg"), join(qualified, "ffprobe")].includes(call.program)));
     assert.ok(calls.filter(c => c.program.endsWith("ffmpeg")).every(c => c.args.includes("-xerror") && c.args.includes("-noautorotate") && c.args.includes("rgba") && !c.args.includes("-frames:v")));
     for (const change of ["sample", "geometry", "format", "extra", "truncated", "malformed", "null", "probe-failure", "timeout", "failure", "diagnostic"]) {
       mutation = change;
@@ -113,7 +137,7 @@ test("the oracle verifies supplied binaries and compares complete unquantized RG
     assert.throws(() => oracle.compare({ ...actual, outputSha256: hash }, native, { actual: anchor, native: anchor }), /binding/);
     mutation = "identity";
     assert.throws(() => createPixelOracle(directory, directory, run), /identity/);
-    writeFileSync(join(directory, "ffmpeg"), "changed binary");
+    writeFileSync(join(qualified, "ffmpeg"), "changed binary");
     assert.throws(() => oracle.verify(), /changed/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

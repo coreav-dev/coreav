@@ -24,6 +24,8 @@ import oracle
 import receipts
 import run as capacity_run
 import allowance
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 
 CLASSES = ('mp4', 'matroska')
 GATES = ('raw_identity', 'cli_identity', 'oracle')
@@ -565,6 +567,8 @@ def main(argv=None):
         indexed = input_records(capacity.load(args.inputs), expected, capacity.load(args.exclusions), plan)
         tools = capacity.load(args.tools)
         runtime_matches(binding, tools)
+        pair = test_oracle.require(tools['ffmpeg'], tools['ffprobe'])
+        tools = {**tools, 'ffmpeg': str(pair.ffmpeg), 'ffprobe': str(pair.ffprobe)}
         registration = {'round': plan['round'], 'plan_sha256': capacity.digest(args.plan),
             'roster_sha256': capacity.digest(args.roster), 'binding_sha256': capacity.canonical(binding),
             'inputs_sha256': expected['inputs_sha256'], 'exclusions_sha256': plan['exclusions_sha256'], 'shard': args.shard}
