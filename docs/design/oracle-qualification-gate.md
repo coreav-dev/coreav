@@ -190,11 +190,11 @@ Use the pinned `@ast-grep/cli@0.50.0`, Python and Ruby discovery tools. Source a
 
 ## Merged-main classification update
 
-Classification merges main four times, integrating `73e073d1df8eebd4eb50d64589d7a96249fb7a7e`, `51a6e5891a1dae2c00eea20b197ff3ab07431452`, `7c1f23473321a2dfd330870a874562e8b6479fbe` and `60c2d5775f44404c40d62d2a3a6e790bd5f159d3`. Each merge re-derives every row whose source or cited dependency moved. A verdict is carried only when a check shows that every line it cites is byte-identical, as for rows that cite this note above an appended section. The historical snapshot rebinds five entries changed or added by coreav-dev/coreav#440 and coreav-dev/coreav#443 and grows to 4,889 files. No historical media or measurement is rerun or rejudged.
+Classification merges main five times, integrating `73e073d1df8eebd4eb50d64589d7a96249fb7a7e`, `51a6e5891a1dae2c00eea20b197ff3ab07431452`, `7c1f23473321a2dfd330870a874562e8b6479fbe`, `60c2d5775f44404c40d62d2a3a6e790bd5f159d3` and `9df0b933d858adace8351fca877b91bc317163f8`. Each merge re-derives every row whose source or cited dependency moved. A verdict is carried only when a check shows that every line it cites is byte-identical, as for rows that cite this note above an appended section. The historical snapshot rebinds five entries changed or added by coreav-dev/coreav#440 and coreav-dev/coreav#443 and grows to 4,889 files. No historical media or measurement is rerun or rejudged.
 
-The final catalogue reconciles all 6,571 rows exactly: 6,281 discovered and 290 closure rows. It has 2,082 qualified rows at 1,640 locations, 4,472 excluded rows at 4,201 locations, no confirmed bypass and 17 unknown rows, all `unavailable-input`. Those 17 rows still fail the classifier, so the required classifier step stays unwired.
+The final catalogue reconciles all 6,570 rows exactly: 6,280 discovered and 290 closure rows. It has 2,080 qualified rows at 1,638 locations, 4,473 excluded rows at 4,201 locations, no confirmed bypass and 17 unknown rows, all `unavailable-input`. Those 17 rows still fail the classifier, so the required classifier step stays unwired.
 
-The row-lineage receipt from the fresh merged base `1d8c26380` accounts for its 6,230 rows: 5,007 unknown, 119 qualified and 1,104 excluded. On the final tree, 4,228 rows keep their exact site, 528 move, 1,474 are rewritten or removed and 1,815 are new. Every rewritten, removed or new row has a cause: a commit since the base that changed its file, or, for the provisional `ci-full.yml` boundary, its admission to the reviewed inventory. Of the 5,007 base unknown rows, 1,337 are now qualified, 2,317 excluded and 3 remain unavailable-input unknowns; the other 1,350 were rewritten or removed. The remaining 14 unknown rows are new rows of the same reviewed kind. Running the base discovery code and the current discovery code on the final tree yields the same 6,281 row identities, so the census did not shrink.
+The row-lineage receipt from the fresh merged base `1d8c26380` accounts for its 6,230 rows: 5,007 unknown, 119 qualified and 1,104 excluded. On the final tree, 4,188 rows keep their exact site, 530 move, 1,512 are rewritten or removed and 1,852 are new. Every rewritten, removed or new row has a cause: a commit since the base that changed its file; for the delegated `composed_audio.verify_oracle` row in `scripts/transcode_check.py`, the commit that changed that callee so it no longer starts a process; or, for the provisional `ci-full.yml` boundary, its admission to the reviewed inventory. Of the 5,007 base unknown rows, 1,331 are now qualified, 2,285 excluded and 3 remain unavailable-input unknowns; the other 1,388 were rewritten or removed. The remaining 14 unknown rows are new rows of the same reviewed kind. Running the base discovery code and the current discovery code on the final tree yields the same 6,280 row identities, so the census did not shrink.
 
 Against the pre-merge catalogue's 6,377 rows, these paths have new, rewritten or removed rows. Rows in `.github/workflows/ci.yml`, `.github/workflows/h264-encoder.yml`, `crates/coreav-transcode/src/audio.rs` and `scripts/tests/test_hevc_workflow.py` only move.
 
@@ -209,6 +209,7 @@ Against the pre-merge catalogue's 6,377 rows, these paths have new, rewritten or
 | `scripts/av1_measurement_smoke.py` | 0 | 7 | coreav-dev/coreav#457; AV1 reference pair |
 | `scripts/av1_process_reference.py` | 0 | 19 | coreav-dev/coreav#457; AV1 reference pair |
 | `scripts/build_av1_reference_ffmpeg.sh` | 0 | 1 | coreav-dev/coreav#457 |
+| `scripts/composed_audio.py` | 13 | 11 | composed audio owner pair |
 | `scripts/encoders/macos/test_hevc_smoke.py` | 6 | 6 | macOS test import order |
 | `scripts/h264_g1_simd_identity.py` | 0 | 2 | coreav-dev/coreav#454 |
 | `scripts/hevc_conformance.py` | 21 | 22 | coreav-dev/coreav#429 |
@@ -218,12 +219,18 @@ Against the pre-merge catalogue's 6,377 rows, these paths have new, rewritten or
 | `scripts/mp3_worker_check.py` | 0 | 8 | coreav-dev/coreav#451 |
 | `scripts/tests/test_av1_measurement.py` | 0 | 3 | coreav-dev/coreav#457; AV1 reference pair |
 | `scripts/tests/test_bench_guard.py` | 12 | 13 | coreav-dev/coreav#440 |
+| `scripts/tests/test_composed_audio.py` | 17 | 17 | composed audio owner pair |
 | `scripts/tests/test_hevc_decode.py` | 0 | 2 | coreav-dev/coreav#429; HEVC owner pair |
 | `scripts/tests/test_reference_hevc.py` | 0 | 16 | coreav-dev/coreav#447; HEVC reference pair |
 | `scripts/tests/test_shell_oracle_qualification.py` | 12 | 12 | composed fixture cache key |
+| `scripts/tests/test_test_oracle.py` | 32 | 33 | remux checker pair |
+| `scripts/tests/test_thumbnail_oracle.py` | 8 | 9 | thumbnail probe pair |
+| `scripts/thumbnail_oracle.py` | 52 | 52 | thumbnail probe pair |
+| `scripts/transcode_check.py` | 111 | 110 | composed audio owner pair |
 | `tools/compat-corpus/copy_check.py` | 28 | 39 | coreav-dev/coreav#440 |
 | `tools/compat-corpus/github_shapes.py` | 29 | 32 | coreav-dev/coreav#450 |
 | `tools/compat-corpus/github_shapes_aac.py` | 0 | 4 | coreav-dev/coreav#450; AAC shape owner pair |
 | `tools/compat-corpus/tests/test_copy_check.py` | 3 | 22 | coreav-dev/coreav#440 |
+| `tools/compat-corpus/tests/test_encode_breadth.py` | 107 | 107 | owner cache isolation in one test |
 | `tools/compat-corpus/tests/test_github_shapes.py` | 103 | 105 | coreav-dev/coreav#450; GitHub-shape owner pair |
 | `tools/compat-corpus/tests/test_github_shapes_aac.py` | 0 | 33 | coreav-dev/coreav#450; AAC shape owner pair |
