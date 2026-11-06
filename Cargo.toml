@@ -87,6 +87,10 @@ inherits = "release"
 lto = "fat"
 codegen-units = 1
 
+[profile.av1-measurement]
+inherits = "dist"
+debug = 1
+
 # The WebAssembly module and the native reference engine it is measured
 # against: one profile for both.
 [profile.edge]

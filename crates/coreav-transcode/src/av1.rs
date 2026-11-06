@@ -1,5 +1,7 @@
 //! Validated AV1 worker output and bounded sample-spool replay.
 
+#[cfg(feature = "av1-measurement")]
+pub(crate) mod measurement;
 mod timeline;
 
 pub use timeline::Timeline;
@@ -56,6 +58,8 @@ pub struct Encoder {
 
 enum State {
     Running(Process<OutputSink>),
+    #[cfg(feature = "av1-measurement")]
+    Measurement(measurement::Driver),
     Failed(Error),
 }
 
@@ -134,6 +138,30 @@ impl Encoder {
             .try_reserve_exact(60)
             .map_err(|_| Error::new(ErrorKind::Limit, "cannot store AV1 request"))?;
         request.write(&mut header).map_err(backend_error)?;
+        #[cfg(feature = "av1-measurement")]
+        match std::env::var_os("COREAV_MEASURE_AV1_IN_PROCESS") {
+            Some(value) if value == "1" => {
+                return Ok(Self {
+                    state: State::Measurement(measurement::Driver::start(
+                        request,
+                        sink,
+                        launch.deadline,
+                        keep_alive,
+                    )?),
+                    submitted: Submissions::new(layout, request.limits.frames()),
+                    frames: 0,
+                    source,
+                });
+            }
+            None => {}
+            Some(value) if value == "0" => {}
+            Some(_) => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "COREAV_MEASURE_AV1_IN_PROCESS must be 0 or 1",
+                ));
+            }
+        }
         let command = encoder::command(
             program,
             &[WORKER_ARG.into()],
@@ -205,10 +233,9 @@ impl Encoder {
     /// Every failure is terminal and stops the process; no retry or fallback occurs.
     pub fn send_frame(&mut self, pixels: impl Into<Pixels>, pts: i64) -> Result<(), Error> {
         let pixels = pixels.into();
-        let process = match &mut self.state {
-            State::Running(process) => process,
-            State::Failed(error) => return Err(error.clone()),
-        };
+        if let State::Failed(error) = &self.state {
+            return Err(error.clone());
+        }
         let result = (|| {
             let format = match &pixels {
                 Pixels::Cpu(picture) => picture.format(),
@@ -238,10 +265,15 @@ impl Encoder {
                 frame.index(),
                 pts,
             ));
-            process.enqueue(Chunk::Frame {
-                head: header,
-                pixels,
-            })?;
+            match &mut self.state {
+                State::Running(process) => process.enqueue(Chunk::Frame {
+                    head: header,
+                    pixels,
+                })?,
+                #[cfg(feature = "av1-measurement")]
+                State::Measurement(driver) => driver.send(pixels)?,
+                State::Failed(error) => return Err(error.clone()),
+            }
             self.frames += 1;
             Ok(())
         })();
@@ -260,9 +292,25 @@ impl Encoder {
     /// Completes the input, drains and reaps the worker, then validates the
     /// private spool against all actual submissions and the final duration.
     pub fn finish(self, last_duration: NonZeroU64) -> Result<Encoded, Error> {
+        #[cfg(feature = "av1-measurement")]
+        if let State::Measurement(driver) = self.state {
+            if let Some(source) = self.source {
+                source.complete(last_duration)?;
+            }
+            let mut encoded = driver.finish()?.finish(&self.submitted, last_duration)?;
+            encoded.in_process = true;
+            return Ok(encoded);
+        }
         let mut process = match self.state {
             State::Running(process) => process,
             State::Failed(error) => return Err(error),
+            #[cfg(feature = "av1-measurement")]
+            State::Measurement(_) => {
+                return Err(Error::new(
+                    ErrorKind::Backend,
+                    "measurement encoder state changed",
+                ));
+            }
         };
         if let Some(source) = self.source {
             source.complete(last_duration)?;
@@ -296,6 +344,9 @@ pub struct Encoded {
     pub segments: u64,
     /// Total sample bytes in the caller-owned spool.
     pub bytes: u64,
+    #[cfg(feature = "av1-measurement")]
+    #[doc(hidden)]
+    pub in_process: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -484,7 +535,13 @@ impl OutputSink {
             },
         );
         Ok(Self {
-            decoder: Decoder::new(request, retention).map_err(backend_error)?,
+            decoder: {
+                #[cfg(feature = "av1-measurement")]
+                let decoder = Decoder::measurement(request, retention);
+                #[cfg(not(feature = "av1-measurement"))]
+                let decoder = Decoder::new(request, retention);
+                decoder.map_err(backend_error)?
+            },
             stream,
             spool: SampleSpool {
                 file: BufWriter::with_capacity(1 << 20, file),
@@ -568,6 +625,8 @@ impl OutputSink {
                 .ok_or_else(|| Error::new(ErrorKind::InvalidData, "AV1 version is missing"))?,
             segments: self.segments,
             bytes: self.spool.bytes,
+            #[cfg(feature = "av1-measurement")]
+            in_process: false,
         })
     }
 }

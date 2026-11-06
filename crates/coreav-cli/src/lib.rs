@@ -16,6 +16,12 @@
 //! work, such as the WebAssembly module (`coreav-wasm`), carry the same
 //! serializer.
 
+#[cfg(all(
+    feature = "av1-measurement",
+    any(feature = "release-default", feature = "release-full")
+))]
+compile_error!("av1-measurement cannot be combined with release feature sets");
+
 pub mod check;
 pub mod clip;
 pub mod compat;

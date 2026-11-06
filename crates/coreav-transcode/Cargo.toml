@@ -28,6 +28,7 @@ aac = ["coreav-audio/aac"]
 input-capture = ["dep:sha2", "dep:serde"]
 svt-av1 = ["dep:coreav-backend-svt-av1"]
 svt-av1-native = ["svt-av1", "coreav-backend-svt-av1/native"]
+av1-measurement = ["svt-av1-native", "coreav-backend-svt-av1/measurement"]
 
 [[test]]
 name = "sandboxed"
