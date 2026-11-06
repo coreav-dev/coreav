@@ -20,10 +20,12 @@ AREAS = {
     'h264': ('H.264 decoding', 'area:h264'),
     'transcode': ('Transcode compatibility', 'area:transcode'),
     'vp9': ('VP9 decoding', 'area:ci'),
+    'hevc': ('HEVC decoding', 'area:ci'),
 }
 FULL_WORKFLOWS = {
     'ci-full': {
         'file': 'ci-full.yml',
+        'final_head': 'always',
         'areas': {
             'ci': ('full-fixtures',),
             'h264': ('h264-full', 'conformance-arm64'),
@@ -32,12 +34,19 @@ FULL_WORKFLOWS = {
     },
     'vp9-corpus': {
         'file': 'vp9-corpus.yml',
+        'final_head': 'always',
         'areas': {'vp9': ('contract',) + tuple(f'corpus ({i})' for i in range(8)) + ('corpus-summary',)},
     },
     'vp9-conformance': {
         'file': 'vp9-conformance.yml',
+        'final_head': 'always',
         'areas': {'vp9': tuple(f'{job} ({host})' for job in ('vectors', 'interpolation-fuzz')
                               for host in ('ubuntu-24.04', 'macos-15')) + ('adapter-contract',)},
+    },
+    'hevc-conformance': {
+        'file': 'hevc-conformance.yml',
+        'final_head': 'area',
+        'areas': {'hevc': ('hevc-vectors', 'profile-census')},
     },
 }
 PROOF_STEPS = {
@@ -59,6 +68,13 @@ PROOF_STEPS = {
                                      'Compare scalar-only vector frames without changing comparators'),
     ('vp9-conformance', 'interpolation-fuzz'): ('Compare automatic and scalar interpolation for C3',),
     ('vp9-conformance', 'adapter-contract'): ('Check the scratch adapter without building timing artifacts',),
+    ('hevc-conformance', 'hevc-vectors'): (
+        'Verify registered synthetic references before native classification',
+        'Acquire every registered official archive',
+        'Bind archive and extracted-data hashes',
+        'Check complete headers and every selected intra reference'),
+    ('hevc-conformance', 'profile-census'): (
+        'Inspect all fixed files with isolated metadata subprocesses',),
 }
 
 
@@ -363,7 +379,15 @@ def dispatch_order(run):
     return parsed, run['id']
 
 
-def verify(pr_number, api):
+def selected_suites(suites=None):
+    names = ([name for name, spec in FULL_WORKFLOWS.items() if spec['final_head'] == 'always']
+             if suites is None else suites)
+    require(bool(names) and all(name in FULL_WORKFLOWS for name in names), 'invalid_suite_selection')
+    return list(dict.fromkeys(names))
+
+
+def verify(pr_number, api, suites=None):
+    names = selected_suites(suites)
     require(positive(pr_number), 'invalid_pull_number')
     pull = api.request('GET', f'/repos/{REPOSITORY}/pulls/{pr_number}')
     require(isinstance(pull, dict) and pull.get('state') == 'open'
@@ -371,7 +395,8 @@ def verify(pr_number, api):
     head = pull['head'].get('sha')
     require(isinstance(head, str) and re.fullmatch('[0-9a-f]{40}', head), 'invalid_pull_head')
     evidence = []
-    for name, spec in FULL_WORKFLOWS.items():
+    for name in names:
+        spec = FULL_WORKFLOWS[name]
         query = urllib.parse.urlencode({'event': 'workflow_dispatch', 'head_sha': head})
         runs = api.pages(f'/repos/{REPOSITORY}/actions/workflows/{spec["file"]}/runs?{query}', 'workflow_runs')
         require(all(isinstance(run, dict) and positive(run.get('id')) and positive(run.get('run_attempt'))
@@ -407,6 +432,7 @@ def main():
     reporting.add_argument('--event', type=Path, required=True)
     checking = commands.add_parser('verify')
     checking.add_argument('--pr', type=int, required=True)
+    checking.add_argument('--suite', action='append')
     args = parser.parse_args()
     try:
         token = os.environ.get('GH_TOKEN')
@@ -417,7 +443,7 @@ def main():
             issues = report(event, api)
             print(f'ci-full: {len(issues)} failing areas reported')
         else:
-            head, evidence = verify(args.pr, api)
+            head, evidence = verify(args.pr, api, args.suite)
             print(f'ci-full: exact head {head}')
             for name, run, attempt in evidence:
                 print(f'{name}: https://github.com/{REPOSITORY}/actions/runs/{run}/attempts/{attempt}')

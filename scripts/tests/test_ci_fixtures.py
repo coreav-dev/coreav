@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -10,6 +11,9 @@ from test_main_ci_plan import evaluate
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
+
 ACTION = './.github/actions/ci-fixtures'
 
 
@@ -91,6 +95,8 @@ class SharedFixtures(unittest.TestCase):
             scripts.mkdir()
             contents = {'gen-fixtures.sh': '$SCRIPTS/craft.py\n', 'craft.py': 'first\n',
                         'install-oracle-ffmpeg.sh': 'installer\n', 'oracle-ffmpeg.env': 'pin\n'}
+            contents.update({name: (ROOT / 'scripts' / name).read_text()
+                             for name in test_oracle.SUPPORT})
             for name, content in contents.items():
                 (scripts / name).write_text(content)
 
@@ -112,6 +118,13 @@ class SharedFixtures(unittest.TestCase):
             added = compute()
             (scripts / 'extra.py').write_text('changed\n')
             self.assertNotEqual(added, compute())
+
+    def test_all_fixture_support_changes_start_both_wasm_events(self):
+        workflow = read_yaml(ROOT / '.github/workflows/wasm.yml')
+        events = workflow.get('on', workflow.get('true'))
+        for event in ('push', 'pull_request'):
+            for name in test_oracle.SUPPORT:
+                self.assertIn('scripts/' + name, events[event]['paths'], (event, name))
 
 
 if __name__ == '__main__':

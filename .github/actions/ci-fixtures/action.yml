@@ -16,7 +16,9 @@ runs:
       run: |
         set -euo pipefail
         helpers=$(grep -o '\$SCRIPTS/[A-Za-z0-9_.-]*' scripts/gen-fixtures.sh | sed 's|^\$SCRIPTS/|scripts/|' | sort -u)
-        echo "key=linux-x64-fixtures-$(cat scripts/gen-fixtures.sh scripts/install-oracle-ffmpeg.sh scripts/oracle-ffmpeg.env $helpers | sha256sum | cut -c1-32)" >> "$GITHUB_OUTPUT"
+        support=$(python3 -I -B -c 'import sys; sys.path.insert(0, "scripts"); from test_oracle import SUPPORT; print(" ".join("scripts/" + name for name in SUPPORT))')
+        identity="$(cat scripts/gen-fixtures.sh scripts/install-oracle-ffmpeg.sh scripts/oracle-ffmpeg.env $helpers $support | sha256sum | cut -c1-32)"
+        echo "key=linux-x64-fixtures-$identity" >> "$GITHUB_OUTPUT"
     - name: Restore the fixtures
       id: fixtures
       uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3

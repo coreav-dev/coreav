@@ -148,7 +148,7 @@ def presentation_interval(metadata, listing):
     return skip, count
 
 
-def check(coreav, oracle, source, work, diagnostic):
+def check(coreav, oracle, source, work, diagnostic, capture=None):
     with tempfile.TemporaryDirectory(prefix='aac-diagnostic-', dir=work) as path:
         directory = Path(path)
         captured = run([diagnostic, source, directory])
@@ -158,13 +158,13 @@ def check(coreav, oracle, source, work, diagnostic):
             noise = sum(len(channel['noise']) for frame in metadata['frames'] for channel in frame['channels'])
             if noise and not metadata['unsafe']:
                 pns = pns_check(oracle, source, directory, metadata)
-        row = check_output(coreav, oracle, source, work, metadata, pns)
+        row = check_output(coreav, oracle, source, work, metadata, pns, capture)
         if captured.returncode:
             row['diagnostic_refusal'] = captured.stderr.decode()[-500:].strip()
         return row
 
 
-def check_output(coreav, oracle, source, work, metadata, pns):
+def check_output(coreav, oracle, source, work, metadata, pns, capture=None):
     row = {'sha256': hashlib.sha256(source.read_bytes()).hexdigest(), 'formats': {}}
     probe = run([oracle / 'ffprobe', '-v', 'error', '-select_streams', 'a:0',
                  '-show_entries', 'stream=sample_rate,channels,profile', '-of', 'json', source])
@@ -274,6 +274,8 @@ def check_output(coreav, oracle, source, work, metadata, pns):
             compare_wav(wave_file.read_bytes(), pin_file.read_bytes(), actual.stdout,
                         reference.stdout, row['channels'], row['rate'])
         row['formats'][fmt] = result
+        if capture is not None:
+            capture[fmt] = (actual.stdout, reference.stdout)
     row['status'] = 'ineligible' if refusal else 'pass'
     if refusal:
         row['reason'] = refusal

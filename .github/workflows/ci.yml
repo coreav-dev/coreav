@@ -1318,6 +1318,14 @@ jobs:
             --test legacy_encoders --target-dir target/fallback
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test transcode \
             --target-dir target/fallback
+      - name: Check the MP3 worker encoder-only protocol
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
+        run: |
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test mp3_worker \
+            --target-dir target/fallback
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test mp3_worker \
+            --target-dir target/fallback
       - name: Copied video with AAC encoding preserves exact fallback
         env:
           COREAV_REQUIRE_FFMPEG: '1'

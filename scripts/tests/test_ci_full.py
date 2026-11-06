@@ -30,7 +30,7 @@ class FakeApi:
         self.changed_head = False
         self.pull_reads = 0
         for index, (name, spec) in enumerate(ci.FULL_WORKFLOWS.items(), 42):
-            run = {'id': index, 'run_attempt': 1, 'name': name, 'path': '.github/workflows/' + spec['file'],
+            run = {'id': index, 'run_attempt': 1, 'workflow_id': index + 100, 'name': name, 'path': '.github/workflows/' + spec['file'],
                    'event': 'push', 'head_branch': 'main', 'head_sha': HEAD, 'status': 'completed',
                    'conclusion': 'success', 'created_at': STAMP,
                    'repository': {'full_name': ci.REPOSITORY}, 'head_repository': {'full_name': ci.REPOSITORY}}
@@ -244,7 +244,7 @@ class FinalHead(unittest.TestCase):
         api.manual()
         head, evidence = ci.verify(448, api)
         self.assertEqual(head, HEAD)
-        self.assertEqual({row[0] for row in evidence}, set(ci.FULL_WORKFLOWS))
+        self.assertEqual({row[0] for row in evidence}, set(ci.selected_suites()))
         self.assertTrue(all(call[0] in ('GET', 'PAGES') for call in api.calls))
 
     def test_newest_failure_or_pending_dispatch_blocks_an_older_success(self):

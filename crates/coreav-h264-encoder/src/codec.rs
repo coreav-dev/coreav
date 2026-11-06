@@ -14,6 +14,7 @@ mod inter;
 
 const STRIDE: usize = 40;
 const ORIGIN: usize = STRIDE + 1;
+const P_INTRA_TYPE_BASE: u32 = 5;
 
 #[derive(Clone)]
 struct Tile([u8; STRIDE * 18]);
@@ -70,14 +71,11 @@ impl Tile {
         Ok(sum)
     }
 
-    fn sad(&self, source: &Self, n: usize) -> Result<u64> {
+    fn satd(&self, source: &Self, x: usize, y: usize, n: usize) -> Result<u64> {
         let mut sum = 0;
-        for y in 0..n {
-            let at = Self::at(0, y);
-            let predicted = self.0.get(at..at + n).ok_or(Error::Internal)?;
-            let original = source.0.get(at..at + n).ok_or(Error::Internal)?;
-            for (&a, &b) in predicted.iter().zip(original) {
-                sum += u64::from(a.abs_diff(b));
+        for j in (y..y + n).step_by(4) {
+            for i in (x..x + n).step_by(4) {
+                sum += t::satd(&self.residual(source, i, j)?)?;
             }
         }
         Ok(sum)
@@ -301,7 +299,7 @@ fn macroblock(
     let intra4 = prediction.is_none() && !intra16;
     let (cbpy, cbpc) = patterns(luma, chroma, prediction.is_some());
     if prediction.is_none() {
-        w.ue(u32::from(p_slice) * 5
+        w.ue(u32::from(p_slice) * P_INTRA_TYPE_BASE
             + luma.mode.map_or(0, |m| {
                 1 + u32::from(m) + 4 * u32::from(cbpc) + if cbpy == 0 { 0 } else { 12 }
             }))?;
@@ -471,7 +469,8 @@ fn intra4(
     qp: u8,
     top: Option<&Neighbour>,
     left: Option<&Neighbour>,
-) -> Result<Luma> {
+    cheap: bool,
+) -> Result<(u64, Luma)> {
     let mut out = Luma {
         mode: None,
         modes: [2; 16],
@@ -481,14 +480,33 @@ fn intra4(
     };
     let mut counts = [0; 16];
     let lambda = 1u64 << (qp / 3);
+    let mut cheap_score = 0;
     for k in 0..16 {
         let (x, y) = xy(k);
         let p = y / 4 * 4 + x / 4;
         let a = availability(k, a);
         let predicted = predicted_mode(&out.modes, top, left, p);
+        let mut proposal = None;
+        if cheap {
+            for mode in 0..9 {
+                if !legal(mode, 4, a) {
+                    continue;
+                }
+                let mut tile = out.tile.clone();
+                tile.prediction(x, y, 4, a, mode)?;
+                let mut bits = Bits::count();
+                mode_bits(&mut bits, mode, predicted)?;
+                let score = tile.satd(source, x, y, 4)? + (1u64 << (qp / 6)) * bits.len as u64;
+                let value = (score, mode);
+                if proposal.is_none_or(|best| value < best) {
+                    proposal = Some(value);
+                }
+            }
+            cheap_score += proposal.ok_or(Error::Internal)?.0;
+        }
         let mut best = None;
         for mode in 0..9 {
-            if !legal(mode, 4, a) {
+            if !legal(mode, 4, a) || proposal.is_some_and(|(_, selected)| mode != selected) {
                 continue;
             }
             let result = (|| {
@@ -523,7 +541,7 @@ fn intra4(
         *out.levels.get_mut(k).ok_or(Error::Internal)? = levels;
         *counts.get_mut(p).ok_or(Error::Internal)? = count;
     }
-    Ok(out)
+    Ok((cheap_score, out))
 }
 
 pub(crate) struct FramePlane {
@@ -690,17 +708,19 @@ impl Decision<'_> {
             if legal(mode, 16, a) {
                 let mut tile = base.clone();
                 tile.prediction(0, 0, 16, a, mode)?;
-                let score = (tile.sad(self.source, 16)?, mode);
+                let score = (tile.satd(self.source, 0, 0, 16)?, mode);
                 if luma.is_none_or(|best| score < best) {
                     luma = Some(score);
                 }
             }
             if legal(mode, 8, a) {
-                let mut score = 0;
+                let mut bits = Bits::count();
+                bits.ue(u32::from(mode))?;
+                let mut score = (1u64 << (self.qp / 6)) * bits.len as u64;
                 for (base, source) in cbases.iter().zip(self.csources) {
                     let mut tile = base.clone();
                     tile.prediction(0, 0, 8, a, mode)?;
-                    score += tile.sad(source, 8)?;
+                    score += tile.satd(source, 0, 0, 8)?;
                 }
                 let score = (score, mode);
                 if chroma_mode.is_none_or(|best| score < best) {
@@ -710,11 +730,28 @@ impl Decision<'_> {
         }
         let luma_mode = luma.ok_or(Error::Internal)?.1;
         let chroma_mode = chroma_mode.ok_or(Error::Internal)?.1;
+        let (score, four) = intra4(
+            base,
+            self.source,
+            a,
+            self.qp,
+            self.context.top,
+            self.context.left,
+            true,
+        )?;
+        let (luma, choice) = if score < luma.ok_or(Error::Internal)?.0 {
+            (four, 4)
+        } else {
+            (
+                intra16(base, self.source, a, luma_mode, self.qp)?,
+                luma_mode,
+            )
+        };
         self.candidate(
-            intra16(base, self.source, a, luma_mode, self.qp)?,
+            luma,
             chroma(cbases, self.csources, a, chroma_mode, t::chroma_qp(self.qp))?,
             None,
-            luma_mode,
+            choice,
         )
     }
 
@@ -727,6 +764,19 @@ impl Decision<'_> {
         best: &mut Option<Candidate>,
         refusal: &mut Error,
     ) -> Result<()> {
+        if !exhaustive && self.context.p_slice && best.is_some() {
+            let mut floor = Bits::count();
+            floor.ue(self.pending_skip)?;
+            floor.ue(P_INTRA_TYPE_BASE)?;
+            floor.ue(0)?;
+            let cost = (1u64 << (self.qp / 3)) * floor.len as u64;
+            if best
+                .as_ref()
+                .is_some_and(|candidate| candidate.key.cost < cost)
+            {
+                return Ok(());
+            }
+        }
         if !exhaustive {
             match self.quick_intra(base, cbases, a) {
                 Ok(candidate) => {
@@ -758,7 +808,9 @@ impl Decision<'_> {
                     self.qp,
                     self.context.top,
                     self.context.left,
+                    false,
                 )
+                .map(|(_, luma)| luma)
             } else {
                 if !legal(choice, 16, a) {
                     continue;
@@ -995,6 +1047,76 @@ mod tests {
 
     std::thread_local! {
         pub(super) static INTRA_PAIRS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    #[test]
+    fn cheap_intra_four_uses_only_the_chosen_reconstructed_borders() {
+        let base = Tile::empty();
+        let csources = [Tile::empty(), Tile::empty()];
+        let a = intra_availability(Border::default());
+        let mut selected_four = false;
+        for pattern in 0..8 {
+            let mut source = Tile::empty();
+            for y in 0..16 {
+                for x in 0..16 {
+                    source.0[Tile::at(x, y)] =
+                        ((x * (17 + pattern) + y * (7 + pattern * 3)) % 256) as u8;
+                }
+            }
+            let (score, luma) = intra4(&base, &source, a, 28, None, None, true).unwrap();
+            let mut replay = base.clone();
+            let mut modes = [2; 16];
+            let mut expected_score = 0;
+            for k in 0..16 {
+                let (x, y) = xy(k);
+                let p = y / 4 * 4 + x / 4;
+                let available = availability(k, a);
+                let predicted = predicted_mode(&modes, None, None, p);
+                let mut best = None;
+                for mode in 0..9 {
+                    if !legal(mode, 4, available) {
+                        continue;
+                    }
+                    let mut tile = replay.clone();
+                    tile.prediction(x, y, 4, available, mode).unwrap();
+                    let mut bits = Bits::count();
+                    mode_bits(&mut bits, mode, predicted).unwrap();
+                    let key = (
+                        tile.satd(&source, x, y, 4).unwrap() + 16 * bits.len as u64,
+                        mode,
+                    );
+                    if best.is_none_or(|old| key < old) {
+                        best = Some(key);
+                    }
+                }
+                let (cost, mode) = best.unwrap();
+                assert_eq!(luma.modes[p], mode);
+                expected_score += cost;
+                replay.prediction(x, y, 4, available, mode).unwrap();
+                replay
+                    .add(x, y, &t::scaled(&luma.levels[k], 28, None).unwrap())
+                    .unwrap();
+                modes[p] = mode;
+            }
+            assert_eq!(expected_score, score);
+            assert_eq!(replay.0, luma.tile.0);
+            let decision = Decision {
+                source: &source,
+                csources: &csources,
+                context: MbContext {
+                    top: None,
+                    left: None,
+                    p_slice: true,
+                },
+                qp: 28,
+                pending_skip: 0,
+            };
+            INTRA_PAIRS.with(|count| count.set(0));
+            let candidate = decision.quick_intra(&base, &csources, a).unwrap();
+            selected_four |= candidate.luma.mode.is_none();
+            assert_eq!(INTRA_PAIRS.with(|count| count.get()), 1);
+        }
+        assert!(selected_four);
     }
 
     #[test]

@@ -14,6 +14,13 @@ on:
       - scripts/install-oracle-ffmpeg.sh
       - scripts/install-x264.sh
       - scripts/oracle*
+      - scripts/aac_pcm_eligibility.py
+      - scripts/aac_pns.py
+      - scripts/aac-pns-requirements.txt
+      - docs/design/aac-pcm-eligibility.md
+      - docs/design/aac-pns-eligibility.md
+      - docs/compat/audio-decoder-eligibility.json
+      - tools/compat-corpus/tests/test_github_shapes_aac.py
   workflow_dispatch:
     inputs:
       commit:
@@ -71,10 +78,14 @@ jobs:
           sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev nasm pkg-config
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           scripts/install-x264.sh "$RUNNER_TEMP/oracle"
+          python3 -m venv "$RUNNER_TEMP/aac-python"
+          "$RUNNER_TEMP/aac-python/bin/pip" install --quiet --only-binary=:all: --require-hashes -r scripts/aac-pns-requirements.txt
+          echo "$RUNNER_TEMP/aac-python/bin" >> "$GITHUB_PATH"
       - name: Build the full feature set
         run: |
           set -euo pipefail
           cargo build --release --locked -p coreav-cli --features release-full
+          cargo build --locked --release -p coreav-aac --features diagnostics --example pns_diagnostic
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path
@@ -91,6 +102,7 @@ jobs:
           python3 tools/compat-corpus/github_shapes.py run --commit "$COMMIT" \
             --build-record "$RUNNER_TEMP/shape-build.json" \
             --coreav "$PWD/target/release/coreav" --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+            --pns-diagnostic "$PWD/target/release/examples/pns_diagnostic" \
             --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --x264 "$RUNNER_TEMP/oracle/x264" \
             --bundle "$RUNNER_TEMP/shape-evidence" --scratch "$RUNNER_TEMP/shape-replay" \
             --summary "$RUNNER_TEMP/shape-summary.json"
@@ -104,3 +116,33 @@ jobs:
             ${{ runner.temp }}/shape-build.json
           if-no-files-found: error
           retention-days: 30
+  aac-controls:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install the pinned oracle and transform dependency
+        run: |
+          set -euo pipefail
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/aac-oracle"
+          python3 -m venv "$RUNNER_TEMP/aac-python"
+          "$RUNNER_TEMP/aac-python/bin/pip" install --quiet --only-binary=:all: --require-hashes -r scripts/aac-pns-requirements.txt
+          echo "$RUNNER_TEMP/aac-python/bin" >> "$GITHUB_PATH"
+      - name: Build the AAC command and opt-in diagnostic
+        run: |
+          cargo build --locked --release -p coreav-cli --features aac
+          cargo build --locked --release -p coreav-aac --features diagnostics --example pns_diagnostic
+      - name: Check independent AAC command controls
+        env:
+          COREAV_SHAPES_ORACLE: ${{ runner.temp }}/aac-oracle
+          COREAV_SHAPES_COREAV: ${{ github.workspace }}/target/release/coreav
+          COREAV_SHAPES_AAC_DIAGNOSTIC: ${{ github.workspace }}/target/release/examples/pns_diagnostic
+        run: |
+          python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_github_shapes_aac.py
+          python3 -I -m unittest discover -s scripts/tests -p test_aac_pns.py
+          python3 -I -m unittest discover -s scripts/tests -p test_aac_pcm_eligibility.py

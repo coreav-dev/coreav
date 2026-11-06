@@ -73,6 +73,7 @@
   "crates/coreav-cli/tests/ffmpeg_concat.rs": [
     "concat_audio_gaps_are_refused_with_exact_pinned_fallback",
     "lossless_audiovisual_concat_preserves_complete_native_output",
+    "native_video_metadata_compares_complete_records_and_all_packet_bytes",
     "unedited_audiovisual_concat_matches_the_pinned_ffmpeg"
   ],
   "crates/coreav-cli/tests/ffmpeg_concat_primed.rs": [
@@ -140,6 +141,9 @@
   ],
   "crates/coreav-cli/tests/ffprobe_stdin.rs": [
     "structured_stdin_and_complete_pinned_replay"
+  ],
+  "crates/coreav-cli/tests/frame_handoff.rs": [
+    "shared_and_copied_handoffs_produce_identical_files"
   ],
   "crates/coreav-cli/tests/legacy_encoders.rs": [
     "legacy_encoder_choices_keep_media_summaries_errors_and_exit_codes"

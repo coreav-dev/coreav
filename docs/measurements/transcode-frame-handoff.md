@@ -1,6 +1,6 @@
 # Transcode shared-frame handoff reference
 
-The phase A handoff change does not bring these class medians within 1% of FFmpeg. AV1's paired point estimates improve by 1.66% with the FFmpeg encoder process and 1.29% with the x264 program. VP9's paired changes are smaller than the observed call variation. The later [phase B snapshot helper](#phase-b-rejected-snapshot-helper) is rejected because it regresses the full-cohort medians.
+The phase A handoff change does not bring these class medians within 1% of FFmpeg. AV1's paired point estimates improve by 1.66% with the FFmpeg encoder process and 1.29% with the x264 program. VP9's paired changes are smaller than the observed call variation. The later [phase B snapshot helper](#phase-b-rejected-snapshot-helper) regresses the full-cohort medians. The [final pipe-batching round](#final-round-rejected-pipe-batching) gives no measurable gain. Both candidates are rejected.
 
 ## Class summaries
 
@@ -187,3 +187,79 @@ for codec in ("av1", "vp9"):
 PY
 ```
 
+## Final round: rejected pipe batching
+
+Reject the fixed 64 KiB pipe-batching candidate. Three paired class/encoder point estimates worsen by 0.22–0.48%, while VP9 with x264 improves by 0.21%. These differences are below the observed call variation. None of the four candidate class medians is within 1% of FFmpeg. The runtime candidate is removed, leaving production output, encoder selection, decoder isolation, default dependencies and licensing unchanged. No further candidate or batch-size adjustment was evaluated.
+
+### Class summaries
+
+The same six AV1 and ten VP9 inputs use three-call medians per arm, followed by medians of per-file ratios. Lower is better. The paired column is computed per file, not by dividing the two class-level FFmpeg ratios.
+
+| Class | Encoder | Main / FFmpeg | Candidate / FFmpeg | Candidate / main | Candidate at most 1.01 × FFmpeg |
+|---|---|---|---|---|---|
+| AV1 | FFmpeg process | 1.0247 | 1.0268 | 1.0022 | 1/6 |
+| AV1 | x264 program | 1.0356 | 1.0412 | 1.0048 | 1/6 |
+| VP9 | FFmpeg process | 1.0328 | 1.0232 | 1.0031 | 2/10 |
+| VP9 | x264 program | 1.0258 | 1.0243 | 0.9979 | 3/10 |
+
+These are reference point estimates on previously used lossy inputs, not a held-out speed claim or a new acceptance bar. The candidate arms' median within-cell ranges are 2.43% and 1.33% on AV1, and 1.31% and 1.26% on VP9, in FFmpeg/x264 order. The largest cell range is 15.92% for main's FFmpeg arm on the short VP9 input `f944c05afaa1`. No cell is excluded. The 10-bit AV1 x264 outlier remains 1.1747 times FFmpeg, compared with 1.1836 for main in this capture.
+
+### Per-file seconds
+
+Each value is the median of three elapsed calls, including process startup, decoding, encoding and final muxing.
+
+| File | Class | FFmpeg | Main, FFmpeg encoder | Candidate, FFmpeg encoder | Main, x264 | Candidate, x264 |
+|---|---|---|---|---|---|---|
+| `f51a56ed5718` | VP9 | 123.916576 | 126.026250 | 127.209628 | 128.194855 | 127.694512 |
+| `a084bd45168c` | VP9 | 0.137582 | 0.153766 | 0.133615 | 0.133465 | 0.133702 |
+| `70eec00bc7d2` | VP9 | 3.436606 | 3.572714 | 3.609548 | 3.592603 | 3.574067 |
+| `9ffa165e752a` | VP9 | 134.584247 | 137.366426 | 136.974269 | 137.925637 | 138.403982 |
+| `584a16b906bb` | VP9 | 1.183350 | 1.263888 | 1.280174 | 1.237777 | 1.213796 |
+| `ea684713a5be` | VP9 | 103.059716 | 105.737057 | 105.106895 | 104.645802 | 105.053106 |
+| `bb5d39d47357` | VP9 | 2.158512 | 2.268180 | 2.326725 | 2.216087 | 2.208972 |
+| `b267a2ddac45` | VP9 | 7.913694 | 8.087689 | 8.058651 | 8.079849 | 8.113779 |
+| `f944c05afaa1` | VP9 | 0.132592 | 0.132175 | 0.132269 | 0.132622 | 0.132495 |
+| `59ad8ee403b3` | VP9 | 0.214019 | 0.229248 | 0.230499 | 0.228402 | 0.209043 |
+| `effb7b78408d` | AV1 | 89.341723 | 90.951970 | 91.838053 | 91.921015 | 91.881520 |
+| `357fb30f4693` | AV1 | 110.979019 | 111.904615 | 112.199856 | 131.353738 | 130.371985 |
+| `d438e9cb804e` | AV1 | 110.867499 | 115.848425 | 116.062708 | 115.568542 | 116.739797 |
+| `03e890cf5999` | AV1 | 2.999301 | 3.166525 | 3.151464 | 3.138695 | 3.152430 |
+| `a34d5ee860fb` | AV1 | 0.861903 | 0.888940 | 0.883953 | 0.883070 | 0.888892 |
+| `d9ab22f96e5e` | AV1 | 6.471322 | 6.449722 | 6.499602 | 6.480339 | 6.513568 |
+
+### Writer and native-input observations
+
+The evaluated writer combines an owned framing prefix with the existing direct shared-frame `writev` path. It caps each submission at 64 KiB and reuses the vector allocation. It still copies pixels synchronously into the kernel and holds the frame lease through the complete write. It neither enlarges the pipe nor lends decoder-writable pages.
+
+One separate VP9 call per arm with the FFmpeg encoder samples parent thread counters every 50 ms. The writer is identified while blocked in `pipe_write`. Its last-observed CPU rises from 3.73 to 4.19 seconds, while voluntary context switches fall from 252,646 to 226,154. The final sampling interval can be missed, and this single pair is diagnostic rather than a timing result. Complete files match. The [writer observations](transcode-frame-handoff/final-pipe-writer.json) show that fewer wakeups did not produce lower writer CPU or a measurable cohort gain. The encoder-dominated CPU attribution remains the earlier phase B observation; this diagnostic does not divide the candidate's elapsed changes among copying, syscalls and scheduling.
+
+The pinned x264 CLI accepts raw `i420` with matching input and output depth 10, which main already supplies. It refuses `--input-csp i420p10` and `--vf depth:bit_depth=10`, both with exit 255. On two 32 × 32 planar 4:2:0 frames, with sample `i` equal to `(i * 37) % 1024`, raw depth10 and losslessly left-shifted depth16 produce identical encoded bytes. Function-only Callgrind annotation with `--no-asm` reports 66,114 `get_frame` instructions for each. This small instruction-count check is not an elapsed-time comparison. It confirms that widening does not remove the existing input-conversion function; it is not a native bypass. The [native-input evidence](transcode-frame-handoff/final-pipe-native-input.json.gz) retains the binary identity, normalized probe commands, refusals, output hashes and function annotations. No precision reduction, encoder substitution or new quality/rate cost is introduced. The FFmpeg encoder process already receives native planar 10-bit samples.
+
+### Capture and correctness
+
+All 240 calls succeed with zero failures. The five arms are `ffmpeg, main_ffmpeg, candidate_ffmpeg, main_x264, candidate_x264`, with rotation starting at `(file_index + round_index) % 5`. Source hashes and sizes are checked and source bytes warmed before timing. Outputs use tmpfs; probing, decoded frame hashes and complete-file hashes are outside timing. All 96 paired complete files match. First-round decoded frame hashes match for all 32 CoreAV encoder pairs. Every arm retains 12,120 frames per round with matching dimensions and pixel formats, and all CoreAV calls report sandboxed decoding. This establishes identity with main, not with FFmpeg's complete files.
+
+The existing rate-metadata differences remain on `70eec00bc7d2` and `03e890cf5999`. FFmpeg reports `7511/250` and `19001/317`, while both CoreAV versions report `30/1` and `60000/1001`. They have the same frame counts; the candidate does not change either rate or any complete output byte relative to main.
+
+Before the full capture, two synthetic inputs exercise AV1 and VP9 through all five arms. The full cohort includes the 10-bit AV1 outlier. The candidate's 16 worker unit tests, 78 transcode unit tests, pinned encoder fixtures, ownership and hostile-process tests, nine AV1 process cases, scoped Clippy and unsafe inventory pass. The final change removes those runtime additions and their new unsafe-site description rather than retaining an unhelpful interface.
+
+Main is `4464759f2ceda9ca572a0d04e27b13da2c3c5c71`; the [evaluated candidate](https://github.com/coreav-dev/coreav/commit/823cb369eed886db44b19552c3d8b1a6095c0b15) is `823cb369eed886db44b19552c3d8b1a6095c0b15`. Both use independent Cargo target directories and release features `native-h264,dav1d,libvpx,ffmpeg-fallback`. Capture ran on 2026-11-06 UTC on a standard on-demand `c4-standard-8`, SMT off, four available cores, Intel Xeon Platinum 8581C, Debian 13 and Linux `6.12.113+deb13-cloud-amd64`, with Rust `1.99.1 (58cf8f9c3 2026-10-13)`. There is no affinity override or host-drift gate. FFmpeg and ffprobe are the pinned `n9.0.2-17-g2a571b6068-20260930` build. FFmpeg explicitly decodes with libdav1d or libvpx-vp9, encodes with libx264 medium/CRF 23, preserves presentation timing and copies audio. The x264 program is `0.165.3223 0480cb0`. CoreAV's separate decoder builds use dav1d `9711965b60bb692ae24004659acf61f5c7d9ed61` and libvpx `v1.17.0`, matching the phase A source revisions.
+
+The [complete compressed capture](transcode-frame-handoff/final-pipe-reference.json.gz) retains normalized commands, executable and source identities, all elapsed calls, receipts, output hashes and first-round decoded frame hashes. No numerical capture field is changed. Recompute the final class ratios and verify every paired output from this checkout:
+
+```sh
+python3 - <<'PY'
+import gzip, itertools, json, statistics as s
+p = json.load(gzip.open("docs/measurements/transcode-frame-handoff/final-pipe-reference.json.gz", "rt"))
+c = {(x["sha256"], x["round"], x["arm"]): x for x in p["calls"]}
+assert p["status"] == "complete" and len(p["calls"]) == len(c) == 240 and not p["failures"]
+for f, n, e in itertools.product(p["inputs"], range(3), ("ffmpeg", "x264")):
+    assert c[f["sha256"], n, "main_" + e]["output"] == c[f["sha256"], n, "candidate_" + e]["output"]
+for codec in ("av1", "vp9"):
+    files = [f["sha256"] for f in p["inputs"] if f["class"] == codec]
+    t = {(f, a): s.median(c[f, n, a]["seconds"] for n in range(3)) for f in files for a in p["arms"]}
+    for e in ("ffmpeg", "x264"):
+        a, b = "main_" + e, "candidate_" + e
+        print(codec, e, *(s.median(t[f, x] / t[f, "ffmpeg"] for f in files) for x in (a, b)), s.median(t[f, b] / t[f, a] for f in files))
+PY
+```
