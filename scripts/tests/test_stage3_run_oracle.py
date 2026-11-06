@@ -6,7 +6,7 @@ import types
 import unittest
 from unittest import mock
 
-spec = importlib.util.spec_from_file_location('stage3_run', Path(__file__).resolve().parents[1] / 'run.py')
+spec = importlib.util.spec_from_file_location('stage3_run', Path(__file__).resolve().parents[2] / 'tools/stage3-report/run.py')
 driver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(driver)
 

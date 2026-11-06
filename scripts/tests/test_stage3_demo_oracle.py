@@ -7,7 +7,7 @@ import unittest
 
 class OracleSelection(unittest.TestCase):
     def test_generation_uses_the_resolver_program_before_entering_the_sandbox(self):
-        script = Path(__file__).resolve().parents[1] / 'demo.sh'
+        script = Path(__file__).resolve().parents[2] / 'tools/stage3-report/demo.sh'
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             requested, qualified, tools = (root / name for name in ('requested', 'qualified', 'tools'))

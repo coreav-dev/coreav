@@ -4,7 +4,7 @@ import types
 import unittest
 from unittest import mock
 
-spec = importlib.util.spec_from_file_location('benchlib', Path(__file__).resolve().parents[1] / 'benchlib.py')
+spec = importlib.util.spec_from_file_location('benchlib', Path(__file__).resolve().parents[2] / 'bench/shared/benchlib.py')
 benchlib = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(benchlib)
 

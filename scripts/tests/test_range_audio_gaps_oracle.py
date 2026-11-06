@@ -7,7 +7,7 @@ import types
 import unittest
 from unittest import mock
 
-spec = importlib.util.spec_from_file_location('range_gaps', Path(__file__).resolve().parents[1] / 'gaps.py')
+spec = importlib.util.spec_from_file_location('range_gaps', Path(__file__).resolve().parents[2] / 'bench/range-audio/gaps.py')
 driver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(driver)
 
