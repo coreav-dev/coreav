@@ -488,13 +488,13 @@ fn intra4(
         let p = y / 4 * 4 + x / 4;
         let a = availability(k, a);
         let predicted = predicted_mode(&out.modes, top, left, p);
-        let mut proposal = None;
         if cheap {
+            let mut proposal = None;
+            let mut tile = out.tile.clone();
             for mode in 0..9 {
                 if !legal(mode, 4, a) {
                     continue;
                 }
-                let mut tile = out.tile.clone();
                 tile.prediction(x, y, 4, a, mode)?;
                 let mut bits = Bits::count();
                 mode_bits(&mut bits, mode, predicted)?;
@@ -504,15 +504,28 @@ fn intra4(
                     proposal = Some(value);
                 }
             }
-            cheap_score += proposal.ok_or(Error::Internal)?.0;
+            let (score, mode) = proposal.ok_or(Error::Internal)?;
+            cheap_score += score;
+            out.tile.prediction(x, y, 4, a, mode)?;
+            let levels = t::quantize(&t::forward(&out.tile.residual(source, x, y)?)?, qp, false)?;
+            out.tile.add(x, y, &t::scaled(&levels, qp, None)?)?;
+            let count = cavlc::residual(
+                &mut Bits::count(),
+                &t::scan(&levels)?,
+                nc(&counts, top, left, 0, p),
+            )?;
+            *out.modes.get_mut(p).ok_or(Error::Internal)? = mode;
+            *out.levels.get_mut(k).ok_or(Error::Internal)? = levels;
+            *counts.get_mut(p).ok_or(Error::Internal)? = count;
+            continue;
         }
         let mut best = None;
+        let mut tile = out.tile.clone();
         for mode in 0..9 {
-            if !legal(mode, 4, a) || proposal.is_some_and(|(_, selected)| mode != selected) {
+            if !legal(mode, 4, a) {
                 continue;
             }
             let result = (|| {
-                let mut tile = out.tile.clone();
                 tile.prediction(x, y, 4, a, mode)?;
                 let transformed = t::forward(&tile.residual(source, x, y)?)?;
                 let levels = t::quantize(&transformed, qp, false)?;
@@ -522,14 +535,18 @@ fn intra4(
                 let count =
                     cavlc::residual(&mut bits, &t::scan(&levels)?, nc(&counts, top, left, 0, p))?;
                 let score = tile.error(source, x, y, 4)? + lambda * bits.len as u64;
-                Ok::<_, Error>(((score, bits.len, mode), tile, levels, count))
+                let mut block = [0; 16];
+                for (j, row) in block.chunks_exact_mut(4).enumerate() {
+                    let at = Tile::at(x, y + j);
+                    row.copy_from_slice(tile.0.get(at..at + 4).ok_or(Error::Internal)?);
+                }
+                Ok::<_, Error>(((score, bits.len, mode), block, levels, count))
             })();
             match result {
                 Ok(candidate) => {
-                    if best
-                        .as_ref()
-                        .is_none_or(|b: &((u64, usize, u8), Tile, [i32; 16], u8)| candidate.0 < b.0)
-                    {
+                    if best.as_ref().is_none_or(
+                        |b: &((u64, usize, u8), [u8; 16], [i32; 16], u8)| candidate.0 < b.0,
+                    ) {
                         best = Some(candidate);
                     }
                 }
@@ -537,8 +554,15 @@ fn intra4(
                 Err(e) => return Err(e),
             }
         }
-        let ((_, _, mode), tile, levels, count) = best.ok_or(Error::Coefficient)?;
-        out.tile = tile;
+        let ((_, _, mode), block, levels, count) = best.ok_or(Error::Coefficient)?;
+        for (j, row) in block.chunks_exact(4).enumerate() {
+            let at = Tile::at(x, y + j);
+            out.tile
+                .0
+                .get_mut(at..at + 4)
+                .ok_or(Error::Internal)?
+                .copy_from_slice(row);
+        }
         *out.modes.get_mut(p).ok_or(Error::Internal)? = mode;
         *out.levels.get_mut(k).ok_or(Error::Internal)? = levels;
         *counts.get_mut(p).ok_or(Error::Internal)? = count;
@@ -559,6 +583,7 @@ impl FramePlane {
             height,
         })
     }
+    #[cfg(test)]
     fn sample(&self, x: i32, y: i32) -> Result<u8> {
         self.data
             .get(
@@ -567,6 +592,26 @@ impl FramePlane {
             )
             .copied()
             .ok_or(Error::Internal)
+    }
+    fn row(&self, x: i32, y: i32, out: &mut [u8]) -> Result<()> {
+        let start = y.clamp(0, self.height as i32 - 1) as usize * self.width;
+        let row = self
+            .data
+            .get(start..start + self.width)
+            .ok_or(Error::Internal)?;
+        if x >= 0 && x as usize + out.len() <= self.width {
+            out.copy_from_slice(
+                row.get(x as usize..x as usize + out.len())
+                    .ok_or(Error::Internal)?,
+            );
+            return Ok(());
+        }
+        for (i, value) in out.iter_mut().enumerate() {
+            *value = *row
+                .get((x + i as i32).clamp(0, self.width as i32 - 1) as usize)
+                .ok_or(Error::Internal)?;
+        }
+        Ok(())
     }
     fn tiles(&self, source: Plane<'_>, x: usize, y: usize, n: usize) -> Result<(Tile, Tile)> {
         let mut base = Tile::empty();
@@ -713,7 +758,13 @@ impl Decision<'_> {
         })
     }
 
-    fn quick_intra(&self, base: &Tile, cbases: &[Tile; 2], a: IntraAvail) -> Result<Candidate> {
+    fn quick_intra(
+        &self,
+        base: &Tile,
+        cbases: &[Tile; 2],
+        a: IntraAvail,
+        four: bool,
+    ) -> Result<Candidate> {
         let mut luma = None;
         let mut chroma_mode = None;
         for mode in 0..4 {
@@ -742,22 +793,25 @@ impl Decision<'_> {
         }
         let luma_mode = luma.ok_or(Error::Internal)?.1;
         let chroma_mode = chroma_mode.ok_or(Error::Internal)?.1;
-        let (score, four) = intra4(
-            base,
-            self.source,
-            a,
-            self.qp,
-            self.context.top,
-            self.context.left,
-            true,
-        )?;
-        let (luma, choice) = if score < luma.ok_or(Error::Internal)?.0 {
-            (four, 4)
+        let four = if four {
+            Some(intra4(
+                base,
+                self.source,
+                a,
+                self.qp,
+                self.context.top,
+                self.context.left,
+                true,
+            )?)
         } else {
-            (
+            None
+        };
+        let (luma, choice) = match four {
+            Some((score, four)) if score < luma.ok_or(Error::Internal)?.0 => (four, 4),
+            _ => (
                 intra16(base, self.source, a, luma_mode, self.qp)?,
                 luma_mode,
-            )
+            ),
         };
         self.candidate(
             luma,
@@ -772,10 +826,14 @@ impl Decision<'_> {
         base: &Tile,
         cbases: &[Tile; 2],
         a: IntraAvail,
-        exhaustive: bool,
+        scope: IntraScope,
         best: &mut Option<Candidate>,
         refusal: &mut Error,
     ) -> Result<()> {
+        if scope == IntraScope::None {
+            return Ok(());
+        }
+        let exhaustive = scope == IntraScope::Exhaustive;
         if !exhaustive && self.context.p_slice && best.is_some() {
             let mut floor = Bits::count();
             floor.ue(self.pending_skip)?;
@@ -790,7 +848,7 @@ impl Decision<'_> {
             }
         }
         if !exhaustive {
-            match self.quick_intra(base, cbases, a) {
+            match self.quick_intra(base, cbases, a, scope == IntraScope::Quick) {
                 Ok(candidate) => {
                     consider(best, candidate);
                     return Ok(());
@@ -848,6 +906,14 @@ impl Decision<'_> {
         }
         Ok(())
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum IntraScope {
+    None,
+    Sixteen,
+    Quick,
+    Exhaustive,
 }
 
 fn consider(best: &mut Option<Candidate>, candidate: Candidate) {
@@ -940,7 +1006,9 @@ pub(crate) fn picture(
             };
             let mut best = None;
             let mut refusal = Error::Coefficient;
-            if !slice.idr {
+            let scope = if slice.idr {
+                IntraScope::Exhaustive
+            } else {
                 inter::Search {
                     reference: e.reference.as_ref().ok_or(Error::Internal)?,
                     decision: &decision,
@@ -949,17 +1017,9 @@ pub(crate) fn picture(
                     my,
                     previous: previous_mv_count,
                 }
-                .candidates(&mut best, &mut refusal)?;
-            }
-            let exact_skip = match best.as_ref() {
-                Some(candidate) if candidate.inter.as_ref().is_some_and(|inter| inter.skip) => {
-                    candidate.key.cost == decision.cost(0, candidate.key.bits)?
-                }
-                _ => false,
+                .candidates(&mut best, &mut refusal)?
             };
-            if !exact_skip {
-                decision.intra(&base, &cbases, a, slice.idr, &mut best, &mut refusal)?;
-            }
+            decision.intra(&base, &cbases, a, scope, &mut best, &mut refusal)?;
             let Candidate {
                 luma,
                 chroma,
@@ -1168,9 +1228,14 @@ mod tests {
                 pending_skip: 0,
             };
             INTRA_PAIRS.with(|count| count.set(0));
-            let candidate = decision.quick_intra(&base, &csources, a).unwrap();
+            let candidate = decision.quick_intra(&base, &csources, a, true).unwrap();
             selected_four |= candidate.luma.mode.is_none();
             assert_eq!(INTRA_PAIRS.with(|count| count.get()), 1);
+            let sixteen = decision.quick_intra(&base, &csources, a, false).unwrap();
+            assert!(sixteen.luma.mode.is_some_and(|mode| legal(mode, 16, a)));
+            if candidate.luma.mode.is_some() {
+                assert!(sixteen.key == candidate.key);
+            }
         }
         assert!(selected_four);
     }
@@ -1205,7 +1270,7 @@ mod tests {
                         &base,
                         &csources,
                         a,
-                        false,
+                        IntraScope::Quick,
                         &mut best,
                         &mut Error::Coefficient,
                     )
@@ -1250,7 +1315,7 @@ mod tests {
         };
         let a = intra_availability(Border::default());
         assert!(matches!(
-            decision.quick_intra(&base, &[base.clone(), base.clone()], a),
+            decision.quick_intra(&base, &[base.clone(), base.clone()], a, true),
             Err(Error::MacroblockLimit)
         ));
         INTRA_PAIRS.with(|count| count.set(0));
@@ -1261,7 +1326,7 @@ mod tests {
                 &base,
                 &[base.clone(), base.clone()],
                 a,
-                false,
+                IntraScope::Quick,
                 &mut best,
                 &mut refusal,
             )
