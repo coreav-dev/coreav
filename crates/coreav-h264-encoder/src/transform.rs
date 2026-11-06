@@ -36,6 +36,9 @@ pub(crate) fn norm(qp: u8, position: usize) -> Result<i64> {
 
 fn nearest(numerator: i64, denominator: i64) -> Result<i32> {
     let a = numerator.abs();
+    if 2 * a <= denominator {
+        return Ok(0);
+    }
     let level = a / denominator + i64::from((a % denominator) * 2 > denominator);
     i32::try_from(if numerator < 0 { -level } else { level }).map_err(|_| Error::Coefficient)
 }
@@ -94,15 +97,20 @@ pub(crate) fn quantize(transformed: &[i64; 16], qp: u8, separate_dc: bool) -> Re
 
 pub(crate) fn scaled(levels: &[i32; 16], qp: u8, dc: Option<i32>) -> Result<[i32; 16]> {
     let mut out = [0; 16];
-    for (p, dst) in out.iter_mut().enumerate() {
-        let n =
-            i64::from(*levels.get(p).ok_or(Error::Internal)?) * norm(qp, p)? * (1i64 << (qp / 6));
-        *dst = range(n)?;
+    if levels.iter().any(|&level| level != 0) {
+        for (p, dst) in out.iter_mut().enumerate() {
+            let n = i64::from(*levels.get(p).ok_or(Error::Internal)?)
+                * norm(qp, p)?
+                * (1i64 << (qp / 6));
+            *dst = range(n)?;
+        }
     }
     if let Some(dc) = dc {
         *out.first_mut().ok_or(Error::Internal)? = dc;
     }
-    check_inverse(&out)?;
+    if out.iter().any(|&coefficient| coefficient != 0) {
+        check_inverse(&out)?;
+    }
     Ok(out)
 }
 

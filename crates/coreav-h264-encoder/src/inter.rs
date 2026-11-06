@@ -97,10 +97,13 @@ fn predict(
         .map_err(|_| Error::Internal)?
     } else {
         for j in 0..height + extra {
-            for i in 0..width + extra {
-                *window.get_mut(j * 21 + i).ok_or(Error::Internal)? =
-                    reference.sample(ix + i as i32, iy + j as i32)?;
-            }
+            reference.row(
+                ix,
+                iy + j as i32,
+                window
+                    .get_mut(j * 21..j * 21 + width + extra)
+                    .ok_or(Error::Internal)?,
+            )?;
         }
         Block::new(&window, 0, 21, width + extra, height + extra).map_err(|_| Error::Internal)?
     };
@@ -270,9 +273,10 @@ impl Search<'_> {
                         .ok_or(Error::Internal)?;
                     sad += crate::kernels::sad(original, predicted)?;
                 } else {
-                    for (x, &a) in original.iter().enumerate() {
-                        sad += u64::from(a.abs_diff(reference.sample(ix + x as i32, iy)?));
-                    }
+                    let mut row = [0; 16];
+                    let row = row.get_mut(..part.width).ok_or(Error::Internal)?;
+                    reference.row(ix, iy, row)?;
+                    sad += crate::kernels::sad(original, row)?;
                 }
                 if cutoff.is_some_and(|limit| sad + motion_cost > limit) {
                     return Ok(None);

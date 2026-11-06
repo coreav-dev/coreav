@@ -488,13 +488,13 @@ fn intra4(
         let p = y / 4 * 4 + x / 4;
         let a = availability(k, a);
         let predicted = predicted_mode(&out.modes, top, left, p);
-        let mut proposal = None;
         if cheap {
+            let mut proposal = None;
+            let mut tile = out.tile.clone();
             for mode in 0..9 {
                 if !legal(mode, 4, a) {
                     continue;
                 }
-                let mut tile = out.tile.clone();
                 tile.prediction(x, y, 4, a, mode)?;
                 let mut bits = Bits::count();
                 mode_bits(&mut bits, mode, predicted)?;
@@ -504,15 +504,28 @@ fn intra4(
                     proposal = Some(value);
                 }
             }
-            cheap_score += proposal.ok_or(Error::Internal)?.0;
+            let (score, mode) = proposal.ok_or(Error::Internal)?;
+            cheap_score += score;
+            out.tile.prediction(x, y, 4, a, mode)?;
+            let levels = t::quantize(&t::forward(&out.tile.residual(source, x, y)?)?, qp, false)?;
+            out.tile.add(x, y, &t::scaled(&levels, qp, None)?)?;
+            let count = cavlc::residual(
+                &mut Bits::count(),
+                &t::scan(&levels)?,
+                nc(&counts, top, left, 0, p),
+            )?;
+            *out.modes.get_mut(p).ok_or(Error::Internal)? = mode;
+            *out.levels.get_mut(k).ok_or(Error::Internal)? = levels;
+            *counts.get_mut(p).ok_or(Error::Internal)? = count;
+            continue;
         }
         let mut best = None;
+        let mut tile = out.tile.clone();
         for mode in 0..9 {
-            if !legal(mode, 4, a) || proposal.is_some_and(|(_, selected)| mode != selected) {
+            if !legal(mode, 4, a) {
                 continue;
             }
             let result = (|| {
-                let mut tile = out.tile.clone();
                 tile.prediction(x, y, 4, a, mode)?;
                 let transformed = t::forward(&tile.residual(source, x, y)?)?;
                 let levels = t::quantize(&transformed, qp, false)?;
@@ -522,14 +535,18 @@ fn intra4(
                 let count =
                     cavlc::residual(&mut bits, &t::scan(&levels)?, nc(&counts, top, left, 0, p))?;
                 let score = tile.error(source, x, y, 4)? + lambda * bits.len as u64;
-                Ok::<_, Error>(((score, bits.len, mode), tile, levels, count))
+                let mut block = [0; 16];
+                for (j, row) in block.chunks_exact_mut(4).enumerate() {
+                    let at = Tile::at(x, y + j);
+                    row.copy_from_slice(tile.0.get(at..at + 4).ok_or(Error::Internal)?);
+                }
+                Ok::<_, Error>(((score, bits.len, mode), block, levels, count))
             })();
             match result {
                 Ok(candidate) => {
-                    if best
-                        .as_ref()
-                        .is_none_or(|b: &((u64, usize, u8), Tile, [i32; 16], u8)| candidate.0 < b.0)
-                    {
+                    if best.as_ref().is_none_or(
+                        |b: &((u64, usize, u8), [u8; 16], [i32; 16], u8)| candidate.0 < b.0,
+                    ) {
                         best = Some(candidate);
                     }
                 }
@@ -537,8 +554,15 @@ fn intra4(
                 Err(e) => return Err(e),
             }
         }
-        let ((_, _, mode), tile, levels, count) = best.ok_or(Error::Coefficient)?;
-        out.tile = tile;
+        let ((_, _, mode), block, levels, count) = best.ok_or(Error::Coefficient)?;
+        for (j, row) in block.chunks_exact(4).enumerate() {
+            let at = Tile::at(x, y + j);
+            out.tile
+                .0
+                .get_mut(at..at + 4)
+                .ok_or(Error::Internal)?
+                .copy_from_slice(row);
+        }
         *out.modes.get_mut(p).ok_or(Error::Internal)? = mode;
         *out.levels.get_mut(k).ok_or(Error::Internal)? = levels;
         *counts.get_mut(p).ok_or(Error::Internal)? = count;
@@ -559,6 +583,7 @@ impl FramePlane {
             height,
         })
     }
+    #[cfg(test)]
     fn sample(&self, x: i32, y: i32) -> Result<u8> {
         self.data
             .get(
@@ -567,6 +592,23 @@ impl FramePlane {
             )
             .copied()
             .ok_or(Error::Internal)
+    }
+    fn row(&self, x: i32, y: i32, out: &mut [u8]) -> Result<()> {
+        let start = y.clamp(0, self.height as i32 - 1) as usize * self.width;
+        let row = self
+            .data
+            .get(start..start + self.width)
+            .ok_or(Error::Internal)?;
+        if x >= 0 && x as usize + out.len() <= self.width {
+            out.copy_from_slice(row.get(x as usize..x as usize + out.len()).ok_or(Error::Internal)?);
+            return Ok(());
+        }
+        for (i, value) in out.iter_mut().enumerate() {
+            *value = *row
+                .get((x + i as i32).clamp(0, self.width as i32 - 1) as usize)
+                .ok_or(Error::Internal)?;
+        }
+        Ok(())
     }
     fn tiles(&self, source: Plane<'_>, x: usize, y: usize, n: usize) -> Result<(Tile, Tile)> {
         let mut base = Tile::empty();

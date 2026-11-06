@@ -37,13 +37,17 @@ impl Bits {
             bytes
                 .try_reserve(end.div_ceil(8).saturating_sub(bytes.len()))
                 .map_err(|_| Error::Allocation)?;
-            for shift in (0..width).rev() {
-                if self.len % 8 == 0 {
+            let mut remaining = width;
+            while remaining != 0 {
+                let used = (self.len % 8) as u32;
+                if used == 0 {
                     bytes.push(0);
                 }
-                let last = bytes.last_mut().ok_or(Error::Internal)?;
-                *last |= (((value >> shift) & 1) as u8) << (7 - self.len % 8);
-                self.len += 1;
+                let take = remaining.min(8 - used);
+                let chunk = ((value >> (remaining - take)) & ((1 << take) - 1)) as u8;
+                *bytes.last_mut().ok_or(Error::Internal)? |= chunk << (8 - used - take);
+                self.len += take as usize;
+                remaining -= take;
             }
         } else {
             self.len = end;
