@@ -98,6 +98,39 @@ class MainPlan(unittest.TestCase):
                 self.assertEqual(done.returncode == 0, succeeds,
                                  'The macOS SAR witness must reject zero or failed tests')
 
+    def test_macos_crop_runs_real_media_with_qualified_tools(self):
+        steps = self.workflows['ci']['jobs']['check-macos']['steps']
+        selected = [s for s in steps if s.get('name') == 'Literal crop frames on macOS']
+        self.assertEqual(len(selected), 1, 'Run the literal-crop media case in check-macos')
+        step = selected[0]
+        self.assertEqual(step.get('if'), "env.COREAV_FFMPEG != '' && env.COREAV_FFPROBE != ''")
+        self.assertEqual(step['env'], {
+            'COREAV_REQUIRE_FFMPEG': '1',
+            'COREAV_X264': '${{ runner.temp }}/coreav-test-oracle/x264',
+        })
+        self.assertEqual(step['run'].splitlines(), [
+            'cargo test --locked -p coreav-cli --features native-h264 --test transcode '
+            'ffmpeg_libx264_crop_matches_the_oracle -- --exact --nocapture --color never '
+            '2>&1 | tee "$RUNNER_TEMP/literal-crop-macos.log"',
+            "grep -F 'test ffmpeg_libx264_crop_matches_the_oracle ... ok' "
+            '"$RUNNER_TEMP/literal-crop-macos.log"',
+        ], 'Run the exact crop test and require its success witness, not a zero-test pass')
+        install, = [s for s in steps if s.get('name') == 'Declared sample aspect ratios on macOS']
+        self.assertIn('scripts/install-x264.sh', install['run'])
+        self.assertLess(steps.index(install), steps.index(step))
+        with tempfile.TemporaryDirectory() as directory:
+            log = pathlib.Path(directory) / 'literal-crop-macos.log'
+            for output, succeeds in [
+                ('running 0 tests\ntest result: ok. 0 passed; 0 failed\n', False),
+                ('test ffmpeg_libx264_crop_matches_the_oracle ... FAILED\n', False),
+                ('test ffmpeg_libx264_crop_matches_the_oracle ... ok\n', True),
+            ]:
+                log.write_text(output)
+                result = subprocess.run(['bash', '-c', step['run'].splitlines()[-1]],
+                                        capture_output=True, text=True,
+                                        env={'RUNNER_TEMP': directory, 'PATH': '/usr/bin:/bin'})
+                self.assertEqual(result.returncode == 0, succeeds)
+
     def test_aac_qualification_report_survives_failure(self):
         workflow = json.loads(subprocess.check_output(
             ['ruby', '-rjson', '-rpsych', '-e', 'puts JSON.generate(Psych.load_file(ARGV[0]))',

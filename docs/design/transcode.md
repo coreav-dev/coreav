@@ -1131,7 +1131,8 @@ explicit AAC, and default libx264 can use only the x264 program.
 | `-b:v RATE` | `--bitrate`: FFmpeg's number syntax (`k`, `M`, a fraction), in bits a second, divided by 1,000 with the remainder dropped as libx264 receives it (`1M` 1,000, `1234567` 1,234 kbit/s, checked on the pinned FFmpeg as a black box); a rate below 1,000 is refused |
 | `-preset P` | `--preset` |
 | `-threads N` after the input | `--threads`; `0` is the encoder's own choice |
-| `-vf`, `-filter:v` `scale=W:H` | `--scale W:H`, the forms it takes; any other filter or filter chain is refused |
+| `-vf`, `-filter:v` `scale=W:H` | `--scale W:H`, the forms it takes; filter chains are refused |
+| `-vf`, `-filter:v` `crop=W:H:X:Y` | one literal even-aligned rectangle on planar 8-bit 4:2:0 frames, preserving source SAR; no scale beside it ([plan](transcode-literal-crop.md)) |
 | `-s WxH` after the input | `--scale W:H` |
 | `-pix_fmt yuv420p` | the encoder's input must be 8-bit 4:2:0 (`TranscodeOptions::pixel_format`); frames are not converted, so a source decoded to another format is refused before the encoder starts (FFmpeg converts it) |
 | `-movflags +faststart`, `faststart` | nothing: the movie box is always first |
