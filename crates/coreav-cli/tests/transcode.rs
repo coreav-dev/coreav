@@ -2111,6 +2111,7 @@ fn ffmpeg_libx264_crop_matches_the_oracle() {
     for (name, crop) in [
         ("origin", "crop=32:24:0:0"),
         ("offset", "crop=32:24:16:8"),
+        ("aspect", "crop=32:16:16:8"),
         ("identity", "crop=64:48:0:0"),
     ] {
         let reference = dir.join(format!("{name}-reference.mp4"));
@@ -2335,7 +2336,7 @@ fn ffmpeg_libx264_crop_matches_the_oracle() {
                 .args(["ffmpeg", "-i"])
                 .arg(&source)
                 .args(flags)
-                .args(["-vf", "crop=32:24:16:8"])
+                .args(["-vf", "crop=32:16:16:8"])
                 .arg(&output)
                 .env("COREAV_FFMPEG", pair.ffmpeg())
                 .env("COREAV_X264", &x264)
