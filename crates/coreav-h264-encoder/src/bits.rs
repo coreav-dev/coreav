@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::{Error, Result};
 
 pub(crate) struct Bits {

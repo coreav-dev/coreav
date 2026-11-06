@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::{bits::Bits, codec, syntax};
 
 /// A bounded encoding failure. No access unit is returned on failure.

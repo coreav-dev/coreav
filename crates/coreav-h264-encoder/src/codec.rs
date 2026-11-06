@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::{
     Deblocking, Encoder, Error, Picture, Plane, Result,
     api::zeros,

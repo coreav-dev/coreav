@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::motion::MotionMb;
 use crate::{Error, Result};
 use coreav_kernels_h264::{EdgeMut, EdgeParams, Kernels, Reach, Scalar};
