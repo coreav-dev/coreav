@@ -684,7 +684,9 @@ fn deadline(_limits: &Limits) -> Option<Instant> {
 fn packed(picture: &mut Picture, plane: usize, rows: PlaneRef<'_>) -> Result<(), Error> {
     let invalid = || Error::new(ErrorKind::Backend, "decoded plane geometry changed");
     let (height, width) = picture.plane_rows(plane).ok_or_else(invalid)?;
-    for (y, row) in rows.rows().take(height).enumerate() {
+    let mut rows = rows.rows();
+    for y in 0..height {
+        let row = rows.next().ok_or_else(invalid)?;
         picture
             .row_mut(plane, y)
             .ok_or_else(invalid)?
@@ -818,6 +820,22 @@ fn parse_avcc(data: &[u8]) -> Result<Avcc<'_>, Error> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn packed_output_refuses_a_short_source_plane() {
+        let source = coreav_h264::Picture::black(1, 1, &Default::default()).unwrap();
+        let mut picture =
+            coreav_frame::Picture::zeroed(16, 32, coreav_frame::PixelFormat::YUV420P).unwrap();
+        assert_eq!(
+            super::packed(&mut picture, 0, source.luma())
+                .unwrap_err()
+                .kind,
+            coreav_decode::ErrorKind::Backend
+        );
+        let mut picture =
+            coreav_frame::Picture::zeroed(16, 16, coreav_frame::PixelFormat::YUV420P).unwrap();
+        assert!(super::packed(&mut picture, 0, source.luma()).is_ok());
+    }
+
     use super::*;
 
     /// Version 1, profile 66, level 10, a length size of four, one

@@ -12,8 +12,9 @@ use coreav_decode::{Backend, Codec, Limits, Packet, StreamConfig};
 #[global_allocator]
 static ALLOC: CountingAllocator = CountingAllocator;
 
-#[test]
-fn steady_output_reuses_planes_within_the_existing_budget() {
+const ALLOCATION_LIMIT: u64 = 32 * 256 * 256 / 4;
+
+fn output_allocations(extra_plane_bytes: usize) -> coreav_counting_alloc::Counters {
     let backend = NativeH264::with_options(NativeOptions {
         threads: Some(1),
         ..NativeOptions::default()
@@ -63,11 +64,31 @@ fn steady_output_reuses_planes_within_the_existing_budget() {
         for pts in 8..40 {
             let picture = receive(pts);
             assert_eq!(&picture.row(0, 0).unwrap()[..16], &[1; 16]);
+            if extra_plane_bytes != 0 {
+                std::hint::black_box(vec![1u8; extra_plane_bytes]);
+            }
         }
     });
     coreav_counting_alloc::report("packed-output-reuse", &counters);
+    counters
+}
+
+#[test]
+fn steady_output_reuses_planes_within_the_existing_budget() {
+    let counters = output_allocations(0);
     assert!(
-        counters.bytes < 32 * 256 * 256 * 3 / 2,
-        "steady decoding allocated at least one packed frame per output: {counters}"
+        counters.bytes < ALLOCATION_LIMIT,
+        "steady decoding allocated at least one chroma plane per output: {counters}"
     );
+}
+
+#[test]
+fn one_new_luma_or_chroma_plane_per_output_exceeds_the_budget() {
+    for bytes in [256 * 256, 256 * 256 / 4] {
+        let counters = output_allocations(bytes);
+        assert!(
+            counters.bytes >= ALLOCATION_LIMIT,
+            "the budget failed to reject a new {bytes}-byte plane per output: {counters}"
+        );
+    }
 }
