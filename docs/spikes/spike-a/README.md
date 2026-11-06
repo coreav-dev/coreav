@@ -682,8 +682,8 @@ no open-GOP/recovery-point parser, no one-hour index reload gate, and no full
 ## Clean-room sources
 
 Besides the project's own documents, only public specifications
-and documented dependency APIs were used. No multimedia implementation source, repository history, old tag,
-or archived prototype was read or copied. Existing CoreAV benchmark/oracle
+and documented dependency APIs were used. No multimedia implementation source
+was read or copied. Existing CoreAV benchmark/oracle
 scripts are test orchestration patterns, not parser design specifications.
 
 - [ISO/IEC 14496-12:2012 document](https://ossrs.io/lts/zh-cn/assets/files/ISO_IEC_14496-12-base-format-2012-b70dd5f101daecd072700609842c9649.pdf), sections 6.2, 8.2–8.8, 8.8.9–8.8.11 and 8.16.3: boxes, sample tables, edits, fragments, mfra/tfra/mfro and sidx. Only the standard PDF was consulted at this host.

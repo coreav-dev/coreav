@@ -115,11 +115,7 @@ pub(super) fn write(
     let force = super::check_output(command, path)?;
     let this = std::env::current_exe().ok();
     let backends = crate::thumbnail::backends(this.as_deref(), 0, false, strict_safe);
-    let mut options = ffv1::Options {
-        progressive: true,
-        ..ffv1::Options::default()
-    };
-    options.source.stream = Some(stream);
+    let mut options = job_options(stream);
     {
         let source = BufferedSource::new(FileSource::open(input).map_err(WriteFailure::from)?);
         let video = coreav_thumbnail::video_stream(source, &options.source)
@@ -167,6 +163,17 @@ pub(super) fn write(
             })
     });
     result.map_err(|failure| super::encode::failed(failure, None))
+}
+
+#[cfg(feature = "transcode")]
+fn job_options(stream: usize) -> coreav_transcode::ffv1::Options {
+    let mut options = coreav_transcode::ffv1::Options {
+        progressive: true,
+        ..Default::default()
+    };
+    options.source.stream = Some(stream);
+    options.source.decode_limits.timeout = super::ENCODE_LIMIT;
+    options
 }
 
 #[cfg(test)]
@@ -232,5 +239,18 @@ mod tests {
             super::super::plan(&command, &report, None),
             Ok(Job::Ffv1 { .. })
         ));
+    }
+
+    #[cfg(feature = "transcode")]
+    #[test]
+    fn the_encode_has_the_same_command_limit_as_other_encodes() {
+        let options = job_options(3);
+        assert!(options.progressive);
+        assert_eq!(options.source.stream, Some(3));
+        assert_eq!(
+            options.source.decode_limits.timeout,
+            super::super::ENCODE_LIMIT
+        );
+        assert!(super::super::ENCODE_LIMIT > coreav_decode::Limits::default().timeout);
     }
 }

@@ -28,6 +28,10 @@ mod ts;
 
 pub(crate) const MUXER_ENCODER: &str = "Lavf63.1.102";
 
+/// The wall-clock limit of one native encode command.
+#[cfg(feature = "transcode")]
+const ENCODE_LIMIT: std::time::Duration = std::time::Duration::from_secs(3600);
+
 use crate::error::Failure;
 use crate::fallback::NotNative;
 use crate::ffprobe::args::Kind2;

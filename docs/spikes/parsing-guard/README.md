@@ -307,8 +307,7 @@ ISO/IEC 14496-15 (HEVCDecoderConfigurationRecord), [ITU-T H.265](https://www.itu
 (SPS and VUI), the [AV1 bitstream specification](https://aomediacodec.github.io/av1-spec/)
 and the [AV1 ISOBMFF binding](https://aomediacodec.github.io/av1-isobmff/) (`av1C`).
 Only public specification material and black-box oracle behavior informed code.
-No multimedia implementation source was opened or studied, and no history,
-old tags or archived prototype were read or ported.
+No multimedia implementation source was opened or studied.
 
 ## Heap and throughput measurements
 
