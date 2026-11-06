@@ -173,6 +173,7 @@
     "ffmpeg_default_codecs_match_the_oracle",
     "ffmpeg_libopus_lines_encode_the_audio",
     "ffmpeg_libx264_commands_run_the_pipeline",
+    "ffmpeg_libx264_crop_matches_the_oracle",
     "ffmpeg_libx264_keeps_a_cover_picture_only_when_it_is_copied",
     "ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply",
     "ffmpeg_libx264_refuses_before_encoding",

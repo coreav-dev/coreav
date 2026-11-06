@@ -6,6 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
+use coreav_frame::Rect;
 use coreav_isobmff::{BufferedSource, FileSource, Rational};
 use coreav_thumbnail::ThumbnailOptions;
 use coreav_transcode::PixelFormat;
@@ -235,32 +236,47 @@ pub fn request(
             _ => return Err(refused("-threads", text, "at most 128 encoder threads")),
         },
     };
-    let scale =
-        match (filter, size) {
-            (Some(_), Some(s)) => {
-                return Err(refused("-s", s, "a size beside -vf is not native"));
-            }
-            (Some(f), None) => {
+    let mut crop = None;
+    let scale = match (filter, size) {
+        (Some(_), Some(s)) => {
+            return Err(refused("-s", s, "a size beside -vf is not native"));
+        }
+        (Some(f), None) => {
+            if let Some(rect) = f.strip_prefix("crop=") {
+                crop = Some(literal_crop(rect).ok_or_else(|| {
+                    refused(
+                        "-vf",
+                        f,
+                        "of the crops only crop=W:H:X:Y in even pixels is native",
+                    )
+                })?);
+                None
+            } else {
                 let parsed = f
                     .strip_prefix("scale=")
                     .and_then(|wh| transcode::scale(wh).ok());
                 Some(parsed.ok_or_else(|| {
-                    refused("-vf", f, "of the filters only one scale=W:H is native")
+                    refused(
+                        "-vf",
+                        f,
+                        "of the filters only one scale=W:H or crop=W:H:X:Y is native",
+                    )
                 })?)
             }
-            (None, Some(s)) => {
-                let parsed = s
-                    .split_once('x')
-                    .filter(|(w, h)| {
-                        [w, h]
-                            .iter()
-                            .all(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
-                    })
-                    .and_then(|(w, h)| transcode::scale(&format!("{w}:{h}")).ok());
-                Some(parsed.ok_or_else(|| refused("-s", s, "the size must be WxH in pixels"))?)
-            }
-            (None, None) => None,
-        };
+        }
+        (None, Some(s)) => {
+            let parsed = s
+                .split_once('x')
+                .filter(|(w, h)| {
+                    [w, h]
+                        .iter()
+                        .all(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+                })
+                .and_then(|(w, h)| transcode::scale(&format!("{w}:{h}")).ok());
+            Some(parsed.ok_or_else(|| refused("-s", s, "the size must be WxH in pixels"))?)
+        }
+        (None, None) => None,
+    };
     let pixel_format = match pixel_format.as_deref() {
         None => None,
         Some("yuv420p") => Some(PixelFormat::YUV420P),
@@ -278,6 +294,7 @@ pub fn request(
         bitrate,
         preset,
         scale,
+        crop,
         no_audio: audio.is_empty(),
         audio_streams: Some(audio.clone()),
         left_out_covers: left_out_covers.clone(),
@@ -293,6 +310,31 @@ pub fn request(
         threads,
         timeout: 3600,
         strict_safe,
+    })
+}
+
+fn literal_crop(text: &str) -> Option<Rect> {
+    let mut fields = text.split(':');
+    let mut next = || {
+        let field = fields.next()?;
+        if field.is_empty() || field.len() > 5 || !field.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        let value = field.parse::<u32>().ok()?;
+        (value % 2 == 0).then_some(value)
+    };
+    let (width, height, x, y) = (next()?, next()?, next()?, next()?);
+    if fields.next().is_some()
+        || !(2..=coreav_transcode::encoder::MAX_SIZE).contains(&width)
+        || !(2..=coreav_transcode::encoder::MAX_SIZE).contains(&height)
+    {
+        return None;
+    }
+    Some(Rect {
+        x,
+        y,
+        width,
+        height,
     })
 }
 
@@ -597,6 +639,140 @@ mod tests {
 
     use super::*;
     use crate::test_isobmff::{aac_entry, audio_entry, av_movie_with};
+
+    fn geometry(options: &[&str]) -> Result<Request, Refusal> {
+        let mut line = vec!["-i", "in.mp4", "-an", "-c:v", "libx264"];
+        line.extend_from_slice(options);
+        line.push("out.mp4");
+        let line: Vec<_> = line.into_iter().map(String::from).collect();
+        let command = super::super::args::parse(&line).unwrap();
+        let mut video = job(AudioEncoder::Aac);
+        video.audio.clear();
+        video.audio_encoder = None;
+        request(
+            &command,
+            &video,
+            StrictSafe::new(false).encoder("auto", None).unwrap(),
+            StrictSafe::new(false),
+        )
+    }
+
+    #[test]
+    fn literal_crop_and_existing_scale_requests() {
+        let crop = geometry(&["-vf", "crop=32:24:0:0"]).unwrap();
+        assert_eq!(
+            crop.crop,
+            Some(Rect {
+                x: 0,
+                y: 0,
+                width: 32,
+                height: 24
+            })
+        );
+        assert_eq!(crop.scale, None);
+        for options in [vec!["-vf", "scale=32:24"], vec!["-s", "32x24"]] {
+            let request = geometry(&options).unwrap();
+            assert_eq!(request.crop, None);
+            assert_eq!(request.scale, Some(transcode::scale("32:24").unwrap()));
+        }
+        for option in ["-vf", "-filter:v"] {
+            for first in ["scale=16:16", "crop=16:16:0:0"] {
+                let scaled = geometry(&[option, first, option, "scale=32:24"]).unwrap();
+                assert_eq!(scaled.crop, None);
+                assert_eq!(scaled.scale, Some(transcode::scale("32:24").unwrap()));
+                let cropped = geometry(&[option, first, option, "crop=32:24:16:8"]).unwrap();
+                assert_eq!(cropped.scale, None);
+                assert_eq!(cropped.crop, literal_crop("32:24:16:8"));
+            }
+        }
+    }
+
+    fn crop_refused(value: &str) {
+        match geometry(&["-vf", value]) {
+            Err(Refusal::NotNative(refusal)) => {
+                assert_eq!(
+                    refusal.reason,
+                    Reason::Option("-vf".into(), Some(value.into()))
+                );
+                assert_eq!(
+                    refusal.message,
+                    format!(
+                        "'-vf {value}' is not supported: of the crops only crop=W:H:X:Y in even pixels is native"
+                    )
+                );
+            }
+            other => panic!("{value}: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn crop_expressions_are_refused() {
+        for value in [
+            "crop=iw/2:24:0:0",
+            "crop=32:ih/2:0:0",
+            "crop=32:24:(iw-ow)/2:0",
+            "crop=w=32:h=24:x=0:y=0",
+        ] {
+            crop_refused(value);
+        }
+    }
+
+    #[test]
+    fn crop_filter_chains_are_refused() {
+        for value in [
+            "crop=32:24:0:0,scale=16:16",
+            "crop=32:24:0:0,hflip",
+            "crop=32:24:0:0;crop=16:16:0:0",
+        ] {
+            crop_refused(value);
+        }
+        assert!(geometry(&["-vf", "scale=32:24,crop=16:16:0:0"]).is_err());
+    }
+
+    #[test]
+    fn crop_beside_size_is_refused() {
+        match geometry(&["-vf", "crop=32:24:0:0", "-s", "16x16"]) {
+            Err(Refusal::NotNative(refusal)) => assert_eq!(
+                refusal.message,
+                "'-s 16x16' is not supported: a size beside -vf is not native"
+            ),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn odd_crop_dimensions_are_refused() {
+        for value in ["crop=31:24:0:0", "crop=32:23:0:0"] {
+            crop_refused(value);
+        }
+    }
+
+    #[test]
+    fn odd_crop_offsets_are_refused() {
+        for value in ["crop=32:24:1:0", "crop=32:24:0:1"] {
+            crop_refused(value);
+        }
+    }
+
+    #[test]
+    fn crop_fields_are_literal_and_bounded() {
+        for value in [
+            "crop=32:24",
+            "crop=32:24:0:0:0",
+            "crop=0:24:0:0",
+            "crop=32:0:0:0",
+            "crop=-2:24:0:0",
+            "crop=+32:24:0:0",
+            "crop=32.0:24:0:0",
+            "crop=16386:24:0:0",
+            "crop=32:24:4294967294:0",
+            "crop=32:24: 0:0",
+            "crop=３２:24:0:0",
+        ] {
+            crop_refused(value);
+        }
+        assert!(literal_crop("16384:16384:99998:99998").is_some());
+    }
 
     /// Copied MP4 audio other than AAC, MP3 or Opus is refused before the
     /// encode.
