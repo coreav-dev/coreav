@@ -530,6 +530,78 @@ fn dst_mixed_non_dc_coefficients_follow_exact_integer_matrix() {
 }
 
 #[test]
+fn sparse_and_dense_random_blocks_match_literal_matrix_products() {
+    let literal = |bits: u8, n: usize, transform, qp, levels: &[i16], factors: &[u8]| {
+        let weight = |frequency: usize, position: usize| -> i128 {
+            if transform == InverseTransform::IntraLumaDst4 {
+                i128::from(crate::tables::DST_BASIS[frequency][position])
+            } else {
+                i128::from(crate::tables::DCT_BASIS[frequency * (32 / n)][position])
+            }
+        };
+        let scaled: Vec<i128> = levels
+            .iter()
+            .zip(factors)
+            .map(|(&level, &factor)| dequant(level, factor, bits, n, qp).unwrap())
+            .collect();
+        let mut intermediate = vec![0_i128; n * n];
+        for x in 0..n {
+            for y in 0..n {
+                let sum: i128 = (0..n).map(|j| weight(j, y) * scaled[j * n + x]).sum();
+                intermediate[y * n + x] = ((sum + 64) >> 7).clamp(-32768, 32767);
+            }
+        }
+        let shift = 20 - u32::from(bits);
+        let mut residual = vec![0; n * n];
+        for y in 0..n {
+            for x in 0..n {
+                let sum: i128 = (0..n).map(|j| weight(j, x) * intermediate[y * n + j]).sum();
+                residual[y * n + x] = ((sum + (1 << (shift - 1))) >> shift) as i32;
+            }
+        }
+        residual
+    };
+    let mut seed = 0x6d2b_79f5_u32;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        seed
+    };
+    for bits in [8, 10] {
+        for (n, transform) in [
+            (4, InverseTransform::IntraLumaDst4),
+            (4, InverseTransform::Dct),
+            (8, InverseTransform::Dct),
+            (16, InverseTransform::Dct),
+            (32, InverseTransform::Dct),
+        ] {
+            for round in 0..48 {
+                let columns = 1 + next() as usize % n;
+                let rows = 1 + next() as usize % n;
+                let density = 1 + next() % 4;
+                let qp = (next() % u32::from(52 + 6 * (bits - 8))) as u8;
+                let mut levels = vec![0_i16; n * n];
+                for y in 0..rows {
+                    for x in 0..columns {
+                        if next() % density == 0 {
+                            let magnitude = if round % 8 == 0 { 0xffff } else { 0x3ff };
+                            levels[y * n + x] = (next() & magnitude) as u16 as i16;
+                        }
+                    }
+                }
+                let factors: Vec<u8> = (0..n * n).map(|_| 1 + (next() % 255) as u8).collect();
+                assert_eq!(
+                    inverse(bits, n, transform, qp, &levels, &factors).unwrap(),
+                    literal(bits, n, transform, qp, &levels, &factors),
+                    "bits {bits} n {n} {transform:?} round {round}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn intermediate_clipping_happens_before_horizontal_transform() {
     for bits in [8, 10] {
         for n in [4, 8, 16, 32] {
