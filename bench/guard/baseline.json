@@ -4,12 +4,12 @@
   "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
   "valgrind": "valgrind-3.22.0"
  },
- "startup": 486964,
+ "startup": 515155,
  "cases": {
   "ffmpeg-C01-remux": {
    "fixture": "basic.mp4",
    "sha256": "7ef2ba5f415170e29f0e8d6895abc8e19f1627be441ccc5a0faec4ac25f98b9e",
-   "instructions": 920134
+   "instructions": 1019522
   },
   "ffmpeg-C02-join": {
    "fixture": "video.mp4",
@@ -19,27 +19,27 @@
   "ffmpeg-C03-remux-map": {
    "fixture": "basic.mp4",
    "sha256": "7ef2ba5f415170e29f0e8d6895abc8e19f1627be441ccc5a0faec4ac25f98b9e",
-   "instructions": 927990
+   "instructions": 1026887
   },
   "ffmpeg-C05-clip": {
    "fixture": "basic.mp4",
    "sha256": "7ef2ba5f415170e29f0e8d6895abc8e19f1627be441ccc5a0faec4ac25f98b9e",
-   "instructions": 940099
+   "instructions": 1004978
   },
   "ffmpeg-C13-extract-audio": {
    "fixture": "basic.mp4",
    "sha256": "7ef2ba5f415170e29f0e8d6895abc8e19f1627be441ccc5a0faec4ac25f98b9e",
-   "instructions": 684143
+   "instructions": 742649
   },
   "ffmpeg-C15-clip-audio": {
    "fixture": "aac.m4a",
    "sha256": "0579991541db0a3097d1810dae2fd62cb7ceac719f473193888af33677184e1d",
-   "instructions": 513714
+   "instructions": 546850
   },
   "ffmpeg-C17-remux-video": {
    "fixture": "video.mp4",
    "sha256": "5691c22d66ed21fd077c40d9213be292889f903f00fd609dbd09f4350e8f1b07",
-   "instructions": 486261
+   "instructions": 531885
   },
   "ffmpeg-C18-clip-input": {
    "fixture": "basic.mp4",
@@ -54,22 +54,22 @@
   "ffmpeg-C20-extract-audio-map": {
    "fixture": "basic.mp4",
    "sha256": "7ef2ba5f415170e29f0e8d6895abc8e19f1627be441ccc5a0faec4ac25f98b9e",
-   "instructions": 687544
+   "instructions": 745734
   },
   "ffmpeg-C23-remux-faststart": {
    "fixture": "basic.mp4",
    "sha256": "7ef2ba5f415170e29f0e8d6895abc8e19f1627be441ccc5a0faec4ac25f98b9e",
-   "instructions": 926580
+   "instructions": 1026529
   },
   "ffmpeg-C25-extract-audio-metadata": {
    "fixture": "aac.m4a",
    "sha256": "0579991541db0a3097d1810dae2fd62cb7ceac719f473193888af33677184e1d",
-   "instructions": 480962
+   "instructions": 514770
   },
   "ffmpeg-C26-remux-timestamps": {
    "fixture": "basic.mp4",
    "sha256": "7ef2ba5f415170e29f0e8d6895abc8e19f1627be441ccc5a0faec4ac25f98b9e",
-   "instructions": 946915
+   "instructions": 1050116
   },
   "ffmpeg-C32-split": {
    "fixture": "basic.mp4",
@@ -214,7 +214,7 @@
   "ffprobe-mp4": {
    "fixture": "fragmented_many.mp4",
    "sha256": "0b5b5ac877ae954f91c2922c1dc36579f089f9895b6fe97dfcd8f905827922ab",
-   "instructions": 1654241
+   "instructions": 1761164
   },
   "ffprobe-mkv": {
    "fixture": "basic.mkv",
