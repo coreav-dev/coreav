@@ -50,7 +50,7 @@ The non-required H.264 encoder workflow no longer repeats in the queue. It retai
 
 ## Implemented job tiers
 
-These are this branch's job tiers. Durations are pre-change successful PR job execution median/p90 in minutes unless marked otherwise. They exclude runner queues. Matrix rows group related legs without adding their parallel durations. The required names remain in [the required-check table](ci-checks.md#required-status-checks-exact-names).
+These are this branch's job tiers on the normal, non-reused path. A proved queue hit retains only gates, reports and fresh advisory checks as described above. Durations are pre-change successful PR job execution median/p90 in minutes unless marked otherwise. They exclude runner queues. Matrix rows group related legs without adding their parallel durations. The required names remain in [the required-check table](ci-checks.md#required-status-checks-exact-names).
 
 | Jobs | Measured execution | Tier |
 |---|---|---|
