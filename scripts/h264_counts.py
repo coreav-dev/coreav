@@ -88,7 +88,7 @@ def main():
         oracle = test_oracle.require(argv[0])
         argv[0] = str(oracle.ffmpeg)
     elif Path(argv[0]).name == 'ffprobe':
-        oracle = test_oracle.require(ffprobe=argv[0])
+        oracle = test_oracle.require(str(Path(argv[0]).with_name('ffmpeg')), argv[0])
         argv[0] = str(oracle.ffprobe)
 
     row = {'label': args.label, 'command': argv}

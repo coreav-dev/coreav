@@ -2,6 +2,7 @@ import contextlib
 import io
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -29,4 +30,24 @@ class Selection(unittest.TestCase):
             elif original.endswith('/ffmpeg'):
                 require.assert_called_once_with(original)
             else:
-                require.assert_called_once_with(ffprobe=original)
+                require.assert_called_once_with('/original/ffmpeg', original)
+
+    def test_an_explicit_probe_selects_the_pair_in_its_own_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            pinned, other = Path(temporary, 'pinned'), Path(temporary, 'other')
+            for directory in (pinned, other):
+                directory.mkdir()
+                for name in ('ffmpeg', 'ffprobe'):
+                    (directory / name).touch(mode=0o755)
+            verifier = counts.test_oracle.oracle_pin_macos if sys.platform == 'darwin' else counts.test_oracle.oracle_pin
+            with mock.patch.object(sys, 'argv', ['counts', '--label', 'arm', '--', str(pinned / 'ffprobe'), '-arg']), \
+                    mock.patch.dict(counts.os.environ, {'COREAV_FFMPEG': str(other / 'ffmpeg')}), \
+                    mock.patch.object(counts.test_oracle, '_selection', None), \
+                    mock.patch.object(counts.test_oracle, '_result', None), \
+                    mock.patch.object(verifier, 'verify_bin', return_value=[]) as verify, \
+                    mock.patch.object(counts.subprocess, 'run', return_value=mock.Mock(
+                        returncode=0, stderr='\n'.join(f'==1== {field}: 1' for field in counts.FIELDS))) as run, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                counts.main()
+            verify.assert_called_once_with(pinned.resolve())
+            self.assertEqual(run.call_args_list[0].args[0], [str((pinned / 'ffprobe').resolve()), '-arg'])
