@@ -164,6 +164,10 @@ The manual codec-coverage jobs check out the measured candidate and run its own 
 
 The manual GitHub-shape measurement has the same shape: it checks out any merged main commit and runs that commit's driver with the installed paths. Before switching to the candidate, the job copies the same five owner files from its own dispatching main commit outside the tree. The replay step resolves the pair with `test_oracle.py --resolve` and passes the returned paths. The candidate selection, its scripts and the installed programs stay unchanged. Because this reuses the existing checkout, no second checkout or guard change is needed.
 
+### AV1 process-reference oracle pair
+
+Merged main adds the AV1 process-reference driver and its CI smoke check (coreav-dev/coreav#457). The smoke check rebuilds `ffmpeg` and `ffprobe` paths from its `--oracle` directory, and the capture driver runs its `--oracle` and `--probe` arguments directly, so neither passes through the shared owner. The decode-only diagnostic also accepts CoreAV's raw output when it equals the output of the separately built FFmpeg comparator, which makes that unqualified build the correctness reference. Route both scripts through `test_oracle.require`. The smoke check qualifies its directory's pair once and uses the returned paths. The capture driver qualifies `--oracle` and `--probe` as one pair before any call, and uses the returned paths for every probe and PSNR measurement. The comparator built by `build_av1_reference_ffmpeg.sh` stays the timed FFmpeg arm, because the pinned oracle has no SVT-AV1 encoder. The qualified pair judges its encoded outputs. In the decode diagnostic, CoreAV's raw stream and the comparator's raw stream must each equal the qualified oracle's raw stream before any timed call. The recorded results in `bench/encoders/av1-process-reference` are not rerun or rejudged, and `summarize` is unchanged.
+
 ### Implementation order and verification
 
 1. Commit this plan. Capture the invalid fresh merged baseline and the original-row obligations without claiming classification progress.
