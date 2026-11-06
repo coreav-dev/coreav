@@ -216,8 +216,8 @@ def inspect_anchor(data, width, height, qp, frames):
         require(r.ue(), 1, 'baseline deblocking disabled')
 
 
-def compare(driver, ffmpeg, jm, raw, output, width, height, qp, frames, colour=(False, 1, 1, 1, 0), deblocking=False):
-    driver, ffmpeg, jm, raw, output = (path.resolve() for path in (driver, ffmpeg, jm, raw, output))
+def compare(driver, tools, jm, raw, output, width, height, qp, frames, colour=(False, 1, 1, 1, 0), deblocking=False):
+    driver, jm, raw, output = (path.resolve() for path in (driver, jm, raw, output))
     output.mkdir(parents=True, exist_ok=False)
     stream, recon, own = (output / n for n in ('output.h264', 'encoder.yuv', 'coreav.yuv'))
     run([driver, width, height, qp, frames, raw, stream, recon, own,
@@ -226,11 +226,11 @@ def compare(driver, ffmpeg, jm, raw, output, width, height, qp, frames, colour=(
     size = width * height * 3 // 2 * frames
     same_planes(recon, own, size)
     oracle = output / 'ffmpeg.yuv'
-    probe = json.loads(run([ffmpeg.with_name('ffprobe'), '-v', 'error', '-select_streams', 'v:0',
+    probe = json.loads(run([tools.ffprobe, '-v', 'error', '-select_streams', 'v:0',
                             '-show_entries', 'stream=width,height,pix_fmt,color_range', '-of', 'json', stream], cwd=output))
     require(len(probe['streams']), 1, 'one oracle video stream')
     pixel_format = native_format(probe['streams'][0], width, height, colour[0])
-    run([ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'warning' if deblocking else 'error', '-xerror', '-err_detect', 'explode',
+    run([tools.ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'warning' if deblocking else 'error', '-xerror', '-err_detect', 'explode',
          '-hwaccel', 'none', '-threads', '1', '-c:v', 'h264', '-i', stream,
          '-map', '0:v:0', '-an', '-sn', '-dn', '-c:v', 'rawvideo', '-pix_fmt', pixel_format,
          '-fps_mode', 'passthrough', '-f', 'rawvideo', oracle], cwd=output, reject_diagnostics=deblocking)
@@ -278,32 +278,33 @@ def main():
         args.fixtures = args.fixtures.resolve()
     if os.environ.get('GITHUB_ACTIONS') != 'true' or sys.platform != 'linux':
         raise ValueError('media conformance runs only in Linux Actions, not on developer machines')
-    problems = list(test_oracle.verify_bin(args.ffmpeg.parent))
-    if problems:
-        raise ValueError('; '.join(problems))
+    try:
+        tools = test_oracle.require(args.ffmpeg, args.ffmpeg.with_name('ffprobe'))
+    except test_oracle.QualificationError as error:
+        raise ValueError(str(error)) from error
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    report = {'tools': {n: {'sha256': digest(v)} for n, v in [('driver', args.driver), ('ffmpeg', args.ffmpeg), ('jm', args.jm)]}, 'cells': [], 'complete': False}
+    report = {'tools': {n: {'sha256': digest(v)} for n, v in [('driver', args.driver), ('ffmpeg', tools.ffmpeg), ('jm', args.jm)]}, 'cells': [], 'complete': False}
     try:
         for kind in ('flat', 'gradient', 'edges', 'impulses'):
             for width, height in [(16, 16), (18, 22), (48, 34)]:
                 raw = out / f'{kind}-{width}-{height}.yuv'
                 raw.write_bytes(synthetic(width, height, 3, kind))
                 for qp in (10, 11, 12, 13, 14, 15, 16, 22, 28, 34, 40, 51):
-                    report['cells'].append(compare(args.driver.resolve(), args.ffmpeg.resolve(), args.jm.resolve(), raw, out / f'{raw.stem}-q{qp}', width, height, qp, 3))
+                    report['cells'].append(compare(args.driver.resolve(), tools, args.jm.resolve(), raw, out / f'{raw.stem}-q{qp}', width, height, qp, 3))
         if args.fixtures:
             fixture = args.fixtures / 'basic.mp4'
             if not fixture.is_file():
                 raise ValueError('required existing basic.mp4 fixture is missing')
             raw = out / 'existing-fixture.yuv'
-            run([args.ffmpeg, '-nostdin', '-v', 'error', '-xerror', '-hwaccel', 'none', '-threads', '1',
+            run([tools.ffmpeg, '-nostdin', '-v', 'error', '-xerror', '-hwaccel', 'none', '-threads', '1',
                  '-i', fixture, '-frames:v', '3', '-an', '-pix_fmt', '+yuv420p', '-f', 'rawvideo', raw], cwd=out)
-            probe = json.loads(run([args.ffmpeg.with_name('ffprobe'), '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'json', fixture], cwd=out))['streams'][0]
+            probe = json.loads(run([tools.ffprobe, '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'json', fixture], cwd=out))['streams'][0]
             for qp in (16, 22, 28, 34, 40):
-                report['cells'].append(compare(args.driver.resolve(), args.ffmpeg.resolve(), args.jm.resolve(), raw, out / f'existing-q{qp}', probe['width'], probe['height'], qp, 3))
+                report['cells'].append(compare(args.driver.resolve(), tools, args.jm.resolve(), raw, out / f'existing-q{qp}', probe['width'], probe['height'], qp, 3))
         raw = out / 'declared-metadata.yuv'
         raw.write_bytes(synthetic(18, 22, 3, 'gradient'))
-        report['cells'].append(compare(args.driver.resolve(), args.ffmpeg.resolve(), args.jm.resolve(), raw,
+        report['cells'].append(compare(args.driver.resolve(), tools, args.jm.resolve(), raw,
                                        out / 'declared-metadata', 18, 22, 28, 3, (True, 6, 6, 6, 5)))
         report['complete'] = True
     finally:

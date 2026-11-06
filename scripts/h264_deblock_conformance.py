@@ -67,18 +67,19 @@ def main(argv=None):
     try:
         if os.environ.get('GITHUB_ACTIONS') != 'true' or sys.platform != 'linux':
             raise ValueError('media conformance runs only in Linux Actions, not on developer machines')
-        problems = list(g1.test_oracle.verify_bin(ffmpeg.parent))
-        if problems:
-            raise ValueError('; '.join(problems))
+        try:
+            tools = g1.test_oracle.require(ffmpeg, ffmpeg.with_name('ffprobe'))
+        except g1.test_oracle.QualificationError as error:
+            raise ValueError(str(error)) from error
         report['tools'] = {name: {'sha256': g1.digest(path)} for name, path in
-                           (('driver', driver), ('ffmpeg', ffmpeg),
-                            ('ffprobe', ffmpeg.with_name('ffprobe')), ('jm', jm))}
+                           (('driver', driver), ('ffmpeg', tools.ffmpeg),
+                            ('ffprobe', tools.ffprobe), ('jm', jm))}
         raw = out / 'disabled-gradient.yuv'
         raw.write_bytes(g1.synthetic(18, 22, FRAMES, 'gradient'))
         baseline = {'input_sha256': g1.digest(raw)}
         report['disabled_baseline'] = baseline
         g1.require(baseline['input_sha256'], BASELINE['input_sha256'], 'disabled input SHA-256')
-        baseline.update(g1.compare(driver, ffmpeg, jm, raw, out / 'disabled-baseline',
+        baseline.update(g1.compare(driver, tools, jm, raw, out / 'disabled-baseline',
                                    18, 22, 28, FRAMES, colour=COLOUR))
         for field, expected in BASELINE.items():
             g1.require(baseline[field], expected, f'disabled baseline {field}')
@@ -87,7 +88,7 @@ def main(argv=None):
             raw.write_bytes(synthetic(width, height, kind))
             input_sha256 = g1.digest(raw)
             for qp in QPS:
-                cell = g1.compare(driver, ffmpeg, jm, raw, out / f'{raw.stem}-q{qp}',
+                cell = g1.compare(driver, tools, jm, raw, out / f'{raw.stem}-q{qp}',
                                   width, height, qp, FRAMES, colour=COLOUR, deblocking=True)
                 cell.update(fixture=kind, input_sha256=input_sha256, deblocking=True)
                 report['cells'].append(cell)

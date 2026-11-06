@@ -457,13 +457,16 @@ class Compare(unittest.TestCase):
                     return subprocess.CompletedProcess(command, code, stdout, stderr)
 
                 with patch.object(p.g1.subprocess, 'run', side_effect=process):
-                    args = (root / 'driver', root / 'ffmpeg', root / 'ldecod', root / 'input', root / 'output', 16, 16, 28, 2, False, 20)
+                    tools = p.g1.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified-probe/ffprobe'))
+                    args = (root / 'driver', tools, root / 'ldecod', root / 'input', root / 'output', 16, 16, 28, 2, False, 20)
                     if fault is None:
                         result = p.compare(*args)
                         self.assertTrue(result['conforming'])
                         self.assertEqual(result['reconstruction_sha256'], hashlib.sha256(samples).hexdigest())
                         self.assertEqual(result['modes']['P_L0_16x16'], 1)
                         self.assertEqual(len(commands), 4)
+                        self.assertEqual(commands[1][0], str(tools.ffprobe))
+                        self.assertEqual(commands[2][0], str(tools.ffmpeg))
                     else:
                         with self.assertRaises((ValueError, subprocess.SubprocessError)):
                             p.compare(*args)
@@ -534,7 +537,7 @@ class Forced(unittest.TestCase):
             entry = next(e for e in p.forced_inventory(self.directory)['entries']
                          if (e['layout'], e['qp'], e['deblocking']) == (layout, 10, 0))
             with patch.object(p.g1, 'capture') as capture, self.assertRaisesRegex(ValueError, 'emitted partition layout'):
-                p.compare_forced(self.root / 'decode', self.root / 'ffmpeg', self.root / 'ldecod',
+                p.compare_forced(self.root / 'decode', p.g1.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe'), self.root / 'ldecod',
                                  self.directory, entry, self.root / f'wrong-{layout}')
             capture.assert_not_called()
 
@@ -573,12 +576,12 @@ class Forced(unittest.TestCase):
 
                 with patch.object(p.g1.subprocess, 'run', side_effect=process), \
                         patch.object(p, 'decode_oracles') as oracles:
-                    args = (self.root / 'decode', self.root / 'ffmpeg', self.root / 'ldecod', self.directory, entry, output)
+                    args = (self.root / 'decode', p.g1.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe'), self.root / 'ldecod', self.directory, entry, output)
                     if fault is None:
                         result = p.compare_forced(*args)
                         self.assertTrue(result['conforming'])
                         self.assertEqual(result['modes']['P_L0_16x16'], 1)
-                        oracles.assert_called_once_with(self.root / 'ffmpeg', self.root / 'ldecod',
+                        oracles.assert_called_once_with(p.g1.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe'), self.root / 'ldecod',
                                                        stream_path, stream_path.with_suffix('.yuv'), output, 16, 16, 2)
                     else:
                         with self.assertRaises((ValueError, subprocess.SubprocessError)):
@@ -624,7 +627,7 @@ class Forced(unittest.TestCase):
 
                 output = self.root / f'native-{damaged}'
                 with patch.object(p.g1.subprocess, 'run', side_effect=process):
-                    args = (self.root / 'decode', self.root / 'ffmpeg', self.root / 'ldecod', self.directory, entry, output)
+                    args = (self.root / 'decode', p.g1.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe'), self.root / 'ldecod', self.directory, entry, output)
                     if damaged:
                         with self.assertRaisesRegex(ValueError, 'reconstruction SHA-256'):
                             p.compare_forced(*args)
@@ -665,7 +668,7 @@ class Report(unittest.TestCase):
             return dict(modes={'P_Skip': 1, 'P_L0_16x16': 1}, conforming=True)
 
         with patch.dict(os.environ, GITHUB_ACTIONS='true'), patch.object(p.sys, 'platform', 'linux'), \
-                patch.object(p, 'verify_tools', return_value={'synthetic': True}), \
+                patch.object(p, 'verify_tools', return_value=(p.g1.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe'), {'synthetic': True})), \
                 patch.object(p, 'forced_inventory', return_value=self.inventory), \
                 patch.object(p, 'compare_forced', side_effect=self.forced) as forced, \
                 patch.object(p, 'compare', side_effect=compare) as call:
@@ -695,7 +698,7 @@ class Report(unittest.TestCase):
                 side_effect = [result, subprocess.TimeoutExpired(['decoder'], 180)] if fault == 'timeout' else None
                 with patch.dict(os.environ, GITHUB_ACTIONS='false' if fault == 'environment' else 'true'), \
                         patch.object(p.sys, 'platform', 'darwin' if fault == 'platform' else 'linux'), \
-                        patch.object(p, 'verify_tools', return_value={}, side_effect=tools_error), \
+                        patch.object(p, 'verify_tools', return_value=(p.g1.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe'), {}), side_effect=tools_error), \
                         patch.object(p, 'forced_inventory', return_value=self.inventory), \
                         patch.object(p, 'compare_forced', side_effect=self.forced), \
                         patch.object(p, 'compare', return_value=result, side_effect=side_effect) as call:
@@ -721,8 +724,8 @@ class Report(unittest.TestCase):
         receipt += "BUILD_COMMAND=make -C JM/ldecod -j2 CC='cc -fcommon'\nsynthetic compiler\n"
         receipt += f'{p.g1.digest(paths[3])}  {paths[3]}\n'
         (self.root / 'jm-build.txt').write_text(receipt)
-        with patch.object(p.g1.test_oracle, 'verify_bin', return_value=[]):
-            tools = p.verify_tools(paths[0], paths[1], paths[3], paths[4])
+        with patch.object(p.g1.test_oracle, 'require', return_value=p.g1.test_oracle.Oracle(paths[1], paths[2])):
+            _, tools = p.verify_tools(paths[0], paths[1], paths[3], paths[4])
             self.assertEqual(set(tools['executables']), {'driver', 'ffmpeg', 'ffprobe', 'jm', 'decoder'})
             paths[3].write_bytes(b'changed')
             with self.assertRaisesRegex(ValueError, 'executable hash'):
@@ -730,7 +733,7 @@ class Report(unittest.TestCase):
             (self.root / 'jm-build.txt').write_text(receipt.replace('JM_VERSION=', 'WRONG='))
             with self.assertRaisesRegex(ValueError, 'receipt'):
                 p.verify_tools(paths[0], paths[1], paths[3], paths[4])
-        with patch.object(p.g1.test_oracle, 'verify_bin', return_value=['wrong FFmpeg pin']):
+        with patch.object(p.g1.test_oracle, 'require', side_effect=p.g1.test_oracle.QualificationError('wrong FFmpeg pin')):
             with self.assertRaisesRegex(ValueError, 'wrong FFmpeg pin'):
                 p.verify_tools(paths[0], paths[1], paths[3], paths[4])
 
@@ -754,7 +757,7 @@ class Report(unittest.TestCase):
                     return result
 
                 with patch.dict(os.environ, GITHUB_ACTIONS='true'), patch.object(p.sys, 'platform', 'linux'), \
-                        patch.object(p, 'verify_tools', return_value={}), \
+                        patch.object(p, 'verify_tools', return_value=(p.g1.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe'), {})), \
                         patch.object(p, 'forced_inventory', return_value=self.inventory, side_effect=inventory_side_effect), \
                         patch.object(p, 'compare', return_value=dict(modes={'P_Skip': 1, 'P_L0_16x16': 1}, conforming=True)), \
                         patch.object(p, 'compare_forced', side_effect=forced):

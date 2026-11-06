@@ -174,8 +174,7 @@ class ReferenceDiagnostics(unittest.TestCase):
                     '--work', str(root / 'work'), '--report', str(report), '--only', '17']
             stderr = io.StringIO()
             with mock.patch.object(sys, 'argv', argv), \
-                    mock.patch.object(check.test_oracle, 'verify_bin', return_value=[]), \
-                    mock.patch.object(test_oracle, 'verify_bin', return_value=[]), \
+                    mock.patch.object(check.test_oracle, 'require', return_value=test_oracle.Oracle(root / 'ffmpeg', root / 'ffprobe')), \
                     mock.patch.object(check, 'verify', return_value=result), \
                     contextlib.redirect_stderr(stderr):
                 self.assertEqual(check.main(), 1)

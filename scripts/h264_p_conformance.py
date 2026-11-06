@@ -463,8 +463,8 @@ def forced_layout(syntax, layout):
     g1.require(syntax[1]['mvcnt'], [count], 'forced emitted MvCnt')
 
 
-def compare(driver, ffmpeg, jm, raw, output, width, height, qp, frames, deblocking, interval):
-    driver, ffmpeg, jm, raw, output = (path.resolve() for path in (driver, ffmpeg, jm, raw, output))
+def compare(driver, tools, jm, raw, output, width, height, qp, frames, deblocking, interval):
+    driver, jm, raw, output = (path.resolve() for path in (driver, jm, raw, output))
     output.mkdir(parents=True, exist_ok=False)
     stream, recon, own = (output / name for name in ('output.h264', 'encoder.yuv', 'coreav.yuv'))
     run([driver, width, height, qp, frames, raw, stream, recon, own,
@@ -474,7 +474,7 @@ def compare(driver, ffmpeg, jm, raw, output, width, height, qp, frames, deblocki
     (output / 'syntax.json').write_text(json.dumps(syntax, indent=2) + '\n')
     size = width * height * 3 // 2 * frames
     g1.same_planes(recon, own, size)
-    decode_oracles(ffmpeg, jm, stream, recon, output, width, height, frames)
+    decode_oracles(tools, jm, stream, recon, output, width, height, frames)
     modes = Counter()
     for picture in syntax:
         modes.update(picture['modes'])
@@ -484,9 +484,9 @@ def compare(driver, ffmpeg, jm, raw, output, width, height, qp, frames, deblocki
                 bytes=stream.stat().st_size, conforming=True)
 
 
-def decode_oracles(ffmpeg, jm, stream, recon, output, width, height, frames):
+def decode_oracles(tools, jm, stream, recon, output, width, height, frames):
     size = width * height * 3 // 2 * frames
-    probe = json.loads(run([ffmpeg.with_name('ffprobe'), '-v', 'warning', '-select_streams', 'v:0',
+    probe = json.loads(run([tools.ffprobe, '-v', 'warning', '-select_streams', 'v:0',
                             '-count_frames', '-show_entries',
                             'stream=width,height,pix_fmt,color_range,color_space,color_transfer,color_primaries,chroma_location,profile,level,nb_read_frames',
                             '-of', 'json', stream], output))
@@ -499,7 +499,7 @@ def decode_oracles(ffmpeg, jm, stream, recon, output, width, height, frames):
                             ('profile', 'Constrained Baseline'), ('level', 51), ('nb_read_frames', str(frames))):
         g1.require(info.get(field), expected, f'oracle {field}')
     oracle = output / 'ffmpeg.yuv'
-    run([ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'warning', '-xerror', '-err_detect', 'explode',
+    run([tools.ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'warning', '-xerror', '-err_detect', 'explode',
          '-hwaccel', 'none', '-threads', '1', '-c:v', 'h264', '-i', stream,
          '-map', '0:v:0', '-an', '-sn', '-dn', '-c:v', 'rawvideo', '-pix_fmt', pixel_format,
          '-fps_mode', 'passthrough', '-f', 'rawvideo', oracle], output)
@@ -510,7 +510,7 @@ def decode_oracles(ffmpeg, jm, stream, recon, output, width, height, frames):
     g1.same_planes(recon, reference, size)
 
 
-def compare_forced(decoder, ffmpeg, jm, directory, entry, output):
+def compare_forced(decoder, tools, jm, directory, entry, output):
     output.mkdir(parents=True, exist_ok=False)
     fixture_unchanged(directory, entry)
     stream, recon = (directory / entry[suffix]['name'] for suffix in ('h264', 'yuv'))
@@ -524,7 +524,7 @@ def compare_forced(decoder, ffmpeg, jm, directory, entry, output):
     if result.stderr:
         raise ValueError('decoder diagnostics are not conforming')
     g1.same_planes(recon, own, 16 * 16 * 3)
-    decode_oracles(ffmpeg, jm, stream, recon, output, 16, 16, 2)
+    decode_oracles(tools, jm, stream, recon, output, 16, 16, 2)
     fixture_unchanged(directory, entry)
     modes = Counter()
     for picture in syntax:
@@ -540,9 +540,12 @@ def verify_tools(driver, ffmpeg, jm, decoder):
     for _, path in paths:
         if not path.is_file() or not os.access(path, os.X_OK):
             raise ValueError('required executable missing or not executable')
-    problems = list(g1.test_oracle.verify_bin(ffmpeg.parent))
-    if problems:
-        raise ValueError('; '.join(problems))
+    try:
+        tools = g1.test_oracle.require(ffmpeg, ffmpeg.with_name('ffprobe'))
+    except g1.test_oracle.QualificationError as error:
+        raise ValueError(str(error)) from error
+    paths = (('driver', driver), ('ffmpeg', tools.ffmpeg), ('ffprobe', tools.ffprobe),
+             ('jm', jm), ('decoder', decoder))
     pin = dict(line.split('=', 1) for line in (ROOT / 'scripts/jm-decoder.env').read_text().splitlines() if line)
     receipt = (jm.parent / 'jm-build.txt').read_text()
     for line in (f'JM_VERSION={pin["JM_VERSION"]}', f'JM_SHA256={pin["JM_SHA256"]}',
@@ -551,7 +554,7 @@ def verify_tools(driver, ffmpeg, jm, decoder):
             raise ValueError('JM build receipt does not match pin')
     if not any(re.fullmatch(re.escape(g1.digest(jm)) + r'  .*/ldecod', line) for line in receipt.splitlines()):
         raise ValueError('JM executable hash differs from build receipt')
-    return {'executables': {name: {'sha256': g1.digest(path)} for name, path in paths},
+    return tools, {'executables': {name: {'sha256': g1.digest(path)} for name, path in paths},
             'ffmpeg_pin': g1.oracle_pin.load(), 'jm_pin': pin, 'jm_build': receipt,
             'vlc_sha256': g1.digest(ROOT / 'crates/coreav-h264-encoder/src/vlc.rs')}
 
@@ -574,14 +577,14 @@ def main(argv=None):
     try:
         if os.environ.get('GITHUB_ACTIONS') != 'true' or sys.platform != 'linux':
             raise ValueError('media conformance runs only in Linux Actions, not on developer machines')
-        report['tools'] = verify_tools(driver, ffmpeg, jm, decoder)
+        tools, report['tools'] = verify_tools(driver, ffmpeg, jm, decoder)
         inventory = forced_inventory(fixtures)
         report['forced_inventory'] = inventory
         selected = Counter()
         for i, cell in enumerate(roster):
             raw = out / f'{i:03}-{cell["kind"]}.yuv'
             raw.write_bytes(synthetic(cell['width'], cell['height'], cell['frames'], cell['kind'], cell['phase']))
-            result = compare(driver, ffmpeg, jm, raw, out / f'{raw.stem}-decoded',
+            result = compare(driver, tools, jm, raw, out / f'{raw.stem}-decoded',
                              **{key: cell[key] for key in ('width', 'height', 'qp', 'frames', 'deblocking', 'interval')})
             result.update(kind=cell['kind'], phase=cell['phase'])
             report['cells'].append(result)
@@ -595,7 +598,7 @@ def main(argv=None):
         covered = selected.copy()
         for entry in inventory['entries']:
             name = f'forced-{entry["qp"]}-{entry["deblocking"]}-{entry["layout"]}'
-            result = compare_forced(decoder, ffmpeg, jm, fixtures, entry, out / name)
+            result = compare_forced(decoder, tools, jm, fixtures, entry, out / name)
             report['forced_cells'].append(result)
             covered.update(result['modes'])
         g1.require(len(report['forced_cells']), 80, 'complete forced matrix')

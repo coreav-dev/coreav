@@ -46,9 +46,13 @@ def main():
     opts = parser.parse_args()
     for name in ('ffmpeg', 'fixtures', 'work', 'report'):
         setattr(opts, name, getattr(opts, name).resolve())
-    problems = list(test_oracle.verify_bin(opts.ffmpeg.parent))
-    if opts.ffmpeg.name != 'ffmpeg' or problems:
-        raise ValueError('reference fixture verification requires the pinned oracle: ' + '; '.join(problems))
+    try:
+        oracle = test_oracle.require(opts.ffmpeg, opts.ffmpeg.with_name('ffprobe'))
+    except test_oracle.QualificationError as error:
+        raise ValueError('reference fixture verification requires the pinned oracle: ' + str(error)) from error
+    if opts.ffmpeg.name != 'ffmpeg':
+        raise ValueError('reference fixture verification requires the pinned oracle: ')
+    opts.ffmpeg = oracle.ffmpeg
     rows = [r for r in inputs.DOCUMENT['cases'] if r['assignments']]
     if opts.only is not None:
         selected = set(opts.only)

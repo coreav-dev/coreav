@@ -148,11 +148,11 @@ def host(tmp, instance):
 
 def command(arm, file, path, output, tools, coreav):
     if arm in ('base', 'base2'):
-        return speed.baseline_cmd(tools / 'ffmpeg', path, output,
+        return speed.baseline_cmd(tools['ffmpeg'], path, output,
                                   file['maps']['video'], file['maps']['audio'])
     encoder = arm.split('_')[1]
     return [coreav, 'transcode', path, output, '--encoder', encoder,
-            '--ffmpeg', tools / 'ffmpeg', '--x264', tools / 'x264',
+            '--ffmpeg', tools['ffmpeg'], '--x264', tools['x264'],
             '--preset', 'medium', '--crf', '23', '--timeout', '900', '--force']
 
 
@@ -203,14 +203,15 @@ def validate_work(info, file, arm):
 
 def invocation(arm, file):
     return [str(value) for value in command(arm, file, Path('INPUT'), Path('OUTPUT'),
-                                            Path('TOOLS'), Path('COREAV'))]
+                                            {name: Path('TOOLS') / name for name in ('ffmpeg', 'ffprobe', 'x264')},
+                                            Path('COREAV'))]
 
 
 def output_check(executor, tools, output):
-    _, frames = executor.call([tools / 'ffmpeg', '-v', 'error', '-nostdin', *AUDIO_DECODE_INPUT, '-i', output,
+    _, frames = executor.call([tools['ffmpeg'], '-v', 'error', '-nostdin', *AUDIO_DECODE_INPUT, '-i', output,
                                 '-map', '0:v:0', '-fps_mode', 'passthrough',
                                 '-f', 'framemd5', '-'], 'base')
-    _, packets = executor.call([tools / 'ffprobe', '-v', 'error', '-select_streams', 'a',
+    _, packets = executor.call([tools['ffprobe'], '-v', 'error', '-select_streams', 'a',
                                  '-show_packets', '-show_entries',
                                  'packet=stream_index,pts,dts,duration,size,data_hash',
                                  '-show_data_hash', 'sha256', '-of', 'json', output], 'base')
@@ -244,11 +245,11 @@ def preflight(executor, file, path, tools, coreav, tmp, checks):
 
 
 def gate(executor, tools, path, tmp):
-    _, probe = executor.call([tools / 'ffprobe', '-v', 'error', '-show_streams',
+    _, probe = executor.call([tools['ffprobe'], '-v', 'error', '-show_streams',
                               '-of', 'json', path], 'gate')
     video = tc.default_video(json.loads(probe.stdout).get('streams', []))
     require(video is not None, 'the gate has no video')
-    cmd = speed.baseline_cmd(tools / 'ffmpeg', path, tmp / 'gate.mp4', video['index'], [])
+    cmd = speed.baseline_cmd(tools['ffmpeg'], path, tmp / 'gate.mp4', video['index'], [])
     cmd[-2:-2] = ['-an']
     speed.prime(path)
     try:
@@ -348,12 +349,16 @@ def run(args):
         build_receipt = json.loads(Path(args.build).read_text())
         require(build_receipt['commit'] == commit and build_receipt['command'] == BUILD and
                 build_receipt['coreav_sha256'] == digest(coreav), 'build receipt does not match source and executable')
-        require(not list(test_oracle.verify_bin(tools)), 'oracle pin verification failed')
+        try:
+            oracle = test_oracle.require(tools / 'ffmpeg', tools / 'ffprobe')
+        except test_oracle.QualificationError:
+            raise ValueError('oracle pin verification failed') from None
+        tools = {'ffmpeg': oracle.ffmpeg, 'ffprobe': oracle.ffprobe, 'x264': tools / 'x264'}
         registered = roster()
         report.update(inputs=registered, inputs_sha256=digest(INPUTS), build=build_receipt,
                       host=host(tmp, json.loads(Path(args.instance).read_text())),
-                      tools={name: digest(tools / name) for name in ('ffmpeg', 'ffprobe', 'x264')},
-                      versions={name: text([tools / name, '-version' if name != 'x264' else '--version'])
+                      tools={name: digest(tools[name]) for name in ('ffmpeg', 'ffprobe', 'x264')},
+                      versions={name: text([tools[name], '-version' if name != 'x264' else '--version'])
                                 for name in ('ffmpeg', 'ffprobe', 'x264')})
         paths = {f['sha256']: Path(args.files).resolve() / (f['sha256'] + '.' + f['ext'])
                  for f in registered['files']}
@@ -403,13 +408,17 @@ def run(args):
 
 def smoke(args):
     tools = Path(args.tools).resolve()
-    require(not list(test_oracle.verify_bin(tools)), 'oracle pin verification failed')
+    try:
+        oracle = test_oracle.require(tools / 'ffmpeg', tools / 'ffprobe')
+    except test_oracle.QualificationError:
+        raise ValueError('oracle pin verification failed') from None
+    tools = {'ffmpeg': oracle.ffmpeg, 'ffprobe': oracle.ffprobe, 'x264': tools / 'x264'}
     tmp = Path(args.tmp).resolve()
     tmp.mkdir(parents=True, exist_ok=False)
     executor = Executor(300)
     for cls, encoder in (('vp9', 'libvpx-vp9'), ('av1', 'libaom-av1')):
         path = tmp / (cls + '.mkv')
-        executor.call([tools / 'ffmpeg', '-v', 'error', '-nostdin', '-f', 'lavfi', '-i',
+        executor.call([tools['ffmpeg'], '-v', 'error', '-nostdin', '-f', 'lavfi', '-i',
                        'testsrc2=size=64x64:rate=5:duration=1', '-c:v', encoder,
                        '-threads', '1', '-y', path], 'base')
         file = {'class': cls, 'sha256': digest(path), 'maps': {'video': 0, 'audio': []}}

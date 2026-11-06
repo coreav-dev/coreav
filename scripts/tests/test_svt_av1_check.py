@@ -39,8 +39,11 @@ class Correctness(unittest.TestCase):
             work = root / 'work'
             width, height, frames = (256, 256, 48) if moving else (128, 96, CHECK.FRAMES)
             size = frames * width * height * 3 // 2
+            oracle = CHECK.test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified-probe/ffprobe'))
+            commands = []
 
             def run(command):
+                commands.append(command)
                 if 'transcode' in command:
                     return json.dumps({'schema': 'coreav.transcode/2',
                                        'video': {'encoding': {'segments': 1 if mutation == 'segments' else 2}}}).encode()
@@ -60,7 +63,7 @@ class Correctness(unittest.TestCase):
                     output.write_bytes(pixels)
                 return b''
 
-            with patch.object(CHECK.oracle_pin, 'verify_bin', return_value=iter(())), \
+            with patch.object(CHECK.test_oracle, 'require', return_value=oracle), \
                     patch.object(CHECK, 'run', side_effect=run), \
                     contextlib.redirect_stdout(io.StringIO()):
                 if mutation:
@@ -68,6 +71,9 @@ class Correctness(unittest.TestCase):
                         CHECK.check(root / 'coreav', root, work, moving)
                 else:
                     CHECK.check(root / 'coreav', root, work, moving)
+                    self.assertEqual([command[0] for command in commands],
+                                     [oracle.ffmpeg, oracle.ffmpeg, root / 'coreav',
+                                      oracle.ffprobe, oracle.ffmpeg, root / 'coreav'])
 
     def test_moving_preset_zero_fixture(self):
         self.fixture(moving=True)
@@ -75,7 +81,7 @@ class Correctness(unittest.TestCase):
     def test_shared_input_uses_av1_without_h264_encoder_options(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            with patch.object(CHECK.oracle_pin, 'verify_bin', return_value=iter(())), \
+            with patch.object(CHECK.test_oracle, 'require', return_value=CHECK.test_oracle.Oracle(root / 'ffmpeg', root / 'ffprobe')), \
                     patch.object(CHECK, 'run', side_effect=RuntimeError('generated')) as run:
                 with self.assertRaisesRegex(RuntimeError, 'generated'):
                     CHECK.check(root / 'coreav', root, root / 'work', shared_input=True)
@@ -93,7 +99,7 @@ class Correctness(unittest.TestCase):
     def test_bad_oracle_is_refused_before_fixture_creation(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            with patch.object(CHECK.oracle_pin, 'verify_bin', return_value=iter(['wrong oracle'])), \
+            with patch.object(CHECK.test_oracle, 'require', side_effect=CHECK.test_oracle.QualificationError('wrong oracle')), \
                     patch.object(CHECK, 'run') as run:
                 with self.assertRaisesRegex(ValueError, 'wrong oracle'):
                     CHECK.check(root / 'coreav', root, root / 'work')

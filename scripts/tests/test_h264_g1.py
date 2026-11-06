@@ -129,7 +129,7 @@ class G1(unittest.TestCase):
     def test_command_failures_are_not_conformance_success(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(conformance, 'run', side_effect=subprocess.CalledProcessError(1, ['oracle'])):
             with self.assertRaises(subprocess.CalledProcessError):
-                conformance.compare(pathlib.Path('driver'), pathlib.Path('ffmpeg'), pathlib.Path('jm'), pathlib.Path('input'), pathlib.Path(temp)/'cell', 16, 16, 22, 3)
+                conformance.compare(pathlib.Path('driver'), conformance.test_oracle.Oracle(pathlib.Path('ffmpeg'), pathlib.Path('ffprobe')), pathlib.Path('jm'), pathlib.Path('input'), pathlib.Path(temp)/'cell', 16, 16, 22, 3)
 
     def test_sei_removal_preserves_original_delimiters_and_other_bytes(self):
         sps = b'\0\0\0\1\x67abc'
