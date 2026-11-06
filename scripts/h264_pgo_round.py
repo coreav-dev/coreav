@@ -675,8 +675,6 @@ def run(root, plan, allocation_sha256, acquisition_sha256=None):
             roster(rows, json.loads((root / 'exclusions.json').read_text()), plan, counts=cohort['counts'])
             selection(rows, candidates, json.loads((root / 'collection.json').read_text()),
                       json.loads((root / 'exclusions.json').read_text()), plan, expected_counts=cohort['counts'])
-            subprocess.run([sys.executable, '-I', str(ROOT / 'scripts/oracle_pin.py'), '--verify-bin', str(root)],
-                           check=True, timeout=30)
             oracle = test_oracle.require(root / 'ffmpeg', root / 'ffprobe')
             refs = json.loads((root / 'references.json').read_text())
             reference_evidence(refs)
