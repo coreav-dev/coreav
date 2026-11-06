@@ -10,6 +10,13 @@ export function runtimeComponents(target, commit) {
   return runtimeManifest.targets[target].map(name => runtimeManifest.components[name]);
 }
 
+/** A C library a crate bundles is listed for the crate version that bundles it, so a lock change cannot leave its notice stale. */
+export function checkBundledRuntimes(target, commit, crates) {
+  for (const component of runtimeComponents(target, commit)) {
+    if (component.crate && !crates.some(crate => `${crate.name} ${crate.version}` === component.crate)) throw new Error(`C runtime ${component.label} is bundled by ${component.crate}, which this build does not link; review scripts/notices/upstream/runtime/manifest.json`);
+  }
+}
+
 export function renderRuntimes(target, commit, read = path => readFileSync(new URL(path, directory))) {
   const sections = [];
   for (const component of runtimeComponents(target, commit)) {

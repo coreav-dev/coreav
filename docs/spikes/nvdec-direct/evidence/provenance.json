@@ -15,7 +15,7 @@
     "remote_setup.py": "597f0bd27bc3e1074bf961875cbf93e01a90dc480f82f2b7ca2338b235732967",
     "samples.json": "ee7e20e03dbbe08f541c14493869970a39889ba297bf3d299bf924222d90863e"
   },
-  "clean_room": "Only public NVIDIA API header/documentation and ITU H.264 specification read for decoder implementation. No multimedia implementation source, repository history, old tags or archived code read. FFmpeg, PyAV and torchcodec used as black-box test tools.",
+  "clean_room": "Only public NVIDIA API header/documentation and ITU H.264 specification read for decoder implementation. No multimedia implementation source read. FFmpeg, PyAV and torchcodec used as black-box test tools.",
   "gpu_rgb_public_specs": {
     "bt601": "https://www.itu.int/rec/R-REC-BT.601-7-201103-I/en",
     "bt709": "https://www.itu.int/rec/R-REC-BT.709-6-201506-I/en",
@@ -28,11 +28,11 @@
   "h265_spec": "https://www.itu.int/rec/T-REC-H.265-202601-I/en",
   "h265_pdf_sha256": "78b093480e178a2b99d8cb7499934240f359c50c6d09568f8be651bc1151d4d2",
   "h265_retrieved_utc": "2026-10-13",
-  "h265_clean_room": "H.265 parsing, POC, RPS/DPB, reference lists and C.5.2 output order were written from ITU-T H.265 (V11, 01/2026) clauses 7, 8.1.3, 8.3 and C.5.2 and the public cuviddec.h only. No multimedia implementation source, repository history or archived code read. FFmpeg, ffprobe, libx265 and torchcodec used as black-box test tools.",
+  "h265_clean_room": "H.265 parsing, POC, RPS/DPB, reference lists and C.5.2 output order were written from ITU-T H.265 (V11, 01/2026) clauses 7, 8.1.3, 8.3 and C.5.2 and the public cuviddec.h only. No multimedia implementation source read. FFmpeg, ffprobe, libx265 and torchcodec used as black-box test tools.",
   "pipeline_public_specs": {
     "nvdec_data_flow": "cuviddec.h VIDEO_DECODER comment (decode N, map N-4, process, unmap) and CUVIDPROCPARAMS.output_stream, header pinned above",
     "cuda_stream": "https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__STREAM.html",
     "cuda_event": "https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__EVENT.html"
   },
-  "pipeline_clean_room": "Pipelined decode, deferred map/unmap and per-batch synchronization were written from the public cuviddec.h and CUDA Driver API documentation only. No multimedia implementation source, repository history or archived code read."
+  "pipeline_clean_room": "Pipelined decode, deferred map/unmap and per-batch synchronization were written from the public cuviddec.h and CUDA Driver API documentation only. No multimedia implementation source read."
 }

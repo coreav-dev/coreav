@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { nativeEvidence, noticeSections, validateEvidence } from "../evidence.mjs";
-import { renderRuntimes, runtimeComponents, runtimeManifest } from "../runtime.mjs";
+import { checkBundledRuntimes, renderRuntimes, runtimeComponents, runtimeManifest } from "../runtime.mjs";
 
 const commit = runtimeManifest.rustCommit;
 const context = { commit, version: "1.99.1", library: new Set(), members: new Set(), memberPaths: new Set() };
@@ -57,8 +57,8 @@ test("LLVM runtime expressions preserve the legacy licence choice", () => {
 
 test("the runtime inventory covers every shipped target, independently of Cargo features", () => {
   const expected = {
-    "x86_64-unknown-linux-musl": ["musl 1.2.5", "libunwind 23.1.1", "compiler-rt 23.1.1"],
-    "aarch64-unknown-linux-musl": ["musl 1.2.5", "libunwind 23.1.1", "compiler-rt 23.1.1"],
+    "x86_64-unknown-linux-musl": ["musl 1.2.5", "libunwind 23.1.1", "compiler-rt 23.1.1", "mimalloc 3.3.2"],
+    "aarch64-unknown-linux-musl": ["musl 1.2.5", "libunwind 23.1.1", "compiler-rt 23.1.1", "mimalloc 3.3.2"],
     "wasm32-wasip1": ["wasi-libc 33.0.0"],
     "wasm32-unknown-unknown": [],
     "aarch64-apple-darwin": [],
@@ -94,6 +94,20 @@ test("runtime licence bytes are pinned, including each subordinate WASI notice",
   for (const phrase of ["Rich Felker", "Nuxi", "Regents of the University of California", "LLVM Exceptions", "dlmalloc/"]) assert.ok(wasi.includes(phrase));
   const linux = renderRuntimes("aarch64-unknown-linux-musl", commit);
   for (const phrase of ["Copyright (c) 2012-2020, Arm Limited.", "Copyright (c) 2018, Arm Limited.", "Developed at SunPro", "Developed at SunSoft", "provided that this notice"]) assert.ok(linux.includes(phrase));
+});
+
+test("a bundled C library's notice follows the locked crate that bundles it", () => {
+  for (const target of ["x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]) {
+    assert.ok(renderRuntimes(target, commit).includes("Copyright (c) 2018-2025 Microsoft Corporation, Daan Leijen"));
+    assert.doesNotThrow(() => checkBundledRuntimes(target, commit, [{ name: "libmimalloc-sys", version: "0.1.49" }]));
+    for (const crates of [[], [{ name: "libmimalloc-sys", version: "0.1.50" }]]) {
+      assert.throws(() => checkBundledRuntimes(target, commit, crates), /C runtime mimalloc 3\.3\.2 is bundled by libmimalloc-sys 0\.1\.49, which this build does not link/);
+    }
+  }
+  for (const target of Object.keys(runtimeManifest.targets).filter(value => !value.endsWith("-linux-musl"))) {
+    assert.ok(!renderRuntimes(target, commit).includes("mimalloc"));
+    assert.doesNotThrow(() => checkBundledRuntimes(target, commit, []));
+  }
 });
 
 test("compiler and target changes require a fresh runtime inventory", () => {

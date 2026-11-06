@@ -2,7 +2,7 @@
 
 Test-only implementation of the black-box correctness oracles. It captures stream metadata and packets from `ffprobe` and video frame checksums from `ffmpeg -f framemd5`, then compares a candidate with the same schema. No CoreAV implementation exists yet. Independent FFmpeg captures validate the harness, not a future parser or decoder.
 
-`coreav-oracle` is an unpublished Cargo workspace member. Its `coreav-oracle-json` binary reads the combined JSON schema documented below. Its sole direct dependency is `serde_json` (MIT OR Apache-2.0). `scripts/oracle.py` uses Python's standard library and launches the black boxes in test subprocesses. Nothing links FFmpeg libraries. Only binaries and public CLI documentation were used; no multimedia implementation source or archived prototype was read.
+`coreav-oracle` is an unpublished Cargo workspace member. Its `coreav-oracle-json` binary reads the combined JSON schema documented below. Its sole direct dependency is `serde_json` (MIT OR Apache-2.0). `scripts/oracle.py` uses Python's standard library and launches the black boxes in test subprocesses. Nothing links FFmpeg libraries. Only binaries and public CLI documentation were used; no multimedia implementation source was read.
 
 The crate, reference build and CI design were set when the harness was added. The root manifest change adds only this member; Cargo.lock records its dependency graph. This harness schema is independent of the future CoreAV public API.
 

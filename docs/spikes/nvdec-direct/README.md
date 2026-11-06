@@ -86,8 +86,8 @@ production defaults or a new gating threshold. Production defaults need a
 follow-up decision that sets decode defaults from Stage 1 measurements.
 
 Only the ITU H.264 (08/2024) and ITU-T H.265 (V11, 01/2026) specifications and
-NVIDIA's public API header/docs were read for decoding implementation. No multimedia implementation source,
-git history, old tags or archived prototype was read. FFmpeg, ffprobe, libx265 (through
+NVIDIA's public API header/docs were read for decoding implementation. No multimedia implementation source
+was read. FFmpeg, ffprobe, libx265 (through
 FFmpeg), PyAV and torchcodec were black-box test tools. Nothing was ported. Safe parsing, DPB and process
 control forbid unsafe. The driver boundary and one small shared-memory mapping
 module are the spike's unsafe exceptions; generated bindings also contain

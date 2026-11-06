@@ -60,6 +60,10 @@
 //! output descriptor, past `Stdout`'s line buffering; the documents and
 //! messages keep `Stdout` (`docs/design/cli-stdout.md`).
 
+#[cfg(all(target_os = "linux", target_env = "musl"))]
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 const FORCE_HELP: &str = "Overwrite existing writable regular files (symbolic links and multiply-linked Unix files are refused; a replaced file keeps its permissions)";
 
 mod compat_cmd;

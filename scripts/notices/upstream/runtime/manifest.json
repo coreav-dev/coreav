@@ -4,12 +4,14 @@
     "x86_64-unknown-linux-musl": [
       "musl",
       "libunwind",
-      "compiler-rt"
+      "compiler-rt",
+      "mimalloc"
     ],
     "aarch64-unknown-linux-musl": [
       "musl",
       "libunwind",
-      "compiler-rt"
+      "compiler-rt",
+      "mimalloc"
     ],
     "aarch64-apple-darwin": [],
     "x86_64-apple-darwin": [],
@@ -69,6 +71,14 @@
       "license": "Apache-2.0 WITH LLVM-exception AND (NCSA OR MIT)",
       "files": [
         "compiler-rt/LICENSE.TXT"
+      ]
+    },
+    "mimalloc": {
+      "label": "mimalloc 3.3.2",
+      "license": "MIT",
+      "crate": "libmimalloc-sys 0.1.49",
+      "files": [
+        "mimalloc/LICENSE"
       ]
     }
   },
@@ -156,6 +166,10 @@
     "musl/math-pow-LICENSE": {
       "source": "https://www.musl-libc.org/releases/musl-1.2.5.tar.gz (musl-1.2.5/src/math/pow.c; opening legal comment; SHA-256 a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4)",
       "sha256": "ec479824c026f58d9b86ed77d0eb3a44839bdce04acde6c48b1a0893ca91b391"
+    },
+    "mimalloc/LICENSE": {
+      "source": "https://static.crates.io/crates/libmimalloc-sys/libmimalloc-sys-0.1.49.crate (libmimalloc-sys-0.1.49/c_src/mimalloc/v3/LICENSE; SHA-256 6a45a52f43e1c16f667ccfe4dd8c85b7f7c204fd5e3bf46c5b0db9a5c3c0b8e9)",
+      "sha256": "82ade5d7d9b029044b5fbbc326207fc47c2d44ee4dd71e8a559c36d728217de9"
     }
   }
 }
