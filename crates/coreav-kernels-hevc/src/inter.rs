@@ -36,15 +36,6 @@ impl<'a> RefPlane<'a> {
             height,
         })
     }
-
-    fn at(self, x: i64, y: i64) -> Result<u16, Error> {
-        let x = x.clamp(0, self.width as i64 - 1) as usize;
-        let y = y.clamp(0, self.height as i64 - 1) as usize;
-        self.data
-            .get(y * self.stride + x)
-            .copied()
-            .ok_or(Error::Buffer)
-    }
 }
 
 /// A resolved signed motion vector, without reference-list or candidate syntax.
@@ -80,19 +71,41 @@ fn coefficients(component: Component, phase: i16) -> Result<&'static [i32], Erro
     .ok_or(Error::Buffer)
 }
 
-fn horizontal(
-    reference: RefPlane<'_>,
-    x: i64,
-    y: i64,
+pub(crate) struct InterScratch {
+    columns: [usize; 71],
+    source: [u16; 71],
+    rows: [[i32; 64]; 8],
+}
+
+pub(crate) fn horizontal_row(
+    source: &[u16],
     filter: &[i32],
-    start: i64,
     shift: u8,
-) -> Result<i32, Error> {
-    let mut sum = 0;
-    for (i, &coefficient) in filter.iter().enumerate() {
-        sum += coefficient * i32::from(reference.at(x + start + i as i64, y)?);
+    output: &mut [i32],
+) -> Result<(), Error> {
+    for (x, value) in output.iter_mut().enumerate() {
+        let mut sum = 0;
+        for (i, &coefficient) in filter.iter().enumerate() {
+            sum += coefficient * i32::from(*source.get(x + i).ok_or(Error::Buffer)?);
+        }
+        *value = sum >> shift;
     }
-    Ok(sum >> shift)
+    Ok(())
+}
+
+pub(crate) fn vertical_row(
+    rows: &[&[i32]],
+    filter: &[i32],
+    output: &mut [i32],
+) -> Result<(), Error> {
+    for (x, value) in output.iter_mut().enumerate() {
+        let mut sum = 0;
+        for (&row, &coefficient) in rows.iter().zip(filter) {
+            sum += coefficient * *row.get(x).ok_or(Error::Buffer)?;
+        }
+        *value = sum >> 6;
+    }
+    Ok(())
 }
 
 /// Interpolates H.265 8.5.3.3.3, equations 8-214–8-261 and Tables 8-8/8-9.
@@ -101,7 +114,7 @@ fn horizontal(
 /// integer samples are scaled by 2^(14-depth), with no rounding or clipping.
 /// i32 is necessary: two-axis luma interpolation can exceed i16 at both depths.
 /// The maximum absolute coefficient sum is 112, so even the conservative
-/// two-axis bound 112*112*1023/256 fits i32. No internal scratch array is used.
+/// two-axis bound 112*112*1023/256 fits i32. Fixed scratch caches eight rows.
 /// Luma rectangles are at most 64x64 and chroma rectangles at most 32x32.
 /// Origins must fit i32. Each tap replicates the full coded picture edge.
 /// All samples in the clipped rectangular filter support are depth-checked
@@ -109,8 +122,29 @@ fn horizontal(
 pub fn interpolate_inter(
     config: InterPrediction,
     reference: RefPlane<'_>,
-    mut output: RectMut<'_, i32>,
+    output: RectMut<'_, i32>,
 ) -> Result<(), Error> {
+    interpolate(config, reference, output, true)
+}
+
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn interpolate_inter_scalar(
+    config: InterPrediction,
+    reference: RefPlane<'_>,
+    output: RectMut<'_, i32>,
+) -> Result<(), Error> {
+    interpolate(config, reference, output, false)
+}
+
+fn interpolate(
+    config: InterPrediction,
+    reference: RefPlane<'_>,
+    output: RectMut<'_, i32>,
+    _automatic: bool,
+) -> Result<(), Error> {
+    #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+    let vector = _automatic.then(crate::simd::Avx2::detect).flatten();
     if config.x > i32::MAX as usize || config.y > i32::MAX as usize {
         return Err(Error::Buffer);
     }
@@ -133,12 +167,15 @@ pub fn interpolate_inter(
     for y in
         y_start.clamp(0, reference.height as i64 - 1)..=y_end.clamp(0, reference.height as i64 - 1)
     {
-        for x in x_start.clamp(0, reference.width as i64 - 1)
-            ..=x_end.clamp(0, reference.width as i64 - 1)
-        {
-            if reference.at(x, y)? > config.depth.max_sample() {
-                return Err(Error::Sample);
-            }
+        let begin = y as usize * reference.stride;
+        let left = x_start.clamp(0, reference.width as i64 - 1) as usize;
+        let right = x_end.clamp(0, reference.width as i64 - 1) as usize;
+        let row = reference
+            .data
+            .get(begin + left..=begin + right)
+            .ok_or(Error::Buffer)?;
+        if row.iter().any(|&sample| sample > config.depth.max_sample()) {
+            return Err(Error::Sample);
         }
     }
     let first_shift = config.depth.bits() - 8;
@@ -153,37 +190,77 @@ pub fn interpolate_inter(
     } else {
         coefficients(config.component, phase_y)?
     };
+    let mut scratch = InterScratch {
+        columns: [0; 71],
+        source: [0; 71],
+        rows: [[0; 64]; 8],
+    };
+    let source_width = output.width + x_filter.len().saturating_sub(1);
+    for (x, column) in scratch.columns.iter_mut().take(source_width).enumerate() {
+        *column = (x_start + x as i64).clamp(0, reference.width as i64 - 1) as usize;
+    }
+    let row_count = y_filter.len().max(1);
+    let mut next_row = 0;
     for y in 0..output.height {
-        for x in 0..output.width {
-            let rx = x_base + x as i64;
-            let ry = y_base + y as i64;
-            let value = match (phase_x, phase_y) {
-                (0, 0) => i32::from(reference.at(rx, ry)?) << internal_shift,
-                (_, 0) => horizontal(reference, rx, ry, x_filter, start, first_shift)?,
-                (0, _) => {
-                    let mut sum = 0;
-                    for (j, &coefficient) in y_filter.iter().enumerate() {
-                        sum += coefficient * i32::from(reference.at(rx, ry + start + j as i64)?);
-                    }
-                    sum >> first_shift
+        while next_row < y + row_count {
+            let source_y =
+                (y_start + next_row as i64).clamp(0, reference.height as i64 - 1) as usize;
+            let begin = source_y * reference.stride;
+            let source = reference
+                .data
+                .get(begin..begin + reference.width)
+                .ok_or(Error::Buffer)?;
+            let input = scratch
+                .source
+                .get_mut(..source_width)
+                .ok_or(Error::Buffer)?;
+            for (value, &column) in input.iter_mut().zip(&scratch.columns) {
+                *value = *source.get(column).ok_or(Error::Buffer)?;
+            }
+            let row = scratch.rows.get_mut(next_row % 8).ok_or(Error::Buffer)?;
+            let row = row.get_mut(..output.width).ok_or(Error::Buffer)?;
+            if x_filter.is_empty() {
+                for (value, &sample) in row.iter_mut().zip(input.iter()) {
+                    *value = i32::from(sample) << internal_shift;
                 }
-                _ => {
-                    let mut sum = 0;
-                    for (j, &coefficient) in y_filter.iter().enumerate() {
-                        sum += coefficient
-                            * horizontal(
-                                reference,
-                                rx,
-                                ry + start + j as i64,
-                                x_filter,
-                                start,
-                                first_shift,
-                            )?;
-                    }
-                    sum >> 6
+            } else {
+                #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+                if let Some(vector) = vector {
+                    vector.horizontal(input, x_filter, first_shift, row)?;
+                } else {
+                    horizontal_row(input, x_filter, first_shift, row)?;
                 }
-            };
-            output.put(x, y, value)?;
+                #[cfg(any(feature = "scalar", not(target_arch = "x86_64")))]
+                horizontal_row(input, x_filter, first_shift, row)?;
+            }
+            next_row += 1;
+        }
+        let begin = y * output.stride;
+        let destination = output
+            .data
+            .get_mut(begin..begin + output.width)
+            .ok_or(Error::Buffer)?;
+        if y_filter.is_empty() {
+            destination.copy_from_slice(
+                scratch
+                    .rows
+                    .get(y % 8)
+                    .and_then(|row| row.get(..output.width))
+                    .ok_or(Error::Buffer)?,
+            );
+        } else {
+            let mut rows: [&[i32]; 8] = [&[]; 8];
+            for (j, row) in rows.iter_mut().take(row_count).enumerate() {
+                *row = scratch.rows.get((y + j) % 8).ok_or(Error::Buffer)?;
+            }
+            #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+            if let Some(vector) = vector {
+                vector.vertical(&rows, y_filter, destination)?;
+            } else {
+                vertical_row(&rows, y_filter, destination)?;
+            }
+            #[cfg(any(feature = "scalar", not(target_arch = "x86_64")))]
+            vertical_row(&rows, y_filter, destination)?;
         }
     }
     Ok(())

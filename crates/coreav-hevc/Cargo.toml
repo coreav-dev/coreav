@@ -12,6 +12,7 @@ publish = false
 [features]
 default = []
 native-hevc = ["dep:sha2", "dep:md-5", "dep:coreav-kernels-hevc", "coreav-kernels-hevc/native-hevc"]
+scalar = ["coreav-kernels-hevc?/scalar"]
 
 [dependencies]
 sha2 = { version = "0.10", optional = true }

@@ -1,5 +1,13 @@
 # `unsafe` sites
 
+The HEVC interpolation family is confined by [its SIMD policy](design/hevc-simd.md).
+
+| File | Operations and safety preconditions |
+|---|---|
+| `crates/coreav-kernels-hevc/Cargo.toml` | Copies every workspace lint, lowering only `unsafe_code` from forbid to deny so the private SIMD module alone can allow it. |
+| `crates/coreav-kernels-hevc/src/lib.rs` | Allows unsafe code only on the native-enabled, non-scalar, x86-64 private `simd` module. All other production modules forbid it. Scalar builds forbid unsafe code at the crate root. |
+| `crates/coreav-kernels-hevc/src/simd.rs` | `Avx2::detect` constructs the private capability only after cached standard-library CPU and OS AVX2 detection. `Avx2::horizontal` and `Avx2::vertical` call target-feature functions only with that capability and after checking filter lengths, shifts and complete input/output extents. `horizontal_avx2` loads exactly eight unaligned `u16` samples per tap, zero-extends to `i32`, multiplies and adds, then stores exactly eight `i32` outputs after an arithmetic shift. Its loop ends at the last complete group; every tap load ends within the checked `output.len()+filter.len()-1` samples. `vertical_avx2` loads and stores exactly eight unaligned `i32` values per complete output group; every used row covers the complete output. Pointer additions stay inside their borrowed slices. Scalar tails access only the remaining active elements. Inputs were depth-validated before output writes; normative coefficients and internal predictor bounds keep signed arithmetic in `i32`. No padding bytes are read, no alignment or aliasing beyond ordinary slice borrows is assumed, and no pointer escapes. |
+
 Every `unsafe` site in production crates, and every confined test-only `unsafe` site in the workspace, is listed here: where it is, what it does and the precondition that makes it sound. The PR that adds or changes `unsafe` adds or updates its row. Spike code is not listed; their `unsafe` never reaches production code.
 
 `scripts/unsafe_sites_check.py`, run by CI, keeps the table complete. A row's first cell is the path of one file, in backticks: each Rust file that uses `unsafe` (a block, function, impl, trait or extern block, an `unsafe(...)` attribute or one of the attributes that need it, or an `allow`, `expect` or `warn` of `unsafe_code`), and the `Cargo.toml` of each crate that does not take the workspace's `forbid`, get one. The check fails when one is missing, when a row names a file that no longer exists, or when the workspace's own level is not `forbid`. It covers `crates/`, `tools/`, `packages/` and `bench/`, fuzz projects included; spikes are outside it.
