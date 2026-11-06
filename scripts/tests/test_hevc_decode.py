@@ -301,6 +301,49 @@ class PacketDecode(unittest.TestCase):
         self.assertFalse(runner.harness.corpus_result(changed)['passed'])
         self.assertFalse(runner.harness.corpus_result(files[:-1])['passed'])
 
+    def test_fixed_corpus_shards_cover_each_original_identity_once(self):
+        roster = runner.harness.roster()
+        groups = [runner.harness.corpus_shard(roster, i, 4) for i in range(4)]
+        self.assertEqual(sorted(len(group) for group in groups), [13, 13, 14, 14])
+        hashes = [item['sha256'] for group in groups for item in group]
+        self.assertEqual(len(set(hashes)), 54)
+        self.assertEqual(set(hashes), {item['sha256'] for item in roster})
+        self.assertEqual(groups, [runner.harness.corpus_shard(list(reversed(roster)), i, 4) for i in range(4)])
+        self.assertEqual(runner.harness.corpus_shard(roster, 0, 1), roster)
+        for index, count in ((-1, 4), (4, 4), (0, 0), (0, 5), (True, 4)):
+            with self.subTest(index=index, count=count), self.assertRaises(ValueError):
+                runner.harness.corpus_shard(roster, index, count)
+
+    def test_shard_completion_requires_its_exact_members_and_every_eof_arm(self):
+        for index in range(4):
+            expected = runner.harness.corpus_shard(runner.harness.roster(), index, 4)
+            records = [dict(item, status='inspected', decode=dict(complete=True,
+                results=[dict(packet_limit=120, complete=True)]
+                + ([dict(packet_limit=0, complete=True)] if 'b5' in item['sets'] else []))) for item in expected]
+            for record in records:
+                if record['partition'] == 'development':
+                    record['intra'] = dict(complete=True, stage='complete')
+            scope = dict(kind='fixed_roster_shard', index=index, count=4, roster_files=54, files=len(expected))
+            summary = runner.harness.corpus_result(records, expected, scope)
+            self.assertTrue(summary['passed'])
+            self.assertTrue(summary['complete'])
+            self.assertEqual(summary['scope'], scope)
+            self.assertEqual(summary['packet_decode']['expected'], len(expected))
+            self.assertFalse(runner.harness.corpus_result(records)['passed'])
+            for changed in (records[:-1], records + records[:1], list(reversed(records))):
+                self.assertFalse(runner.harness.corpus_result(changed, expected, scope)['passed'])
+            changed = copy.deepcopy(records)
+            changed[0]['sha256'] = '0' * 64
+            self.assertFalse(runner.harness.corpus_result(changed, expected, scope)['passed'])
+            changed = copy.deepcopy(records)
+            changed[0]['sets'] = []
+            self.assertFalse(runner.harness.corpus_result(changed, expected, scope)['passed'])
+            for position, record in enumerate(records):
+                if 'b5' in record['sets']:
+                    changed = copy.deepcopy(records)
+                    changed[position]['decode']['results'].pop()
+                    self.assertFalse(runner.harness.corpus_result(changed, expected, scope)['passed'])
+
 
 if __name__ == '__main__':
     unittest.main()

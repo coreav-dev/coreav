@@ -561,7 +561,7 @@ def corpus_decode(item, source, directory, oracle_bin, *, native, parser, max_me
             report['stage'] = 'native_packets'
             code, out, err = harness.child([native, source, config, str(stream['index']), str(limit),
                 str(max_memory_bytes), str(max_stream_bins), str(max_picture_bins)], directory, f'packet-native-{limit}',
-                timeout=2400 if limit == 0 else 600)
+                timeout=3600 if limit == 0 else 1800)
             arm['native_exit_code'] = code
             if code != 0 and err.stat().st_size < harness.TEXT_CAP:
                 arm['native_refusal'] = harness.read_json(err)
@@ -629,7 +629,7 @@ def corpus_decode(item, source, directory, oracle_bin, *, native, parser, max_me
             oracle = presentation_hashes(out.read_text(), frames, stream['time_base'], cutoff)
             arm.update(matched_pictures=compare_packet_pictures(selected, oracle, cutoff),
                        oracle_bound=bound, oracle_frames=len(times), geometry_interval=geometry_end(packets, stream['time_base'])
-                       if cutoff is not None else None, native_timeout=2400 if limit == 0 else 600, complete=True)
+                       if cutoff is not None else None, native_timeout=3600 if limit == 0 else 1800, complete=True)
         require(harness.digest(source) == item['sha256'] and harness.digest(config) == report['configuration_sha256']
                 and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
                 and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),

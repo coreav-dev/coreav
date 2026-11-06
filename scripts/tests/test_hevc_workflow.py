@@ -20,6 +20,12 @@ class HevcWorkflow(unittest.TestCase):
                                  ('--picture-bins', 1 << 28)]:
             self.assertEqual(int(arguments[arguments.index(option) + 1]), expected)
         self.assertIn('--example packets', job)
+        self.assertIn('shard: [0, 1, 2, 3]', job)
+        self.assertIn('fail-fast: false', job)
+        self.assertEqual(arguments[arguments.index('--shard-count') + 1], '4')
+        self.assertEqual(arguments[arguments.index('--shard-index') + 1], '${{ matrix.shard }}')
+        self.assertIn('name: hevc-profile-census-sealed-${{ matrix.shard }}', job)
+        self.assertIn('name: hevc-profile-summary-${{ matrix.shard }}', job)
         self.assertIn("summary['packet_decode']", job)
         self.assertIn('tar -czf records.tgz private', job)
 
@@ -154,6 +160,7 @@ esac
             temp = pathlib.Path(directory)
             (temp / 'private').mkdir()
             record = dict(roster_sha256='a' * 64, complete=False, passed=True,
+                          scope=dict(kind='fixed_roster_shard', index=0, count=4, roster_files=54, files=14),
                           counts=[dict(partition='development', profile='Main', bit_depth=8,
                                        status='inspected', files=1)],
                           files=[dict(source='private-canary', url='private-canary')])
@@ -165,7 +172,8 @@ esac
             summary = json.loads(text)
             self.assertNotIn('private-canary', text)
             self.assertEqual(summary['files'], 1)
-            self.assertEqual(set(summary), {'roster_sha256', 'complete', 'passed', 'counts', 'files'})
+            self.assertEqual(set(summary), {'roster_sha256', 'complete', 'passed', 'scope', 'counts', 'files'})
+            self.assertEqual(summary['scope'], record['scope'])
             self.assertFalse(summary['complete'])
             self.assertTrue(summary['passed'])
             self.assertEqual(json.loads(source.read_text()), record)

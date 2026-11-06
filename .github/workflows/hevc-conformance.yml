@@ -104,6 +104,10 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -127,7 +131,8 @@ jobs:
             --out "$RUNNER_TEMP/private" --oracle-bin "$RUNNER_TEMP/oracle" \
             --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/intra" \
             --packet-native "$PWD/target/release/examples/packets" --decode-memory-bytes 1073741824 \
-            --stream-bins 1099511627776 --picture-bins 268435456
+            --stream-bins 1099511627776 --picture-bins 268435456 \
+            --shard-count 4 --shard-index "${{ matrix.shard }}"
       - name: Retain only aggregate profile counts publicly
         if: always()
         run: |
@@ -138,6 +143,7 @@ jobs:
           if source.exists():
               data = json.loads(source.read_text())
               summary = {key: data[key] for key in ('roster_sha256', 'complete', 'passed', 'counts')}
+              summary['scope'] = data['scope']
               summary['files'] = len(data['files'])
               if 'development_intra' in data:
                   summary['development_intra'] = data['development_intra']
@@ -162,14 +168,14 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: hevc-profile-census-sealed
+          name: hevc-profile-census-sealed-${{ matrix.shard }}
           path: ${{ runner.temp }}/sealed
           if-no-files-found: ignore
           retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: hevc-profile-summary
+          name: hevc-profile-summary-${{ matrix.shard }}
           path: ${{ runner.temp }}/profile-summary.json
           if-no-files-found: ignore
           retention-days: 30

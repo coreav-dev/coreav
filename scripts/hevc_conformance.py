@@ -1220,11 +1220,24 @@ class Acquisition:
         return self.request(self.pool.get, *args, **kwargs)
 
 
+def corpus_shard(files, index, count):
+    require(integer(count, 1) and count <= 4 and integer(index) and index < count, 'invalid corpus shard')
+    if count == 1:
+        return files
+    return sorted(files, key=lambda item: (-item['size'], item['sha256']))[index::count]
+
+
 def fetch_corpus(args, inspect=False):
     require(sys.platform == 'linux', 'hostile corpus files require Linux')
     sys.path.insert(0, str(ROOT / 'tools/compat-corpus'))
     import round_files
     files = roster()
+    count, index = getattr(args, 'shard_count', 1), getattr(args, 'shard_index', 0)
+    selected = corpus_shard(files, index, count)
+    expected = selected if count != 1 else None
+    scope = dict(kind='fixed_roster_shard', index=index, count=count, roster_files=len(files),
+                 files=len(selected)) if count != 1 else None
+    files = selected
     if inspect:
         require(not list(test_oracle.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
         if getattr(args, 'packet_native', None):
@@ -1270,7 +1283,7 @@ def fetch_corpus(args, inspect=False):
             destination = pathlib.Path(destination)
             records = [dict(item, status='not_run') for item in files]
             if inspect:
-                write_json(args.out / 'corpus-census.json', corpus_result(records))
+                write_json(args.out / 'corpus-census.json', corpus_result(records, expected, scope))
             for index, item in enumerate(files):
                 if inspect:
                     require(shutil.disk_usage(destination).free >= item['size'] + (128 << 20),
@@ -1284,11 +1297,11 @@ def fetch_corpus(args, inspect=False):
                                         max_memory_bytes=args.decode_memory_bytes,
                                         max_stream_bins=args.stream_bins, max_picture_bins=args.picture_bins) if getattr(args, 'packet_native', None) else None
                         records[index] = corpus_record(item, path, args.out, args.oracle_bin, intra=options, complete=complete)
-                        write_json(args.out / 'corpus-census.json', corpus_result(records))
+                        write_json(args.out / 'corpus-census.json', corpus_result(records, expected, scope))
                     finally:
                         path.unlink(missing_ok=True)
             if inspect:
-                passed = (corpus_result(records)['passed'] if getattr(args, 'packet_native', None)
+                passed = (corpus_result(records, expected, scope)['passed'] if getattr(args, 'packet_native', None)
                           else all(r['status'] == 'inspected' for r in records))
                 require(passed, 'corpus metadata census blocked')
     finally:
@@ -1339,18 +1352,25 @@ def corpus_record(item, path, directory, oracle_bin, *, intra=None, complete=Non
     return record
 
 
-def corpus_result(records):
+def corpus_result(records, expected=None, scope=None):
+    target = 54 if expected is None else len(expected)
+    development = 26 if expected is None else sum(item['partition'] == 'development' for item in expected)
+    identities = expected is None or all(
+        all(record.get(field) == item.get(field) for field in ('sha256', 'size', 'ext', 'partition', 'sets'))
+        for record, item in zip(records, expected))
     counts = collections.Counter((r['partition'], r.get('profile'), r.get('bit_depth'), r['status']) for r in records)
     result = dict(roster_sha256=digest(ROSTER),
-                complete=len(records) == 54 and all(r['status'] == 'inspected' for r in records), files=records,
+                complete=bool(target) and len(records) == target and identities
+                    and all(r['status'] == 'inspected' for r in records), files=records,
+                scope=scope or dict(kind='complete_roster', roster_files=54, files=54),
                 counts=[dict(partition=k[0], profile=k[1], bit_depth=k[2], status=k[3], files=count)
                         for k, count in counts.items()])
-    result['passed'] = len(records) == 54 and all(r['status'] == 'inspected'
+    result['passed'] = bool(target) and len(records) == target and identities and all(r['status'] == 'inspected'
         or r['status'] == 'follow_up' and (r.get('decode') or {}).get('follow_up') in PACKET_TOOLING_REFUSALS
         for r in records)
     selected = [r for r in records if 'intra' in r]
     if selected:
-        result['development_intra'] = dict(expected=26, completed=sum(r['intra'].get('complete') is True for r in selected))
+        result['development_intra'] = dict(expected=development, completed=sum(r['intra'].get('complete') is True for r in selected))
         stages = ('extract_first_picture', 'headers', 'oracle', 'reconstruction', 'comparison', 'complete')
         result['development_intra']['stages'] = {stage: sum(r['intra'].get('stage') == stage for r in selected) for stage in stages}
         refusals = collections.Counter()
@@ -1361,11 +1381,11 @@ def corpus_result(records):
                     and isinstance(reason, str) and re.fullmatch('[a-z0-9_]{1,80}', reason)):
                 refusals[reason] += 1
         result['development_intra']['native_refusals'] = dict(refusals)
-        result['complete'] &= len(selected) == 26 and result['development_intra']['completed'] == 26
-        result['passed'] &= len(selected) == 26 and result['development_intra']['completed'] == 26
+        result['complete'] &= len(selected) == development and result['development_intra']['completed'] == development
+        result['passed'] &= len(selected) == development and result['development_intra']['completed'] == development
     selected = [r for r in records if 'decode' in r]
     if selected:
-        result['packet_decode'] = dict(expected=54, completed=sum(r['decode'].get('complete') is True for r in selected),
+        result['packet_decode'] = dict(expected=target, completed=sum(r['decode'].get('complete') is True for r in selected),
             profile_refusals=sum('expected_refusal' in r['decode'] for r in selected),
             prefix_matches=sum(arm.get('complete') is True and arm['packet_limit'] == 120
                                for r in selected for arm in r['decode'].get('results', [])),
@@ -1374,8 +1394,8 @@ def corpus_result(records):
         follow_ups = [r for r in selected if r['status'] == 'follow_up'
                       and r['decode'].get('follow_up') in PACKET_TOOLING_REFUSALS]
         result['packet_decode']['follow_ups'] = dict(collections.Counter(r['decode']['follow_up'] for r in follow_ups))
-        result['passed'] &= len(selected) == 54 and result['packet_decode']['completed'] + len(follow_ups) == 54
-        result['complete'] &= len(selected) == 54 and result['packet_decode']['completed'] == 54
+        result['passed'] &= len(selected) == target and result['packet_decode']['completed'] + len(follow_ups) == target
+        result['complete'] &= len(selected) == target and result['packet_decode']['completed'] == target
         for record in selected:
             decode = record['decode']
             arms = decode.get('results', [])
@@ -1434,6 +1454,8 @@ def main():
     online_parser.add_argument('--decode-memory-bytes', type=int, default=1 << 30)
     online_parser.add_argument('--stream-bins', type=int, default=1 << 40)
     online_parser.add_argument('--picture-bins', type=int, default=1 << 28)
+    online_parser.add_argument('--shard-index', type=int, default=0)
+    online_parser.add_argument('--shard-count', type=int, default=1)
     args = parser.parse_args()
     try:
         {'acquire': acquire, 'manifest': manifest, 'run': run,
