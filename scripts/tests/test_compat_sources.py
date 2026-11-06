@@ -3,6 +3,7 @@ import copy
 import ast
 import fnmatch
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -14,6 +15,13 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import compat_sources as sources
 import registered_candidate
+
+
+def synthetic_commit(git, tree, parent):
+    ancestry = f'parent {parent}\n' if parent else ''
+    raw = (f'tree {tree}\n{ancestry}author Fixture <fixture@example.invalid> 0 +0000\n'
+           'committer Fixture <fixture@example.invalid> 0 +0000\n\nSynthetic source fixture\n')
+    return git('hash-object', '-t', 'commit', '-w', '--stdin', input=raw)
 
 
 class SourceRepo:
@@ -56,10 +64,7 @@ class SourceRepo:
             done = subprocess.run(['git', 'rev-parse', '--verify', 'HEAD'], cwd=self.root,
                                   capture_output=True, text=True, check=False)
             parent = done.stdout.strip() if done.returncode == 0 else ''
-        ancestry = f'parent {parent}\n' if parent else ''
-        raw = (f'tree {tree}\n{ancestry}author Fixture <fixture@example.invalid> 0 +0000\n'
-               'committer Fixture <fixture@example.invalid> 0 +0000\n\nSynthetic source fixture\n')
-        commit = self.git('hash-object', '-t', 'commit', '-w', '--stdin', input=raw)
+        commit = synthetic_commit(self.git, tree, parent)
         self.git('update-ref', 'refs/heads/main', commit)
         return commit
 
@@ -412,16 +417,25 @@ class JudgingRoster(unittest.TestCase):
         self.assertIn('python3 -I scripts/compat_sources.py check', step['run'].splitlines())
         self.assertEqual(step['if'], "steps.result.outputs.reuse != 'true'")
         command = [sys.executable, '-I', str(ROOT / 'scripts/compat_sources.py'), 'check']
-        valid = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
+        git_env = {key: value for key, value in os.environ.items()
+                   if not key.startswith(('GIT_AUTHOR_', 'GIT_COMMITTER_'))}
+        git_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_COUNT='1',
+                       GIT_CONFIG_KEY_0='user.useConfigOnly', GIT_CONFIG_VALUE_0='true')
+        valid = subprocess.run(command, cwd=ROOT, env=git_env, capture_output=True, text=True, check=False)
         self.assertEqual(valid.returncode, 0, valid.stderr)
         self.assertIn('36 files verified', valid.stdout)
         for changed_file in (sources.JUDGING_REGISTRATION, 'scripts/oracle_audio.py'):
             with self.subTest(path=changed_file), tempfile.TemporaryDirectory() as tmp:
                 clone = Path(tmp) / 'source'
                 subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(clone)],
-                               check=True, capture_output=True)
+                               env=git_env, check=True, capture_output=True)
                 def git(*args, input=None):
-                    return subprocess.check_output(['git', *args], cwd=clone, input=input, text=True).strip()
+                    return subprocess.check_output(['git', *args], cwd=clone, env=git_env,
+                                                   input=input, text=True).strip()
+                for key in ('user.name', 'user.email'):
+                    identity = subprocess.run(['git', 'config', '--get', key], cwd=clone, env=git_env,
+                                              capture_output=True, text=True, check=False)
+                    self.assertNotEqual(identity.returncode, 0)
                 git('read-tree', 'HEAD')
                 text = subprocess.check_output(['git', 'show', f'HEAD:{changed_file}'], cwd=clone, text=True)
                 if changed_file == sources.JUDGING_REGISTRATION:
@@ -433,9 +447,9 @@ class JudgingRoster(unittest.TestCase):
                 oid = git('hash-object', '-w', '--stdin', input=text)
                 self.assertNotEqual(oid, git('rev-parse', f'HEAD:{changed_file}'))
                 git('update-index', '--cacheinfo', f'100644,{oid},{changed_file}')
-                commit = git('commit-tree', git('write-tree'), '-p', 'HEAD', '-m', 'Synthetic stale judging control')
+                commit = synthetic_commit(git, git('write-tree'), git('rev-parse', 'HEAD'))
                 git('update-ref', '--no-deref', 'HEAD', commit)
-                failed = subprocess.run(command, cwd=clone, capture_output=True, text=True, check=False)
+                failed = subprocess.run(command, cwd=clone, env=git_env, capture_output=True, text=True, check=False)
                 self.assertEqual(failed.returncode, 1, failed.stdout + failed.stderr)
                 self.assertIn('scripts/oracle_audio.py differs from its registered judging hash', failed.stderr)
 

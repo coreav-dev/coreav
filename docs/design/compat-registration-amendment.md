@@ -28,6 +28,8 @@ There is a demonstrated cell-judgment difference in the checker deadline. The re
 
 The registered code accepts the report after about 1.07 seconds and returns `passed`. Both newer revisions stop after about 0.80 seconds and return `failed: copy_check timeout`. This demonstrates a possible judgment change near the deadline; it does not establish an affected historical run. The production 8,580-second limit is unchanged. Future judging includes launch time in that total budget.
 
+On non-Linux platforms, checker process-group cleanup now runs only on timeout, rather than after every completed wait. Command and stream-probe capture starts a private session; Linux stops remaining group members after normal exit as well as timeout, while other platforms stop only the direct child on timeout. These differences do not affect the Linux-only registered R2/R3 cells.
+
 ### MPEG-TS policy reference
 
 coreav-dev/coreav#252 changes `policy_ref.py` beyond its former two-schema evaluator:
