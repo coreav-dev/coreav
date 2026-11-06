@@ -499,7 +499,7 @@ class JudgingRoster(unittest.TestCase):
                        GIT_CONFIG_KEY_0='user.useConfigOnly', GIT_CONFIG_VALUE_0='true')
         valid = subprocess.run(command, cwd=ROOT, env=git_env, capture_output=True, text=True, check=False)
         self.assertEqual(valid.returncode, 0, valid.stderr)
-        self.assertIn('36 files verified', valid.stdout)
+        self.assertIn('38 files verified', valid.stdout)
         for changed_file in (sources.JUDGING_REGISTRATION, 'scripts/oracle_audio.py'):
             with self.subTest(path=changed_file), tempfile.TemporaryDirectory() as tmp:
                 clone = Path(tmp) / 'source'
