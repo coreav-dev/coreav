@@ -179,3 +179,41 @@ Merged main adds the AV1 process-reference driver and its CI smoke check (coreav
 Negative controls cover each of the six tooling paths, absence and additional command-tree files, permitted development observer differences, rejected candidate-object substitutions, inward-link retargeting and target edits, outward links, changed source and relay dependencies, import shadows, new zero-invocation sources, stale anchors, duplicate or dead evidence, and unknown/bypass exit failure. Execute the workflow step with controlled success and failure to prove that neither an unfiltered trigger nor a failed classifier can be bypassed. Preserve every existing adversarial test.
 
 Use the pinned `@ast-grep/cli@0.50.0`, Python and Ruby discovery tools. Source audit, media-free controls and implementation run on the native development host. Real Linux-only oracle or process controls belong in the existing Linux CI jobs. Do not start corpus, held-out, performance, remote-infrastructure or additional fuzz campaigns. Final-head CI, canonical similarity evidence and independent review must cover the completed change.
+
+## Merged-main classification update
+
+Classification merges main twice: `5d4bc7f13` integrates `73e073d1df8eebd4eb50d64589d7a96249fb7a7e` and `f8aaccf29` integrates `51a6e5891a1dae2c00eea20b197ff3ab07431452`. Each merge re-derives every row whose source or cited dependency moved. A verdict is carried only when a check shows that every line it cites is byte-identical, as for rows that cite this note above an appended section. The historical snapshot rebinds five entries changed or added by coreav-dev/coreav#440 and coreav-dev/coreav#443 and grows to 4,889 files. No historical media or measurement is rerun or rejudged.
+
+The final catalogue reconciles all 6,531 rows exactly: 6,241 discovered and 290 closure rows. It has 2,064 qualified rows at 1,626 locations, 4,450 excluded rows at 4,179 locations, no confirmed bypass and 17 unknown rows, all `unavailable-input`. Those 17 rows still fail the classifier, so the required classifier step stays unwired.
+
+The row-lineage receipt from the fresh merged base `1d8c26380` accounts for its 6,230 rows: 5,007 unknown, 119 qualified and 1,104 excluded. On the final tree, 4,228 rows keep their exact site, 528 move, 1,474 are rewritten or removed and 1,775 are new. Every rewritten, removed or new row has a cause: a commit since the base that changed its file, or, for the provisional `ci-full.yml` boundary, its admission to the reviewed inventory. Of the 5,007 base unknown rows, 1,337 are now qualified, 2,317 excluded and 3 remain unavailable-input unknowns; the other 1,350 were rewritten or removed. The remaining 14 unknown rows are new rows of the same reviewed kind. Running the base discovery code and the current discovery code on the final tree yields the same 6,241 row identities, so the census did not shrink.
+
+Against the pre-merge catalogue's 6,377 rows, these paths changed rows:
+
+| Source | Pre-merge rows | Final rows | Cause |
+|---|---:|---:|---|
+| `.github/workflows/github-shapes.yml` | 1 | 4 | coreav-dev/coreav#450; GitHub-shape owner pair |
+| `.github/workflows/hevc-conformance.yml` | 1 | 2 | coreav-dev/coreav#429, coreav-dev/coreav#453 |
+| `crates/coreav-cli/tests/ffmpeg.rs` | 178 | 178 | coreav-dev/coreav#440 |
+| `crates/coreav-cli/tests/ffmpeg_input_seek.rs` | 18 | 30 | coreav-dev/coreav#440; input-seek audio probe |
+| `crates/coreav-cli/tests/mp3_worker.rs` | 0 | 1 | coreav-dev/coreav#451 |
+| `scripts/aac_pcm_eligibility.py` | 41 | 41 | coreav-dev/coreav#450 |
+| `scripts/av1_measurement_smoke.py` | 0 | 7 | coreav-dev/coreav#457; AV1 reference pair |
+| `scripts/av1_process_reference.py` | 0 | 19 | coreav-dev/coreav#457; AV1 reference pair |
+| `scripts/build_av1_reference_ffmpeg.sh` | 0 | 1 | coreav-dev/coreav#457 |
+| `scripts/encoders/macos/test_hevc_smoke.py` | 6 | 6 | macOS test import order |
+| `scripts/h264_g1_simd_identity.py` | 0 | 2 | coreav-dev/coreav#454 |
+| `scripts/hevc_conformance.py` | 21 | 22 | coreav-dev/coreav#429 |
+| `scripts/hevc_decode.py` | 0 | 16 | coreav-dev/coreav#429; HEVC owner pair |
+| `scripts/hevc_smoke.py` | 0 | 5 | coreav-dev/coreav#453; HEVC owner pair |
+| `scripts/mp3_worker_check.py` | 0 | 8 | coreav-dev/coreav#451 |
+| `scripts/tests/test_av1_measurement.py` | 0 | 3 | coreav-dev/coreav#457; AV1 reference pair |
+| `scripts/tests/test_bench_guard.py` | 12 | 13 | coreav-dev/coreav#440 |
+| `scripts/tests/test_hevc_decode.py` | 0 | 2 | coreav-dev/coreav#429; HEVC owner pair |
+| `scripts/tests/test_shell_oracle_qualification.py` | 12 | 12 | composed fixture cache key |
+| `tools/compat-corpus/copy_check.py` | 28 | 39 | coreav-dev/coreav#440 |
+| `tools/compat-corpus/github_shapes.py` | 29 | 32 | coreav-dev/coreav#450 |
+| `tools/compat-corpus/github_shapes_aac.py` | 0 | 4 | coreav-dev/coreav#450; AAC shape owner pair |
+| `tools/compat-corpus/tests/test_copy_check.py` | 3 | 22 | coreav-dev/coreav#440 |
+| `tools/compat-corpus/tests/test_github_shapes.py` | 103 | 105 | coreav-dev/coreav#450; GitHub-shape owner pair |
+| `tools/compat-corpus/tests/test_github_shapes_aac.py` | 0 | 33 | coreav-dev/coreav#450; AAC shape owner pair |
