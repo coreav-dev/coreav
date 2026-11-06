@@ -51,3 +51,7 @@ The residual includes decoder, orchestration, and muxing differences. It is not 
 The measurement build also records elapsed time inside decoder packet, EOF, and receive calls, with packet and frame counts. That sum can include waits for asynchronous decoding and overlaps encoding. The separate decode diagnostic first requires identical complete raw-output hashes and byte counts, then makes three alternating calls per implementation with raw output sent to the same null sink. It includes demuxing and raw-output preparation, so it is a decode-path reference rather than a decoder-kernel microbenchmark.
 
 Publish sanitized per-call data and replayable arithmetic with the results in this change. State what the measured boundary cost would imply for a future isolation-policy proposal, but make no policy decision.
+
+## Results
+
+The reference figures, per-call records and host details are in [bench/encoders/av1-process-reference](../../bench/encoders/av1-process-reference/README.md).

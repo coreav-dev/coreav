@@ -1,0 +1,104 @@
+{
+  "inputs": [
+    {
+      "input": "input01",
+      "median_seconds": {
+        "sandbox": 10.063456234999997,
+        "in_process": 9.877062722999995,
+        "ffmpeg": 9.541997096000003
+      },
+      "range_seconds": {
+        "sandbox": [
+          10.050772933999994,
+          10.106187113000004
+        ],
+        "in_process": [
+          9.846308397999998,
+          9.906513021999999
+        ],
+        "ffmpeg": [
+          9.515259508,
+          9.587349909000004
+        ]
+      },
+      "sandbox_over_ffmpeg": 1.0546488469608306,
+      "in_process_over_ffmpeg": 1.0351148322126875,
+      "gap_seconds": 0.5214591389999939,
+      "boundary_seconds": 0.1863935120000022,
+      "residual_seconds": 0.33506562699999165,
+      "boundary_share": 0.3574460548480375,
+      "share_unstable": false
+    },
+    {
+      "input": "input02",
+      "median_seconds": {
+        "sandbox": 12.994164837,
+        "in_process": 12.466376846999992,
+        "ffmpeg": 11.87026405100002
+      },
+      "range_seconds": {
+        "sandbox": [
+          12.917966156999995,
+          13.03251497299999
+        ],
+        "in_process": [
+          12.399711981000024,
+          12.489008340999987
+        ],
+        "ffmpeg": [
+          11.830922098999991,
+          11.902543608000002
+        ]
+      },
+      "sandbox_over_ffmpeg": 1.0946820374990138,
+      "in_process_over_ffmpeg": 1.050219000473688,
+      "gap_seconds": 1.1239007859999788,
+      "boundary_seconds": 0.5277879900000073,
+      "residual_seconds": 0.5961127959999715,
+      "boundary_share": 0.4696037199853131,
+      "share_unstable": false
+    },
+    {
+      "input": "input03",
+      "median_seconds": {
+        "sandbox": 66.8583948889999,
+        "in_process": 65.92359575599994,
+        "ffmpeg": 64.27858330699996
+      },
+      "range_seconds": {
+        "sandbox": [
+          66.79108368100003,
+          66.97009217800002
+        ],
+        "in_process": [
+          65.71696832499998,
+          65.95323692200003
+        ],
+        "ffmpeg": [
+          64.13844468100001,
+          64.280169215
+        ]
+      },
+      "sandbox_over_ffmpeg": 1.0401348543989921,
+      "in_process_over_ffmpeg": 1.0255919213580558,
+      "gap_seconds": 2.579811581999934,
+      "boundary_seconds": 0.9347991329999559,
+      "residual_seconds": 1.645012448999978,
+      "boundary_share": 0.3623517079783309,
+      "share_unstable": false
+    }
+  ],
+  "aggregate": {
+    "sum_median_seconds": {
+      "sandbox": 89.91601596099989,
+      "in_process": 88.26703532599993,
+      "ffmpeg": 85.69084445399999
+    },
+    "sandbox_over_ffmpeg_geomean": 1.0629067732433328,
+    "in_process_over_ffmpeg_geomean": 1.0369257625421693,
+    "boundary_seconds": 1.6489806349999583,
+    "residual_seconds": 2.576190871999941,
+    "gap_seconds": 4.225171506999899,
+    "boundary_share": 0.3902754319601156
+  }
+}
