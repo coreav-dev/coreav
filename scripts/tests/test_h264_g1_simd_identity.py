@@ -1,5 +1,7 @@
 import importlib.util
+import json
 from pathlib import Path
+import statistics
 import tempfile
 import unittest
 
@@ -10,6 +12,33 @@ SPEC.loader.exec_module(IDENTITY)
 
 
 class IdentityTests(unittest.TestCase):
+    def test_reference_retains_all_pairs_and_prior_stream_identities(self):
+        design = Path(__file__).parents[2] / "docs/design"
+        record = json.loads((design / "h264-encoder-simd-reference.json").read_text())
+        prior = json.loads((design / "h264-encoder-efficiency-reference.json").read_text())
+        self.assertEqual(len(record["calls"]), 60)
+        seen = set()
+        for row in record["calls"]:
+            key = (row["clip"], row["phase"], row["arm"], row["repeat"])
+            self.assertNotIn(key, seen)
+            seen.add(key)
+            self.assertAlmostEqual(row["fps"], 60 / row["wall_seconds"])
+            self.assertGreater(row["cpu_seconds"], 0)
+            old = next(r for r in prior["calls"] if r["clip"] == row["clip"] and r["arm"] == "final" and r["qp"] == 28)
+            self.assertEqual(row["stream_sha256"], old["stream_sha256"])
+            self.assertEqual(row["reconstruction_sha256"], old["decoded_sha256"])
+            self.assertEqual(record["inputs"][row["clip"]]["sha256"], old["binding"]["input_sha256"])
+        expected = {(clip, phase, arm, repeat) for clip in "abc" for phase, arms in (("baseline-pair", ("baseline", "final")), ("scalar-control", ("scalar", "final"))) for arm in arms for repeat in range(5)}
+        self.assertEqual(seen, expected)
+        for clip, phases in record["summary"].items():
+            for phase, arms in phases.items():
+                for arm, summary in arms.items():
+                    values = [r["fps"] for r in record["calls"] if r["clip"] == clip and r["phase"] == phase and r["arm"] == arm]
+                    self.assertEqual(summary, {"median_fps": statistics.median(values), "min_fps": min(values), "max_fps": max(values)})
+        self.assertEqual(record["binaries"]["scalar"]["features"], ["full", "scalar"])
+        self.assertEqual(record["host"]["compiler_source"], "ELF .comment for each executable")
+        self.assertEqual({r["rustc"] for r in record["binaries"].values()}, {record["host"]["rustc"]})
+
     def test_comparison_rejects_changed_stream_reconstruction_or_decoder(self):
         with tempfile.TemporaryDirectory() as tmp:
             auto, scalar = Path(tmp) / "auto", Path(tmp) / "scalar"
