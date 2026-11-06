@@ -33,7 +33,7 @@ class MainPlan(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.workflows = {}
-        for name in ('ci', 'deny', 'python', 'npm'):
+        for name in ('ci', 'ci-full', 'deny', 'python', 'npm'):
             text = subprocess.check_output(['ruby', '-rjson', '-rpsych', '-e',
                                             'puts JSON.generate(Psych.load_file(ARGV[0]))',
                                             str(ROOT / '.github/workflows' / (name + '.yml'))], text=True)
@@ -217,10 +217,10 @@ class MainPlan(unittest.TestCase):
         for evidence in itertools.product((False, True), repeat=3):
             plans = [self.plan('push', evidence[run], code=run != 1, h264=run != 1)
                      for run in range(3)]
-            for name in ('ci', 'python', 'npm'):
+            for name in ('ci', 'ci-full', 'python', 'npm'):
                 workflow = self.workflows[name]
                 self.assertNotIn('concurrency', workflow)
-                gate = name + '-changes'
+                gate = 'full-fixtures' if name == 'ci-full' else name + '-changes'
                 selected = [[(job, index) for job, count in plan[name].items()
                              if not job.endswith('-report') for index in range(count)] for plan in plans]
                 expected = {(run, job, index) for run in range(3) for job, index in selected[run]}
@@ -250,12 +250,16 @@ class MainPlan(unittest.TestCase):
                         retained = completed | set(running.values()) | set(pending.values())
                         if not expected <= retained:
                             failures.append((name, evidence, order, blocked, expected - retained))
-        self.assertEqual(checked, 4320)
+        self.assertEqual(checked, 5760)
         self.assertEqual(len(failures), 0, f'{len(failures)} lost-work orderings; first: {failures[:1]}')
 
     def plan(self, event, reused, code=True, h264=True, oracle_installer=False):
         plans = {}
         for name, workflow in self.workflows.items():
+            if name == 'ci-full' and (event not in ('push', 'schedule', 'workflow_dispatch')
+                                      or (event == 'push' and not code)):
+                plans[name] = {}
+                continue
             github = {'event_name': event, 'ref': 'refs/heads/main', 'run_id': '17', 'workflow': name,
                       'repository': 'owner/repo', 'event': {'pull_request': {'draft': False, 'labels': [],
                       'head': {'repo': {'full_name': 'owner/repo'}}}}}
@@ -289,11 +293,15 @@ class MainPlan(unittest.TestCase):
     def test_reused_main_keeps_only_main_maintenance_and_required_reports(self):
         plan = self.plan('push', True)
         self.assertEqual(set(plan['ci']), {'ci-changes', 'ci-report',
-                                          'main-cache', 'conformance-arm64', 'bench-guard'})
+                                          'main-cache', 'bench-guard'})
+        self.assertEqual(plan['ci-full'], {
+            'full-fixtures': 1, 'h264-full': 1, 'conformance-arm64': 1,
+            'transcode-compat-shard': 3, 'transcode-compat': 1, 'ci-full-report': 1,
+        })
         self.assertEqual(set(plan['python']), {'python-changes', 'python-report'})
         self.assertEqual(set(plan['npm']), {'npm-changes', 'npm-report'})
         self.assertEqual(set(plan['deny']), {'deny', 'deny-checks'})
-        self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 11)
+        self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 18)
 
     def test_installer_only_proof_is_reused_without_starting_the_h264_group(self):
         for event, reused in (('pull_request', False), ('merge_group', False),
@@ -313,22 +321,24 @@ class MainPlan(unittest.TestCase):
         for plan in (main, group):
             self.assertIn('check', plan['ci'])
             self.assertIn('isobmff-writers', plan['ci'])
-            self.assertIn('transcode-compat-shard', plan['ci'])
+            self.assertIn('isobmff-command-compat', plan['ci'])
+            self.assertNotIn('transcode-compat-shard', plan['ci'])
             self.assertIn('svt-av1', plan['ci'])
             self.assertIn('linux-x86_64', plan['python'])
             self.assertIn('package', plan['npm'])
             self.assertNotIn('main-cache', plan['ci'])
-        self.assertEqual(sum(sum(jobs.values()) for jobs in main.values()), 35)
+        self.assertEqual(sum(sum(jobs.values()) for jobs in main.values()), 39)
+        self.assertEqual(group['ci-full'], {})
         self.assertNotIn('conformance-arm64', group['ci'])
 
     def test_documentation_only_main_keeps_the_eight_lightweight_jobs(self):
         plan = self.plan('push', True, code=False, h264=False)
         self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 8)
 
-    def test_representative_non_h264_merge_drops_from_28_to_10_jobs(self):
+    def test_representative_non_h264_main_retains_independent_full_work(self):
         counts = [sum(sum(jobs.values()) for jobs in self.plan('push', reused, h264=False).values())
                   for reused in (False, True)]
-        self.assertEqual(counts, [29, 10])
+        self.assertEqual(counts, [34, 18])
 
     def test_concurrency_never_cancels_or_joins_merge_groups(self):
         for name, workflow in self.workflows.items():

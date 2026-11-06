@@ -106,7 +106,7 @@ WORKFLOW_CANCEL = ("${{ github.event_name == 'pull_request' || "
 MATRIX = '-${{ strategy.job-index }}'
 # The workflows that cancel job by job, so that removing every group from
 # one fails rather than leaving nothing to check.
-JOB_GROUPS = {'ci.yml', 'python.yml', 'npm.yml'}
+JOB_GROUPS = {'ci-full.yml', 'ci.yml', 'python.yml', 'npm.yml'}
 # A step's ref: a full lowercase commit sha, or a Docker image by digest.
 PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
 WORKFLOW_SUFFIXES = ('.yml', '.yaml')
