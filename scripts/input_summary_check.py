@@ -57,13 +57,11 @@ class Oracle:
     def __init__(self, directory):
         self.directory = Path(directory).resolve()
         try:
-            problems = list(test_oracle.verify_bin(self.directory))
-        except (OSError, subprocess.SubprocessError, ValueError, SystemExit):
+            pair = test_oracle.require(self.directory / "ffmpeg", self.directory / "ffprobe")
+        except test_oracle.QualificationError:
             raise CheckFailure("oracle-pin") from None
-        if problems:
-            raise CheckFailure("oracle-pin")
-        self.ffmpeg = self.directory / "ffmpeg"
-        self.ffprobe = self.directory / "ffprobe"
+        self.ffmpeg = pair.ffmpeg
+        self.ffprobe = pair.ffprobe
 
 
 @dataclass(frozen=True)
@@ -498,7 +496,7 @@ def generate_audio_fixtures(oracle, directory):
     with tempfile.TemporaryDirectory(prefix=".input-summary-", dir=directory) as temporary:
         root = Path(temporary)
         try:
-            paths = audio_probe.generate(oracle.directory, root)
+            paths = audio_probe.generate(oracle, root)
         except audio_probe.CheckFailure:
             raise CheckFailure("generate-standalone-audio") from None
         unqualified = {"wav-extensible-s24-valid20", "wav-extensible-s32-valid24",

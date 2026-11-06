@@ -1,5 +1,6 @@
 import contextlib
 import io
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -151,25 +152,36 @@ class SummaryComparison(unittest.TestCase):
 
 
 class Commands(unittest.TestCase):
+    PAIR = check.test_oracle.Oracle(Path("/qualified/ffmpeg"), Path("/qualified/ffprobe"))
+
     def oracle(self):
-        with patch.object(check.test_oracle, "verify_bin", return_value=[]), \
-                patch.object(check.test_oracle, "verify_bin", return_value=[]):
+        with patch.object(check.test_oracle, "require", return_value=self.PAIR):
             return check.Oracle(Path("oracle"))
 
     def test_platform_pin_is_verified_on_construction(self):
-        for platform, module in (("darwin", check.test_oracle), ("linux", check.test_oracle)):
-            with self.subTest(platform=platform), patch.object(check.sys, "platform", platform), \
-                    patch.object(module, "verify_bin", return_value=[]) as verify:
-                oracle = check.Oracle(Path("oracle"))
-                verify.assert_called_once_with(Path("oracle").resolve())
-                self.assertEqual(oracle.ffprobe, Path("oracle").resolve() / "ffprobe")
+        with patch.object(check.test_oracle, "require", return_value=self.PAIR) as require:
+            oracle = check.Oracle(Path("oracle"))
+        require.assert_called_once_with(Path("oracle").resolve() / "ffmpeg", Path("oracle").resolve() / "ffprobe")
+        self.assertEqual((oracle.ffmpeg, oracle.ffprobe), (self.PAIR.ffmpeg, self.PAIR.ffprobe))
+
+    def test_an_unqualified_pair_stops_before_creating_fixtures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("ffmpeg", "ffprobe"):
+                (root / name).write_text(f"#!/bin/sh\nprintf '%s\\n' '{name} version 0.0.0'\n")
+                (root / name).chmod(0o700)
+            result = subprocess.run([sys.executable, "-I", str(Path(check.__file__)), "--coreav", "missing",
+                                     "--oracle-dir", str(root), "--directory", str(root / "uncreated")],
+                                    env=dict(os.environ, CI="1"), capture_output=True, text=True, timeout=30)
+            self.assertEqual((result.returncode, result.stderr), (1, "FAIL oracle-pin\n"))
+            self.assertFalse((root / "uncreated").exists())
 
     def test_pin_failure_stops_before_generation_and_hides_verifier_content(self):
-        for failure in (["/private/path arbitrary content"], OSError("/secret/path"), SystemExit("secret")):
-            options = {"side_effect": failure} if isinstance(failure, BaseException) else {"return_value": failure}
+        for failure in ("/private/path arbitrary content", "/secret/path", "secret"):
             output = io.StringIO()
-            with self.subTest(failure=failure), patch.object(check.sys, "platform", "darwin"), \
-                    patch.object(check.test_oracle, "verify_bin", **options), \
+            with self.subTest(failure=failure), \
+                    patch.object(check.test_oracle, "require",
+                                 side_effect=check.test_oracle.QualificationError(failure)), \
                     patch.object(check, "generate_fixtures") as generate, \
                     contextlib.redirect_stderr(output):
                 self.assertEqual(check.main(["--coreav", "coreav", "--oracle-dir", "oracle",
@@ -379,6 +391,7 @@ class Commands(unittest.TestCase):
 
     def test_audio_matrix_requires_exact_masks_and_preserves_unsupported_cases(self):
         def generate(oracle, root):
+            self.assertEqual((oracle.ffmpeg, oracle.ffprobe), (self.PAIR.ffmpeg, self.PAIR.ffprobe))
             paths = []
             for name, data in (
                 ("wav-extensible-stereo.wav", check.audio_probe.wave(mask=3)),

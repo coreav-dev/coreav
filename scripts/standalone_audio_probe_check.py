@@ -152,7 +152,7 @@ def generate(oracle, directory):
         source, encoded = directory / f"{label}-source.wav", directory / f"{label}-encoded.flac"
         source.write_bytes(wave(bits=bits, channels=channels, rate=rate, frames=sample_count,
                                 mask=0x3F if channels == 6 else None))
-        run([oracle / "ffmpeg", "-v", "error", "-nostdin", "-y", *AUDIO_DECODE_INPUT,
+        run([oracle.ffmpeg, "-v", "error", "-nostdin", "-y", *AUDIO_DECODE_INPUT,
              "-i", source, "-map_metadata", "-1", "-c:a", "flac", encoded])
         streaminfo, frames = split_flac(encoded.read_bytes())
         tags = comments(("TITLE=Generated title", "ARTIST=Fixture artist", "DESCRIPTION=Fixture comment",
@@ -167,7 +167,7 @@ def generate(oracle, directory):
     prefixed = directory / "flac-empty-id3-prefix.flac"
     base = paths[-1].read_bytes()
     prefixed.write_bytes(b"ID3\x04\0\0\0\0\0\0" + base)
-    accepted = run([oracle / "ffprobe", "-v", "error", "-show_format", "-show_streams", prefixed],
+    accepted = run([oracle.ffprobe, "-v", "error", "-show_format", "-show_streams", prefixed],
                    allow_failure=True)
     if accepted.returncode == 0:
         paths.append(prefixed)
@@ -175,7 +175,7 @@ def generate(oracle, directory):
         print("SKIP flac-empty-id3-prefix: pinned oracle refuses empty ID3v2.4 prefix", file=sys.stderr)
     footer = directory / "flac-empty-id3-footer.flac"
     footer.write_bytes(b"ID3\x04\0\x10\0\0\0\0" + b"3DI\x04\0\x10\0\0\0\0" + base)
-    run([oracle / "ffprobe", "-v", "error", "-show_format", "-show_streams", footer])
+    run([oracle.ffprobe, "-v", "error", "-show_format", "-show_streams", footer])
     paths.append(footer)
     return paths
 
@@ -194,7 +194,7 @@ def compare(coreav, oracle, paths):
         for writer in WRITERS:
             options = ["-v", "error", "-show_format", "-show_streams", "-of", writer, path]
             try:
-                expected = run([oracle / "ffprobe", *options]).stdout
+                expected = run([oracle.ffprobe, *options]).stdout
                 actual = run([coreav, "--strict-safe", "ffprobe", *options], env=env).stdout
             except CheckFailure as error:
                 raise CheckFailure(f"{path.name} ({writer}): {error}") from error
@@ -239,7 +239,7 @@ def verify(coreav, oracle, paths):
         outputs, references = {}, {}
         for writer in WRITERS:
             options = ["-v", "error", "-show_format", "-show_streams", "-of", writer, path]
-            references[writer] = run([oracle / "ffprobe", *options]).stdout
+            references[writer] = run([oracle.ffprobe, *options]).stdout
             outputs[writer] = run([coreav, "--strict-safe", "ffprobe", *options], env=env).stdout
         try:
             observed = json.loads(references["json"])["streams"][0]
@@ -257,7 +257,7 @@ def verify(coreav, oracle, paths):
         try:
             path.write_bytes(control)
             for writer in WRITERS:
-                expected = run([oracle / "ffprobe", "-v", "error", "-show_format", "-show_streams",
+                expected = run([oracle.ffprobe, "-v", "error", "-show_format", "-show_streams",
                                 "-of", writer, path]).stdout
                 if outputs[writer] != expected or outputs[writer] == references[writer]:
                     raise CheckFailure(f"PCM32 valid24 ({writer}): native must match the full PCM32 control report, "
@@ -274,11 +274,12 @@ def main(argv=None):
     parser.add_argument("--oracle-dir", type=Path, required=True)
     parser.add_argument("--directory", type=Path, help="retain generated fixtures here; safe to rerun")
     args = parser.parse_args(argv)
-    coreav, oracle = args.coreav.resolve(), args.oracle_dir.resolve()
+    coreav, selected = args.coreav.resolve(), args.oracle_dir.resolve()
     try:
-        problems = list(test_oracle.verify_bin(oracle))
-        if problems:
-            raise CheckFailure('; '.join(problems))
+        try:
+            oracle = test_oracle.require(selected / "ffmpeg", selected / "ffprobe")
+        except test_oracle.QualificationError as error:
+            raise CheckFailure(str(error)) from None
         if args.directory:
             directory = args.directory.resolve()
             directory.mkdir(parents=True, exist_ok=True)
