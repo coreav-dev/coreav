@@ -223,12 +223,44 @@ class InputSeekDispatch(unittest.TestCase):
         for handlers, admitted in ((['vide', 'soun'], True), (['soun', 'vide'], True),
                                     (['vide'], False), (['soun'], False)):
             with self.subTest(handlers=handlers), mock.patch.object(copy_check.track_boxes, 'read_movie',
-                    return_value={'tracks': [{'handler': h} for h in handlers]}):
+                    return_value={'tracks': [{'handler': h, 'entry': {'type': 'avc1' if h == 'vide' else 'mp4a'}}
+                                             for h in handlers]}), \
+                    mock.patch.object(copy_check.writer_boxes, 'aac_config', return_value=b'\x12\x10'):
                 self.assertEqual(copy_check.input_seek_operation(record) is not None, admitted)
+
+    def test_other_source_codecs_keep_the_legacy_input_seek_oracle(self):
+        import clip_check
+        tools = {'ffmpeg': 'ffmpeg', 'ffprobe': 'ffprobe', 'mediainfo': None}
+        for video, audio, config in (('avc1', 'fLaC', None), ('avc1', 'alac', None),
+                                     ('avc1', 'ac-3', None), ('hvc1', 'mp4a', b'\x12\x10'),
+                                     ('avc1', 'mp4a', b'\x2b\x90')):
+            movie = {'tracks': [{'handler': 'vide', 'entry': {'type': video}},
+                                {'handler': 'soun', 'entry': {'type': audio}}]}
+            with self.subTest(video=video, audio=audio, config=config), \
+                    mock.patch.object(copy_check.track_boxes, 'read_movie', return_value=movie), \
+                    mock.patch.object(copy_check.writer_boxes, 'aac_config', return_value=config), \
+                    mock.patch.object(copy_check, 'streams', return_value=[]), \
+                    mock.patch.object(copy_check, 'entry', return_value={'legacy': True}), \
+                    mock.patch.object(copy_check, 'range_problems', return_value=[]), \
+                    mock.patch.object(copy_check, 'input_seek_problems') as bounded, \
+                    mock.patch.object(clip_check, 'check', return_value=([], [], [], {})) as legacy:
+                self.assertIsNone(copy_check.input_seek_operation(seek_record()))
+                self.assertEqual(copy_check.oracle(seek_record(), tools), [])
+                legacy.assert_called_once_with({'legacy': True}, 'ffprobe', 'ffmpeg', None)
+                bounded.assert_not_called()
 
     def test_source_read_errors_cannot_pass_or_escape_to_legacy(self):
         with mock.patch.object(copy_check.track_boxes, 'read_movie', side_effect=OSError('unreadable')):
             self.assertIsNotNone(copy_check.input_seek_operation(seek_record()))
+
+    def test_unreadable_aac_configuration_cannot_escape_to_legacy(self):
+        movie = {'tracks': [{'handler': 'vide', 'entry': {'type': 'avc1'}},
+                            {'handler': 'soun', 'entry': {'type': 'mp4a'}}]}
+        for config in (None, b''):
+            with self.subTest(config=config), \
+                    mock.patch.object(copy_check.track_boxes, 'read_movie', return_value=movie), \
+                    mock.patch.object(copy_check.writer_boxes, 'aac_config', return_value=config):
+                self.assertIsNotNone(copy_check.input_seek_operation(seek_record()))
 
     def test_legacy_dispatch_and_input_seek_dispatch_are_separate(self):
         import clip_check
@@ -410,8 +442,16 @@ class InputSeekGenerated(unittest.TestCase):
                 path.write_bytes(changed)
                 record = copy.deepcopy(original)
                 record['source'] = record['input'] = str(path)
-                self.assertIsNotNone(copy_check.input_seek_operation(record))
-                self.assertTrue(copy_check.oracle(record, self.tools))
+                self.assertIsNone(copy_check.input_seek_operation(record))
+                self.assertTrue(copy_check.input_seek_problems(record, copy_check.input_seek_args(record), self.tools))
+                records = pathlib.Path(tmp) / 'records.json'
+                report = pathlib.Path(tmp) / 'report.json'
+                records.write_text(json.dumps([record]))
+                checked = subprocess.run([sys.executable, copy_check.__file__, '--records', str(records),
+                    '--ffmpeg', self.tools['ffmpeg'], '--ffprobe', self.tools['ffprobe'],
+                    '--jobs', '1', '--report', str(report)], capture_output=True, text=True, timeout=60)
+                self.assertEqual(checked.returncode, 1, checked.stdout + checked.stderr)
+                self.assertEqual(json.loads(report.read_text())['counts'][record['id']]['failed'], 1)
 
     def test_serialized_iso_mutations_fail_without_changing_the_source(self):
         tb = copy_check.track_boxes

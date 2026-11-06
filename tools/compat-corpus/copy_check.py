@@ -461,10 +461,18 @@ def input_seek_operation(record):
     if operation is None:
         return None
     try:
-        handlers = {t['handler'] for t in track_boxes.read_movie(record['source'])['tracks']}
+        tracks = track_boxes.read_movie(record['source'])['tracks']
     except (track_boxes.Unreadable, OSError, struct.error):
         return operation
-    return operation if {'vide', 'soun'} <= handlers else None
+    if not any(t['handler'] == 'vide' and (t.get('entry') or {}).get('type') == 'avc1' for t in tracks):
+        return None
+    for track in tracks:
+        entry = track.get('entry') or {}
+        if track['handler'] == 'soun' and entry.get('type') == 'mp4a':
+            config = writer_boxes.aac_config(entry)
+            if not config or config[0] >> 3 == 2:
+                return operation
+    return None
 
 
 def input_seek_facts(path):
