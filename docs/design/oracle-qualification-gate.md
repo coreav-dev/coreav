@@ -102,6 +102,12 @@ Keep three baselines distinct. The original census has 5,722 discovered rows, in
 
 Completion requires valid source and dependency bindings, exact reconciliation, zero unknown rows and zero confirmed bypass rows at the final tree. Account for all original 4,758 unresolved rows, all moved or rewritten descendants, every subsequently discovered invocation and every unscanned boundary. Zero confirmed bypasses alone is insufficient. Never reduce the discovery set, drop unknowns, weaken a test or comparison, or relabel an actual bypass to satisfy this predicate.
 
+### Runtime inputs that are not available
+
+Seventeen audited rows select runtime inputs whose admitted code or input is not available: eight cache-observer rows, five metric-template rows and four external-checker rows. Retain each as unknown with an explicit input-not-available reason, its exact site and the in-repository selecting sources bound through the existing schema-2 proof. The closed `unavailable-input` evidence class maps only to `unknown`; it grants neither qualification nor exclusion. Source, dependency, anchor, occurrence, span, dead-entry and fold checks remain unchanged. Continue other repairs without treating these missing inputs as evidence.
+
+Report unknown reasons per row after applying the existing location severity. Keep each unknown row's own reason so an explained row cannot hide an unmatched row at the same location. A less severe row folded into an unknown location receives the report-only reason `folded-to-unknown`, which is not an admissible evidence class. The reason counts must sum to the reported unknown-row count. Explained unknowns still fail the classifier, so the required classifier step remains unwired while any unknown or bypass remains. This does not change the completion predicate.
+
 Keep a deterministic row-lineage receipt outside the checkout. Match exact sites first, then exact content identities with occurrences for moved sites. Rewritten or removed sites need explicit old-to-new pairings and a recorded merged-main or repair cause; they cannot use a fuzzy expression or namespace match. Reconcile the original, pre-merge, fresh merged and final row sets separately. Compare base and final discovery on the same final tree to detect accidental census shrinkage. Publish the receipt digest, regeneration command and aggregate dispositions, while CI continues to consume the schema-2 catalogue rather than a second mutable verdict source.
 
 ### File-by-file evidence and repairs
