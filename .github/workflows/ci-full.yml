@@ -1,0 +1,16 @@
+name: ci-full
+
+# workflow-check: not required
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ci-full-registration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: Register manual full-suite execution
+        run: ':'
