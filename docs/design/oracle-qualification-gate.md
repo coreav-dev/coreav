@@ -91,3 +91,53 @@ The diagnostic protected-source map changes only the digests of `ffmpeg.rs`, `co
 The existing qualified call at `legacy_encoders.rs:72` is re-derived as the identical `Command::new(test_oracle::require().ffmpeg())`, after coreav-dev/coreav#441 inserted seven bytes in an earlier derive attribute. Its exact program span moves from `2386:2417` to `2393:2424`. The enclosing fixture command, qualification predicate and owner bytes are unchanged; the dependency context now includes `support/sar_delta.rs`. The helper's new `ffmpeg` invocation remains unknown.
 
 The new report has valid evidence and exact reconciliation of 6,229 rows: 5,939 discovered and 290 closure rows. Qualified evidence is unchanged at 79 locations in 25 files and 119 rows. Exclusions decrease to 993 locations in 161 files and 1,104 rows; unknowns increase to 4,470 locations in 667 files and 5,006 rows. The 137 additional discovered rows and withdrawal of 216 stale exclusion rows explain the 353-row increase in unknowns. This is baseline drift, not classification progress. Confirmed bypasses remain zero, and the checker still exits unsuccessfully for unresolved rows.
+
+## Completion plan after the evidence mechanism
+
+coreav-dev/coreav#438 merged as `1d8c263806b31f5ff99d0978fa04c9c02d0a85e0`. This follow-up completes exact-site classification and repairs remaining qualification bypasses before making the existing classifier required. The plan is committed before implementation. The reviewed schema-2 mechanism remains the evidence owner; no new general-purpose flow analyzer or automatic verdict inheritance is introduced.
+
+### Baseline and completion predicate
+
+Keep three baselines distinct. The original census has 5,722 discovered rows, including 4,758 unresolved rows. The preceding section describes the pre-merge 6,229-row receipt. The actual merged tree adds `.github/workflows/ci-full.yml` through coreav-dev/coreav#449, so its fresh report has 6,230 rows: 5,939 discovered and 291 closure rows, including 5,007 unknown rows and 119 qualified rows. Evidence is invalid only because the new workflow has no inventory entry. Its sole manual-dispatch command is `:`; admitting the inspected zero-invocation source removes that provisional boundary, not an invocation or a classification obligation.
+
+Completion requires valid source and dependency bindings, exact reconciliation, zero unknown rows and zero confirmed bypass rows at the final tree. Account for all original 4,758 unresolved rows, all moved or rewritten descendants, every subsequently discovered invocation and every unscanned boundary. Zero confirmed bypasses alone is insufficient. Never reduce the discovery set, drop unknowns, weaken a test or comparison, or relabel an actual bypass to satisfy this predicate.
+
+Keep a deterministic row-lineage receipt outside the checkout. Match exact sites first, then exact content identities with occurrences for moved sites. Rewritten or removed sites need explicit old-to-new pairings and a recorded merged-main or repair cause; they cannot use a fuzzy expression or namespace match. Reconcile the original, pre-merge, fresh merged and final row sets separately. Compare base and final discovery on the same final tree to detect accidental census shrinkage. Publish the receipt digest, regeneration command and aggregate dispositions, while CI continues to consume the schema-2 catalogue rather than a second mutable verdict source.
+
+### File-by-file evidence and repairs
+
+Review whole files, grouped by their delegated dependency closure. Read-only classification proposals contain exact sites, occurrences, Rust byte spans, verdicts, evidence classes, explanations and cited source paths. The integrator derives hashes and import witnesses from the actual checkout through `Bindings.context`, never from a proposal's claimed digest. Each delegated row has its own explanation and complete closure. A callee verdict does not automatically qualify its caller.
+
+A qualified verdict requires the executed program value to come from the shared owner's returned pair. Exclusions identify a concrete non-oracle mechanism, a deliberate negative control, a registered immutable source, or inert data. Names, imports, suffixes and historical path membership do not prove qualification. Bound data records include their actual consuming harness or analyzer where applicable; never execute or decode hostile regression inputs during this audit.
+
+Repair each confirmed non-frozen bypass through the existing shared owner, preserving its arguments, comparison predicates and failure behavior. Re-discover and classify the repaired sites rather than moving an old verdict to a new line. Include every new regression boundary in the final audit. Correct the composed-audio fixture cache's missing verifier dependency without changing fixture generation or the audio policy.
+
+Three inward license and notice links in `crates/coreav-py` need explicit link-and-target evidence. Bind their link text and tracked regular target inside the checkout, and include the target in the dependency context. Retargeting or target edits invalidate the proof; outward links, missing targets and unreviewed links remain failures. Unscanned C, module-TypeScript and MDX sources require source inspection rather than a suffix exclusion.
+
+### Development observer qualification
+
+The current tooling copy of `crates/coreav-cli/tests/ffmpeg.rs` differs from the immutable candidate observer. Its `oracle()` helper checks only that two files exist. A generated control compiles the actual helper unchanged: with `CI=1`, an executable pair reporting version `0.0.0` is accepted, while the shared owner rejects that same pair for a pin digest mismatch. Without either required-mode variable, a missing pair returns a passing skip. No media is needed to reproduce either behavior.
+
+Move only this development helper to the existing shared Rust owner. Preserve all callers and comparison assertions. Add regressions that run the helper with `CI=1` and require rejection of both the fake version-`0.0.0` pair and a missing pair. Bind the helper's owner module within this change; do not copy another verifier or create a separate pin predicate.
+
+The module-graph regression must inspect the registered candidate observer's fixed source graph, not require its unrelated development copy to have the same imports. Retain an adversarial graph-change control against the candidate subject. The candidate commit, its observer Git objects, the `FROZEN` and `OBSERVER` rosters, the registered common module, pins and all judging predicates remain unchanged. This helper repair does not change `judging.json`. Discovery must distinguish development observer copies from registered immutable sources so that their invocations cannot inherit a `registered-source` exclusion.
+
+### Six tooling-consumed frozen paths
+
+Extend the media-free `compat_sources.py check` to the existing six tooling-consumed paths: the FFmpeg environment, the two installers, the audio argument file, the command tree and `round_files.py`. Derive this scope from `FROZEN` minus `OBSERVER`, not a second six-item allowlist. Compare complete Git objects, including the command directory's tree, with the registered candidate. Share one role-aware object owner across `check`, `plan` and shallow-bundle `verify`; consumer verification must not require unavailable candidate history.
+
+The two observer paths stay bound to the registered candidate. Changes to their unused tooling copies do not become frozen-input drift, while a substituted candidate object, changed role, missing source or incomplete roster still fails. No candidate, source roster, artifact role, command set or source-manifest schema change is needed.
+
+This guard edit changes the registered digest of `compat_sources.py`, not a media comparison. Commit that implementation first, then generate `judging.json` explicitly from the immutable code commit in a separate commit. Verify that only the guard's hash changes and the observer registration is identical. Update only the corresponding diagnostic historical-snapshot digest. These registration metadata changes are separate from the development-helper repair; no prior result or other historical evidence is edited or rejudged. CI must never regenerate registration automatically.
+
+### Implementation order and verification
+
+1. Commit this plan. Capture the invalid fresh merged baseline and the original-row obligations without claiming classification progress.
+2. Implement the shared frozen-object owner and its regressions. Generate and verify the explicit registration from that code commit, then bind its diagnostic snapshot. Further edits to registered code require another explicit code-and-registration pair.
+3. Add observer-copy and inward-link handling with freshness controls. Repair the demonstrated development helper and preserve candidate-graph protection. Complete the file-by-file audit, all other repairs and the original-row lineage receipt.
+4. Require the existing classifier in unfiltered `deny-checks`, after its pinned parser is installed and before checkout-writing tests or generators. Write the report outside the checkout and retain it with failure diagnostics. Preserve the existing required report and same-tree reuse policy; add no ruleset, required-context or measurement-job change.
+5. Re-derive the complete final catalogue after every code, test, registration and workflow input is settled. The real command must report valid evidence, exact reconciliation, unknown zero and bypass zero. Verify the independent row receipt and unchanged protected material before publishing the result.
+
+Negative controls cover each of the six tooling paths, absence and additional command-tree files, permitted development observer differences, rejected candidate-object substitutions, inward-link retargeting and target edits, outward links, changed source and relay dependencies, import shadows, new zero-invocation sources, stale anchors, duplicate or dead evidence, and unknown/bypass exit failure. Execute the workflow step with controlled success and failure to prove that neither an unfiltered trigger nor a failed classifier can be bypassed. Preserve every existing adversarial test.
+
+Use the pinned `@ast-grep/cli@0.50.0`, Python and Ruby discovery tools. Source audit, media-free controls and implementation run on the native development host. Real Linux-only oracle or process controls belong in the existing Linux CI jobs. Do not start corpus, held-out, performance, remote-infrastructure or additional fuzz campaigns. Final-head CI, canonical similarity evidence and independent review must cover the completed change.
