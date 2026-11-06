@@ -2081,16 +2081,17 @@ const FAMILIES: [(&str, &[&str]); 2] = [
     ("matroska-webm", &["mkv", "webm"]),
 ];
 
-const INPUT_SEEK_REFUSALS: [(&str, usize, &str); 17] = [
+const INPUT_SEEK_SUCCESSES: [(&str, usize, &str); 2] =
+    [("C18", 2, "hls_h264.mp4"), ("C18", 2, "hls_long_gop.mp4")];
+
+const INPUT_SEEK_REFUSALS: [(&str, usize, &str); 15] = [
     ("C18", 2, "edit_multi_empty.mp4"),
     ("C18", 2, "edit_multi_audio.mp4"),
     ("C18", 2, "edit_multi_audio_average.mp4"),
     ("C18", 2, "edit_multi_av.mp4"),
     ("C18", 2, "chapters_sized.mp4"),
-    ("C18", 2, "hls_h264.mp4"),
     ("C18", 2, "hls_open_gop.mp4"),
     ("C18", 2, "hls_hevc.mp4"),
-    ("C18", 2, "hls_long_gop.mp4"),
     ("C18", 2, "fragmented_sidx.mp4"),
     ("C18", 2, "fragmented_many.mp4"),
     ("C19", 0, "edit_multi_audio.mp4"),
@@ -2108,9 +2109,16 @@ fn input_seek_refusal_contract_keeps_its_exact_command_scope() {
     ))
     .unwrap();
     let unique: BTreeSet<_> = INPUT_SEEK_REFUSALS.into_iter().collect();
-    assert_eq!(unique.len(), 17);
-    assert_eq!(unique.iter().filter(|(id, _, _)| *id == "C18").count(), 11);
+    assert_eq!(unique.len(), 15);
+    assert_eq!(unique.iter().filter(|(id, _, _)| *id == "C18").count(), 9);
     assert_eq!(unique.iter().filter(|(id, _, _)| *id == "C19").count(), 6);
+    let successes: BTreeSet<_> = INPUT_SEEK_SUCCESSES.into_iter().collect();
+    assert_eq!(
+        successes,
+        BTreeSet::from([("C18", 2, "hls_h264.mp4"), ("C18", 2, "hls_long_gop.mp4")])
+    );
+    assert!(unique.is_disjoint(&successes));
+    assert_eq!(unique.union(&successes).count(), 17);
     for number in [0, 1] {
         assert_eq!(
             unique
@@ -2120,7 +2128,7 @@ fn input_seek_refusal_contract_keeps_its_exact_command_scope() {
             3
         );
     }
-    for (id, number, _) in unique {
+    for &(id, number, _) in unique.union(&successes) {
         let entry = set["entries"]
             .as_array()
             .unwrap()
@@ -2333,6 +2341,7 @@ fn the_0_1_0_commands_on_the_fixtures() {
     let mut records = Vec::new();
     let mut native = BTreeSet::new();
     let mut required_refusals = BTreeSet::new();
+    let mut required_successes = BTreeSet::new();
     for entry in set["entries"].as_array().unwrap() {
         if entry["tool"] != "ffmpeg" {
             continue;
@@ -2419,6 +2428,13 @@ fn the_0_1_0_commands_on_the_fixtures() {
                     verify_input_seek_refusal(&args, &output);
                     required_refusals.insert((id, n, name.as_str()));
                 }
+                if family == "mp4-mov" && INPUT_SEEK_SUCCESSES.contains(&(id, n, name.as_str())) {
+                    assert_eq!(
+                        status, "written",
+                        "{label}: exact-success witness did not run natively"
+                    );
+                    required_successes.insert((id, n, name.as_str()));
+                }
                 // Not valid HEVC (ITU-T H.265 7.4.3.2.1): no command writes
                 // an output from these, a copy included.
                 if ["size_hevc_mixed_window.mp4", "size_hevc_window.mp4"].contains(&name.as_str()) {
@@ -2446,6 +2462,15 @@ fn the_0_1_0_commands_on_the_fixtures() {
             }
         }
         for family in families.iter().filter(|f| present.contains(*f)) {
+            for witness in INPUT_SEEK_SUCCESSES
+                .iter()
+                .filter(|(entry, _, _)| *entry == id && *family == "mp4-mov")
+            {
+                assert!(
+                    required_successes.contains(witness),
+                    "{witness:?}: exact-success witness was not verified"
+                );
+            }
             let required: Vec<_> = INPUT_SEEK_REFUSALS
                 .iter()
                 .filter(|(entry, _, _)| *entry == id && *family == "mp4-mov")

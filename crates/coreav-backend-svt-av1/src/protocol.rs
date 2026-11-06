@@ -33,8 +33,35 @@ impl Limits {
         frames: u64,
         packet_bytes: u32,
     ) -> Result<Self, Error> {
+        Self::bounded(
+            retained_bytes,
+            output_bytes,
+            frames,
+            packet_bytes,
+            model::RETAINED_BYTES,
+        )
+    }
+
+    #[cfg(feature = "measurement")]
+    #[doc(hidden)]
+    pub fn measurement(
+        retained_bytes: u64,
+        output_bytes: u64,
+        frames: u64,
+        packet_bytes: u32,
+    ) -> Result<Self, Error> {
+        Self::bounded(retained_bytes, output_bytes, frames, packet_bytes, 4 << 30)
+    }
+
+    fn bounded(
+        retained_bytes: u64,
+        output_bytes: u64,
+        frames: u64,
+        packet_bytes: u32,
+        ceiling: u64,
+    ) -> Result<Self, Error> {
         if retained_bytes == 0
-            || retained_bytes > model::RETAINED_BYTES
+            || retained_bytes > ceiling
             || !(8 + FAILURE_RECORD_BYTES..=MAX_OUTPUT_BYTES).contains(&output_bytes)
             || frames == 0
             || packet_bytes == 0
@@ -113,6 +140,13 @@ impl Request {
 
     /// Reads and validates the fixed header without allocating picture storage.
     pub fn read<R: Read>(reader: &mut R) -> Result<Self, Error> {
+        Self::read_with(reader, Limits::new)
+    }
+
+    fn read_with<R: Read>(
+        reader: &mut R,
+        limits: fn(u64, u64, u64, u32) -> Result<Limits, Error>,
+    ) -> Result<Self, Error> {
         let mut bytes = [0; 60];
         exact(reader, &mut bytes)?;
         let mut bytes = bytes.as_slice();
@@ -146,7 +180,7 @@ impl Request {
             chroma_position,
         )?;
         let settings = Settings::new(width, height, rate, preset, crf, color)?;
-        let limits = Limits::new(
+        let limits = limits(
             u64::from_le_bytes(take(&mut bytes)?),
             u64::from_le_bytes(take(&mut bytes)?),
             u64::from_le_bytes(take(&mut bytes)?),
@@ -208,6 +242,18 @@ enum InputState {
 }
 
 impl<R: Read> InputReader<R> {
+    #[cfg(feature = "measurement")]
+    pub(crate) fn measurement(mut reader: R) -> Result<Self, Error> {
+        let request = Request::read_with(&mut reader, Limits::measurement)?;
+        Ok(Self {
+            reader,
+            request,
+            count: 0,
+            last_pts: None,
+            state: InputState::Header,
+        })
+    }
+
     /// Reads the checked request from the beginning of the pipe.
     pub fn new(mut reader: R) -> Result<Self, Error> {
         let request = Request::read(&mut reader)?;
@@ -358,8 +404,22 @@ pub struct Decoder {
 impl Decoder {
     /// Binds every segment to the caller's exact checked retained-input envelope.
     pub fn new(request: Request, expected_retention: Retention) -> Result<Self, Error> {
+        Self::start(request, expected_retention, false)
+    }
+
+    #[cfg(feature = "measurement")]
+    #[doc(hidden)]
+    pub fn measurement(request: Request, expected_retention: Retention) -> Result<Self, Error> {
+        Self::start(request, expected_retention, true)
+    }
+
+    fn start(
+        request: Request,
+        expected_retention: Retention,
+        continuous: bool,
+    ) -> Result<Self, Error> {
         if expected_retention.budget() != request.limits.retained_bytes
-            || expected_retention.pictures() > request.settings.keyint()
+            || (!continuous && expected_retention.pictures() > request.settings.keyint())
             || expected_retention.picture_bytes() < request.settings.raw_bytes() as u64
         {
             return Err(Error::Invalid("AV1 retention does not match the request"));

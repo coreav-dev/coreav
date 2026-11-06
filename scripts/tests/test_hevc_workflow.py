@@ -10,6 +10,76 @@ import unittest
 
 
 class HevcWorkflow(unittest.TestCase):
+    def test_packet_comparison_reuses_the_complete_private_census(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        job = (root / '.github/workflows/hevc-conformance.yml').read_text().split('  profile-census:\n', 1)[1]
+        command = job.split('python3 -I scripts/hevc_conformance.py corpus-online', 1)[1].split('\n      - name:', 1)[0]
+        arguments = shlex.split(command.replace('\\\n', ''))
+        self.assertEqual(arguments[arguments.index('--packet-native') + 1], '$PWD/target/release/examples/packets')
+        for option, expected in [('--decode-memory-bytes', 1 << 30), ('--stream-bins', 1 << 40),
+                                 ('--picture-bins', 1 << 28)]:
+            self.assertEqual(int(arguments[arguments.index(option) + 1]), expected)
+        self.assertIn('--example packets', job)
+        self.assertIn('shard: [0, 1, 2, 3]', job)
+        self.assertIn('fail-fast: false', job)
+        self.assertEqual(arguments[arguments.index('--shard-count') + 1], '4')
+        self.assertEqual(arguments[arguments.index('--shard-index') + 1], '${{ matrix.shard }}')
+        self.assertIn('name: hevc-profile-census-sealed-${{ matrix.shard }}', job)
+        self.assertIn('name: hevc-profile-summary-${{ matrix.shard }}', job)
+        self.assertIn("summary['packet_decode']", job)
+        self.assertIn('tar -czf records.tgz private', job)
+
+    def test_complete_scalar_comparison_uses_the_full_current_census(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        for line in workflow.splitlines():
+            if line.strip().startswith('paths:'):
+                self.assertIn('scripts/hevc_decode.py', json.loads(line.split(':', 1)[1]))
+                self.assertIn('scripts/test_oracle.py', json.loads(line.split(':', 1)[1]))
+        step = workflow.split('- name: Check complete scalar conformance output\n', 1)[1]
+        command = step.split('run: |\n', 1)[1].split('\n      - ', 1)[0]
+        arguments = shlex.split(command.replace('\\\n', ''))
+        self.assertEqual(arguments[:3], ['python3', '-I', 'scripts/hevc_decode.py'])
+        self.assertNotIn('--select-test', arguments)
+        self.assertEqual(arguments[arguments.index('--census') + 1], '$RUNNER_TEMP/hevc-intra/g1/census.json')
+        self.assertEqual(int(arguments[arguments.index('--max-memory-bytes') + 1]), 1 << 30)
+        self.assertEqual(int(arguments[arguments.index('--max-stream-bins') + 1]), 1 << 40)
+        self.assertEqual(int(arguments[arguments.index('--max-picture-bins') + 1]), 1 << 28)
+        self.assertIn('${{ runner.temp }}/hevc-decode', workflow)
+        self.assertIn('--example headers --example intra --example decode', workflow)
+
+    def test_full_work_runs_only_on_explicit_full_events(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        self.assertIn('cron: "45 3 * * *"', workflow)
+        self.assertIn('  workflow_dispatch:', workflow)
+        self.assertNotIn('merge_group:', workflow)
+        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", workflow)
+        gate = "if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'"
+        for job in ('hevc-vectors', 'profile-census'):
+            self.assertEqual(workflow.split('  ' + job + ':\n', 1)[1].splitlines()[0].strip(), gate)
+        for line in workflow.splitlines():
+            if line.strip().startswith('paths:'):
+                paths = json.loads(line.split(':', 1)[1])
+                for required in ('scripts/hevc_smoke.py', 'scripts/test_oracle.py'):
+                    self.assertIn(required, paths)
+
+    def test_smoke_has_only_synthetic_work_and_safe_always_reports(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        job = workflow.split('  hevc-smoke:\n', 1)[1].split('  hevc-vectors:', 1)[0]
+        for required in ('runs-on: ubuntu-24.04', 'timeout-minutes: 30',
+                         '--example headers --example intra', 'scripts/install-oracle-ffmpeg.sh',
+                         'scripts/hevc_fixture.py verify', 'scripts/hevc_smoke.py', 'if: always()'):
+            self.assertIn(required, job)
+        for forbidden in ('secrets.', 'R2_', ' acquire ', 'corpus-online', 'hevc_decode.py'):
+            self.assertNotIn(forbidden, job)
+        self.assertLess(job.index('scripts/hevc_fixture.py verify'), job.index('scripts/hevc_smoke.py'))
+        artifacts = job.split('          path: |\n', 1)[1].split('          if-no-files-found:', 1)[0]
+        self.assertEqual([line.strip() for line in artifacts.splitlines()],
+                         ['${{ runner.temp }}/hevc-smoke/result.json',
+                          '${{ runner.temp }}/hevc-synthetic/reference.json'])
+
     def test_census_uses_its_own_public_recipient_without_changing_shared_corpus_sealing(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
@@ -121,7 +191,8 @@ esac
         with tempfile.TemporaryDirectory() as directory:
             temp = pathlib.Path(directory)
             (temp / 'private').mkdir()
-            record = dict(roster_sha256='a' * 64, complete=True,
+            record = dict(roster_sha256='a' * 64, complete=False, passed=True,
+                          scope=dict(kind='fixed_roster_shard', index=0, count=4, roster_files=54, files=14),
                           counts=[dict(partition='development', profile='Main', bit_depth=8,
                                        status='inspected', files=1)],
                           files=[dict(source='private-canary', url='private-canary')])
@@ -133,7 +204,10 @@ esac
             summary = json.loads(text)
             self.assertNotIn('private-canary', text)
             self.assertEqual(summary['files'], 1)
-            self.assertEqual(set(summary), {'roster_sha256', 'complete', 'counts', 'files'})
+            self.assertEqual(set(summary), {'roster_sha256', 'complete', 'passed', 'scope', 'counts', 'files'})
+            self.assertEqual(summary['scope'], record['scope'])
+            self.assertFalse(summary['complete'])
+            self.assertTrue(summary['passed'])
             self.assertEqual(json.loads(source.read_text()), record)
 
 

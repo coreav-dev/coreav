@@ -11,13 +11,19 @@ set -euo pipefail
 
 OUT="${1:?usage: gen-fixtures-ts.sh /absolute/output/dir}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ORACLE_PATHS="$(python3 -I -B "$ROOT/scripts/test_oracle.py" --resolve)"
+if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+   [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+  echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+  exit 1
+fi
 mkdir -p "$OUT"
 MANIFEST="$OUT/MANIFEST"
 : > "$MANIFEST"
 REQUIRE_ALL="${COREAV_REQUIRE_ALL_FIXTURES:-1}"
 CRAFT=(python3 -I "$ROOT/scripts/ts_craft.py")
 
-FF=(ffmpeg -hide_banner -loglevel error -y)
+FF=("$FFMPEG" -hide_banner -loglevel error -y)
 V=(-f lavfi -i "testsrc2=size=320x240:rate=25:duration=3")
 A=(-f lavfi -i "sine=frequency=440:duration=3:sample_rate=48000")
 A44=(-f lavfi -i "sine=frequency=440:duration=3:sample_rate=44100")

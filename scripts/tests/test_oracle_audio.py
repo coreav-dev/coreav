@@ -142,8 +142,12 @@ class AudioOracle(unittest.TestCase):
 
     def test_shell_and_rust_read_the_shared_file_before_input(self):
         shell = (ROOT / 'scripts/oracle-ffprobe.sh').read_text()
-        self.assertIn('mapfile -t AUDIO_DECODE_INPUT < "$ROOT/' + oracle_audio.ARG_FILE + '"', shell)
-        self.assertIn('"${AUDIO_DECODE_INPUT[@]}" -i "$MEDIA_FILE"', shell)
+        reader = 'done < "$ROOT/' + oracle_audio.ARG_FILE + '"'
+        command = '${AUDIO_DECODE_INPUT[@]+"${AUDIO_DECODE_INPUT[@]}"} -i "$MEDIA_FILE"'
+        self.assertIn('AUDIO_DECODE_INPUT+=("$argument")', shell)
+        self.assertIn(reader, shell)
+        self.assertIn(command, shell)
+        self.assertLess(shell.index(reader), shell.index(command))
         rust = (ROOT / 'crates/coreav-cli/tests/decode_audio.rs').read_text()
         self.assertIn('.args(include_str!("../../../' + oracle_audio.ARG_FILE + '").split_whitespace())\n        .arg("-i")', rust)
 

@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::{Error, Result};
 
 pub(crate) const SCAN: [usize; 16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15];
@@ -21,7 +23,7 @@ pub(crate) fn chroma_qp(qp: u8) -> u8 {
     }
 }
 
-fn norm(qp: u8, position: usize) -> Result<i64> {
+pub(crate) fn norm(qp: u8, position: usize) -> Result<i64> {
     let row = (position / 4) % 2;
     let col = position % 2;
     let column = if row == col { row } else { 2 };
@@ -34,12 +36,23 @@ fn norm(qp: u8, position: usize) -> Result<i64> {
 
 fn nearest(numerator: i64, denominator: i64) -> Result<i32> {
     let a = numerator.abs();
+    if 2 * a <= denominator {
+        return Ok(0);
+    }
     let level = a / denominator + i64::from((a % denominator) * 2 > denominator);
     i32::try_from(if numerator < 0 { -level } else { level }).map_err(|_| Error::Coefficient)
 }
 
 pub(crate) fn forward(samples: &[i32; 16]) -> Result<[i64; 16]> {
     matrix::<false>(samples.map(i64::from))
+}
+
+pub(crate) fn satd(samples: &[i32; 16]) -> Result<u64> {
+    Ok(matrix::<true>(samples.map(i64::from))?
+        .into_iter()
+        .map(i64::unsigned_abs)
+        .sum::<u64>()
+        / 2)
 }
 
 fn line<const DC: bool>([a, b, c, d]: [i64; 4]) -> [i64; 4] {
@@ -82,17 +95,48 @@ pub(crate) fn quantize(transformed: &[i64; 16], qp: u8, separate_dc: bool) -> Re
     Ok(out)
 }
 
+pub(crate) fn quantizes_to_zero(
+    transformed: &[i64; 16],
+    qp: u8,
+    separate_dc: bool,
+) -> Result<bool> {
+    for (p, coefficient) in transformed
+        .iter()
+        .enumerate()
+        .skip(usize::from(separate_dc))
+    {
+        let weight = (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
+        if 128 * coefficient.abs() > weight * norm(qp, p)? * (1i64 << (qp / 6)) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+pub(crate) fn chroma_dc_quantizes_to_zero(sums: [i64; 4], qp: u8) -> Result<bool> {
+    let [a, b, c, d] = sums;
+    let limit = norm(qp, 0)? * (1i64 << (qp / 6));
+    Ok([a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
+        .iter()
+        .all(|v| 4 * v.abs() <= limit))
+}
+
 pub(crate) fn scaled(levels: &[i32; 16], qp: u8, dc: Option<i32>) -> Result<[i32; 16]> {
     let mut out = [0; 16];
-    for (p, dst) in out.iter_mut().enumerate() {
-        let n =
-            i64::from(*levels.get(p).ok_or(Error::Internal)?) * norm(qp, p)? * (1i64 << (qp / 6));
-        *dst = range(n)?;
+    if levels.iter().any(|&level| level != 0) {
+        for (p, dst) in out.iter_mut().enumerate() {
+            let n = i64::from(*levels.get(p).ok_or(Error::Internal)?)
+                * norm(qp, p)?
+                * (1i64 << (qp / 6));
+            *dst = range(n)?;
+        }
     }
     if let Some(dc) = dc {
         *out.first_mut().ok_or(Error::Internal)? = dc;
     }
-    check_inverse(&out)?;
+    if out.iter().any(|&coefficient| coefficient != 0) {
+        check_inverse(&out)?;
+    }
     Ok(out)
 }
 
@@ -198,6 +242,31 @@ mod tests {
     }
 
     #[test]
+    fn satd_matches_the_direct_matrix_for_constant_impulse_and_signed_residuals() {
+        let mut samples = vec![[0; 16], [255; 16], [-255; 16]];
+        for position in 0..16 {
+            for value in [i32::MIN, -255, -1, 1, 255, i32::MAX] {
+                let mut block = [0; 16];
+                block[position] = value;
+                samples.push(block);
+            }
+        }
+        for seed in 0..128i32 {
+            samples.push(std::array::from_fn(|k| {
+                (seed * 73 + k as i32 * 131 + k as i32 * seed * 17) % 511 - 255
+            }));
+        }
+        for input in samples {
+            let expected = generic(input.map(i64::from), &HADAMARD)
+                .into_iter()
+                .map(i64::unsigned_abs)
+                .sum::<u64>()
+                / 2;
+            assert_eq!(satd(&input).unwrap(), expected);
+        }
+    }
+
+    #[test]
     fn separable_transforms_preserve_every_basis_position_and_signed_extreme() {
         for position in 0..16 {
             for value in [i32::MIN, -32768, -255, -1, 0, 1, 255, 32767, i32::MAX] {
@@ -233,6 +302,53 @@ mod tests {
                     Ok((levels, dc))
                 })();
                 assert_eq!(luma_dc(input, qp), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn zero_checks_match_the_quantizers_at_every_rounding_boundary() {
+        for qp in 0..=51u8 {
+            for separate_dc in [false, true] {
+                let mut blocks = Vec::new();
+                for p in 0..16 {
+                    let weight =
+                        (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
+                    let boundary = weight * norm(qp, p).unwrap() * (1i64 << (qp / 6)) / 128;
+                    for value in boundary - 2..=boundary + 2 {
+                        for sign in [1, -1] {
+                            let mut block = [0; 16];
+                            block[p] = sign * value;
+                            blocks.push(block);
+                        }
+                    }
+                }
+                for seed in 0..64i64 {
+                    let scale = 1 + seed % 7 * (1 << (qp / 6));
+                    blocks.push(std::array::from_fn(|k| {
+                        ((seed * 37 + k as i64 * 11 + k as i64 * seed) % 9 - 4) * scale
+                    }));
+                }
+                for block in blocks {
+                    assert_eq!(
+                        quantizes_to_zero(&block, qp, separate_dc).unwrap(),
+                        quantize(&block, qp, separate_dc)
+                            .unwrap()
+                            .iter()
+                            .all(|&l| l == 0),
+                        "{qp} {separate_dc} {block:?}"
+                    );
+                }
+            }
+            let boundary = norm(qp, 0).unwrap() * (1i64 << (qp / 6)) / 4;
+            for a in boundary - 2..=boundary + 2 {
+                for sums in [[a, 0, 0, 0], [a, a, 0, 0], [a, -a, a, -a], [-a, 1, 2, -3]] {
+                    assert_eq!(
+                        chroma_dc_quantizes_to_zero(sums, qp).unwrap(),
+                        chroma_dc(sums, qp).unwrap().0.iter().all(|&l| l == 0),
+                        "{qp} {sums:?}"
+                    );
+                }
             }
         }
     }

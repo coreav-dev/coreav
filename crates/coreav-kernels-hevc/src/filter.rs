@@ -1,6 +1,33 @@
 use crate::{BitDepth, Error};
 
-fn thresholds(depth: BitDepth, qp: i32, offsets: [i32; 2]) -> Result<(i32, i32), Error> {
+/// Normative boundary filtering strength under H.265 clause 8.7.2.4.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoundaryStrength {
+    /// No filtering.
+    Zero,
+    /// A residual or reference/motion discontinuity between inter blocks.
+    One,
+    /// At least one side uses intra prediction.
+    Two,
+}
+
+impl BoundaryStrength {
+    /// Returns the normative value in 0..=2.
+    pub const fn value(self) -> u8 {
+        match self {
+            Self::Zero => 0,
+            Self::One => 1,
+            Self::Two => 2,
+        }
+    }
+}
+
+fn thresholds(
+    depth: BitDepth,
+    qp: i32,
+    offsets: [i32; 2],
+    strength: BoundaryStrength,
+) -> Result<(i32, i32), Error> {
     if !(-6 * (i32::from(depth.bits()) - 8)..=51).contains(&qp)
         || offsets.into_iter().any(|v| !(-6..=6).contains(&v))
     {
@@ -13,7 +40,10 @@ fn thresholds(depth: BitDepth, qp: i32, offsets: [i32; 2]) -> Result<(i32, i32),
         _ => 2 * index - 38,
     };
     let scale = 1 << (depth.bits() - 8);
-    Ok((beta * scale, tc(qp + 2 + 2 * offsets[1]) * scale))
+    Ok((
+        beta * scale,
+        tc(qp + 2 * (i32::from(strength.value()) - 1) + 2 * offsets[1]) * scale,
+    ))
 }
 
 fn tc(index: i32) -> i32 {
@@ -62,10 +92,26 @@ pub fn deblock_luma(
     offsets: [i32; 2],
     protected: [bool; 2],
 ) -> Result<[[u16; 8]; 4], Error> {
+    deblock_luma_with_strength(depth, edge, qp, offsets, BoundaryStrength::Two, protected)
+}
+
+/// Filters four luma edge lines with the supplied normative boundary strength.
+/// QP, offsets and samples are validated even when strength is zero.
+pub fn deblock_luma_with_strength(
+    depth: BitDepth,
+    edge: [[u16; 8]; 4],
+    qp: i32,
+    offsets: [i32; 2],
+    strength: BoundaryStrength,
+    protected: [bool; 2],
+) -> Result<[[u16; 8]; 4], Error> {
     if edge.iter().flatten().any(|v| *v > depth.max_sample()) {
         return Err(Error::Sample);
     }
-    let (beta, tc) = thresholds(depth, qp, offsets)?;
+    let (beta, tc) = thresholds(depth, qp, offsets, strength)?;
+    if strength == BoundaryStrength::Zero {
+        return Ok(edge);
+    }
     let first = *edge.first().ok_or(Error::Buffer)?;
     let last = *edge.last().ok_or(Error::Buffer)?;
     let [dp0, dq0] = curvature(first);
@@ -220,6 +266,88 @@ pub fn sao_sample(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inter_strength_uses_its_own_tc_index_and_zero_never_filters() -> Result<(), Error> {
+        for bits in [8, 10] {
+            let depth = BitDepth::new(bits)?;
+            let scale = 1u16 << (bits - 8);
+            let edge = [[100, 100, 100, 100, 140, 140, 140, 140].map(|v| v * scale); 4];
+            for (qp, offsets) in [(26, [0, 0]), (38, [0, -6])] {
+                assert_eq!(
+                    deblock_luma_with_strength(
+                        depth,
+                        edge,
+                        qp,
+                        offsets,
+                        BoundaryStrength::Zero,
+                        [false; 2]
+                    )?,
+                    edge
+                );
+                assert_eq!(
+                    deblock_luma_with_strength(
+                        depth,
+                        edge,
+                        qp,
+                        offsets,
+                        BoundaryStrength::One,
+                        [false; 2]
+                    )?,
+                    edge
+                );
+                assert_eq!(
+                    deblock_luma_with_strength(
+                        depth,
+                        edge,
+                        qp,
+                        offsets,
+                        BoundaryStrength::Two,
+                        [false; 2]
+                    )?,
+                    [[100, 100, 101, 102, 138, 139, 140, 140].map(|v| v * scale); 4]
+                );
+            }
+            assert_eq!(
+                deblock_luma_with_strength(
+                    depth,
+                    [[depth.max_sample() + 1; 8]; 4],
+                    26,
+                    [0; 2],
+                    BoundaryStrength::Zero,
+                    [false; 2]
+                ),
+                Err(Error::Sample)
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn strength_dependent_thresholds_follow_equations_8_348_through_8_351() -> Result<(), Error> {
+        for (qp, beta, one, two) in [
+            (15, 0, 0, 0),
+            (16, 6, 0, 1),
+            (26, 16, 1, 2),
+            (30, 22, 2, 3),
+            (38, 38, 5, 6),
+            (51, 64, 20, 24),
+        ] {
+            for bits in [8, 10] {
+                let depth = BitDepth::new(bits)?;
+                let scale = 1 << (bits - 8);
+                assert_eq!(
+                    thresholds(depth, qp, [0; 2], BoundaryStrength::One)?,
+                    (beta * scale, one * scale)
+                );
+                assert_eq!(
+                    thresholds(depth, qp, [0; 2], BoundaryStrength::Two)?,
+                    (beta * scale, two * scale)
+                );
+            }
+        }
+        Ok(())
+    }
 
     #[test]
     fn equation_derived_flat_strong_and_normal_edges() -> Result<(), Error> {

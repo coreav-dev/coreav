@@ -1412,7 +1412,15 @@ impl<S: Sink> Process<S> {
     /// deadline. Returns the sink; a process that exited with an error, was
     /// killed or did not read every chunk is an error carrying the end of
     /// its standard error.
-    pub(crate) fn finish(mut self) -> Result<S, Error> {
+    pub(crate) fn finish(self) -> Result<S, Error> {
+        self.finish_inner(false).map(|(sink, _)| sink)
+    }
+
+    pub(crate) fn finish_with_stderr(self) -> Result<(S, String), Error> {
+        self.finish_inner(true)
+    }
+
+    fn finish_inner(mut self, diagnostics: bool) -> Result<(S, String), Error> {
         if let Some(e) = self.error.take() {
             return Err(e);
         }
@@ -1478,7 +1486,14 @@ impl<S: Sink> Process<S> {
                 ),
             )));
         }
-        Ok(sink)
+        Ok((
+            sink,
+            if diagnostics {
+                self.shared.stderr_text()
+            } else {
+                String::new()
+            },
+        ))
     }
 
     /// Ends the encode with `error`: stops the writer, kills the encoder,
@@ -1683,7 +1698,7 @@ impl Chunk {
     /// Writes the chunk, a frame's planes in order with their rows packed:
     /// straight from a picture whose rows are, else gathered through
     /// `buffer` (a picture in shared memory is read only by copying out).
-    fn write_to(
+    pub(crate) fn write_to(
         &self,
         out: &mut impl Write,
         buffer: &mut Vec<u8>,

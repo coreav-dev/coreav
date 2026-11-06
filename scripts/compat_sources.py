@@ -22,11 +22,15 @@ FROZEN = (
     'crates/coreav-cli/tests/ffmpeg.rs',
     'crates/coreav-isobmff/tests/common',
 )
+OBSERVER = (
+    'crates/coreav-cli/tests/ffmpeg.rs',
+    'crates/coreav-isobmff/tests/common',
+)
 ARTIFACTS = {'coreav': 'candidate', 'r3-harness': 'observer'}
 FILES = set(ARTIFACTS) | {'sources.json', 'sha256.txt'}
-SCHEMA = 'compat-0.1.0-sources/1'
+SCHEMA = 'compat-0.1.0-sources/2'
 JUDGING_REGISTRATION = 'docs/measurements/compat-0.1.0/judging.json'
-JUDGING_SCHEMA = 'compat-0.1.0-judging/1'
+JUDGING_SCHEMA = 'compat-0.1.0-judging/2'
 JUDGING = (
     '.github/workflows/compat-0.1.0.yml',
     'docs/known-divergences-clip.json',
@@ -99,7 +103,21 @@ def committed_blob(root, commit, path):
 def register(root, tooling):
     full_sha(tooling)
     files = {path: hashlib.sha256(committed_blob(root, tooling, path)).hexdigest() for path in JUDGING}
-    return json.dumps({'schema': JUDGING_SCHEMA, 'files': files}, indent=2, sort_keys=True) + '\n'
+    candidate = registered_candidate.registered(git(root, 'show', f'{tooling}:{README}'))
+    observer = {'commit': candidate, 'sources': observer_sources(root, candidate)}
+    return json.dumps({'schema': JUDGING_SCHEMA, 'files': files, 'observer': observer},
+                      indent=2, sort_keys=True) + '\n'
+
+
+def observer_sources(root, candidate):
+    full_sha(candidate)
+    objects = {}
+    for path in OBSERVER:
+        try:
+            objects[path] = git(root, 'rev-parse', '--verify', f'{candidate}:{path}')
+        except ValueError as error:
+            raise ValueError(f'{path} is unavailable in the registered observer candidate') from error
+    return objects
 
 
 def judging(root, tooling):
@@ -108,9 +126,9 @@ def judging(root, tooling):
         registration = json.loads(raw)
     except ValueError as error:
         raise ValueError(f'{JUDGING_REGISTRATION} must contain valid judging JSON') from error
-    if not isinstance(registration, dict) or set(registration) != {'schema', 'files'} or \
+    if not isinstance(registration, dict) or set(registration) != {'schema', 'files', 'observer'} or \
             registration['schema'] != JUDGING_SCHEMA or not isinstance(registration['files'], dict):
-        raise ValueError(f'{JUDGING_REGISTRATION} must register the judging schema and file hashes')
+        raise ValueError(f'{JUDGING_REGISTRATION} must register the judging schema and source roles; review it, then run compat_sources.py register')
     files = registration['files']
     if set(files) != set(JUDGING):
         changed = sorted(set(files) ^ set(JUDGING))
@@ -120,8 +138,27 @@ def judging(root, tooling):
             raise ValueError(f'{path} needs a full lowercase SHA-256 in the judging registration')
         if files[path] != hashlib.sha256(committed_blob(root, tooling, path)).hexdigest():
             raise ValueError(f'{path} differs from its registered judging hash; review it, then run compat_sources.py register')
+    observer = registration['observer']
+    if not isinstance(observer, dict) or set(observer) != {'commit', 'sources'} or \
+            not isinstance(observer['sources'], dict) or set(observer['sources']) != set(OBSERVER):
+        raise ValueError('judging registration must bind the complete observer source roster')
+    candidate = registered_candidate.registered(git(root, 'show', f'{tooling}:{README}'))
+    if full_sha(observer['commit']) != candidate:
+        raise ValueError('registered observer sources name another candidate; review it, then run compat_sources.py register')
+    for path, oid in observer['sources'].items():
+        if not isinstance(oid, str) or re.fullmatch(r'[0-9a-f]{40}', oid) is None:
+            raise ValueError(f'{path} needs a full lowercase Git object ID in the observer registration')
     return {'registration': JUDGING_REGISTRATION, 'registration_sha256': hashlib.sha256(raw).hexdigest(),
-            'files': files}
+            'files': files, 'observer': observer}
+
+
+def check(root):
+    tooling = git(root, 'rev-parse', 'HEAD')
+    registration = judging(root, tooling)
+    observer = registration['observer']
+    if observer['sources'] != observer_sources(root, observer['commit']):
+        raise ValueError('registered observer objects differ from the candidate; review it, then run compat_sources.py register')
+    return registration
 
 
 def plan(root, event, ref, commit, tooling):
@@ -145,15 +182,20 @@ def plan(root, event, ref, commit, tooling):
         raise ValueError('dispatched tooling must be a commit of main')
     if not ancestor(root, candidate, tooling):
         raise ValueError('tooling must descend from the registered release candidate')
+    registration = judging(root, tooling)
+    observer = observer_sources(root, candidate)
+    if registration['observer'] != {'commit': candidate, 'sources': observer}:
+        raise ValueError('registered observer objects differ from the candidate; review it, then run compat_sources.py register')
     frozen = {}
     for path in FROZEN:
         expected = git(root, 'rev-parse', '--verify', f'{candidate}:{path}')
-        actual = git(root, 'rev-parse', '--verify', f'{tooling}:{path}')
+        owner = 'r3-harness' if path in OBSERVER else 'tooling'
+        actual = observer[path] if path in OBSERVER else git(root, 'rev-parse', '--verify', f'{tooling}:{path}')
         if expected != actual:
             raise ValueError(f'{path} differs from the registered candidate; keep oracle, input and harness sources fixed')
-        frozen[path] = actual
+        frozen[path] = {'owner': owner, 'object': actual}
     return {'commit': candidate, 'tooling': tooling, 'floor': floor, 'on_main': on_main,
-            'frozen': frozen, 'judging': judging(root, tooling)}
+            'frozen': frozen, 'judging': registration}
 
 
 def digest(path):
@@ -173,9 +215,8 @@ def record(root, candidate_dir, dist, commit, tooling, run, compiler):
     sources = plan(root, run['event'], run['ref'], commit, tooling)
     if sources['commit'] != commit or git(candidate_dir, 'rev-parse', 'HEAD') != commit:
         raise ValueError('both Rust artifacts must be built in the registered candidate checkout')
-    for directory in (root, candidate_dir):
-        if git(directory, 'status', '--porcelain', '--untracked-files=no'):
-            raise ValueError('source checkouts must have no modified tracked files')
+    if git(candidate_dir, 'status', '--porcelain'):
+        raise ValueError('the candidate checkout must have no modified or untracked sources')
     if run['event'] == 'pull_request' and run['set'] != 'rehearsal':
         raise ValueError('pull requests may only rehearse on spent inputs')
     artifacts = {name: {'role': role, 'built_from': commit, 'sha256': digest(dist / name)}
@@ -202,7 +243,10 @@ def verify(root, dist, commit, tooling, run):
     if set(p.name for p in dist.iterdir()) != FILES or any(p.is_symlink() or not p.is_file() for p in dist.iterdir()):
         raise ValueError('the artifact bundle must contain exactly both Rust artifacts and their two provenance files')
     manifest = json.loads((dist / 'sources.json').read_text())
-    if manifest['schema'] != SCHEMA or manifest['candidate']['commit'] != commit:
+    fields = {'schema', 'run', 'candidate', 'tooling', 'frozen', 'judging', 'artifacts', 'build', 'rustc'}
+    if not isinstance(manifest, dict) or set(manifest) != fields or manifest['schema'] != SCHEMA:
+        raise ValueError('artifact provenance requires the source-role schema; register and build a new bundle')
+    if manifest['candidate']['commit'] != commit:
         raise ValueError('artifact provenance does not name the planned candidate')
     if manifest['tooling']['commit'] != tooling or git(root, 'rev-parse', 'HEAD') != tooling:
         raise ValueError('artifact provenance does not name this tooling checkout')
@@ -223,12 +267,16 @@ def verify(root, dist, commit, tooling, run):
         raise ValueError('artifact candidate differs from the registered release candidate')
     if manifest['tooling']['floor'] != registered_candidate.tooling_floor(readme):
         raise ValueError('artifact tooling floor differs from the registration')
-    if set(manifest['frozen']) != set(FROZEN):
+    registration = judging(root, tooling)
+    if not isinstance(manifest['frozen'], dict) or set(manifest['frozen']) != set(FROZEN):
         raise ValueError('artifact provenance lacks the complete frozen source roster')
     for path in FROZEN:
-        if manifest['frozen'][path] != git(root, 'rev-parse', '--verify', f'{tooling}:{path}'):
-            raise ValueError(f'artifact provenance disagrees with tooling source {path}')
-    if manifest.get('judging') != judging(root, tooling):
+        owner = 'r3-harness' if path in OBSERVER else 'tooling'
+        oid = registration['observer']['sources'][path] if path in OBSERVER else \
+            git(root, 'rev-parse', '--verify', f'{tooling}:{path}')
+        if manifest['frozen'][path] != {'owner': owner, 'object': oid}:
+            raise ValueError(f'artifact provenance disagrees with registered {owner} source {path}')
+    if manifest.get('judging') != registration:
         raise ValueError('artifact provenance differs from the registered judging hashes')
     if set(manifest['artifacts']) != set(ARTIFACTS):
         raise ValueError('artifact provenance has the wrong artifact roles')
@@ -254,6 +302,7 @@ def verify(root, dist, commit, tooling, run):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('check')
     for name in ('plan', 'record', 'verify', 'register'):
         command = commands.add_parser(name)
         if name != 'register':
@@ -269,7 +318,10 @@ def main():
     args = parser.parse_args()
     root = Path.cwd()
     try:
-        if args.command == 'register':
+        if args.command == 'check':
+            registration = check(root)
+            print(f"judging registration {registration['registration_sha256']}: {len(registration['files'])} files verified")
+        elif args.command == 'register':
             print(register(root, args.tooling), end='')
         elif args.command == 'plan':
             sources = plan(root, args.event, args.ref, args.commit, args.tooling)

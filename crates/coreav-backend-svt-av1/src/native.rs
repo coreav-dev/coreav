@@ -97,10 +97,25 @@ pub(crate) fn version() -> Result<String, Error> {
 }
 
 pub(crate) fn retention(settings: Settings, budget: u64) -> Result<Retention, Error> {
+    retained_plan(settings, budget, false)
+}
+
+fn retained_plan(settings: Settings, budget: u64, continuous: bool) -> Result<Retention, Error> {
     let input = unsafe { coreav_svt_input_bytes() };
     if input == 0 || input > 4096 {
         return Err(Error::Output("invalid native input allocation footprint"));
     }
+    #[cfg(feature = "measurement")]
+    if continuous {
+        return Retention::measurement(
+            settings,
+            budget,
+            input,
+            size_of::<Input>(),
+            size_of::<Session>(),
+        );
+    }
+    let _ = continuous;
     Retention::new(
         settings,
         budget,
@@ -198,8 +213,22 @@ pub(crate) struct Session {
 
 impl Session {
     pub(crate) fn new(settings: Settings, budget: u64) -> Result<Self, Error> {
-        version()?;
         let plan = retention(settings, budget)?;
+        Self::open(settings, plan)
+    }
+
+    #[cfg(feature = "measurement")]
+    pub(crate) fn measurement_plan(settings: Settings, budget: u64) -> Result<Retention, Error> {
+        retained_plan(settings, budget, true)
+    }
+
+    #[cfg(feature = "measurement")]
+    pub(crate) fn measurement(settings: Settings, budget: u64) -> Result<Self, Error> {
+        Self::open(settings, Self::measurement_plan(settings, budget)?)
+    }
+
+    fn open(settings: Settings, plan: Retention) -> Result<Self, Error> {
+        version()?;
         #[cfg(test)]
         assert_eq!(RETAINED_SETS.load(std::sync::atomic::Ordering::SeqCst), 0);
         let mut inputs = Vec::new();

@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::motion::MotionMb;
 use crate::{Error, Result};
 use coreav_kernels_h264::{EdgeMut, EdgeParams, Kernels, Reach, Scalar};
@@ -86,18 +88,26 @@ pub(crate) fn picture(
     };
     for y in (0..height).step_by(n) {
         for x in (0..width).step_by(n) {
+            let q = record(x / n, y / n)?;
+            let left = if x != 0 {
+                Some(record(x / n - 1, y / n)?)
+            } else {
+                None
+            };
+            let top = if y != 0 {
+                Some(record(x / n, y / n - 1)?)
+            } else {
+                None
+            };
             for vertical in [true, false] {
                 for offset in (0..n).step_by(4) {
-                    if offset == 0 && (if vertical { x } else { y }) == 0 {
+                    let p = match (offset, vertical) {
+                        (0, true) => left,
+                        (0, false) => top,
+                        _ => Some(q),
+                    };
+                    let Some(p) = p else {
                         continue;
-                    }
-                    let q = record(x / n, y / n)?;
-                    let p = if offset != 0 {
-                        q
-                    } else if vertical {
-                        record(x / n - 1, y / n)?
-                    } else {
-                        record(x / n, y / n - 1)?
                     };
                     let edge = offset * 4 / n;
                     for (segment, bs) in params.bs.iter_mut().enumerate() {
@@ -113,6 +123,9 @@ pub(crate) fn picture(
                             )
                         };
                         *bs = strength(p, q, pi, qi, offset == 0)?;
+                    }
+                    if params.bs == [0; 4] {
+                        continue;
                     }
                     let (q0, across, along) = if vertical {
                         (y * width + x + offset, 1, width)

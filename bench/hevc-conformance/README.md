@@ -1,5 +1,7 @@
 # HEVC conformance checks
 
+Pull requests run the unchanged header tests and a Linux-only comparison of all eight pictures from the four registered synthetic recipes. Full vector and fixed-file census jobs run on main pushes, daily at 03:45 UTC, or by manual dispatch. The [HEVC tier procedure](../../docs/design/ci-checks.md#hevc-tiers) explains exact-head full evidence and failure reporting. The smoke result does not replace G1, G2, G3 or fixed-file census evidence.
+
 The G1 driver of [the HEVC design](../../docs/design/hevc.md) acquires published data, checks every admitted stream's headers to EOF, and records the fixed 54-file profile/container census. The intra driver checks original unfiltered pictures for G2; `--filters` includes filtered pictures for G3 and retains G2 regression results. Neither driver reconstructs inter pictures or measures speed. The historical candidate counts below are not new reconstruction results.
 
 The [complete evidence-source table](evidence-sources.md) records the verified census at `028ca00a6831b64faa226614252edd0290ce642d`: 147 archives, 144 distinct official bitstreams, 144 header/reference checks, two named maintainer exclusions and one named unequal-depth refusal. The 126 hash-validated-oracle count rows represent 123 distinct streams; those counts are not labelled published. The separate four synthetic sources supply eight Main10 G2 candidates. Published candidates supply three 8-bit G2, eleven 8-bit G3 and six Main10 G3 pictures. All four depth/gate sets are nonempty; these are candidates, not reconstruction passes.
@@ -35,6 +37,35 @@ python3 scripts/hevc_conformance.py run \
 ```
 
 For a small acquisition preflight, append `--archive IPRED_B_Nokia_3.zip`. It cannot pass the full gate. Do not run the full acquisition or census on a Capy machine.
+
+### Complete scalar reconstruction
+
+Build the `decode` example with `native-hevc`. After the G1/G3 command below completes, compare every admitted original conformance stream through EOF:
+
+```sh
+python3 -I scripts/hevc_decode.py \
+  --registration "$RUNNER_TEMP/archives.pinned.json" \
+  --census "$RUNNER_TEMP/hevc-intra/g1/census.json" \
+  --data "$RUNNER_TEMP/hevc-data" --out "$RUNNER_TEMP/hevc-decode" \
+  --parser "$PWD/target/release/examples/headers" \
+  --native "$PWD/target/release/examples/decode" --oracle-bin "$ORACLE_BIN" \
+  --max-memory-bytes 1073741824 --max-stream-bins 1099511627776 \
+  --max-picture-bins 268435456
+```
+
+The comparator consumes the complete source-bound census, preserves every archive disposition and requires the published whole-output anchor before comparing individual output pictures. It checks original coded/output identities, geometry, packing, hashes, effective work and budget controls. `--select-test` is diagnostic only and cannot report complete coverage. The `decode` example accepts `INPUT MAX_MEMORY_BYTES MAX_STREAM_BINS MAX_PICTURE_BINS`; `-` reads standard input. Its bounded JSON lines contain each output picture and a final successful-completion summary. Annex B timestamps remain null. This command and its fixture tests are implemented. Original-media C1 and C2 comparisons run in the full tier, not the routine smoke.
+
+### Container packet comparison
+
+The existing Linux-only private census also compares every in-scope fixed-roster input through 120 selected-track packets and every designated EOF case. Build `headers`, `intra` and `packets` with `native-hevc`, then add `--packet-native "$PWD/target/release/examples/packets" --decode-memory-bytes 1073741824 --stream-bins 1099511627776 --picture-bins 268435456` to its `corpus-online` invocation. This reuses the same one-file-at-a-time acquisition and private evidence path; no additional media is registered. Per-file packet/clock/hash records stay private, while the public summary retains only completion and aggregate counts.
+
+CI runs four fixed shards of the same roster. Sorting by descending registered byte size, then SHA-256, and taking indices modulo four assigns each of the 54 identities exactly once. `--shard-count 4 --shard-index N` selects one part; all four checks must pass before claiming roster-wide coverage. Each report labels its `scope`, expected identities and per-part development/EOF requirements. A completed shard is not a completed full roster. Public summaries expose only the scope and aggregate counts; private artifact names carry the shard index.
+
+The `packets` test tool accepts `INPUT CONFIG_ANNEXB STREAM_INDEX PACKET_LIMIT MAX_MEMORY_BYTES MAX_STREAM_BINS MAX_PICTURE_BINS`. Configuration NALs come from an original first-packet copy, not a generated bitstream. Packet limits are 120 or zero for EOF. The caller applies the compatibility video edit-start snap before rounding presentation ticks; the codec preserves them through reordering. Private records retain original edit entries, timescales and the derived clock offset. Native packet identities, oracle packet timestamps, the exact demux time base, per-frame geometry/packing and sample hashes must all agree. After prefix drain, only frames below the minimum timestamp of every unsent packet are compared. A bound hit, failed clock mapping or missing EOF arm fails rather than becoming an exclusion.
+
+The test adapter reports terminal zero padding while matching Annex B's NAL framing; it does not change stored/passed-packet hashes, complete CABAC zero words or entropy validation. The original NAL size is checked before trimming. Full-layer temporal-nesting NAL-type violations and non-coprime Extended_SAR declarations produce typed warnings rather than refusing otherwise decodable pictures; invalid SAR becomes unspecified. Supported ten-bit samples with a Main10 declaration remain admitted when an additional eight-bit-only compatibility claim is inconsistent; `profile_bit_depth` reports the contradiction. Ten-bit samples without a Main10 claim, unsupported depths, safety, reference and entropy failures remain strict refusals.
+
+Milestone 4 requires complete C1, unchanged G3 and exact equality for every completed C2 comparison. Explicit container/tooling blockers outside the decoder remain follow-ups with no pixel credit, preserving all 54 source identities. Decoder failures and pixel mismatches still block. The summary distinguishes `passed` under this acceptance rule from `complete` coverage of all requested comparisons, and publishes only aggregate follow-up reasons. The full-tier verifier requires the current-head dispatch rather than a routine smoke or an earlier revision's success.
 
 ### Selected intra reconstruction
 
@@ -105,7 +136,7 @@ Keep all per-file corpus results and logs private. The fixed roster contains 54 
 
 Each official download has a 16 MiB cap, its registered byte count, a 60-second socket timeout, and a 300-second deadline. ZIPs have at most 512 entries, at most 8 GiB per member, 16 GiB declared expansion per archive, and 64 GiB declared expansion across the census. Bitstreams have a 64 MiB cap and descriptions/hash files a 256 KiB cap. ZIP traversal, links, encrypted members, unsupported compression and duplicate paths are refused. Only bitstreams, YUV reference bytes, short descriptions, MD5 data and bounded text/hash sidecar bytes are read. Other entries, including traces and implementation files, are inventoried by name and size without opening them. Reference YUV is hashed as a stream, not stored. No executable archive member is run.
 
-Each parser or oracle subprocess has a 300-second wall deadline, 300 CPU seconds, a 6 GiB address-space limit, and separate 64 MiB stdout/stderr limits. It receives only PATH, LANG, TMPDIR and LC_ALL. A limit hit is a failure, never an exclusion. The credentialed acquisition has a shared cap of 4,000 read requests and 32 GiB, including manifests. The workflow must retain a timeout and avoid concurrent acquisitions into the same directory.
+Each parser or oracle subprocess has a 300-second wall deadline, 300 CPU seconds, a 6 GiB address-space limit, and separate 64 MiB stdout/stderr limits. Native C2 prefixes have 1,800 CPU/wall seconds and native EOF arms have 3,600; each shard has a 240-minute job bound. These are operational limits, not speed claims. Each child receives only PATH, LANG, TMPDIR and LC_ALL. A limit hit is a failure, never a container follow-up. Each shard's credentialed acquisition has a cap of 4,000 read requests and 32 GiB, including manifests, with at most three attempts for dropped immutable reads against that same cap. Shards use separate runners and directories.
 
 ## Parser example contract
 

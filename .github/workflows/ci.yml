@@ -470,6 +470,14 @@ jobs:
           scripts/install-x264.sh "$RUNNER_TEMP/coreav-test-oracle"
           cargo test --locked -p coreav-cli --features native-h264 --test transcode unscaled_encoding_preserves_declared_sar_without_changing_scale -- --exact --nocapture --color never 2>&1 | tee "$RUNNER_TEMP/declared-sar-macos.log"
           grep -F 'test unscaled_encoding_preserves_declared_sar_without_changing_scale ... ok' "$RUNNER_TEMP/declared-sar-macos.log"
+      - name: Literal crop frames on macOS
+        if: env.COREAV_FFMPEG != '' && env.COREAV_FFPROBE != ''
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_X264: ${{ runner.temp }}/coreav-test-oracle/x264
+        run: |
+          cargo test --locked -p coreav-cli --features native-h264 --test transcode ffmpeg_libx264_crop_matches_the_oracle -- --exact --nocapture --color never 2>&1 | tee "$RUNNER_TEMP/literal-crop-macos.log"
+          grep -F 'test ffmpeg_libx264_crop_matches_the_oracle ... ok' "$RUNNER_TEMP/literal-crop-macos.log"
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site --test transcode_selection
       - run: |
           cargo test --release -p coreav-isobmff --test hostile -- --ignored
@@ -1099,6 +1107,7 @@ jobs:
           python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
             --report "$RUNNER_TEMP/coreav-ffmpeg.json"
+          COREAV_CURRENT_CI_ORACLE=1 python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_copy_check.py
       - name: Preserve the writers' reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1255,6 +1264,14 @@ jobs:
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
             --test legacy_encoders --target-dir target/fallback
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test transcode \
+            --target-dir target/fallback
+      - name: Check the MP3 worker encoder-only protocol
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
+        run: |
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test mp3_worker \
+            --target-dir target/fallback
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test mp3_worker \
             --target-dir target/fallback
       - name: Copied video with AAC encoding preserves exact fallback
         env:
@@ -2551,6 +2568,15 @@ jobs:
           python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-check"
           python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-motion" --moving
           python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-shared-input" --shared-input
+      - name: Check the isolated AV1 measurement build
+        env:
+          SVT_AV1_PREFIX: ${{ runner.temp }}/svt-av1
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+        run: |
+          set -euo pipefail
+          cargo build --locked -p coreav-cli --no-default-features --features cli,av1-measurement --target x86_64-unknown-linux-musl --profile av1-measurement
+          cargo test --locked -p coreav-backend-svt-av1 --features measurement --target x86_64-unknown-linux-musl --profile av1-measurement --test measurement
+          python3 scripts/av1_measurement_smoke.py --coreav target/x86_64-unknown-linux-musl/av1-measurement/coreav --production target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/av1-measurement-smoke"
 
   ci-report:
     # Always runs, including when the filter above skipped every job, so

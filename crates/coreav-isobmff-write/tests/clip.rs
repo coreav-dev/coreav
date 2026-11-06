@@ -78,6 +78,173 @@ fn audio_clip(
 }
 
 #[test]
+fn audio_bearing_input_seek_plans_complete_samples_before_writing() {
+    let samples = |count, duration| {
+        (0..count)
+            .map(|index| S {
+                size: 20,
+                duration,
+                offset: 0,
+                sync: index % 4 == 0,
+            })
+            .collect()
+    };
+    let mut original = movie(&[
+        TrackSpec {
+            video: true,
+            timescale: 10_000,
+            samples: samples(20, 1024),
+            edits: vec![],
+            entry: *b"avc1",
+        },
+        TrackSpec {
+            video: false,
+            timescale: 48_000,
+            samples: samples(97, 1024),
+            edits: vec![(2048, 1024)],
+            entry: *b"mp4a",
+        },
+    ]);
+    h264_frames(&mut original, "IPPPIPPPIPPPIPPPIPPP");
+    let (_, source) = clip(&original, &options(q(0, 1), Some(q(256, 125)))).unwrap();
+    let request = options(q(64, 125), Some(q(128, 125)));
+    let run = |limits: &Limits, out: &mut Vec<u8>| {
+        clip_mp4_input_seek(
+            SliceSource::new(&source),
+            limits,
+            &Allowlist::default(),
+            &request,
+            out,
+        )
+    };
+    let mut output = Vec::new();
+    let summary = run(&Limits::default(), &mut output).unwrap();
+    assert_eq!(summary.video.first_sample, 4);
+    assert_eq!(summary.video.samples, 6);
+    assert_eq!(summary.audio.as_ref().unwrap().first_sample, 20);
+    assert_eq!(summary.audio.as_ref().unwrap().samples, 29);
+    assert_eq!(summary.snapped_start, request.start);
+    assert_eq!(summary.written_end, q(128, 125));
+    let parsed = probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        parsed.tracks[0].edit_list,
+        EditList::Simple {
+            empty: 0,
+            media_time: 1024,
+            segment: 122_880
+        }
+    );
+    assert_eq!(
+        parsed.tracks[1].edit_list,
+        EditList::Simple {
+            empty: 0,
+            media_time: 5120,
+            segment: 122_880
+        }
+    );
+    for limits in [
+        Limits {
+            max_table_bytes: 1,
+            ..Limits::default()
+        },
+        Limits {
+            max_sample_work: 1,
+            ..Limits::default()
+        },
+    ] {
+        let mut output = Vec::new();
+        assert!(matches!(
+            run(&limits, &mut output),
+            Err(ExtractError::Source(Error::LimitExceeded { .. }))
+        ));
+        assert!(output.is_empty());
+    }
+    let mut failures = 0;
+    let mut successes = 0;
+    for work in [64, 128, 256, 512, 1024, 2048, 4096] {
+        let mut output = Vec::new();
+        match run(
+            &Limits {
+                max_sample_work: work,
+                ..Limits::default()
+            },
+            &mut output,
+        ) {
+            Ok(_) => {
+                assert!(!output.is_empty());
+                successes += 1;
+            }
+            Err(ExtractError::Source(Error::LimitExceeded { .. })) => {
+                assert!(output.is_empty(), "work limit {work} failed after writing");
+                failures += 1;
+            }
+            other => panic!("unexpected planning result: {other:?}"),
+        }
+    }
+    assert!(failures > 0 && successes > 0);
+    let input = probe(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(&Limits::default());
+    let at = input
+        .packets(
+            0,
+            SliceSource::new(&source),
+            &Limits::default(),
+            &mut budget,
+        )
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .offset;
+    let mut output = Vec::new();
+    let failed = clip_mp4_input_seek(
+        FailingSeekSource {
+            data: SliceSource::new(&source),
+            at,
+        },
+        &Limits::default(),
+        &Allowlist::default(),
+        &request,
+        &mut output,
+    );
+    assert_eq!(
+        failed,
+        Err(ExtractError::Source(Error::Io(
+            std::io::ErrorKind::PermissionDenied
+        )))
+    );
+    assert!(output.is_empty());
+}
+
+struct FailingSeekSource<'a> {
+    data: SliceSource<'a>,
+    at: u64,
+}
+
+impl Source for FailingSeekSource<'_> {
+    fn len(&mut self) -> Result<u64, Error> {
+        self.data.len()
+    }
+
+    fn read_exact_at(&mut self, offset: u64, bytes: &mut [u8]) -> Result<(), Error> {
+        if offset <= self.at && self.at < offset + bytes.len() as u64 {
+            return Err(Error::Io(std::io::ErrorKind::PermissionDenied));
+        }
+        self.data.read_exact_at(offset, bytes)
+    }
+}
+
+#[test]
 fn input_seek_admission_uses_the_retained_packet_tables() {
     let video = |offset, edits| TrackSpec {
         video: true,

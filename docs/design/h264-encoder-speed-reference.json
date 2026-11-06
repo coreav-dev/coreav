@@ -1,0 +1,747 @@
+{
+  "scope": "Reference figures on existing lossy inputs; not a judged bar or a matched-quality encoder ratio.",
+  "compression": {
+    "settings": "sixty pictures, GOP32, deblocking enabled; sample-weighted YUV PSNR from raw squared error; PCHIP BD-rate on log bitrate over the common interval, no extrapolation",
+    "bd_rate_versus_rate_weight_percent": {
+      "A": 0.032,
+      "C": -0.242
+    },
+    "cells": [
+      {
+        "input": "A",
+        "qp": 22,
+        "rate_weight": {
+          "kbps": 477.06,
+          "yuv_psnr_db": 52.770961,
+          "stream_sha256": "12e6b284fabe11ff0889f4c34abe54d325029cbc40137cb5cdab17552c695eb8"
+        },
+        "candidate": {
+          "kbps": 476.128,
+          "yuv_psnr_db": 52.743157,
+          "stream_sha256": "6d6fe7f4f0249e8ee0399e025717f9993503922040d57f5712ef6f927d242784"
+        }
+      },
+      {
+        "input": "A",
+        "qp": 28,
+        "rate_weight": {
+          "kbps": 378.56,
+          "yuv_psnr_db": 48.016131,
+          "stream_sha256": "52bca28ae7bd0fe738b98ca3679d29d3ff5a8f2d4289db3eed41679dbc6a015f"
+        },
+        "candidate": {
+          "kbps": 378.528,
+          "yuv_psnr_db": 47.991924,
+          "stream_sha256": "0972e9bdb59e3dac115409877a25c464ad405d241fe7bfb9b43211ca31a6b12c"
+        }
+      },
+      {
+        "input": "A",
+        "qp": 34,
+        "rate_weight": {
+          "kbps": 290.78,
+          "yuv_psnr_db": 42.870812,
+          "stream_sha256": "fff6b2e1c703bd24086655d73be29d0329db79be9f89d9cd4410c52b3a0011f2"
+        },
+        "candidate": {
+          "kbps": 290.788,
+          "yuv_psnr_db": 42.872789,
+          "stream_sha256": "41cc2dacf5a791d2aa49b6d60cd25cfce8695fee5836e78559612dd23900d08f"
+        }
+      },
+      {
+        "input": "A",
+        "qp": 40,
+        "rate_weight": {
+          "kbps": 214.244,
+          "yuv_psnr_db": 37.762452,
+          "stream_sha256": "e68cc2313d2968c3cb0f8815369811d1b84098da9d42768ac93190391eefbb81"
+        },
+        "candidate": {
+          "kbps": 214.072,
+          "yuv_psnr_db": 37.748461,
+          "stream_sha256": "412a874d4f3c1f6860f44bbddb64e5be5fa45616a21e7790b374b79f28951f5e"
+        }
+      },
+      {
+        "input": "C",
+        "qp": 22,
+        "rate_weight": {
+          "kbps": 887.34,
+          "yuv_psnr_db": 46.316636,
+          "stream_sha256": "301c020d5dfa4ff067f5032c727d29bdd8d08ee0f04cad3c768d66979b8d60a7"
+        },
+        "candidate": {
+          "kbps": 886.276,
+          "yuv_psnr_db": 46.323436,
+          "stream_sha256": "2b7d8d78d7c232e561fed8ba829cf3437e816d28e2459360e8c1afe0f0edada7"
+        }
+      },
+      {
+        "input": "C",
+        "qp": 28,
+        "rate_weight": {
+          "kbps": 356.16,
+          "yuv_psnr_db": 42.631999,
+          "stream_sha256": "bac8f8257519cc358ed202f4c3497b4c4e4ad25b60cf8cb0c555d7101fe4c4eb"
+        },
+        "candidate": {
+          "kbps": 355.04,
+          "yuv_psnr_db": 42.630611,
+          "stream_sha256": "274dbc32f5f9892d045070307f48063a706cd75f19e69368048f42643ea61c56"
+        }
+      },
+      {
+        "input": "C",
+        "qp": 34,
+        "rate_weight": {
+          "kbps": 136.656,
+          "yuv_psnr_db": 39.378975,
+          "stream_sha256": "f4e3bdd79453ea9c316cfd56035d280eefae167106b06ea66616990505f61376"
+        },
+        "candidate": {
+          "kbps": 135.844,
+          "yuv_psnr_db": 39.361018,
+          "stream_sha256": "ebbfd5c305f8acd039fda3d39a1306e0e843b9c32d16bbfe4af9e56d4a317c01"
+        }
+      },
+      {
+        "input": "C",
+        "qp": 40,
+        "rate_weight": {
+          "kbps": 68.12,
+          "yuv_psnr_db": 36.276198,
+          "stream_sha256": "a129121a47966ba5592f48d802bfe01d6ce50c6a274826009d2ad1828e8aeeeb"
+        },
+        "candidate": {
+          "kbps": 67.976,
+          "yuv_psnr_db": 36.288371,
+          "stream_sha256": "95fe1936bfe47bd215f80812c007f1d7156a5cde7ee8f9c3b20dbd0f3829cefa"
+        }
+      },
+      {
+        "input": "B",
+        "qp": 28,
+        "rate_weight": {
+          "kbps": 127.448,
+          "yuv_psnr_db": 44.448141,
+          "stream_sha256": "7b3e471219129bfc632ddb04f494448d63ea3aa797457cec200f75644f6ccf03"
+        },
+        "candidate": {
+          "kbps": 127.36,
+          "yuv_psnr_db": 44.434092,
+          "stream_sha256": "0c966543cb18ae4f3010a30414fb2ab91b50393bb5058d9e12d50acc15939536"
+        }
+      }
+    ]
+  },
+  "identity": {
+    "set": "57 cases: A and C at QP22/28/34/40, B at QP28, 48 small synthetic cases at QP10/11/12/28/40/51",
+    "byte_identical_commit": {
+      "cases": 57,
+      "changed_versus_rate_weight": []
+    },
+    "final_commit": {
+      "cases": 57,
+      "changed_versus_rate_weight": [
+        "a-22",
+        "a-28",
+        "a-34",
+        "a-40",
+        "b-28",
+        "c-22",
+        "c-28",
+        "c-34",
+        "c-40"
+      ]
+    },
+    "checks": "dispatched and scalar builds byte-identical; pinned FFmpeg 9.0.2 decodes every stream to the encoder reconstruction"
+  },
+  "simd_identity_set": {
+    "set": "scripts/h264_g1_simd_identity.py: 48 cases, 32x32 and 80x48, ramp and edge, QP10/28/51, deblocking off and on, IDR interval 1 and 3, four pictures",
+    "byte_identical_commit": {
+      "cases": 48,
+      "changed_versus_rate_weight": []
+    },
+    "final_commit": {
+      "cases": 48,
+      "changed_versus_rate_weight": [
+        {
+          "width": 80,
+          "height": 48,
+          "pattern": "edge",
+          "qp": 51,
+          "deblocking": true,
+          "idr_interval": 3,
+          "frames": 4,
+          "rate_weight": {
+            "stream_sha256": "929bb743093e581471bdec07b931700db493ca2e7c5f6c924b41a07a3d8dc7d9",
+            "reconstruction_sha256": "b05e5ce89fc9610b04d91b14903b3f7951028bc384d343b7ac7cbbe3aa4433be"
+          },
+          "final": {
+            "stream_sha256": "d8af9ef04f6089e42baaff5c89169cb049957a48da30a50502d051704c37999f",
+            "reconstruction_sha256": "07e9b3699006e275a1771f00fb63dcbbaaaf25c465666b6f7656eb1068dc831c"
+          }
+        }
+      ]
+    },
+    "cause": "the narrower intra proposal; quiet skip alone leaves this case unchanged",
+    "checks": "dispatched and scalar builds byte-identical; native decoder matches the reconstruction"
+  },
+  "throughput": {
+    "host": "GitHub-hosted ubuntu-24.04 runner",
+    "cpu": "AMD EPYC 7763 64-Core Processor",
+    "visible_cpus": 4,
+    "pinned_cpu": 1,
+    "repeats": 7,
+    "order": "one warm-up call per arm, then each repeat runs all three arms in rotated order",
+    "scope": "QP28 driver call including CoreAV decoder verification and file IO",
+    "build": {
+      "before": "c6d0413ab1312efbdf9f3648588cc92da563ad47",
+      "rate_weight": "73e073d1df8eebd4eb50d64589d7a96249fb7a7e",
+      "candidate": "3427c110071b5a7e92d0b5b896bbf677c64851fd",
+      "rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "binaries": {
+        "before-p": "c51ed0f4d03a972e1efcd8926b7c6d8d85edf18f103b32a8ae00ed4a3a291a86",
+        "rate_weight-p": "ee88d6db1ad51e71028024b8016073b2a8811d7389e3721350d3b0fc947a8568",
+        "candidate-p": "7d54a72c448a8c868f9f4bc3e64e4ce1a28ac2af8def40e7eacdba906e6005ac"
+      }
+    },
+    "inputs": {
+      "A": {
+        "calls": [
+          {
+            "arm": "before",
+            "repeat": 0,
+            "wall_seconds": 1.2176425850000214,
+            "cpu_seconds": 1.2171159999999996,
+            "fps": 49.27554336480351
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 0,
+            "wall_seconds": 2.2747848599999827,
+            "cpu_seconds": 2.2740199999999997,
+            "fps": 26.376120685100943
+          },
+          {
+            "arm": "candidate",
+            "repeat": 0,
+            "wall_seconds": 1.2976364440000054,
+            "cpu_seconds": 1.2972000000000001,
+            "fps": 46.237912226823795
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 1,
+            "wall_seconds": 2.288492789000003,
+            "cpu_seconds": 2.287887999999999,
+            "fps": 26.218129368114834
+          },
+          {
+            "arm": "candidate",
+            "repeat": 1,
+            "wall_seconds": 1.2988768090000065,
+            "cpu_seconds": 1.2983200000000013,
+            "fps": 46.19375724029861
+          },
+          {
+            "arm": "before",
+            "repeat": 1,
+            "wall_seconds": 1.226132898000003,
+            "cpu_seconds": 1.2256169999999988,
+            "fps": 48.93433664317182
+          },
+          {
+            "arm": "candidate",
+            "repeat": 2,
+            "wall_seconds": 1.2982923819999996,
+            "cpu_seconds": 1.297800999999999,
+            "fps": 46.2145513844662
+          },
+          {
+            "arm": "before",
+            "repeat": 2,
+            "wall_seconds": 1.2144562119999875,
+            "cpu_seconds": 1.213957,
+            "fps": 49.404827779826626
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 2,
+            "wall_seconds": 2.287679300999997,
+            "cpu_seconds": 2.287160000000002,
+            "fps": 26.22745241160884
+          },
+          {
+            "arm": "before",
+            "repeat": 3,
+            "wall_seconds": 1.2216923050000048,
+            "cpu_seconds": 1.2211709999999998,
+            "fps": 49.1122026016197
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 3,
+            "wall_seconds": 2.284726860999996,
+            "cpu_seconds": 2.2841229999999983,
+            "fps": 26.261344856662106
+          },
+          {
+            "arm": "candidate",
+            "repeat": 3,
+            "wall_seconds": 1.2961664450000114,
+            "cpu_seconds": 1.295695000000002,
+            "fps": 46.29035123648759
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 4,
+            "wall_seconds": 2.2832740979999926,
+            "cpu_seconds": 2.2826359999999974,
+            "fps": 26.278053980709675
+          },
+          {
+            "arm": "candidate",
+            "repeat": 4,
+            "wall_seconds": 1.3245410670000126,
+            "cpu_seconds": 1.3240490000000007,
+            "fps": 45.298708733807366
+          },
+          {
+            "arm": "before",
+            "repeat": 4,
+            "wall_seconds": 1.2176779689999933,
+            "cpu_seconds": 1.2172009999999989,
+            "fps": 49.27411148718938
+          },
+          {
+            "arm": "candidate",
+            "repeat": 5,
+            "wall_seconds": 1.3007085939999854,
+            "cpu_seconds": 1.300241000000002,
+            "fps": 46.12870267542852
+          },
+          {
+            "arm": "before",
+            "repeat": 5,
+            "wall_seconds": 1.2204572340000084,
+            "cpu_seconds": 1.2200100000000003,
+            "fps": 49.161902874180996
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 5,
+            "wall_seconds": 2.3008009830000162,
+            "cpu_seconds": 2.3002529999999934,
+            "fps": 26.077874811130318
+          },
+          {
+            "arm": "before",
+            "repeat": 6,
+            "wall_seconds": 1.2468091360000244,
+            "cpu_seconds": 1.246333000000005,
+            "fps": 48.12284275722441
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 6,
+            "wall_seconds": 2.2875360189999867,
+            "cpu_seconds": 2.2855299999999943,
+            "fps": 26.229095193101898
+          },
+          {
+            "arm": "candidate",
+            "repeat": 6,
+            "wall_seconds": 1.297204278999999,
+            "cpu_seconds": 1.2967630000000034,
+            "fps": 46.2533164369866
+          }
+        ],
+        "summary": {
+          "before": {
+            "median_fps": 49.161902874180996,
+            "min_fps": 48.12284275722441,
+            "max_fps": 49.404827779826626
+          },
+          "rate_weight": {
+            "median_fps": 26.229095193101898,
+            "min_fps": 26.077874811130318,
+            "max_fps": 26.376120685100943
+          },
+          "candidate": {
+            "median_fps": 46.2145513844662,
+            "min_fps": 45.298708733807366,
+            "max_fps": 46.29035123648759
+          },
+          "candidate_over_before": {
+            "median": 0.9383541828145637,
+            "min": 0.9193206608217468,
+            "max": 0.9611509583989165
+          },
+          "candidate_over_rate_weight": {
+            "median": 1.7620678767874014,
+            "min": 1.7238228054124733,
+            "max": 1.768882741002357
+          }
+        }
+      },
+      "B": {
+        "calls": [
+          {
+            "arm": "before",
+            "repeat": 0,
+            "wall_seconds": 1.3293413760000021,
+            "cpu_seconds": 1.3288259999999963,
+            "fps": 45.135133144309734
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 0,
+            "wall_seconds": 3.28735172399999,
+            "cpu_seconds": 3.2867259999999936,
+            "fps": 18.25177377947045
+          },
+          {
+            "arm": "candidate",
+            "repeat": 0,
+            "wall_seconds": 1.4545562899999993,
+            "cpu_seconds": 1.4540690000000007,
+            "fps": 41.24969271557035
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 1,
+            "wall_seconds": 3.3282986589999837,
+            "cpu_seconds": 3.327629,
+            "fps": 18.027228367188513
+          },
+          {
+            "arm": "candidate",
+            "repeat": 1,
+            "wall_seconds": 1.4662381280000147,
+            "cpu_seconds": 1.465782000000007,
+            "fps": 40.921047443938384
+          },
+          {
+            "arm": "before",
+            "repeat": 1,
+            "wall_seconds": 1.3523864430000003,
+            "cpu_seconds": 1.3518609999999947,
+            "fps": 44.366017058631506
+          },
+          {
+            "arm": "candidate",
+            "repeat": 2,
+            "wall_seconds": 1.4549845629999822,
+            "cpu_seconds": 1.454505999999999,
+            "fps": 41.23755091688951
+          },
+          {
+            "arm": "before",
+            "repeat": 2,
+            "wall_seconds": 1.328863302000002,
+            "cpu_seconds": 1.3283399999999952,
+            "fps": 45.151371032443414
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 2,
+            "wall_seconds": 3.2790555450000056,
+            "cpu_seconds": 3.2784519999999997,
+            "fps": 18.297951704871135
+          },
+          {
+            "arm": "before",
+            "repeat": 3,
+            "wall_seconds": 1.3371335140000156,
+            "cpu_seconds": 1.3366449999999972,
+            "fps": 44.87210841085784
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 3,
+            "wall_seconds": 3.2791320389999896,
+            "cpu_seconds": 3.278044000000002,
+            "fps": 18.29752485913855
+          },
+          {
+            "arm": "candidate",
+            "repeat": 3,
+            "wall_seconds": 1.4670199990000015,
+            "cpu_seconds": 1.466567999999997,
+            "fps": 40.89923793874601
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 4,
+            "wall_seconds": 3.2752489339999897,
+            "cpu_seconds": 3.2746050000000047,
+            "fps": 18.319218236252752
+          },
+          {
+            "arm": "candidate",
+            "repeat": 4,
+            "wall_seconds": 1.4695301479999898,
+            "cpu_seconds": 1.4689879999999969,
+            "fps": 40.829376710412625
+          },
+          {
+            "arm": "before",
+            "repeat": 4,
+            "wall_seconds": 1.3420858180000153,
+            "cpu_seconds": 1.3416230000000056,
+            "fps": 44.70653008569331
+          },
+          {
+            "arm": "candidate",
+            "repeat": 5,
+            "wall_seconds": 1.4520305919999998,
+            "cpu_seconds": 1.4515319999999958,
+            "fps": 41.32144345344482
+          },
+          {
+            "arm": "before",
+            "repeat": 5,
+            "wall_seconds": 1.347055590999986,
+            "cpu_seconds": 1.3465770000000026,
+            "fps": 44.54159160236218
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 5,
+            "wall_seconds": 3.303670226999998,
+            "cpu_seconds": 3.3030520000000063,
+            "fps": 18.161619010770604
+          },
+          {
+            "arm": "before",
+            "repeat": 6,
+            "wall_seconds": 1.3460407130000078,
+            "cpu_seconds": 1.3455450000000078,
+            "fps": 44.57517474807588
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 6,
+            "wall_seconds": 3.316983224000012,
+            "cpu_seconds": 3.316332999999986,
+            "fps": 18.088725793326407
+          },
+          {
+            "arm": "candidate",
+            "repeat": 6,
+            "wall_seconds": 1.4814699490000294,
+            "cpu_seconds": 1.4809330000000034,
+            "fps": 40.500315271665905
+          }
+        ],
+        "summary": {
+          "before": {
+            "median_fps": 44.70653008569331,
+            "min_fps": 44.366017058631506,
+            "max_fps": 45.151371032443414
+          },
+          "rate_weight": {
+            "median_fps": 18.25177377947045,
+            "min_fps": 18.027228367188513,
+            "max_fps": 18.319218236252752
+          },
+          "candidate": {
+            "median_fps": 40.921047443938384,
+            "min_fps": 40.500315271665905,
+            "max_fps": 41.32144345344482
+          },
+          "candidate_over_before": {
+            "median": 0.9133178012968501,
+            "min": 0.9085845540833046,
+            "max": 0.9277046905358769
+          },
+          "candidate_over_rate_weight": {
+            "median": 2.253670333270777,
+            "min": 2.228772875777716,
+            "max": 2.2752070412301606
+          }
+        }
+      },
+      "C": {
+        "calls": [
+          {
+            "arm": "before",
+            "repeat": 0,
+            "wall_seconds": 1.479537530000016,
+            "cpu_seconds": 1.4790150000000035,
+            "fps": 40.55321259745223
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 0,
+            "wall_seconds": 1.8590056490000393,
+            "cpu_seconds": 1.8581949999999967,
+            "fps": 32.27531881480513
+          },
+          {
+            "arm": "candidate",
+            "repeat": 0,
+            "wall_seconds": 1.4464735340000061,
+            "cpu_seconds": 1.4460250000000054,
+            "fps": 41.4801920599812
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 1,
+            "wall_seconds": 1.8557007399999748,
+            "cpu_seconds": 1.855148000000015,
+            "fps": 32.33279952240619
+          },
+          {
+            "arm": "candidate",
+            "repeat": 1,
+            "wall_seconds": 1.4518994850000126,
+            "cpu_seconds": 1.4513699999999892,
+            "fps": 41.325174793349746
+          },
+          {
+            "arm": "before",
+            "repeat": 1,
+            "wall_seconds": 1.4711575509999761,
+            "cpu_seconds": 1.4706819999999907,
+            "fps": 40.78421101751934
+          },
+          {
+            "arm": "candidate",
+            "repeat": 2,
+            "wall_seconds": 1.4597374179999747,
+            "cpu_seconds": 1.459202999999996,
+            "fps": 41.103282864535736
+          },
+          {
+            "arm": "before",
+            "repeat": 2,
+            "wall_seconds": 1.4646006979999697,
+            "cpu_seconds": 1.4641249999999935,
+            "fps": 40.96679735434705
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 2,
+            "wall_seconds": 1.8453990280000312,
+            "cpu_seconds": 1.844917000000006,
+            "fps": 32.5132933797118
+          },
+          {
+            "arm": "before",
+            "repeat": 3,
+            "wall_seconds": 1.4735226290000014,
+            "cpu_seconds": 1.4730339999999984,
+            "fps": 40.71875030566629
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 3,
+            "wall_seconds": 1.8396265810000045,
+            "cpu_seconds": 1.8391049999999973,
+            "fps": 32.61531477077513
+          },
+          {
+            "arm": "candidate",
+            "repeat": 3,
+            "wall_seconds": 1.448024187000044,
+            "cpu_seconds": 1.4475179999999948,
+            "fps": 41.435771956479186
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 4,
+            "wall_seconds": 1.8542319709999902,
+            "cpu_seconds": 1.8537400000000108,
+            "fps": 32.35841088838626
+          },
+          {
+            "arm": "candidate",
+            "repeat": 4,
+            "wall_seconds": 1.443790344999968,
+            "cpu_seconds": 1.4433509999999985,
+            "fps": 41.557280257336345
+          },
+          {
+            "arm": "before",
+            "repeat": 4,
+            "wall_seconds": 1.4698473760000184,
+            "cpu_seconds": 1.4693549999999944,
+            "fps": 40.820564760459355
+          },
+          {
+            "arm": "candidate",
+            "repeat": 5,
+            "wall_seconds": 1.4442275960000188,
+            "cpu_seconds": 1.4437080000000124,
+            "fps": 41.54469847147223
+          },
+          {
+            "arm": "before",
+            "repeat": 5,
+            "wall_seconds": 1.4528588869999908,
+            "cpu_seconds": 1.4523639999999896,
+            "fps": 41.29788552547869
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 5,
+            "wall_seconds": 1.858028269999977,
+            "cpu_seconds": 1.8575890000000017,
+            "fps": 32.29229660752188
+          },
+          {
+            "arm": "before",
+            "repeat": 6,
+            "wall_seconds": 1.4637496299999952,
+            "cpu_seconds": 1.4632550000000029,
+            "fps": 40.99061668080503
+          },
+          {
+            "arm": "rate_weight",
+            "repeat": 6,
+            "wall_seconds": 1.8706233679999968,
+            "cpu_seconds": 1.870116000000002,
+            "fps": 32.07486927961872
+          },
+          {
+            "arm": "candidate",
+            "repeat": 6,
+            "wall_seconds": 1.4495380900000328,
+            "cpu_seconds": 1.4489030000000027,
+            "fps": 41.39249628134894
+          }
+        ],
+        "summary": {
+          "before": {
+            "median_fps": 40.820564760459355,
+            "min_fps": 40.55321259745223,
+            "max_fps": 41.29788552547869
+          },
+          "rate_weight": {
+            "median_fps": 32.33279952240619,
+            "min_fps": 32.07486927961872,
+            "max_fps": 32.61531477077513
+          },
+          "candidate": {
+            "median_fps": 41.435771956479186,
+            "min_fps": 41.103282864535736,
+            "max_fps": 41.557280257336345
+          },
+          "candidate_over_before": {
+            "median": 1.013264049060506,
+            "min": 1.003331612891487,
+            "max": 1.0228583484058476
+          },
+          "candidate_over_rate_weight": {
+            "median": 1.284280628015996,
+            "min": 1.2641993040970765,
+            "max": 1.290496180062405
+          }
+        }
+      }
+    }
+  }
+}

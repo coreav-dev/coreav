@@ -1,0 +1,1657 @@
+{
+  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "visible_cpus": 4,
+  "r2": {
+    "list_requests": 17,
+    "get_requests": 3
+  },
+  "inputs": [
+    {
+      "input": "input01",
+      "identity": {
+        "cli_musl": {
+          "bytes": 461774880,
+          "sha256": "1f25a77f302a8aa8190dc684c0bf8b478b39440b497c629a359e8a028587f5e4"
+        },
+        "cli_glibc": {
+          "bytes": 461774880,
+          "sha256": "1f25a77f302a8aa8190dc684c0bf8b478b39440b497c629a359e8a028587f5e4"
+        },
+        "ffmpeg_oracle": {
+          "bytes": 461774880,
+          "sha256": "1f25a77f302a8aa8190dc684c0bf8b478b39440b497c629a359e8a028587f5e4"
+        },
+        "decoder_musl_write": {
+          "bytes": 461774880,
+          "sha256": "1f25a77f302a8aa8190dc684c0bf8b478b39440b497c629a359e8a028587f5e4"
+        },
+        "decoder_glibc_write": {
+          "bytes": 461774880,
+          "sha256": "1f25a77f302a8aa8190dc684c0bf8b478b39440b497c629a359e8a028587f5e4"
+        }
+      },
+      "calls": [
+        {
+          "arm": "cli_musl",
+          "round": 0,
+          "seconds": 1.55021616800002,
+          "user_seconds": 2.885274,
+          "system_seconds": 0.958708,
+          "minor_faults": 347229,
+          "major_faults": 0,
+          "voluntary_switches": 4509,
+          "involuntary_switches": 550
+        },
+        {
+          "arm": "cli_glibc",
+          "round": 0,
+          "seconds": 1.3914075089999187,
+          "user_seconds": 2.850553,
+          "system_seconds": 0.49907599999999996,
+          "minor_faults": 193015,
+          "major_faults": 0,
+          "voluntary_switches": 3917,
+          "involuntary_switches": 1778
+        },
+        {
+          "arm": "ffmpeg_oracle",
+          "round": 0,
+          "seconds": 1.0077514699999028,
+          "user_seconds": 2.465284,
+          "system_seconds": 0.119694,
+          "minor_faults": 18031,
+          "major_faults": 0,
+          "voluntary_switches": 8010,
+          "involuntary_switches": 3075
+        },
+        {
+          "arm": "decoder_musl_write",
+          "round": 0,
+          "seconds": 0.902897654999947,
+          "user_seconds": 2.827281,
+          "system_seconds": 0.12336399999999999,
+          "minor_faults": 14040,
+          "major_faults": 0,
+          "voluntary_switches": 5679,
+          "involuntary_switches": 697
+        },
+        {
+          "arm": "decoder_glibc_write",
+          "round": 0,
+          "seconds": 0.8741661719999456,
+          "user_seconds": 2.851336,
+          "system_seconds": 0.07141,
+          "minor_faults": 8329,
+          "major_faults": 0,
+          "voluntary_switches": 5862,
+          "involuntary_switches": 337
+        },
+        {
+          "arm": "decoder_musl_discard",
+          "round": 0,
+          "seconds": 0.8633554570000115,
+          "user_seconds": 2.767064,
+          "system_seconds": 0.13522399999999998,
+          "minor_faults": 13743,
+          "major_faults": 0,
+          "voluntary_switches": 6402,
+          "involuntary_switches": 376
+        },
+        {
+          "arm": "decoder_glibc_discard",
+          "round": 0,
+          "seconds": 0.8386720610000111,
+          "user_seconds": 2.736523,
+          "system_seconds": 0.087585,
+          "minor_faults": 8105,
+          "major_faults": 0,
+          "voluntary_switches": 6076,
+          "involuntary_switches": 437
+        },
+        {
+          "arm": "cli_musl",
+          "round": 1,
+          "seconds": 1.5141961660000334,
+          "user_seconds": 2.883829,
+          "system_seconds": 0.934198,
+          "minor_faults": 347391,
+          "major_faults": 0,
+          "voluntary_switches": 5114,
+          "involuntary_switches": 359
+        },
+        {
+          "arm": "decoder_glibc_discard",
+          "round": 1,
+          "seconds": 0.8348022779999837,
+          "user_seconds": 2.732436,
+          "system_seconds": 0.106419,
+          "minor_faults": 8042,
+          "major_faults": 0,
+          "voluntary_switches": 6139,
+          "involuntary_switches": 387
+        },
+        {
+          "arm": "decoder_musl_discard",
+          "round": 1,
+          "seconds": 0.8478711269999621,
+          "user_seconds": 2.753284,
+          "system_seconds": 0.142251,
+          "minor_faults": 13825,
+          "major_faults": 0,
+          "voluntary_switches": 6661,
+          "involuntary_switches": 346
+        },
+        {
+          "arm": "decoder_glibc_write",
+          "round": 1,
+          "seconds": 0.8499976729999617,
+          "user_seconds": 2.747046,
+          "system_seconds": 0.09665499999999999,
+          "minor_faults": 8324,
+          "major_faults": 0,
+          "voluntary_switches": 5959,
+          "involuntary_switches": 369
+        },
+        {
+          "arm": "decoder_musl_write",
+          "round": 1,
+          "seconds": 0.8640113249999786,
+          "user_seconds": 2.806038,
+          "system_seconds": 0.115051,
+          "minor_faults": 13981,
+          "major_faults": 0,
+          "voluntary_switches": 5899,
+          "involuntary_switches": 396
+        },
+        {
+          "arm": "ffmpeg_oracle",
+          "round": 1,
+          "seconds": 0.8095466980000765,
+          "user_seconds": 2.464579,
+          "system_seconds": 0.130095,
+          "minor_faults": 14228,
+          "major_faults": 0,
+          "voluntary_switches": 9376,
+          "involuntary_switches": 2013
+        },
+        {
+          "arm": "cli_glibc",
+          "round": 1,
+          "seconds": 1.2536211589999766,
+          "user_seconds": 2.81241,
+          "system_seconds": 0.5389349999999999,
+          "minor_faults": 196475,
+          "major_faults": 0,
+          "voluntary_switches": 4062,
+          "involuntary_switches": 1181
+        },
+        {
+          "arm": "ffmpeg_oracle",
+          "round": 2,
+          "seconds": 1.0575572179999426,
+          "user_seconds": 2.476712,
+          "system_seconds": 0.11338899999999999,
+          "minor_faults": 17068,
+          "major_faults": 0,
+          "voluntary_switches": 8281,
+          "involuntary_switches": 3334
+        },
+        {
+          "arm": "decoder_musl_write",
+          "round": 2,
+          "seconds": 1.1134722619999593,
+          "user_seconds": 2.823969,
+          "system_seconds": 0.10576999999999999,
+          "minor_faults": 14325,
+          "major_faults": 0,
+          "voluntary_switches": 4568,
+          "involuntary_switches": 1824
+        },
+        {
+          "arm": "decoder_glibc_write",
+          "round": 2,
+          "seconds": 0.8345246009999983,
+          "user_seconds": 2.7883519999999997,
+          "system_seconds": 0.08227899999999999,
+          "minor_faults": 8343,
+          "major_faults": 0,
+          "voluntary_switches": 5414,
+          "involuntary_switches": 385
+        },
+        {
+          "arm": "decoder_musl_discard",
+          "round": 2,
+          "seconds": 0.8476395269999557,
+          "user_seconds": 2.76745,
+          "system_seconds": 0.12045499999999999,
+          "minor_faults": 13718,
+          "major_faults": 0,
+          "voluntary_switches": 6724,
+          "involuntary_switches": 381
+        },
+        {
+          "arm": "decoder_glibc_discard",
+          "round": 2,
+          "seconds": 0.8242491880000671,
+          "user_seconds": 2.755716,
+          "system_seconds": 0.086786,
+          "minor_faults": 8028,
+          "major_faults": 0,
+          "voluntary_switches": 5536,
+          "involuntary_switches": 408
+        },
+        {
+          "arm": "cli_musl",
+          "round": 2,
+          "seconds": 1.5053469919999998,
+          "user_seconds": 2.858811,
+          "system_seconds": 0.947141,
+          "minor_faults": 348622,
+          "major_faults": 0,
+          "voluntary_switches": 4675,
+          "involuntary_switches": 403
+        },
+        {
+          "arm": "cli_glibc",
+          "round": 2,
+          "seconds": 1.1444059819999666,
+          "user_seconds": 2.818265,
+          "system_seconds": 0.514003,
+          "minor_faults": 188083,
+          "major_faults": 0,
+          "voluntary_switches": 4335,
+          "involuntary_switches": 502
+        }
+      ],
+      "strace": {}
+    },
+    {
+      "input": "input02",
+      "identity": {
+        "cli_musl": {
+          "bytes": 995328000,
+          "sha256": "63b3f747a6e07304679c4e018886bc4c708aa2209a1b4069e515c7c72cd286a1"
+        },
+        "cli_glibc": {
+          "bytes": 995328000,
+          "sha256": "63b3f747a6e07304679c4e018886bc4c708aa2209a1b4069e515c7c72cd286a1"
+        },
+        "ffmpeg_oracle": {
+          "bytes": 995328000,
+          "sha256": "63b3f747a6e07304679c4e018886bc4c708aa2209a1b4069e515c7c72cd286a1"
+        },
+        "decoder_musl_write": {
+          "bytes": 995328000,
+          "sha256": "63b3f747a6e07304679c4e018886bc4c708aa2209a1b4069e515c7c72cd286a1"
+        },
+        "decoder_glibc_write": {
+          "bytes": 995328000,
+          "sha256": "63b3f747a6e07304679c4e018886bc4c708aa2209a1b4069e515c7c72cd286a1"
+        }
+      },
+      "calls": [
+        {
+          "arm": "cli_musl",
+          "round": 0,
+          "seconds": 2.56375433300002,
+          "user_seconds": 4.424551,
+          "system_seconds": 1.954751,
+          "minor_faults": 756574,
+          "major_faults": 0,
+          "voluntary_switches": 3309,
+          "involuntary_switches": 468
+        },
+        {
+          "arm": "cli_glibc",
+          "round": 0,
+          "seconds": 1.85845443300002,
+          "user_seconds": 4.443381,
+          "system_seconds": 1.248806,
+          "minor_faults": 492603,
+          "major_faults": 0,
+          "voluntary_switches": 2572,
+          "involuntary_switches": 720
+        },
+        {
+          "arm": "ffmpeg_oracle",
+          "round": 0,
+          "seconds": 1.1227920060000542,
+          "user_seconds": 3.574828,
+          "system_seconds": 0.146081,
+          "minor_faults": 28859,
+          "major_faults": 0,
+          "voluntary_switches": 8856,
+          "involuntary_switches": 2191
+        },
+        {
+          "arm": "decoder_musl_write",
+          "round": 0,
+          "seconds": 1.3156542689999924,
+          "user_seconds": 4.546207,
+          "system_seconds": 0.112089,
+          "minor_faults": 15821,
+          "major_faults": 0,
+          "voluntary_switches": 3582,
+          "involuntary_switches": 574
+        },
+        {
+          "arm": "decoder_glibc_write",
+          "round": 0,
+          "seconds": 1.2881859410000516,
+          "user_seconds": 4.480805,
+          "system_seconds": 0.0676,
+          "minor_faults": 8227,
+          "major_faults": 0,
+          "voluntary_switches": 3233,
+          "involuntary_switches": 545
+        },
+        {
+          "arm": "decoder_musl_discard",
+          "round": 0,
+          "seconds": 1.2955745379999826,
+          "user_seconds": 4.435381,
+          "system_seconds": 0.12686999999999998,
+          "minor_faults": 15529,
+          "major_faults": 0,
+          "voluntary_switches": 3567,
+          "involuntary_switches": 566
+        },
+        {
+          "arm": "decoder_glibc_discard",
+          "round": 0,
+          "seconds": 1.279979164999986,
+          "user_seconds": 4.466115,
+          "system_seconds": 0.078264,
+          "minor_faults": 7865,
+          "major_faults": 0,
+          "voluntary_switches": 3267,
+          "involuntary_switches": 514
+        },
+        {
+          "arm": "cli_musl",
+          "round": 1,
+          "seconds": 2.6398807159999933,
+          "user_seconds": 4.486662,
+          "system_seconds": 2.023974,
+          "minor_faults": 756626,
+          "major_faults": 0,
+          "voluntary_switches": 3331,
+          "involuntary_switches": 458
+        },
+        {
+          "arm": "decoder_glibc_discard",
+          "round": 1,
+          "seconds": 1.26338724499999,
+          "user_seconds": 4.389796,
+          "system_seconds": 0.07035899999999999,
+          "minor_faults": 7888,
+          "major_faults": 0,
+          "voluntary_switches": 3283,
+          "involuntary_switches": 520
+        },
+        {
+          "arm": "decoder_musl_discard",
+          "round": 1,
+          "seconds": 1.2977655529999765,
+          "user_seconds": 4.482322,
+          "system_seconds": 0.12431199999999999,
+          "minor_faults": 15381,
+          "major_faults": 0,
+          "voluntary_switches": 3402,
+          "involuntary_switches": 594
+        },
+        {
+          "arm": "decoder_glibc_write",
+          "round": 1,
+          "seconds": 1.2902220959999795,
+          "user_seconds": 4.472636,
+          "system_seconds": 0.069727,
+          "minor_faults": 8233,
+          "major_faults": 0,
+          "voluntary_switches": 3172,
+          "involuntary_switches": 579
+        },
+        {
+          "arm": "decoder_musl_write",
+          "round": 1,
+          "seconds": 1.3302437869999721,
+          "user_seconds": 4.550615,
+          "system_seconds": 0.125534,
+          "minor_faults": 15626,
+          "major_faults": 0,
+          "voluntary_switches": 3670,
+          "involuntary_switches": 583
+        },
+        {
+          "arm": "ffmpeg_oracle",
+          "round": 1,
+          "seconds": 1.1486030029999483,
+          "user_seconds": 3.591748,
+          "system_seconds": 0.157752,
+          "minor_faults": 29223,
+          "major_faults": 0,
+          "voluntary_switches": 9184,
+          "involuntary_switches": 2174
+        },
+        {
+          "arm": "cli_glibc",
+          "round": 1,
+          "seconds": 1.8629410219999727,
+          "user_seconds": 4.393518,
+          "system_seconds": 1.305438,
+          "minor_faults": 506495,
+          "major_faults": 0,
+          "voluntary_switches": 2523,
+          "involuntary_switches": 799
+        },
+        {
+          "arm": "ffmpeg_oracle",
+          "round": 2,
+          "seconds": 1.3560188390000576,
+          "user_seconds": 3.619652,
+          "system_seconds": 0.133167,
+          "minor_faults": 27215,
+          "major_faults": 0,
+          "voluntary_switches": 9415,
+          "involuntary_switches": 3573
+        },
+        {
+          "arm": "decoder_musl_write",
+          "round": 2,
+          "seconds": 1.7804805990000432,
+          "user_seconds": 4.478712,
+          "system_seconds": 0.144474,
+          "minor_faults": 15689,
+          "major_faults": 0,
+          "voluntary_switches": 4005,
+          "involuntary_switches": 1869
+        },
+        {
+          "arm": "decoder_glibc_write",
+          "round": 2,
+          "seconds": 1.732350428000018,
+          "user_seconds": 4.454148,
+          "system_seconds": 0.07161,
+          "minor_faults": 8176,
+          "major_faults": 0,
+          "voluntary_switches": 3664,
+          "involuntary_switches": 1797
+        },
+        {
+          "arm": "decoder_musl_discard",
+          "round": 2,
+          "seconds": 1.7651002989999824,
+          "user_seconds": 4.440051,
+          "system_seconds": 0.11363699999999999,
+          "minor_faults": 15492,
+          "major_faults": 0,
+          "voluntary_switches": 4115,
+          "involuntary_switches": 1789
+        },
+        {
+          "arm": "decoder_glibc_discard",
+          "round": 2,
+          "seconds": 1.6228662370000393,
+          "user_seconds": 4.396346,
+          "system_seconds": 0.070094,
+          "minor_faults": 7907,
+          "major_faults": 0,
+          "voluntary_switches": 3546,
+          "involuntary_switches": 1461
+        },
+        {
+          "arm": "cli_musl",
+          "round": 2,
+          "seconds": 2.552277885999956,
+          "user_seconds": 4.429996,
+          "system_seconds": 2.002476,
+          "minor_faults": 756719,
+          "major_faults": 0,
+          "voluntary_switches": 3188,
+          "involuntary_switches": 504
+        },
+        {
+          "arm": "cli_glibc",
+          "round": 2,
+          "seconds": 1.9531558060000407,
+          "user_seconds": 4.463448,
+          "system_seconds": 1.318676,
+          "minor_faults": 507615,
+          "major_faults": 0,
+          "voluntary_switches": 2700,
+          "involuntary_switches": 744
+        }
+      ],
+      "strace": {}
+    },
+    {
+      "input": "input03",
+      "identity": {
+        "cli_musl": {
+          "bytes": 2802470400,
+          "sha256": "ec3721f8558988a18c4e93fbacdea3083fb82d70914c8772e439a11cda1f0318"
+        },
+        "cli_glibc": {
+          "bytes": 2802470400,
+          "sha256": "ec3721f8558988a18c4e93fbacdea3083fb82d70914c8772e439a11cda1f0318"
+        },
+        "ffmpeg_oracle": {
+          "bytes": 2802470400,
+          "sha256": "ec3721f8558988a18c4e93fbacdea3083fb82d70914c8772e439a11cda1f0318"
+        },
+        "decoder_musl_write": {
+          "bytes": 2802470400,
+          "sha256": "ec3721f8558988a18c4e93fbacdea3083fb82d70914c8772e439a11cda1f0318"
+        },
+        "decoder_glibc_write": {
+          "bytes": 2802470400,
+          "sha256": "ec3721f8558988a18c4e93fbacdea3083fb82d70914c8772e439a11cda1f0318"
+        }
+      },
+      "calls": [
+        {
+          "arm": "cli_musl",
+          "round": 0,
+          "seconds": 6.838464337000005,
+          "user_seconds": 9.647336,
+          "system_seconds": 5.123984,
+          "minor_faults": 2096597,
+          "major_faults": 0,
+          "voluntary_switches": 3449,
+          "involuntary_switches": 727
+        },
+        {
+          "arm": "cli_glibc",
+          "round": 0,
+          "seconds": 5.058124723999981,
+          "user_seconds": 9.513559,
+          "system_seconds": 3.428627,
+          "minor_faults": 1421724,
+          "major_faults": 0,
+          "voluntary_switches": 2901,
+          "involuntary_switches": 757
+        },
+        {
+          "arm": "ffmpeg_oracle",
+          "round": 0,
+          "seconds": 2.6604456130000926,
+          "user_seconds": 9.081126,
+          "system_seconds": 0.248995,
+          "minor_faults": 53694,
+          "major_faults": 0,
+          "voluntary_switches": 11835,
+          "involuntary_switches": 3967
+        },
+        {
+          "arm": "decoder_musl_write",
+          "round": 0,
+          "seconds": 2.793887404999964,
+          "user_seconds": 9.707432,
+          "system_seconds": 0.198713,
+          "minor_faults": 39609,
+          "major_faults": 0,
+          "voluntary_switches": 3899,
+          "involuntary_switches": 813
+        },
+        {
+          "arm": "decoder_glibc_write",
+          "round": 0,
+          "seconds": 2.674891558000013,
+          "user_seconds": 9.439634,
+          "system_seconds": 0.09288099999999999,
+          "minor_faults": 13869,
+          "major_faults": 0,
+          "voluntary_switches": 3553,
+          "involuntary_switches": 694
+        },
+        {
+          "arm": "decoder_musl_discard",
+          "round": 0,
+          "seconds": 2.7003943380000237,
+          "user_seconds": 9.440869,
+          "system_seconds": 0.187802,
+          "minor_faults": 39260,
+          "major_faults": 0,
+          "voluntary_switches": 3740,
+          "involuntary_switches": 1112
+        },
+        {
+          "arm": "decoder_glibc_discard",
+          "round": 0,
+          "seconds": 2.5872791440000356,
+          "user_seconds": 9.295863,
+          "system_seconds": 0.080084,
+          "minor_faults": 13756,
+          "major_faults": 0,
+          "voluntary_switches": 3269,
+          "involuntary_switches": 777
+        },
+        {
+          "arm": "cli_musl",
+          "round": 1,
+          "seconds": 6.834744098999977,
+          "user_seconds": 9.503946,
+          "system_seconds": 5.159227,
+          "minor_faults": 2096608,
+          "major_faults": 0,
+          "voluntary_switches": 3115,
+          "involuntary_switches": 697
+        },
+        {
+          "arm": "decoder_glibc_discard",
+          "round": 1,
+          "seconds": 2.555520553000065,
+          "user_seconds": 9.275539,
+          "system_seconds": 0.066028,
+          "minor_faults": 13852,
+          "major_faults": 0,
+          "voluntary_switches": 3212,
+          "involuntary_switches": 718
+        },
+        {
+          "arm": "decoder_musl_discard",
+          "round": 1,
+          "seconds": 2.6099262339999996,
+          "user_seconds": 9.273371,
+          "system_seconds": 0.18914799999999998,
+          "minor_faults": 39299,
+          "major_faults": 0,
+          "voluntary_switches": 3529,
+          "involuntary_switches": 859
+        },
+        {
+          "arm": "decoder_glibc_write",
+          "round": 1,
+          "seconds": 2.6766413349999993,
+          "user_seconds": 9.492427,
+          "system_seconds": 0.083922,
+          "minor_faults": 12560,
+          "major_faults": 0,
+          "voluntary_switches": 3530,
+          "involuntary_switches": 673
+        },
+        {
+          "arm": "decoder_musl_write",
+          "round": 1,
+          "seconds": 2.7629256440000063,
+          "user_seconds": 9.638713,
+          "system_seconds": 0.20082699999999998,
+          "minor_faults": 39626,
+          "major_faults": 0,
+          "voluntary_switches": 3899,
+          "involuntary_switches": 869
+        },
+        {
+          "arm": "ffmpeg_oracle",
+          "round": 1,
+          "seconds": 2.606959025999913,
+          "user_seconds": 8.931032,
+          "system_seconds": 0.289894,
+          "minor_faults": 70230,
+          "major_faults": 0,
+          "voluntary_switches": 11342,
+          "involuntary_switches": 3615
+        },
+        {
+          "arm": "cli_glibc",
+          "round": 1,
+          "seconds": 4.937633518999974,
+          "user_seconds": 9.406098,
+          "system_seconds": 3.28881,
+          "minor_faults": 1369490,
+          "major_faults": 0,
+          "voluntary_switches": 3020,
+          "involuntary_switches": 775
+        },
+        {
+          "arm": "ffmpeg_oracle",
+          "round": 2,
+          "seconds": 2.623361603000035,
+          "user_seconds": 9.048115,
+          "system_seconds": 0.277486,
+          "minor_faults": 62669,
+          "major_faults": 0,
+          "voluntary_switches": 11264,
+          "involuntary_switches": 3579
+        },
+        {
+          "arm": "decoder_musl_write",
+          "round": 2,
+          "seconds": 2.7052349049999975,
+          "user_seconds": 9.433624,
+          "system_seconds": 0.207645,
+          "minor_faults": 39587,
+          "major_faults": 0,
+          "voluntary_switches": 3868,
+          "involuntary_switches": 850
+        },
+        {
+          "arm": "decoder_glibc_write",
+          "round": 2,
+          "seconds": 2.6518876809999483,
+          "user_seconds": 9.448695,
+          "system_seconds": 0.075239,
+          "minor_faults": 13932,
+          "major_faults": 0,
+          "voluntary_switches": 3427,
+          "involuntary_switches": 699
+        },
+        {
+          "arm": "decoder_musl_discard",
+          "round": 2,
+          "seconds": 2.6340787589999763,
+          "user_seconds": 9.376159,
+          "system_seconds": 0.180642,
+          "minor_faults": 39384,
+          "major_faults": 0,
+          "voluntary_switches": 3681,
+          "involuntary_switches": 876
+        },
+        {
+          "arm": "decoder_glibc_discard",
+          "round": 2,
+          "seconds": 2.6694635889999745,
+          "user_seconds": 9.284975,
+          "system_seconds": 0.092261,
+          "minor_faults": 13909,
+          "major_faults": 0,
+          "voluntary_switches": 3508,
+          "involuntary_switches": 983
+        },
+        {
+          "arm": "cli_musl",
+          "round": 2,
+          "seconds": 6.699525706999907,
+          "user_seconds": 9.51826,
+          "system_seconds": 5.066203,
+          "minor_faults": 2098522,
+          "major_faults": 0,
+          "voluntary_switches": 3707,
+          "involuntary_switches": 667
+        },
+        {
+          "arm": "cli_glibc",
+          "round": 2,
+          "seconds": 4.832925649999993,
+          "user_seconds": 9.225477,
+          "system_seconds": 3.198717,
+          "minor_faults": 1372848,
+          "major_faults": 0,
+          "voluntary_switches": 2990,
+          "involuntary_switches": 879
+        }
+      ],
+      "strace": {
+        "cli_musl": [
+          {
+            "percent_time": 100.0,
+            "seconds": 18.151984,
+            "calls": 31228,
+            "errors": 1003,
+            "syscall": "total"
+          },
+          {
+            "percent_time": 94.9,
+            "seconds": 17.225795,
+            "calls": 13673,
+            "errors": 1002,
+            "syscall": "futex"
+          },
+          {
+            "percent_time": 0.9,
+            "seconds": 0.163493,
+            "calls": 8244,
+            "errors": 0,
+            "syscall": "mmap"
+          },
+          {
+            "percent_time": 4.12,
+            "seconds": 0.748694,
+            "calls": 8238,
+            "errors": 0,
+            "syscall": "munmap"
+          },
+          {
+            "percent_time": 0.05,
+            "seconds": 0.008649,
+            "calls": 901,
+            "errors": 0,
+            "syscall": "write"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 0.001258,
+            "calls": 29,
+            "errors": 0,
+            "syscall": "pread64"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 0.001414,
+            "calls": 28,
+            "errors": 0,
+            "syscall": "read"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000498,
+            "calls": 20,
+            "errors": 0,
+            "syscall": "rt_sigprocmask"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000419,
+            "calls": 16,
+            "errors": 0,
+            "syscall": "lseek"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000361,
+            "calls": 14,
+            "errors": 0,
+            "syscall": "sigaltstack"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000286,
+            "calls": 9,
+            "errors": 0,
+            "syscall": "mprotect"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 2.7e-05,
+            "calls": 7,
+            "errors": 0,
+            "syscall": "fcntl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 5.7e-05,
+            "calls": 6,
+            "errors": 1,
+            "syscall": "open"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 4.7e-05,
+            "calls": 6,
+            "errors": 0,
+            "syscall": "close"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 3.1e-05,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "rt_sigaction"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 2.4e-05,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "fstat"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000353,
+            "calls": 4,
+            "errors": 0,
+            "syscall": "clone"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000119,
+            "calls": 4,
+            "errors": 0,
+            "syscall": "prctl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 6.5e-05,
+            "calls": 4,
+            "errors": 0,
+            "syscall": "gettid"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 4.5e-05,
+            "calls": 4,
+            "errors": 0,
+            "syscall": "brk"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 1.6e-05,
+            "calls": 3,
+            "errors": 0,
+            "syscall": "stat"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 1.3e-05,
+            "calls": 2,
+            "errors": 0,
+            "syscall": "readlink"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000291,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "execve"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 7e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "poll"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 7e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "sched_getaffinity"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 6e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "arch_prctl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 6e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "set_tid_address"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 3e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "getrandom"
+          }
+        ],
+        "cli_glibc": [
+          {
+            "percent_time": 100.0,
+            "seconds": 10.830081,
+            "calls": 21547,
+            "errors": 1390,
+            "syscall": "total"
+          },
+          {
+            "percent_time": 95.29,
+            "seconds": 10.319948,
+            "calls": 15004,
+            "errors": 1388,
+            "syscall": "futex"
+          },
+          {
+            "percent_time": 4.37,
+            "seconds": 0.473773,
+            "calls": 4947,
+            "errors": 0,
+            "syscall": "brk"
+          },
+          {
+            "percent_time": 0.09,
+            "seconds": 0.009959,
+            "calls": 901,
+            "errors": 0,
+            "syscall": "write"
+          },
+          {
+            "percent_time": 0.08,
+            "seconds": 0.00858,
+            "calls": 321,
+            "errors": 0,
+            "syscall": "mprotect"
+          },
+          {
+            "percent_time": 0.04,
+            "seconds": 0.004231,
+            "calls": 95,
+            "errors": 0,
+            "syscall": "mmap"
+          },
+          {
+            "percent_time": 0.05,
+            "seconds": 0.005117,
+            "calls": 79,
+            "errors": 0,
+            "syscall": "munmap"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 0.000655,
+            "calls": 34,
+            "errors": 0,
+            "syscall": "read"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 0.001382,
+            "calls": 31,
+            "errors": 0,
+            "syscall": "pread64"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000477,
+            "calls": 17,
+            "errors": 0,
+            "syscall": "rt_sigprocmask"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000183,
+            "calls": 16,
+            "errors": 0,
+            "syscall": "lseek"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 0.000909,
+            "calls": 14,
+            "errors": 0,
+            "syscall": "sigaltstack"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.00012,
+            "calls": 11,
+            "errors": 1,
+            "syscall": "openat"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 5.6e-05,
+            "calls": 11,
+            "errors": 0,
+            "syscall": "close"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 9.2e-05,
+            "calls": 8,
+            "errors": 0,
+            "syscall": "statx"
+          },
+          {
+            "percent_time": 0.03,
+            "seconds": 0.003507,
+            "calls": 7,
+            "errors": 0,
+            "syscall": "madvise"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000152,
+            "calls": 6,
+            "errors": 0,
+            "syscall": "sched_getaffinity"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 5.1e-05,
+            "calls": 6,
+            "errors": 0,
+            "syscall": "rt_sigaction"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000175,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "gettid"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.00011,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "set_robust_list"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000108,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "rseq"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000337,
+            "calls": 4,
+            "errors": 0,
+            "syscall": "clone3"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000107,
+            "calls": 4,
+            "errors": 0,
+            "syscall": "prctl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.0,
+            "calls": 4,
+            "errors": 0,
+            "syscall": "fstat"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 3.7e-05,
+            "calls": 2,
+            "errors": 0,
+            "syscall": "readlink"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 1.1e-05,
+            "calls": 2,
+            "errors": 0,
+            "syscall": "getrandom"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.0,
+            "calls": 2,
+            "errors": 0,
+            "syscall": "prlimit64"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 4e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "fcntl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.0,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "poll"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.0,
+            "calls": 1,
+            "errors": 1,
+            "syscall": "access"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.0,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "execve"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.0,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "arch_prctl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.0,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "set_tid_address"
+          }
+        ],
+        "ffmpeg_oracle": [
+          {
+            "percent_time": 100.0,
+            "seconds": 21.650552,
+            "calls": 106445,
+            "errors": 1417,
+            "syscall": "total"
+          },
+          {
+            "percent_time": 3.06,
+            "seconds": 0.662057,
+            "calls": 85595,
+            "errors": 0,
+            "syscall": "write"
+          },
+          {
+            "percent_time": 96.75,
+            "seconds": 20.946451,
+            "calls": 19770,
+            "errors": 1415,
+            "syscall": "futex"
+          },
+          {
+            "percent_time": 0.1,
+            "seconds": 0.02268,
+            "calls": 484,
+            "errors": 0,
+            "syscall": "read"
+          },
+          {
+            "percent_time": 0.03,
+            "seconds": 0.005447,
+            "calls": 238,
+            "errors": 0,
+            "syscall": "mprotect"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 0.00119,
+            "calls": 85,
+            "errors": 0,
+            "syscall": "mmap"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 0.001123,
+            "calls": 69,
+            "errors": 0,
+            "syscall": "rt_sigprocmask"
+          },
+          {
+            "percent_time": 0.03,
+            "seconds": 0.005692,
+            "calls": 44,
+            "errors": 0,
+            "syscall": "munmap"
+          },
+          {
+            "percent_time": 0.02,
+            "seconds": 0.003262,
+            "calls": 19,
+            "errors": 0,
+            "syscall": "madvise"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000283,
+            "calls": 18,
+            "errors": 0,
+            "syscall": "set_robust_list"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000146,
+            "calls": 18,
+            "errors": 0,
+            "syscall": "rseq"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.001081,
+            "calls": 17,
+            "errors": 0,
+            "syscall": "clone3"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 7.6e-05,
+            "calls": 16,
+            "errors": 0,
+            "syscall": "fstat"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000151,
+            "calls": 14,
+            "errors": 0,
+            "syscall": "close"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000362,
+            "calls": 13,
+            "errors": 0,
+            "syscall": "openat"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 5.3e-05,
+            "calls": 13,
+            "errors": 0,
+            "syscall": "brk"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 8.8e-05,
+            "calls": 9,
+            "errors": 0,
+            "syscall": "prctl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 3e-06,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "rt_sigaction"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 3e-06,
+            "calls": 3,
+            "errors": 0,
+            "syscall": "lseek"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 1.8e-05,
+            "calls": 2,
+            "errors": 0,
+            "syscall": "sched_getaffinity"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 1.4e-05,
+            "calls": 2,
+            "errors": 0,
+            "syscall": "pread64"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 2e-06,
+            "calls": 2,
+            "errors": 0,
+            "syscall": "fcntl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 0.000316,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "execve"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 1.4e-05,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "getrusage"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 8e-06,
+            "calls": 1,
+            "errors": 1,
+            "syscall": "access"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 7e-06,
+            "calls": 1,
+            "errors": 1,
+            "syscall": "ioctl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 6e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "arch_prctl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 6e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "set_tid_address"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 6e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "getrandom"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 5e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "prlimit64"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 2e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "dup"
+          }
+        ],
+        "decoder_glibc_write": [
+          {
+            "percent_time": 100.0,
+            "seconds": 0.742903,
+            "calls": 19332,
+            "errors": 1693,
+            "syscall": "total"
+          },
+          {
+            "percent_time": 91.52,
+            "seconds": 0.679919,
+            "calls": 15889,
+            "errors": 1692,
+            "syscall": "futex"
+          },
+          {
+            "percent_time": 4.15,
+            "seconds": 0.030859,
+            "calls": 2674,
+            "errors": 0,
+            "syscall": "write"
+          },
+          {
+            "percent_time": 0.93,
+            "seconds": 0.006875,
+            "calls": 370,
+            "errors": 0,
+            "syscall": "mprotect"
+          },
+          {
+            "percent_time": 0.76,
+            "seconds": 0.005673,
+            "calls": 125,
+            "errors": 0,
+            "syscall": "mmap"
+          },
+          {
+            "percent_time": 0.58,
+            "seconds": 0.004298,
+            "calls": 110,
+            "errors": 0,
+            "syscall": "munmap"
+          },
+          {
+            "percent_time": 0.22,
+            "seconds": 0.001612,
+            "calls": 42,
+            "errors": 0,
+            "syscall": "brk"
+          },
+          {
+            "percent_time": 1.34,
+            "seconds": 0.009932,
+            "calls": 23,
+            "errors": 0,
+            "syscall": "read"
+          },
+          {
+            "percent_time": 0.06,
+            "seconds": 0.000461,
+            "calls": 17,
+            "errors": 0,
+            "syscall": "rt_sigprocmask"
+          },
+          {
+            "percent_time": 0.05,
+            "seconds": 0.000336,
+            "calls": 14,
+            "errors": 0,
+            "syscall": "sigaltstack"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 4.3e-05,
+            "calls": 7,
+            "errors": 0,
+            "syscall": "close"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 6.5e-05,
+            "calls": 6,
+            "errors": 0,
+            "syscall": "openat"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 3.9e-05,
+            "calls": 6,
+            "errors": 0,
+            "syscall": "rt_sigaction"
+          },
+          {
+            "percent_time": 0.15,
+            "seconds": 0.001129,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "madvise"
+          },
+          {
+            "percent_time": 0.03,
+            "seconds": 0.000229,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "rseq"
+          },
+          {
+            "percent_time": 0.03,
+            "seconds": 0.000212,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "sched_getaffinity"
+          },
+          {
+            "percent_time": 0.02,
+            "seconds": 0.000123,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "set_robust_list"
+          },
+          {
+            "percent_time": 0.01,
+            "seconds": 9.9e-05,
+            "calls": 5,
+            "errors": 0,
+            "syscall": "gettid"
+          },
+          {
+            "percent_time": 0.06,
+            "seconds": 0.000448,
+            "calls": 4,
+            "errors": 0,
+            "syscall": "clone3"
+          },
+          {
+            "percent_time": 0.02,
+            "seconds": 0.000137,
+            "calls": 4,
+            "errors": 0,
+            "syscall": "prctl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 2.4e-05,
+            "calls": 4,
+            "errors": 0,
+            "syscall": "fstat"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 2.3e-05,
+            "calls": 2,
+            "errors": 0,
+            "syscall": "pread64"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 1.2e-05,
+            "calls": 2,
+            "errors": 0,
+            "syscall": "prlimit64"
+          },
+          {
+            "percent_time": 0.04,
+            "seconds": 0.000298,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "execve"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 1.3e-05,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "fcntl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 9e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "poll"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 9e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "mremap"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 8e-06,
+            "calls": 1,
+            "errors": 1,
+            "syscall": "access"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 7e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "getrandom"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 6e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "arch_prctl"
+          },
+          {
+            "percent_time": 0.0,
+            "seconds": 5e-06,
+            "calls": 1,
+            "errors": 0,
+            "syscall": "set_tid_address"
+          }
+        ]
+      }
+    }
+  ]
+}

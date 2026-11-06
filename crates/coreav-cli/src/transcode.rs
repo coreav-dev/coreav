@@ -86,6 +86,8 @@ pub struct Request {
     pub preset: String,
     /// `--scale`, read by [`parse_scale`].
     pub scale: Option<Scale>,
+    /// The literal crop selected by the `ffmpeg` adapter.
+    pub crop: Option<coreav_frame::Rect>,
     /// `--audio none`.
     pub no_audio: bool,
     /// The audio streams to copy (source stream indices), instead of every
@@ -183,6 +185,7 @@ pub fn make<S: Source>(
         },
         preset: request.preset.clone(),
         scale: request.scale,
+        crop: request.crop,
         pixel_format: request.pixel_format,
         one_size: request.one_size,
         audio: match (

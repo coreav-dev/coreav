@@ -20,7 +20,9 @@ written output is checked twice:
   `tools/oracle/writer_corpus.py` builds it for the native commands:
   `scripts/remux_check.py` (MP4 and MOV sources),
   `scripts/mkv_remux_check.py` (Matroska and WebM; the streams outside the
-  selection are not expected in the output), `clip_check.py`,
+  selection are not expected in the output), `clip_check.py` for native
+  gapless clips, the bounded AVC/AAC input-seek model here (complete pinned
+  output and independent ISO checks),
   `split_check.py`, `extract_check.py` and `scripts/join_check.py` (a join
   also against `ffmpeg -f concat` on the same inputs), each with its known
   divergences. A clip's requested range must also be the one the command
@@ -40,6 +42,7 @@ import os
 import re
 import pathlib
 import subprocess
+import struct
 import sys
 import tempfile
 import time
@@ -50,6 +53,8 @@ sys.path.insert(0, str(ROOT / "tools" / "oracle"))
 
 import track_boxes  # noqa: E402
 import writer_corpus  # noqa: E402
+import writer_boxes  # noqa: E402
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
 TIMEOUT = 600
 MATROSKA = (".mkv", ".webm")
@@ -404,6 +409,362 @@ def entry(record, src_movie, source_streams):
             "keep": None}
 
 
+INPUT_SEEK_MAX_SAMPLES = 200_000
+INPUT_SEEK_MAX_RAW = 1 << 30
+INPUT_SEEK_ROLL = bytes.fromhex('01000000726f6c6c0000000200000001ffff')
+INPUT_SEEK_ENTRIES = ('stream:stream_tags=language,handler_name:packet=stream_index,pts,dts,duration,size,flags,'
+                      'data_hash:frame=stream_index,best_effort_timestamp,pkt_dts,duration:format=start_time,'
+                      'duration:format_tags=')
+
+
+def input_seek_args(record):
+    if record['job'] != 'clip' or record['source'].endswith(MATROSKA):
+        return None
+    args = record['args']
+    if args.count('-i') != 1 or args[-1:] != ['OUTPUT']:
+        return None
+    at = args.index('-i')
+    if args[at + 1:at + 2] != ['INPUT']:
+        return None
+    values, coverage = {}, set()
+    codecs = {'-c': 'va', '-codec': 'va', '-c:v': 'v', '-vcodec': 'v', '-c:a': 'a', '-acodec': 'a'}
+    for tokens, allowed in ((args[:at], {'-ss'}), (args[at + 2:-1], {*codecs, '-t', '-to'})):
+        index = 0
+        while index < len(tokens):
+            name = tokens[index]
+            if name in ('-y', '-hide_banner'):
+                index += 1
+                continue
+            if name not in allowed or index + 1 == len(tokens):
+                return None
+            value = tokens[index + 1]
+            if name in codecs:
+                if value != 'copy':
+                    return None
+                coverage.update(codecs[name])
+            elif name in values:
+                return None
+            else:
+                values[name] = value
+            index += 2
+    bounds = set(values) & {'-t', '-to'}
+    if '-ss' not in values or len(bounds) != 1 or coverage != {'v', 'a'}:
+        return None
+    try:
+        return seconds(values['-ss']), seconds(values[bounds.pop()])
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+def input_seek_operation(record):
+    operation = input_seek_args(record)
+    if operation is None:
+        return None
+    try:
+        tracks = track_boxes.read_movie(record['source'])['tracks']
+    except (track_boxes.Unreadable, OSError, struct.error):
+        return operation
+    if not any(t['handler'] == 'vide' and (t.get('entry') or {}).get('type') == 'avc1' for t in tracks):
+        return None
+    for track in tracks:
+        entry = track.get('entry') or {}
+        if track['handler'] == 'soun' and entry.get('type') == 'mp4a':
+            config = writer_boxes.aac_config(entry)
+            if not config or config[0] >> 3 == 2:
+                return operation
+    return None
+
+
+def input_seek_facts(path):
+    layout = track_boxes.top_level(path)
+    moov = [b for b in layout if b[0] == b'moov']
+    mdat = [b for b in layout if b[0] == b'mdat']
+    if len(moov) != 1 or not mdat or not layout:
+        raise ValueError('one movie and bounded media data required')
+    if layout[-1][1] + layout[-1][3] != pathlib.Path(path).stat().st_size:
+        raise ValueError('incomplete top-level layout')
+    with open(path, 'rb') as handle:
+        for _, offset, header, size in layout:
+            handle.seek(offset)
+            raw = handle.read(header)
+            declared = struct.unpack_from('>Q' if header == 16 else '>I', raw, 8 if header == 16 else 0)[0]
+            if declared and declared != size:
+                raise ValueError('declared box extent exceeds the file')
+    data = memoryview(track_boxes.read_box(path, *moov[0][1:], track_boxes.MAX_MOOV))
+
+    def one(parent, kind, minimum=0):
+        found = track_boxes.children(data, parent, kind)
+        if len(found) != 1 or found[0][1] - found[0][0] < minimum:
+            raise ValueError('missing or duplicated required box')
+        return found[0]
+
+    tracks = []
+    root = (0, len(data))
+    mvhd = one(root, b'mvhd', 1)
+    if data[mvhd[0]] > 1 or mvhd[1] - mvhd[0] < (112 if data[mvhd[0]] else 100):
+        raise ValueError('invalid movie header')
+    for trak in track_boxes.children(data, root, b'trak'):
+        tkhd = one(trak, b'tkhd', 1)
+        if data[tkhd[0]] > 1 or tkhd[1] - tkhd[0] < (96 if data[tkhd[0]] else 84):
+            raise ValueError('invalid track header')
+        mdia = one(trak, b'mdia')
+        mdhd = one(mdia, b'mdhd', 1)
+        if data[mdhd[0]] > 1 or mdhd[1] - mdhd[0] < (36 if data[mdhd[0]] else 24):
+            raise ValueError('invalid media header')
+        stbl = one(one(mdia, b'minf'), b'stbl')
+        for kind in (b'stsd', b'stts', b'ctts', b'stss', b'stsz', b'stz2', b'stsc', b'stco', b'co64'):
+            tables = track_boxes.children(data, stbl, kind)
+            if len(tables) > 1 or any(end - start < 4 or data[start] not in ((0, 1) if kind == b'ctts' else (0,))
+                                      for start, end in tables):
+                raise ValueError('duplicate sample table or unsupported table version')
+        if len(track_boxes.children(data, stbl, b'stco') + track_boxes.children(data, stbl, b'co64')) != 1:
+            raise ValueError('one chunk-offset table required')
+        stsd = one(stbl, b'stsd', 8)
+        stsc = one(stbl, b'stsc', 8)
+        count = track_boxes.u32(data, stsc[0] + 4)
+        if count > INPUT_SEEK_MAX_SAMPLES or stsc[0] + 8 + count * 12 != stsc[1]:
+            raise ValueError('sample-to-chunk table exceeds its bounds')
+        sizes = track_boxes.children(data, stbl, b'stsz') + track_boxes.children(data, stbl, b'stz2')
+        if (len(sizes) != 1 or sizes[0][1] - sizes[0][0] < 12
+                or track_boxes.u32(data, sizes[0][0] + 8) > INPUT_SEEK_MAX_SAMPLES):
+            raise ValueError('input-seek sample budget exceeded')
+        rates = []
+        elst = track_boxes.child(data, track_boxes.child(data, trak, b'edts'), b'elst')
+        if elst is not None:
+            width = 20 if data[elst[0]] == 1 else 12
+            entries = track_boxes.u32(data, elst[0] + 4)
+            if data[elst[0]] > 1 or elst[0] + 8 + width * entries != elst[1]:
+                raise ValueError('invalid edit table extent')
+            rates = [track_boxes.u32(data, elst[0] + 8 + i * width + width - 4) for i in range(entries)]
+        groups = {}
+        for kind in (b'sgpd', b'sbgp'):
+            found = track_boxes.children(data, stbl, kind)
+            if len(found) > 1:
+                raise ValueError('multiple sample-group boxes')
+            groups[kind] = bytes(data[slice(*found[0])]) if found else None
+        tracks.append(dict(volume=track_boxes.u16(data, tkhd[0] + (48 if data[tkhd[0]] else 36)),
+                           descriptions=track_boxes.u32(data, stsd[0] + 4), rates=rates,
+                           indices=[track_boxes.u32(data, stsc[0] + 16 + i * 12) for i in range(count)],
+                           groups=groups))
+    brand = track_boxes.read_box(path, *layout[0][1:], track_boxes.MAX_MOOV)[:4] if layout[0][0] == b'ftyp' else None
+    media = (mdat[0][1] + mdat[0][2], mdat[0][1] + mdat[0][3]) if len(mdat) == 1 else None
+    return dict(tracks=tracks, brand=brand, media=media,
+                fragmented=any(b[0] == b'moof' for b in layout) or track_boxes.child(data, root, b'mvex') is not None)
+
+
+def input_seek_times(track):
+    samples = track['samples']
+    if samples['base_dts'] != 0 or samples['gap'] or not samples['sizes']:
+        raise ValueError('noncontiguous or empty sample timeline')
+    if any(d <= 0 for d in samples['durations']) or any(s <= 0 for s in samples['sizes']):
+        raise ValueError('nonpositive sample duration or size')
+    if sum(samples['sizes']) > INPUT_SEEK_MAX_RAW:
+        raise ValueError('input-seek sample byte budget exceeded')
+    dts, now = [], 0
+    for duration in samples['durations']:
+        dts.append(now)
+        now += duration
+    compositions = [d + c for d, c in zip(dts, samples['cto'])]
+    if any(c < 0 for c in samples['cto']) or len(set(compositions)) != len(compositions):
+        raise ValueError('negative or duplicate composition time')
+    return dts, compositions
+
+
+def input_seek_plan(record, operation, movie, facts):
+    seek, span = operation
+    tracks = movie['tracks']
+    if seek < 0 or span <= 0 or facts['fragmented'] or len(tracks) != 2:
+        raise ValueError('outside the bounded two-track input-seek model')
+    positions = {t['handler']: i for i, t in enumerate(tracks)}
+    if set(positions) != {'vide', 'soun'} or movie['movie_timescale'] <= 0:
+        raise ValueError('one video and one audio track required')
+    runs = []
+    for kind, handler in (('video', 'vide'), ('audio', 'soun')):
+        index = positions[handler]
+        track, extra = tracks[index], facts['tracks'][index]
+        entry = track['entry']
+        config = writer_boxes.aac_config(entry) if kind == 'audio' else None
+        if (kind == 'video' and (entry['type'] != 'avc1' or track['timescale'] < 10_000)
+                or kind == 'audio' and (not config or config[0] >> 3 != 2)):
+            raise ValueError('AVC and AAC-LC source required')
+        if (extra['descriptions'] != 1 or set(extra['indices']) != {1}
+                or extra['volume'] != (0 if kind == 'video' else 256)):
+            raise ValueError('unsupported source sample description or volume')
+        edits = track['edits']
+        if not edits or len(edits) != 1 or edits[0][1] < 0 or extra['rates'] != [65536]:
+            raise ValueError('one complete unit-rate source edit required')
+        clock, media = track['timescale'], edits[0][1]
+        if clock <= 0 or (seek * clock).denominator != 1 or (span * clock).denominator != 1:
+            raise ValueError('inexact media-clock bound')
+        dts, cts = input_seek_times(track)
+        samples = track['samples']
+        last = max(c + d for c, d in zip(cts, samples['durations']))
+        if edits[0][0] * clock != (last - media) * movie['movie_timescale']:
+            raise ValueError('incomplete source presentation edit')
+        if kind == 'video':
+            if cts[0] != media or len(set(samples['durations'])) != 1:
+                raise ValueError('nonzero origin or variable video cadence')
+            keys = [i for i, c in enumerate(cts) if samples['sync'][i] and c <= media + seek * clock]
+            if not keys or any(cts[a] >= cts[b] for a, b in zip(keys, keys[1:])):
+                raise ValueError('no decode access point')
+            first = max(keys, key=lambda i: cts[i])
+            size = writer_boxes._length_size(entry)
+            packet = next(track_boxes.iter_sample_bytes(record['source'], samples['offsets'], samples['sizes'], first, 1))
+            if size is None or writer_boxes.access('h264', packet, size, writer_boxes.h264_max_ref_frames(entry)) != 'must':
+                raise ValueError('unproved decode access point')
+            video_origin = fractions.Fraction(dts[first] - media, clock)
+        else:
+            if any(samples['cto']) or (video_origin * clock).denominator != 1:
+                raise ValueError('unqualified audio decode origin')
+            first = max((i for i, d in enumerate(dts) if d <= media + video_origin * clock), default=0)
+            expected = b'\0' * 4 + b'roll' + struct.pack('>III', 1, len(dts), 1)
+            if extra['groups'] not in ({b'sgpd': None, b'sbgp': None}, {b'sgpd': INPUT_SEEK_ROLL, b'sbgp': expected}):
+                raise ValueError('unqualified source audio roll')
+        end = next((i for i in range(first, len(dts)) if dts[i] >= media + (seek + span) * clock), len(dts))
+        if end <= first:
+            raise ValueError('empty retained run')
+        if kind == 'video' and any(c < cts[first] for c in cts[first:end]):
+            raise ValueError('leading pictures before the retained access point')
+        runs.append(dict(kind=kind, source_index=index, first=first, count=end - first,
+                         media_time=int(media + seek * clock - dts[first])))
+    return runs
+
+
+def input_seek_iso(record, operation, movie, plan, output, written):
+    if (written['brand'] != b'isom' or written['fragmented'] or len(output['tracks']) != 2
+            or [t['handler'] for t in output['tracks']] != ['vide', 'soun']):
+        raise ValueError('invalid output layout or track selection')
+    problems, extents, durations, presented = [], [], [], 0
+    streams = record['detail']['streams']
+    if len(streams) != 2 or {s['kind'] for s in streams} != {'video', 'audio'}:
+        raise ValueError('invalid summary selection')
+    for run, track, extra in zip(plan, output['tracks'], written['tracks']):
+        kind = run['kind']
+        src = movie['tracks'][run['source_index']]
+        dts, cts = input_seek_times(track)
+        samples = track['samples']
+        found = writer_boxes.compare_samples(kind, record['source'], src, [(record['output'], samples)], run['first'], run['count'])
+        found += writer_boxes.compare_entry(kind, src, track) + writer_boxes.compare_timescale(kind, src, track)
+        found += writer_boxes.compare_media_duration(kind, track, sum(samples['durations']))
+        problems.extend(message for _, message in found)
+        if extra['descriptions'] != 1 or set(extra['indices']) != {1} or extra['rates'] != [65536]:
+            raise ValueError('invalid output sample descriptions or edit rate')
+        span = max(c + d for c, d in zip(cts, samples['durations'])) - run['media_time']
+        duration = fractions.Fraction(span * output['movie_timescale'], track['timescale'])
+        if (span <= 0 or run['media_time'] < 0 or duration.denominator != 1
+                or track['edits'] != [(int(duration), run['media_time'], 1)]
+                or track['tkhd_duration'] != duration or extra['volume'] != (0 if kind == 'video' else 256)):
+            raise ValueError('output edit does not present the complete retained span')
+        durations.append(duration)
+        if kind == 'video':
+            presented = sum(c >= run['media_time'] for c in cts)
+        else:
+            expected = b'\0' * 4 + b'roll' + struct.pack('>III', 1, len(dts), 1)
+            if extra['groups'] != {b'sgpd': INPUT_SEEK_ROLL, b'sbgp': expected}:
+                raise ValueError('invalid audio roll membership')
+        summary = next(s for s in streams if s['kind'] == kind)
+        for key, value in (('stream_index', run['source_index']), ('first_sample', run['first']), ('samples', run['count'])):
+            if summary[key] != value:
+                raise ValueError('summary does not describe the independently selected samples')
+        extents.extend(zip(samples['offsets'], (o + s for o, s in zip(samples['offsets'], samples['sizes']))))
+    extents.sort()
+    if (not extents or (extents[0][0], extents[-1][1]) != written['media']
+            or any(a[1] != b[0] for a, b in zip(extents, extents[1:]))):
+        raise ValueError('sample extents do not tile the media box exactly')
+    if output['movie_duration'] != max(durations):
+        raise ValueError('movie duration is not its longest track')
+    def ratio(value):
+        exact = writer_corpus.ratio(value)
+        return fractions.Fraction(exact['num'], exact['den'])
+    summary = record['detail']
+    seek, bound = operation
+    if (ratio(summary['start']['snapped']) != seek
+            or ratio(summary['end']['written']) != seek + durations[0] / output['movie_timescale']
+            or fractions.Fraction(summary['start']['requested']['num'], summary['start']['requested']['den']) != seek
+            or fractions.Fraction(summary['end']['requested']['num'], summary['end']['requested']['den']) != seek + bound):
+        raise ValueError('summary presentation interval differs from the file and command')
+    return problems, presented
+
+
+def input_seek_snapshot(ffprobe, path):
+    result = subprocess.run([ffprobe, '-v', 'error', '-show_streams', '-show_packets', '-show_frames', '-show_format',
+                             '-show_data_hash', 'sha256', '-show_entries', INPUT_SEEK_ENTRIES, '-of', 'json', str(path)],
+                            capture_output=True, timeout=TIMEOUT, check=False)
+    if result.returncode or result.stderr or len(result.stdout) > INPUT_SEEK_MAX_RAW:
+        raise ValueError('incomplete pinned snapshot')
+    return json.loads(result.stdout)
+
+
+def input_seek_pin(record, tools, presented, directory):
+    import clip_check
+    reference = directory / pathlib.Path(record['output']).name
+    if pathlib.Path(record['input']).resolve() != pathlib.Path(record['source']).resolve():
+        raise ValueError('copy command input differs from the independently checked source')
+    args = [record['input'] if a == 'INPUT' else str(reference) if a == 'OUTPUT' else a for a in record['args']]
+    result = subprocess.run([tools['ffmpeg'], '-nostdin', '-v', 'error', *AUDIO_DECODE_INPUT, *args],
+                            capture_output=True, timeout=TIMEOUT, check=False)
+    if result.returncode or result.stderr or not reference.is_file():
+        raise ValueError('pinned unchanged copy command failed')
+    ours = input_seek_snapshot(tools['ffprobe'], record['output'])
+    theirs = input_seek_snapshot(tools['ffprobe'], reference)
+    if ours != theirs:
+        return ['input-seek complete packet, stream, frame or format records differ from the pin']
+    frames = [f for f in theirs.get('packets_and_frames', []) if f['type'] == 'frame' and f['stream_index'] == 0]
+    streams = theirs.get('streams', [])
+    if (len(streams) != 2 or streams[0].get('codec_name') != 'h264' or streams[1].get('codec_name') != 'aac'
+            or streams[1].get('profile') != 'LC' or len(frames) != presented):
+        raise ValueError('pinned decoded selection differs from the ISO presentation')
+    width, height = int(streams[0]['width']), int(streams[0]['height'])
+    pixels = len(frames) * (width * height + 2 * ((width + 1) // 2) * ((height + 1) // 2))
+    audio = int(streams[1]['nb_frames']) * 1024 * int(streams[1]['channels']) * 4
+    if not 0 < pixels <= INPUT_SEEK_MAX_RAW or not 0 < audio <= INPUT_SEEK_MAX_RAW:
+        raise ValueError('input-seek raw decode budget exceeded')
+    for kind in ('video', 'audio'):
+        raws = []
+        for label, path in (('output', record['output']), ('reference', reference)):
+            raw = directory / (kind + '-' + label)
+            if kind == 'video':
+                command = [tools['ffmpeg'], '-nostdin', '-v', 'error', *AUDIO_DECODE_INPUT, '-i', str(path),
+                           '-map', '0:v:0', '-an', '-fps_mode', 'passthrough', '-pix_fmt', 'yuv420p', '-f', 'rawvideo', str(raw)]
+            else:
+                command = [tools['ffmpeg'], '-nostdin', '-v', 'error', *AUDIO_DECODE_INPUT, '-i', str(path),
+                           '-map', '0:a:0', '-vn', '-c:a', 'pcm_f32le', '-f', 'f32le', str(raw)]
+            result = subprocess.run(command, capture_output=True, timeout=TIMEOUT, check=False)
+            if result.returncode or result.stderr or not raw.is_file() or not 0 < raw.stat().st_size <= INPUT_SEEK_MAX_RAW:
+                raise ValueError('incomplete or over-budget input-seek decode')
+            if kind == 'video' and raw.stat().st_size != pixels:
+                raise ValueError('decoded video does not contain every presented frame')
+            raws.append(raw)
+        if raws[0].stat().st_size != raws[1].stat().st_size or not clip_check.same_bytes(raws[0], 0, raws[1]):
+            return [f'input-seek {kind} decoded bytes differ from the pin']
+    if tools['mediainfo']:
+        ours = clip_check.mediainfo_tracks(tools['mediainfo'], record['output'])
+        theirs = clip_check.mediainfo_tracks(tools['mediainfo'], reference)
+        if any([t.get('Format') for t in rows if t.get('@type') == 'General'] != ['MPEG-4'] for rows in (ours, theirs)):
+            return ['input-seek MediaInfo container format differs']
+        for kind, fields in (('Video', clip_check.MEDIAINFO_VIDEO), ('Audio', clip_check.MEDIAINFO_AUDIO)):
+            a, b = ([t for t in rows if t.get('@type') == kind] for rows in (ours, theirs))
+            if len(a) != 1 or len(b) != 1 or any(a[0].get(k) != b[0].get(k) for k in fields):
+                return [f'input-seek {kind} MediaInfo fields differ from the pin']
+    return []
+
+
+def input_seek_problems(record, operation, tools):
+    try:
+        source_facts = input_seek_facts(record['source'])
+        source = track_boxes.read_movie(record['source'])
+        plan = input_seek_plan(record, operation, source, source_facts)
+        written = input_seek_facts(record['output'])
+        output = track_boxes.read_movie(record['output'])
+        problems, presented = input_seek_iso(record, operation, source, plan, output, written)
+        if problems:
+            return problems
+        with tempfile.TemporaryDirectory(prefix='copy-check-input-seek-') as tmp:
+            return input_seek_pin(record, tools, presented, pathlib.Path(tmp))
+    except (ValueError, track_boxes.Unreadable, struct.error) as error:
+        return [f'input-seek model: {error}']
+
+
 def oracle(record, tools):
     """The problems the job's oracle finds in one written record."""
     import clip_check
@@ -419,6 +780,9 @@ def oracle(record, tools):
         selected = [s["stream_index"] for s in summary["streams"]]
         result = mkv_remux_check.check(source, record["output"], summary, mediainfo, selected=selected)
         return [json.dumps(p) for p in result["problems"]]
+    operation = input_seek_operation(record)
+    if operation is not None:
+        return input_seek_problems(record, operation, tools)
     src_movie = track_boxes.read_movie(source) if record["job"] in ("clip", "split") else None
     if record["job"] == "join":
         problems = join_check.check(entry(record, None, []), ffprobe, ffmpeg, mediainfo, concat=True)[0]
@@ -472,7 +836,9 @@ def main():
     # runs per command, since each spelling is its own ffmpeg command.
     groups = collections.defaultdict(list)
     for record in written:
-        groups[(record["source"], record["job"], digest(outputs(record)))].append(record)
+        operation = input_seek_operation(record)
+        key = tuple(record["args"]) if operation is not None else None
+        groups[(record["source"], record["job"], digest(outputs(record)), key)].append(record)
     failures = []
     sequence = os.getpid()
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.jobs) as pool:

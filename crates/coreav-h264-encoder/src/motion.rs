@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::{Error, Result, bits::Bits};
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -53,7 +55,7 @@ pub(crate) struct Border<'a> {
     pub(crate) top_left: Option<&'a MotionMb>,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct Part {
     pub(crate) x: usize,
     pub(crate) y: usize,
@@ -172,7 +174,7 @@ impl Border<'_> {
         layout: Layout,
     ) -> Result<Mv> {
         let [a, mut b, mut c] = self.neighbours(grid, part)?;
-        let preferred = match layout {
+        let preferred: Option<Sample> = match layout {
             Layout::Horizontal if part.y == 0 => Some(b),
             Layout::Horizontal => Some(a),
             Layout::Vertical if part.x == 0 => Some(a),

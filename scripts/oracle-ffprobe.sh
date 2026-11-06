@@ -4,8 +4,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LEVEL="${1:?usage: oracle-ffprobe.sh LEVEL MEDIA_FILE}"
 MEDIA_FILE="${2:?usage: oracle-ffprobe.sh LEVEL MEDIA_FILE}"
-FFPROBE="${FFPROBE:-ffprobe}"
-FFMPEG="${FFMPEG:-ffmpeg}"
+ORACLE_OPTIONS=()
+if [[ -n "${FFMPEG+x}" ]]; then ORACLE_OPTIONS+=(--ffmpeg "$FFMPEG"); fi
+if [[ -n "${FFPROBE+x}" ]]; then ORACLE_OPTIONS+=(--ffprobe "$FFPROBE"); fi
+ORACLE_PATHS="$(python3 -I -B "$ROOT/scripts/test_oracle.py" --resolve ${ORACLE_OPTIONS[@]+"${ORACLE_OPTIONS[@]}"})"
+if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+   [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+  echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+  exit 1
+fi
 COREAV_ORACLE="${COREAV_ORACLE:-$ROOT/target/release/coreav-oracle}"
 FILE_NAME="${MEDIA_FILE##*/}"
 
@@ -75,9 +82,12 @@ case "$LEVEL" in
     for input_index in "${INPUT_INDICES[@]}"; do
       FFMPEG_ARGS+=(-map "0:$input_index")
     done
+    AUDIO_DECODE_INPUT=()
+    while IFS= read -r argument || [[ -n "$argument" ]]; do
+      AUDIO_DECODE_INPUT+=("$argument")
+    done < "$ROOT/scripts/oracle-audio-args.txt"
     set +e
-    mapfile -t AUDIO_DECODE_INPUT < "$ROOT/scripts/oracle-audio-args.txt"
-    "$FFMPEG" -nostdin -v error "${AUDIO_DECODE_INPUT[@]}" -i "$MEDIA_FILE" "${FFMPEG_ARGS[@]}" -fps_mode passthrough -f framemd5 - > "$RAW"
+    "$FFMPEG" -nostdin -v error ${AUDIO_DECODE_INPUT[@]+"${AUDIO_DECODE_INPUT[@]}"} -i "$MEDIA_FILE" "${FFMPEG_ARGS[@]}" -fps_mode passthrough -f framemd5 - > "$RAW"
     EXIT_CODE=$?
     set -e
     "$COREAV_ORACLE" normalize frames --file "$FILE_NAME" --exit-code "$EXIT_CODE" --stream-map "$STREAM_MAP" --input "$RAW"

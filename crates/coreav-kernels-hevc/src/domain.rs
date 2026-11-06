@@ -9,7 +9,7 @@ pub enum Error {
     IntraMode,
     /// A stride, slice length or checked address is invalid.
     Buffer,
-    /// A reference or prediction sample exceeds the declared bit depth.
+    /// A reference or prediction sample is outside its declared sample domain.
     Sample,
     /// QP is outside 0..=51 + 6 * (bit depth - 8).
     Qp,
@@ -17,6 +17,10 @@ pub enum Error {
     Scaling,
     /// The transform type is not valid for this block size.
     Transform,
+    /// An inter rectangle has invalid dimensions or incompatible geometry.
+    Rectangle,
+    /// Effective prediction weights or their denominators are invalid.
+    Weight,
 }
 
 /// Maps an effective 4:2:0 chroma QP index using H.265 Table 8-10.
@@ -152,6 +156,117 @@ impl<T: Copy> Block<'_, T> {
             .get(y * self.stride + x)
             .copied()
             .ok_or(Error::Buffer)
+    }
+}
+
+pub(crate) fn check_rectangle(
+    len: usize,
+    stride: usize,
+    width: usize,
+    height: usize,
+) -> Result<(), Error> {
+    if width == 0 || height == 0 || width > i32::MAX as usize || height > i32::MAX as usize {
+        return Err(Error::Buffer);
+    }
+    let required = (height - 1)
+        .checked_mul(stride)
+        .and_then(|v| v.checked_add(width))
+        .ok_or(Error::Buffer)?;
+    if stride < width || len < required {
+        return Err(Error::Buffer);
+    }
+    Ok(())
+}
+
+/// A checked row-major inter rectangle, with each dimension in 1..=64.
+#[derive(Clone, Copy, Debug)]
+pub struct Rect<'a, T> {
+    pub(crate) data: &'a [T],
+    pub(crate) stride: usize,
+    pub(crate) width: usize,
+    pub(crate) height: usize,
+}
+
+impl<'a, T> Rect<'a, T> {
+    /// Checks the dimensions, stride and last active sample; padding is ignored.
+    pub fn new(data: &'a [T], stride: usize, width: usize, height: usize) -> Result<Self, Error> {
+        if !(1..=64).contains(&width) || !(1..=64).contains(&height) {
+            return Err(Error::Rectangle);
+        }
+        check_rectangle(data.len(), stride, width, height)?;
+        Ok(Self {
+            data,
+            stride,
+            width,
+            height,
+        })
+    }
+
+    /// Returns the width in component samples.
+    pub const fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Returns the height in component samples.
+    pub const fn height(&self) -> usize {
+        self.height
+    }
+}
+
+impl<T: Copy> Rect<'_, T> {
+    pub(crate) fn at(&self, x: usize, y: usize) -> Result<T, Error> {
+        self.data
+            .get(y * self.stride + x)
+            .copied()
+            .ok_or(Error::Buffer)
+    }
+}
+
+/// A checked caller-owned inter output rectangle; padding is never modified.
+#[derive(Debug)]
+pub struct RectMut<'a, T> {
+    pub(crate) data: &'a mut [T],
+    pub(crate) stride: usize,
+    pub(crate) width: usize,
+    pub(crate) height: usize,
+}
+
+impl<'a, T> RectMut<'a, T> {
+    /// Checks dimensions in 1..=64, stride and the last active sample.
+    pub fn new(
+        data: &'a mut [T],
+        stride: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Self, Error> {
+        if !(1..=64).contains(&width) || !(1..=64).contains(&height) {
+            return Err(Error::Rectangle);
+        }
+        check_rectangle(data.len(), stride, width, height)?;
+        Ok(Self {
+            data,
+            stride,
+            width,
+            height,
+        })
+    }
+
+    /// Returns the width in component samples.
+    pub const fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Returns the height in component samples.
+    pub const fn height(&self) -> usize {
+        self.height
+    }
+
+    pub(crate) fn put(&mut self, x: usize, y: usize, value: T) -> Result<(), Error> {
+        *self
+            .data
+            .get_mut(y * self.stride + x)
+            .ok_or(Error::Buffer)? = value;
+        Ok(())
     }
 }
 

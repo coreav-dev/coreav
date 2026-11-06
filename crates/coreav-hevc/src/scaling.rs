@@ -93,13 +93,8 @@ impl ScalingLists {
         Ok(result)
     }
 
-    pub(crate) fn factors(
-        &self,
-        log2_size: u32,
-        component: usize,
-        output: &mut [u8],
-    ) -> Result<()> {
-        if !(2..=5).contains(&log2_size) || component > 2 || log2_size == 5 && component != 0 {
+    pub(crate) fn factors(&self, log2_size: u32, matrix: usize, output: &mut [u8]) -> Result<()> {
+        if !(2..=5).contains(&log2_size) || matrix > 5 || log2_size == 5 && matrix % 3 != 0 {
             return Err(Error::InvalidData("scaling_factor_block"));
         }
         let n = 1usize << log2_size;
@@ -112,7 +107,7 @@ impl ScalingLists {
         let values = self
             .values
             .get(size)
-            .and_then(|row| row.get(component))
+            .and_then(|row| row.get(matrix))
             .ok_or(Error::InvalidData("scaling_list_matrix"))?;
         let mut index = 0;
         for diagonal in 0..2 * source_n - 1 {
@@ -138,7 +133,7 @@ impl ScalingLists {
             let dc = *self
                 .dc
                 .get(size - 2)
-                .and_then(|row| row.get(component))
+                .and_then(|row| row.get(matrix))
                 .ok_or(Error::InvalidData("scaling_list_matrix"))?;
             *output
                 .first_mut()

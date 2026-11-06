@@ -1,9 +1,11 @@
 use super::*;
 use crate::av1::{self, Timeline};
 use crate::scale::Side;
+#[cfg(not(feature = "av1-measurement"))]
+use coreav_backend_svt_av1::model::RETAINED_BYTES;
 use coreav_backend_svt_av1::{
     Error as BackendError,
-    model::{Color, MAX_PACKET_BYTES, RETAINED_BYTES, Retention, Settings},
+    model::{Color, MAX_PACKET_BYTES, Retention, Settings},
     protocol::{Limits, Request},
 };
 use coreav_frame::{Chroma, ChromaLocation};
@@ -109,6 +111,9 @@ pub struct Av1Encoding {
     pub segments: u64,
     /// Requested worker address-space allowance, not proof of OS enforcement.
     pub address_space: u64,
+    #[cfg(feature = "av1-measurement")]
+    #[doc(hidden)]
+    pub in_process: bool,
 }
 
 /// Source video and its explicit AV1 encoding result.
@@ -299,7 +304,11 @@ impl<'a> Av1Transcode<'a> {
 }
 
 fn compiled_retention(request: Request) -> Result<Retention, BackendError> {
-    #[cfg(feature = "svt-av1-native")]
+    #[cfg(feature = "av1-measurement")]
+    {
+        coreav_backend_svt_av1::worker::measurement_retention(request)
+    }
+    #[cfg(all(feature = "svt-av1-native", not(feature = "av1-measurement")))]
     {
         coreav_backend_svt_av1::worker::retention(request)
     }
@@ -592,13 +601,21 @@ impl<'a> Run<'a> {
             .1
             .checked_mul(65536)
             .ok_or_else(|| unsupported("AV1 display height exceeds the track header"))?;
+        #[cfg(feature = "av1-measurement")]
+        let retained_ceiling = 4 << 30;
+        #[cfg(not(feature = "av1-measurement"))]
+        let retained_ceiling = RETAINED_BYTES;
+        #[cfg(feature = "av1-measurement")]
+        let transport_limits = Limits::measurement;
+        #[cfg(not(feature = "av1-measurement"))]
+        let transport_limits = Limits::new;
         let request = Request {
             settings,
-            limits: Limits::new(
+            limits: transport_limits(
                 self.options
                     .decode_limits
                     .max_memory_bytes
-                    .min(RETAINED_BYTES),
+                    .min(retained_ceiling),
                 self.options
                     .max_spool_bytes
                     .min(coreav_backend_svt_av1::protocol::MAX_OUTPUT_BYTES),
@@ -615,6 +632,12 @@ impl<'a> Run<'a> {
         };
         let retention = (plan.runtime.retention)(request)
             .map_err(|error| Error::Encode(av1::backend_error(error)))?;
+        #[cfg(feature = "av1-measurement")]
+        if plan.timeline.frames() > u64::from(retention.pictures()) {
+            return Err(unsupported(
+                "measurement requires one continuous AV1 session",
+            ));
+        }
         let duration = plan.timeline.last_duration();
         let frames = plan.timeline.frames();
         let picture = prepare_pixels(frame, settings, color, self.deadline)?;
@@ -683,6 +706,8 @@ impl<'a> Run<'a> {
             segment_frames: active.retention.pictures(),
             segments: encoded.segments,
             address_space: self.options.decode_limits.max_memory_bytes,
+            #[cfg(feature = "av1-measurement")]
+            in_process: encoded.in_process,
         };
         Ok(CompletedVideo {
             sample_entry: encoded.sample_entry,

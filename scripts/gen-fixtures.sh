@@ -9,13 +9,19 @@
 set -euo pipefail
 
 OUT="${1:?usage: gen-fixtures.sh /absolute/output/dir}"
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ORACLE_PATHS="$(python3 -I -B "$SCRIPTS/test_oracle.py" --resolve)"
+if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+   [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+  echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+  exit 1
+fi
 mkdir -p "$OUT"
 MANIFEST="$OUT/MANIFEST"
 : > "$MANIFEST"
 REQUIRE_ALL="${COREAV_REQUIRE_ALL_FIXTURES:-1}"
-SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-FF=(ffmpeg -hide_banner -loglevel error -y)
+FF=("$FFMPEG" -hide_banner -loglevel error -y)
 SRC=(-f lavfi -i "testsrc2=size=320x240:rate=25:duration=2"
      -f lavfi -i "sine=frequency=440:duration=2")
 VSRC=(-f lavfi -i "testsrc2=size=320x240:rate=25:duration=2")
@@ -24,7 +30,7 @@ ASRC=(-f lavfi -i "sine=frequency=440:duration=2:sample_rate=48000")
 # Capture the encoder list once. Piping ffmpeg into `grep -q` can fail under
 # `set -o pipefail`: grep exits early, ffmpeg gets SIGPIPE, and the pipeline
 # reports failure even when the encoder exists.
-ENCODERS="$(ffmpeg -hide_banner -encoders 2>/dev/null || true)"
+ENCODERS="$("$FFMPEG" -hide_banner -encoders 2>/dev/null || true)"
 
 if grep -q libx264 <<< "$ENCODERS"; then
   VID=(-c:v libx264 -pix_fmt yuv420p -g 25)
