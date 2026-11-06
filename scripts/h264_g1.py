@@ -126,6 +126,8 @@ def validate(m):
         command = m['commands'][name]
         if not isinstance(command, list) or not command or not all(isinstance(v, str) for v in command):
             raise ValueError(f'invalid frozen command {name}')
+        if command[0] not in {'{' + tool + '}' for tool in m['tools']}:
+            raise ValueError(f'frozen command {name} must run a pinned tool placeholder')
     fixture = m['metric_fixture']
     require(fixture['frames'], 60, 'metric fixture frames')
     require(fixture['finite'], True, 'metric fixture finite scores')

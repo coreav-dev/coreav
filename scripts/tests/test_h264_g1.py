@@ -115,6 +115,19 @@ class G1(unittest.TestCase):
             with self.assertRaises((ValueError, KeyError)):
                 g1.validate(bad)
 
+    def test_frozen_metric_commands_must_start_with_a_pinned_tool(self):
+        for executable in ('ffmpeg', '/usr/bin/ffmpeg', '{unpinned}', '{metric_ffmpeg} '):
+            for name in ('convert', 'ssimulacra2', 'xpsnr'):
+                with self.subTest(executable=executable, command=name):
+                    bad = manifest()
+                    bad['commands'][name] = [executable, 'frozen']
+                    with self.assertRaisesRegex(ValueError, 'pinned tool placeholder'):
+                        g1.validate(bad)
+        for tool in ('ffmpeg', 'metric_ffmpeg', 'ssimulacra2'):
+            good = manifest()
+            good['commands']['xpsnr'] = ['{' + tool + '}', 'frozen']
+            g1.validate(good)
+
     def test_complete_plane_comparison_rejects_chroma_mutation_and_bad_lengths(self):
         with tempfile.TemporaryDirectory() as temp:
             a, b = pathlib.Path(temp)/'a', pathlib.Path(temp)/'b'
