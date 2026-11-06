@@ -1,6 +1,6 @@
 # Shorter PR validation
 
-Status: implemented in this branch. The first commit recorded the plan and changed no executable check; implementation follows in the same pull request. The forecasts below are not measured worker improvements. HEVC tiering remains deferred.
+Status: implemented in this branch. The first commit recorded the plan and changed no executable check; implementation follows in the same pull request. The HEVC tiering prerequisite is integrated. The forecasts below are not measured worker improvements.
 
 ## The measured problem
 
@@ -78,7 +78,7 @@ These are this branch's job tiers on the normal, non-reused path. A proved queue
 | `npm-changes`, `package`, `smoke`, `npm-report` | package 20.38 / 24.90 | Existing required npm path, complete parity with bounded workers |
 | Label-selected Python and npm platform builds | opt-in today | Existing opt-in, tag, scheduled and manual behavior |
 | `pr-text` | short, edit-triggered | Existing PR text gate, not a merge-group ruleset context |
-| HEVC workflow | headers 0.46–0.60; vectors 5.50 / 12.73; census 19.82 / 27.48 before the full inter census | Unchanged; tiering deferred while coreav-dev/coreav#429 remains open and draft |
+| HEVC workflow | headers 0.46–0.60; vectors 5.50 / 12.73; census 19.82 / 27.48 before the full inter census | Routine headers and eight synthetic Main10 pictures; complete archive and fixed-file work after merge, daily or final-head dispatch |
 | VP9 `vectors`, `adapter-contract` | vectors 11.80–14.01 medians; contract 0.92 | Existing PR comparisons, including the complete 353-vector set |
 | VP9 `interpolation-fuzz` | about 11.1 per platform | Compile and run 30 seconds on PRs; retain the 600-second pass after merge, daily and dispatch |
 | VP9 `contract`, `corpus`, `corpus-summary` | slow shard 19.60 / 24.51 | Contract and exact-eight original-file smoke on PRs; full corpus on relevant main pushes, daily and dispatch |
@@ -91,7 +91,7 @@ Other workflows retain their existing scope and events. In particular, publicati
 
 H.264 smoke selects exact names from `crates/coreav-h264/tests/data/conformance-streams.json`: `BA1_Sony_D`, `CABACI3_Sony_B`, `cavlc_mot_frm0_full_B`, `HCHP1_HHI_B`, `HPCV_BRCM_A`, `alphaconformanceG`, `CVPCMNL1_SVA_C`, and `MR1_BT_A`. Acquisition and both fast and safe decoding use the same selection, existing thread counts, and comparisons. Exactly those eight distinct in-scope names and results are required. Unknown, absent, or extra results fail. Full checks still use all 99 admitted streams and unchanged hashes.
 
-`hevc-conformance.yml` is unchanged. The proposed HEVC synthetic-smoke and full-census split is deferred, not shipped. Existing HEVC checks and owning-area full-check obligations remain in effect.
+HEVC routine smoke compares the existing four registered Main10 recipes and all eight 64×64 unfiltered pictures through unchanged metadata and pixel validators. It is not full 8-bit, filtered-intra or inter coverage. Complete archive and fixed-file checks retain their full job bodies in the independent workflow. HEVC final-head evidence is explicitly selected; it does not become a multi-hour default obligation for unrelated correctness PRs.
 
 VP9 retains all 353 vectors in routine `vp9-conformance.yml` validation. Separately, `vp9-corpus.yml` runs `scripts/vp9_smoke.py` over exactly eight existing pinned public vectors as original files, using the corpus comparator and pinned oracle. Hash, membership, positive frame count, and complete exact coverage are required. Full corpus shards run only on relevant main pushes, daily, and dispatch. Interpolation fuzzing compiles and runs for 30 seconds on PRs and 600 seconds in the full tier. Audio retains its complete existing coverage and qualification controls; no reduction is approved. No roster, baseline, tolerance or frozen judging file changes.
 
@@ -109,7 +109,9 @@ For a correctness PR, require successful manual evidence at its exact final head
 
 The operational procedure is in [Verify a correctness PR's final head](ci-checks.md#verify-a-correctness-prs-final-head).
 
-`hevc-conformance.yml` remains unchanged while coreav-dev/coreav#429 is open and draft. HEVC automatic latency is unchanged. Its tiering is a deferred follow-up, not part of this implementation.
+All four scheduled full workflows avoid a duplicate only when their newest successful main-push attempt proves the exact scheduled SHA, every registered full job and every proof step. The existing lookup owns search and revalidation, while the full-suite registry owns the shared coverage predicate. A covered schedule records the pinned run and attempt in metadata; the trusted reporter rechecks it without reading logs or artifacts. Missing or invalid evidence runs the full work, and manual dispatches never reuse it.
+
+There is no age cutoff: an unchanged SHA with a green covering push keeps skipping daily runs. External dependency or runner drift alone is not tested again while that coverage persists. This is a deliberate limit of exact-SHA deduplication, not a freshness claim.
 
 ## Forecast and its limits
 
@@ -141,6 +143,6 @@ This branch updates the required-check table, workflow dependencies and triggers
 
 Preserve the prescribed filtered-workflow per-job groups, matrix suffixes, PR-only cancellation, independent main/merge-group run groups, report behavior and deny's existing whole-run exception. New required jobs use the same forms. A main push may reuse only a successful same-tree result of the same workflow. That reuse covers the reduced gate, never the full tier. Required context names stay `ci-report`, `deny`, `python-report` and `npm-report`.
 
-Deny, licence checks, DCO, pr-text, workflow checking, unsafe-site checking, and strict Clippy configurations remain. Bench-guard remains a head-versus-base comparison in PRs and merge groups and a baseline comparison on main. The reductions are full H.264 and composed-transcode work on each PR and queue run, VP9's per-PR fuzz duration, and VP9 corpus work on each PR revision. Their original full predicates remain in the full tier. Legacy R3 stays frozen and unchanged. No new runners are introduced.
+Deny, licence checks, DCO, pr-text, workflow checking, unsafe-site checking, and strict Clippy configurations remain. Bench-guard remains a head-versus-base comparison in PRs and merge groups and a baseline comparison on main. The reductions are full H.264 and composed-transcode work on each PR and queue run, VP9's per-PR fuzz duration, and VP9 corpus work on each PR revision. Their original full predicates remain in the full tier. Legacy R3 stays frozen and unchanged. No additional runner capacity is requested; only schedules add a small metadata gate.
 
 Verification includes complete workflow-checker self-tests, main-plan scheduling and matrix tests, changed-path tests, exact smoke membership and result-completeness tests, shared-fixture binding, reporter trust/idempotence tests, and final-head evidence tests. Test the worker executor on synthetic children for exact case coverage, isolated outputs, deterministic failures, bounded output, launch errors and cleanup. On Actions, compare one-worker and parallel npm runs over identical generated bytes and require equal complete case coverage. Run the resulting ordinary PR gate and observe actual queue outcomes. Keep all heavy verification on Actions.

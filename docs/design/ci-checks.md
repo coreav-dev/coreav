@@ -6,7 +6,15 @@ under "Required status checks" below.
 
 ## Validation tiers
 
-[Shorter PR validation](ci-tiers.md) records this branch's implemented fixture and npm changes, routine smoke checks, independent full suites, and exact-final-head verification procedure. Its forecasts remain assumptions, not measured improvements. Required context names are unchanged. Full H.264, arm64 conformance, and the three composed-transcode shards and merger belong to `ci-full.yml`, outside `ci-report`. HEVC tiering is deferred while coreav-dev/coreav#429 remains open and draft; `hevc-conformance.yml` is unchanged.
+[Shorter PR validation](ci-tiers.md) records this branch's implemented fixture and npm changes, routine smoke checks, independent full suites, and exact-final-head verification procedure. Its forecasts remain assumptions, not measured improvements. Required context names are unchanged. Full H.264, arm64 conformance, and the three composed-transcode shards and merger belong to `ci-full.yml`, outside `ci-report`. The integrated HEVC tier keeps headers and eight synthetic pictures routine; complete archive and fixed-file work stays in its independent full workflow.
+
+### Scheduled full runs already covered by main
+
+Each full workflow first checks scheduled runs through the existing `merge-group-result` lookup. Only the newest main-push attempt of the same workflow at the exact scheduled SHA can cover it, and every registered full job, matrix leg and proof step must have succeeded. Running, failed, cancelled, mismatching, incomplete or unavailable evidence runs the full work. Covered schedules do no media or build work and write one line naming the covering run and attempt. Push filters, push events, cron times, manual dispatch and PR-only cancellation are unchanged; the metadata gate starts a runner only on schedule.
+
+The claim is pinned in the coverage step's name. Trusted failure reporting independently verifies that exact attempt using Actions metadata and the same full-proof predicate, so legitimate covered skips do not become missing-work issues. No artifacts or logs are read with its issue-writing token. Other skipped or failed full jobs retain the existing failure path. Manual final-head verification never accepts push or scheduled coverage in place of its dispatches.
+
+Coverage has no age limit. While main remains at one SHA, a successful covering push can suppress every later daily run. Those skips do not detect subsequent external toolchain, runner-image or remote-input changes; a manual dispatch or a new uncovered SHA is needed for a fresh full check.
 
 ## Verify a correctness PR's final head
 
@@ -38,7 +46,7 @@ Prerequisite: all workflow files must be registered on the default branch. Befor
    GH_TOKEN="$(gh auth token)" python3 -I scripts/ci_full.py verify --pr "$N"
    ```
 
-Stop on any API or verification failure. Repeat after any head change, newer dispatch, or rerun. The verifier re-lists all three dispatch indexes before its final PR-head check. Successful jobs carried over from an earlier attempt of the same exact-head manual run remain valid; a new attempt must finish successfully before evidence is accepted. Existing HEVC and relevant audio manual full checks are additional owning-area obligations, outside this three-suite verifier.
+Stop on any API or verification failure. Repeat after any head change, newer dispatch, or rerun. The verifier re-lists all selected dispatch indexes before its final PR-head check. Successful jobs carried over from an earlier attempt of the same exact-head manual run remain valid; a new attempt must finish successfully before evidence is accepted. HEVC changes additionally dispatch `hevc-conformance.yml` and verify with `--suite hevc-conformance`; repeat `--suite` to verify it together with the three default suites. Relevant audio manual full checks remain additional owning-area obligations.
 
 ## The problem
 

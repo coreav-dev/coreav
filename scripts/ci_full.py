@@ -244,6 +244,8 @@ def covered_schedule(api, name, run, jobs):
     if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
         return False
     for step in steps:
+        if not isinstance(step.get('name'), str):
+            return False
         match = re.fullmatch(r'Covered by run ([1-9][0-9]{0,18}) attempt ([1-9][0-9]{0,3})',
                             step.get('name', ''))
         if step.get('name', '').startswith('Covered by run '):

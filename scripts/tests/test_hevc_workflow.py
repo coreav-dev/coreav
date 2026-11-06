@@ -17,9 +17,12 @@ class HevcWorkflow(unittest.TestCase):
         self.assertIn('  workflow_dispatch:', workflow)
         self.assertNotIn('merge_group:', workflow)
         self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", workflow)
-        gate = "if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'"
+        gate = "((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')"
         for job in ('hevc-vectors', 'profile-census'):
-            self.assertEqual(workflow.split('  ' + job + ':\n', 1)[1].splitlines()[0].strip(), gate)
+            body = workflow.split('  ' + job + ':\n', 1)[1].split('    runs-on:', 1)[0]
+            self.assertIn('needs: full-coverage', body)
+            self.assertIn("!cancelled() && needs.full-coverage.outputs.reuse != 'true' &&", body)
+            self.assertIn(gate, body)
         for line in workflow.splitlines():
             if line.strip().startswith('paths:'):
                 paths = json.loads(line.split(':', 1)[1])

@@ -23,7 +23,37 @@ on:
 permissions:
   contents: read
 jobs:
+  full-coverage:
+    name: ci-full-coverage
+    if: github.event_name == 'schedule'
+    concurrency:
+      group: ${{ github.workflow }}-full-coverage-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse: ${{ steps.result.outputs.reuse == 'true' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        continue-on-error: true
+        with:
+          persist-credentials: false
+      - id: result
+        uses: ./.github/actions/merge-group-result
+        continue-on-error: true
+        with:
+          workflow: ci-full.yml
+      - name: Covered by run ${{ steps.result.outputs.run }} attempt ${{ steps.result.outputs.attempt }}
+        if: steps.result.outputs.reuse == 'true'
+        run: 'true'
+
   full-fixtures:
+    needs: full-coverage
+    if: >-
+      !cancelled() && needs.full-coverage.outputs.reuse != 'true'
     concurrency:
       group: ${{ github.workflow }}-full-fixtures-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -41,6 +71,7 @@ jobs:
 
   h264-full:
     needs: full-fixtures
+    if: ${{ !cancelled() && needs.full-fixtures.result == 'success' }}
     concurrency:
       group: ${{ github.workflow }}-h264-full-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -110,6 +141,7 @@ jobs:
 
   conformance-arm64:
     needs: full-fixtures
+    if: ${{ !cancelled() && needs.full-fixtures.result == 'success' }}
     concurrency:
       group: ${{ github.workflow }}-conformance-arm64-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -171,6 +203,7 @@ jobs:
   # measures too, which is the safe direction.
   transcode-compat-shard:
     needs: full-fixtures
+    if: ${{ !cancelled() && needs.full-fixtures.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -271,6 +304,7 @@ jobs:
   # them (scripts/transcode_check.py --merge).
   transcode-compat:
     needs: [full-fixtures, transcode-compat-shard]
+    if: ${{ !cancelled() && needs.full-fixtures.result == 'success' && needs.transcode-compat-shard.result == 'success' }}
     concurrency:
       group: ${{ github.workflow }}-transcode-compat-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -343,8 +377,8 @@ jobs:
   # fixture remuxed to MP4 (docs/design/mkv-remux.md).
   # It follows ci-changes' `run`.
   ci-full-report:
-    needs: [full-fixtures, h264-full, conformance-arm64, transcode-compat-shard, transcode-compat]
-    if: always()
+    needs: [full-coverage, full-fixtures, h264-full, conformance-arm64, transcode-compat-shard, transcode-compat]
+    if: always() && needs.full-coverage.outputs.reuse != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -354,4 +388,4 @@ jobs:
         run: |
           set -euo pipefail
           jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS" >> "$GITHUB_STEP_SUMMARY"
-          jq -e 'length == 5 and all(.[]; .result == "success")' <<< "$RESULTS"
+          jq -e 'del(."full-coverage") | length == 5 and all(.[]; .result == "success")' <<< "$RESULTS"

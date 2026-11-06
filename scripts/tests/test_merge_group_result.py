@@ -284,3 +284,35 @@ class PullRequestEvidence(unittest.TestCase):
                 self.setUp()
                 self.current[key] = value
                 self.assertIsNone(self.lookup()[0])
+
+    def test_required_cli_paths_never_load_the_full_suite_module(self):
+        for event, ref in [('push', 'refs/heads/main'), ('merge_group', 'refs/heads/other')]:
+            with self.subTest(event=event), tempfile.TemporaryDirectory() as directory:
+                output = pathlib.Path(directory) / 'output'
+                env = dict(self.env, GITHUB_EVENT_NAME=event, GITHUB_REF=ref,
+                           GITHUB_OUTPUT=str(output), GH_TOKEN='example-not-a-key')
+                git = [TREE + '\n', self.merge + '\n', self.merge + ' ' + self.base + '\n']
+                with mock.patch.dict(os.environ, env, clear=True), \
+                        mock.patch.object(reuse.subprocess, 'check_output', side_effect=git), \
+                        mock.patch('sys.argv', ['merge_group_result.py', '--workflow', 'ci.yml']), \
+                        mock.patch.object(reuse, 'load_full', side_effect=ImportError('broken')) as loader, \
+                        mock.patch.object(reuse.urllib.request, 'urlopen',
+                                          return_value=io.BytesIO(b'{"workflow_runs":[]}')), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    reuse.main()
+                    loader.assert_not_called()
+                self.assertEqual(output.read_text(), 'reuse=false\n')
+
+    def test_full_cli_publishes_only_the_covered_run_attempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = pathlib.Path(directory) / 'output'
+            env = dict(self.env, GITHUB_EVENT_NAME='schedule', GITHUB_REF='refs/heads/main',
+                       GITHUB_OUTPUT=str(output))
+            git = [TREE + '\n', self.merge + '\n', self.merge + ' ' + self.base + '\n']
+            with mock.patch.dict(os.environ, env, clear=True), \
+                    mock.patch.object(reuse.subprocess, 'check_output', side_effect=git), \
+                    mock.patch('sys.argv', ['merge_group_result.py', '--workflow', 'ci-full.yml']), \
+                    mock.patch.object(reuse, 'full_result', return_value=((42, 1), 'Covered by push')), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                reuse.main()
+            self.assertEqual(output.read_text(), 'reuse=true\nrun=42\nattempt=1\n')

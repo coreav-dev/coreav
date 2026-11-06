@@ -33,7 +33,7 @@ class Tiers(unittest.TestCase):
             self.assertIn('scripts/tests/test_vp9_smoke.py', paths)
         self.assertIn('schedule', self.corpus['on'])
         smoke = self.corpus['jobs']['contract']
-        self.assertNotIn('if', smoke)
+        self.assertEqual(smoke['if'], "!cancelled() && needs.full-coverage.outputs.reuse != 'true'")
         command, = [step['run'] for step in smoke['steps'] if step.get('name') == 'Compare the routine original-file smoke subset']
         self.assertIn('scripts/vp9_smoke.py --native target/release/vp9-corpus-oracle', command)
         self.assertNotIn('vp9_corpus_smoke.py', command)
@@ -41,7 +41,8 @@ class Tiers(unittest.TestCase):
         for event, branch, expected in [('pull_request', 'feature', False), ('merge_group', 'main', False),
                                         ('push', 'feature', False), ('push', 'main', True),
                                         ('schedule', 'main', True), ('workflow_dispatch', 'feature', True)]:
-            context = {'github': {'repository': ci_full.REPOSITORY, 'event_name': event, 'ref': 'refs/heads/' + branch}}
+            context = {'github': {'repository': ci_full.REPOSITORY, 'event_name': event, 'ref': 'refs/heads/' + branch},
+                       'needs': {'contract': {'result': 'success'}}}
             self.assertEqual(test_main_ci_plan.evaluate(self.corpus['jobs']['corpus']['if'], context), expected)
 
     def test_interpolation_smoke_retains_full_daily_main_and_manual_budgets(self):
@@ -64,10 +65,14 @@ class Tiers(unittest.TestCase):
             document = load(spec['file'])
             for event in ('push', 'schedule', 'workflow_dispatch'):
                 context = {'github': {'event_name': event, 'ref': 'refs/heads/main',
-                                      'repository': ci_full.REPOSITORY}}
+                                      'repository': ci_full.REPOSITORY},
+                           'needs': {key: {'result': 'success', 'outputs': {'reuse': 'false'}}
+                                     for key in document['jobs']}}
                 expanded = set()
                 for job_id, job in document['jobs'].items():
-                    if job_id == 'ci-full-report':
+                    if job_id in ('ci-full-report', 'full-coverage'):
+                        continue
+                    if workflow == 'hevc-conformance' and job_id in ('headers', 'hevc-smoke'):
                         continue
                     condition = job.get('if', 'true').replace('inputs.mode', repr('conformance'))
                     if not test_main_ci_plan.evaluate(condition, context):

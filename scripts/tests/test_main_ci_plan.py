@@ -24,7 +24,8 @@ def evaluate(expression, context):
     expression = re.sub(r'\b(?:github|steps|needs|strategy|inputs)\.[\w.*-]+', value, expression)
     expression = re.sub(r'!(?!=)', ' not ', expression.replace('&&', ' and ').replace('||', ' or '))
     return eval(expression, {'__builtins__': {}},
-                {'always': lambda: True, 'contains': lambda values, entry: entry in values,
+                {'always': lambda: True, 'cancelled': lambda: context.get('cancelled', False),
+                 'contains': lambda values, entry: entry in values,
                  'startsWith': lambda value, prefix: value.startswith(prefix),
                  'true': True, 'false': False})
 
@@ -331,7 +332,7 @@ class MainPlan(unittest.TestCase):
         self.assertEqual(checked, 5760)
         self.assertEqual(len(failures), 0, f'{len(failures)} lost-work orderings; first: {failures[:1]}')
 
-    def plan(self, event, reused, code=True, h264=True, oracle_installer=False):
+    def plan(self, event, reused, code=True, h264=True, oracle_installer=False, full_covered=False):
         plans = {}
         for name, workflow in self.workflows.items():
             if name == 'ci-full' and (event not in ('push', 'schedule', 'workflow_dispatch')
@@ -346,6 +347,8 @@ class MainPlan(unittest.TestCase):
                                             ('h264-conformance', h264), ('bench-guard', code),
                                             ('oracle-installer', oracle_installer))}
             steps['result'] = {'outputs': {'reuse': 'true' if reused else 'false'}}
+            if name == 'ci-full':
+                steps['result']['outputs']['reuse'] = 'true' if full_covered else 'false'
             steps['fuzz-plan'] = {'outputs': {'plan': ''}}
             context = {'github': github, 'steps': steps, 'needs': {}}
             jobs = workflow['jobs']
@@ -355,7 +358,8 @@ class MainPlan(unittest.TestCase):
                 needs = [needs] if isinstance(needs, str) else needs
                 condition = fields.get('if', 'true')
                 dependencies = all(context['needs'][dependency]['result'] == 'success' for dependency in needs)
-                run = (dependencies or 'always()' in condition) and evaluate(condition, context)
+                explicit_status = any(function in condition for function in ('always()', 'cancelled()'))
+                run = (dependencies or explicit_status) and evaluate(condition, context)
                 result = {'result': 'success' if run else 'skipped', 'outputs': {}}
                 if run:
                     for key, expression in fields.get('outputs', {}).items():

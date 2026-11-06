@@ -15,6 +15,7 @@ import urllib.request
 
 SHA = re.compile('[0-9a-f]{40}')
 REQUIRED_WORKFLOWS = ('ci.yml', 'deny.yml', 'python.yml', 'npm.yml')
+FULL_WORKFLOW_FILES = ('ci-full.yml', 'vp9-corpus.yml', 'vp9-conformance.yml', 'hevc-conformance.yml')
 
 
 def load_full():
@@ -64,6 +65,20 @@ def find_push_run(request, env, tree, workflow, full):
     if not fresh or max(fresh, key=run_order) != latest:
         return None
     return covering['id'], covering['run_attempt']
+
+
+def full_result(env, request, tree, workflow, full=None):
+    run = None
+    try:
+        full = full if full is not None else load_full()
+        if full is not None:
+            run = find_push_run(request, env, tree, workflow, full)
+    except Exception:
+        pass
+    message = (f'Covered by successful push run https://github.com/{full.REPOSITORY}/actions/runs/{run[0]}'
+               f'/attempts/{run[1]} at {env["GITHUB_SHA"]}; full suite skipped.' if run is not None
+               else 'No covering main push; run the full work.')
+    return run, message
 
 
 def eligible_pull(pull, repo):
@@ -231,7 +246,7 @@ def result(env, request, tree, now, workflow, event=None, parents=()):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--workflow', required=True)
+    parser.add_argument('--workflow', choices=REQUIRED_WORKFLOWS + FULL_WORKFLOW_FILES, required=True)
     args = parser.parse_args()
     env = os.environ
     deadline = time.monotonic() + 60
@@ -268,16 +283,7 @@ def main():
         run, message = result(env, request, tree, datetime.datetime.now(datetime.timezone.utc), args.workflow,
                               event, parents)
     else:
-        run = None
-        try:
-            full = load_full()
-            if full is not None:
-                run = find_push_run(request, env, tree, args.workflow, full)
-        except Exception:
-            pass
-        message = (f'Covered by successful push run https://github.com/{full.REPOSITORY}/actions/runs/{run[0]}'
-                   f'/attempts/{run[1]} at {env["GITHUB_SHA"]}; full suite skipped.' if run is not None
-                   else 'No covering main push; run the full work.')
+        run, message = full_result(env, request, tree, args.workflow)
     print(message)
     with pathlib.Path(env['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
         output.write(f'reuse={"true" if run is not None else "false"}\n')

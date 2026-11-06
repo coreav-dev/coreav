@@ -39,8 +39,34 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  full-coverage:
+    name: vp9-conformance-coverage
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse: ${{ steps.result.outputs.reuse == 'true' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        continue-on-error: true
+        with:
+          persist-credentials: false
+      - id: result
+        uses: ./.github/actions/merge-group-result
+        continue-on-error: true
+        with:
+          workflow: vp9-conformance.yml
+      - name: Covered by run ${{ steps.result.outputs.run }} attempt ${{ steps.result.outputs.attempt }}
+        if: steps.result.outputs.reuse == 'true'
+        run: 'true'
+
   vectors:
-    if: inputs.mode != 'ceiling' && inputs.mode != 'build-round'
+    needs: full-coverage
+    if: >-
+      !cancelled() && needs.full-coverage.outputs.reuse != 'true' && inputs.mode != 'ceiling' && inputs.mode != 'build-round'
     strategy:
       fail-fast: false
       matrix:
@@ -141,7 +167,9 @@ jobs:
           cargo test --locked --release -p coreav-backend-vp9 -p coreav-kernels-vp9 --features coreav-kernels-vp9/safe --test vectors -- --include-ignored --nocapture
 
   interpolation-fuzz:
-    if: inputs.mode != 'ceiling' && inputs.mode != 'build-round'
+    needs: full-coverage
+    if: >-
+      !cancelled() && needs.full-coverage.outputs.reuse != 'true' && inputs.mode != 'ceiling' && inputs.mode != 'build-round'
     strategy:
       fail-fast: false
       matrix:
@@ -166,7 +194,9 @@ jobs:
         run: scripts/fuzz_run.sh run "$RUNNER_TEMP/interpolation-plan.txt" "$FUZZ_SECONDS" "$RUNNER_TEMP/interpolation-fuzz"
 
   adapter-contract:
-    if: inputs.mode != 'ceiling' && inputs.mode != 'build-round'
+    needs: full-coverage
+    if: >-
+      !cancelled() && needs.full-coverage.outputs.reuse != 'true' && inputs.mode != 'ceiling' && inputs.mode != 'build-round'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

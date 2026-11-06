@@ -19,7 +19,34 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  full-coverage:
+    name: vp9-corpus-coverage
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse: ${{ steps.result.outputs.reuse == 'true' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        continue-on-error: true
+        with:
+          persist-credentials: false
+      - id: result
+        uses: ./.github/actions/merge-group-result
+        continue-on-error: true
+        with:
+          workflow: vp9-corpus.yml
+      - name: Covered by run ${{ steps.result.outputs.run }} attempt ${{ steps.result.outputs.attempt }}
+        if: steps.result.outputs.reuse == 'true'
+        run: 'true'
+
   contract:
+    needs: full-coverage
+    if: >-
+      !cancelled() && needs.full-coverage.outputs.reuse != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -96,6 +123,7 @@ jobs:
   corpus:
     needs: contract
     if: >-
+      !cancelled() && needs.contract.result == 'success' &&
       github.repository == 'coreav-dev/coreav' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
        github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
@@ -171,9 +199,9 @@ jobs:
           retention-days: 30
 
   corpus-summary:
-    needs: corpus
+    needs: [full-coverage, corpus]
     if: >-
-      always() && github.repository == 'coreav-dev/coreav' &&
+      needs.full-coverage.outputs.reuse != 'true' && always() && github.repository == 'coreav-dev/coreav' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
        github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04

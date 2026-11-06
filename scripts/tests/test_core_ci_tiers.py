@@ -104,20 +104,22 @@ class Tiers(unittest.TestCase):
         self.assertEqual(self.full['name'], 'ci-full')
         self.assertEqual(set(self.full['on']), {'push', 'schedule', 'workflow_dispatch'})
         self.assertEqual(self.full['on']['push']['branches'], ['main'])
-        self.assertEqual(set(self.full['jobs']), {'full-fixtures', 'h264-full', 'conformance-arm64',
+        self.assertEqual(set(self.full['jobs']), {'full-coverage', 'full-fixtures', 'h264-full', 'conformance-arm64',
                          'transcode-compat-shard', 'transcode-compat', 'ci-full-report'})
         self.assertNotIn('concurrency', self.full)
-        self.assertNotIn('merge-group-result', json.dumps(self.full))
+        self.assertIn('merge-group-result', json.dumps(self.full['jobs']['full-coverage']))
+        self.assertEqual(self.full['jobs']['full-coverage']['if'], "github.event_name == 'schedule'")
         for name in ('h264-full', 'conformance-arm64', 'transcode-compat-shard', 'transcode-compat'):
             self.assertNotIn(name, self.ci['jobs'])
         for event in ('schedule', 'workflow_dispatch', 'push'):
             plans = test_main_ci_plan.MainPlan()
             plans.workflows = {'ci-full': self.full}
-            self.assertEqual(sum(plans.plan(event, True)['ci-full'].values()), 8)
+            self.assertEqual(sum(plans.plan(event, True)['ci-full'].values()), 9 if event == 'schedule' else 8)
+        self.assertEqual(plans.plan('schedule', True, full_covered=True)['ci-full'], {'full-coverage': 1})
 
     def test_full_report_rejects_every_non_success(self):
         job = self.full['jobs']['ci-full-report']
-        self.assertEqual(job['if'], 'always()')
+        self.assertEqual(job['if'], "always() && needs.full-coverage.outputs.reuse != 'true'")
         self.assertEqual(set(job['needs']), set(self.full['jobs']) - {'ci-full-report'})
         self.assertNotIn('concurrency', job)
         for result in ('success', 'failure', 'cancelled', 'skipped', 'unknown'):
