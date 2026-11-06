@@ -21,6 +21,13 @@ const FINALISTS: usize = 2;
 const UNRANKED: (u64, u8) = (u64::MAX, u8::MAX);
 type Ranked = [(u64, u8); 4];
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Trials {
+    Cheap,
+    Shortlist,
+    Every,
+}
+
 #[derive(Clone)]
 struct Tile([u8; STRIDE * 18]);
 impl Tile {
@@ -474,7 +481,7 @@ fn intra4(
     qp: u8,
     top: Option<&Neighbour>,
     left: Option<&Neighbour>,
-    cheap: bool,
+    trials: Trials,
 ) -> Result<(u64, Luma)> {
     let mut out = Luma {
         mode: None,
@@ -506,7 +513,7 @@ fn intra4(
             );
         }
         ranked.sort_unstable();
-        if cheap {
+        if trials == Trials::Cheap {
             let (score, mode) = *ranked
                 .first()
                 .filter(|r| **r != UNRANKED)
@@ -526,9 +533,9 @@ fn intra4(
             continue;
         }
         let mut best = None;
-        let mut trials = 0;
+        let mut completed = 0;
         for &(_, mode) in ranked.iter().filter(|r| **r != UNRANKED) {
-            if trials == FINALISTS {
+            if trials == Trials::Shortlist && completed == FINALISTS {
                 break;
             }
             let result = (|| {
@@ -550,7 +557,7 @@ fn intra4(
             })();
             match result {
                 Ok(candidate) => {
-                    trials += 1;
+                    completed += 1;
                     if best.as_ref().is_none_or(
                         |b: &((u64, usize, u8), [u8; 16], [i32; 16], u8)| candidate.0 < b.0,
                     ) {
@@ -822,7 +829,7 @@ impl Decision<'_> {
                 self.qp,
                 self.context.top,
                 self.context.left,
-                true,
+                Trials::Cheap,
             )?)
         } else {
             None
@@ -879,10 +886,44 @@ impl Decision<'_> {
                 Err(err) => return Err(err),
             }
         }
-        let (lumas, chroma_ranks) = self.ranked_modes(base, cbases, a)?;
-        let mut chromas: [Option<Chroma>; FINALISTS] = [None, None];
+        if exhaustive {
+            self.complete(base, cbases, a, true, best, refusal)?;
+            if best.is_some() {
+                return Ok(());
+            }
+        }
+        self.complete(base, cbases, a, false, best, refusal)
+    }
+
+    fn complete(
+        &self,
+        base: &Tile,
+        cbases: &[Tile; 2],
+        a: IntraAvail,
+        shortlist: bool,
+        best: &mut Option<Candidate>,
+        refusal: &mut Error,
+    ) -> Result<()> {
+        let (limit, (lumas, chroma_ranks)) = if shortlist {
+            (FINALISTS, self.ranked_modes(base, cbases, a)?)
+        } else {
+            let order = |n| {
+                [0, 1, 2, 3].map(|mode| {
+                    if legal(mode, n, a) {
+                        (0, mode)
+                    } else {
+                        UNRANKED
+                    }
+                })
+            };
+            (usize::MAX, (order(16), order(8)))
+        };
+        let mut chromas: [Option<Chroma>; 4] = [None, None, None, None];
         let mut filled = 0;
         for &(_, mode) in chroma_ranks.iter().filter(|r| **r != UNRANKED) {
+            if filled == limit {
+                break;
+            }
             let Some(slot) = chromas.get_mut(filled) else {
                 break;
             };
@@ -910,11 +951,15 @@ impl Decision<'_> {
                     self.qp,
                     self.context.top,
                     self.context.left,
-                    false,
+                    if shortlist {
+                        Trials::Shortlist
+                    } else {
+                        Trials::Every
+                    },
                 )
                 .map(|(_, luma)| luma)
             } else {
-                if sixteens == FINALISTS {
+                if sixteens == limit {
                     continue;
                 }
                 intra16(base, self.source, a, choice, self.qp)
@@ -1214,7 +1259,7 @@ mod tests {
                         ((x * (17 + pattern) + y * (7 + pattern * 3)) % 256) as u8;
                 }
             }
-            let (score, luma) = intra4(&base, &source, a, 28, None, None, true).unwrap();
+            let (score, luma) = intra4(&base, &source, a, 28, None, None, Trials::Cheap).unwrap();
             let mut replay = base.clone();
             let mut modes = [2; 16];
             let mut expected_score = 0;

@@ -755,3 +755,64 @@ fn disabled_all_intra_bytes_preserve_the_original_synthetic_stream() {
         assert_eq!(actual, expected);
     }
 }
+
+fn xorshift(seed: u32) -> Vec<u8> {
+    let mut x = seed;
+    (0..384)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            x as u8
+        })
+        .collect()
+}
+
+fn encode_16x16(encoder: &mut Encoder, raw: &[u8]) -> Result<String> {
+    let (y, uv) = raw.split_at(256);
+    let (cb, cr) = uv.split_at(64);
+    let au = encoder.encode(Picture {
+        y: Plane::new(y, 16, 16, 16).unwrap(),
+        cb: Plane::new(cb, 8, 8, 8).unwrap(),
+        cr: Plane::new(cr, 8, 8, 8).unwrap(),
+    })?;
+    Ok(au
+        .nals
+        .iter()
+        .flat_map(|nal| [0, 0, 0, 1].iter().chain(nal))
+        .map(|b| format!("{b:02x}"))
+        .collect())
+}
+
+#[test]
+fn idr_shortlist_falls_back_to_every_candidate_when_none_is_admitted() {
+    for (seed, qp) in [(5, 16), (18, 16), (20, 16), (10, 15)] {
+        let mut encoder = Encoder::new(settings(16, 16, qp), Limits::default()).unwrap();
+        assert!(
+            encode_16x16(&mut encoder, &xorshift(seed)).is_ok(),
+            "{seed} {qp}"
+        );
+    }
+}
+
+#[test]
+fn p_intra_fallback_keeps_every_candidate() {
+    let mut s = settings(16, 16, 16);
+    s.gop = Gop::Fixed { idr_interval: 32 };
+    let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+    encode_16x16(&mut encoder, &[128; 384]).unwrap();
+    let p = encode_16x16(&mut encoder, &xorshift(1)).unwrap();
+    let expected = concat!(
+        "000000016742c033da7a6a020203e0000003002000000790800000000168ce3e8000000001619a202aa6bd5ec64f832a",
+        "f00040b8e02180afcc17ac9e9c9f9abde0301035508134d56b9f85151b53fde000080d8039050b6843463b4d22d994d1",
+        "e00097a00803872383f89e74fb81ff8301756002de0d99b938f19d674a35e0000400c002e815c88d18b18fab9722d3ff",
+        "bc0001006053a01393d856c56a9815435f810e4879dd8335e517273b368871e0000805060ebcc2692eed078f2c9d51e7",
+        "810e02d84fbb438c8364084d875cfc010107989eb6174be48d626894a7c20404d031a74b0b0dc8f99d57db78010a003e",
+        "c4ecbabf65e17d51775f819c000d20c0673f225ba4dde2efef00203d80f055e2bcb9349e192d4c65e000182002966d61",
+        "a259c92e35f274fd0400020230100101000080d020e64002c00040240705db612a3796463b9450ffb8400c20142bbb5a",
+        "1645852e906bc0041c31c6d0376781b406dea769c4000200800020240160e25f32a987b0755200007020500010042488",
+        "66241c21c69a62b3400010051c0058cc1cb5ceead55d96cf7000638025b0a2a7ceb6931a33324fa04004069cfead3385",
+        "0fb6883ad0",
+    );
+    assert_eq!(p, expected);
+}
