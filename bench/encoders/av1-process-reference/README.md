@@ -1,6 +1,6 @@
 # AV1 process-boundary reference figures
 
-These are reference figures, not a judged verdict or a performance claim. On three lossy H.264 inputs, sandboxed CoreAV took 1.063 times FFmpeg's end-to-end time (geometric mean of per-input ratios), and in-process CoreAV took 1.037 times. The encoder process boundary accounts for 39% of the summed time gap. The rest is outside the boundary and has the same size as the decode-path difference seen in separate decode-only calls. A follow-up diagnostic places that difference in the command-line path that turns decoded pictures into output frames, made worse by the static musl allocator, not in the H.264 decoder.
+These are reference figures, not a judged verdict or a performance claim. On three lossy H.264 inputs, sandboxed CoreAV took 1.063 times FFmpeg's end-to-end time (geometric mean of per-input ratios), and in-process CoreAV took 1.037 times. The encoder process boundary accounts for 39% of the summed time gap. The rest is outside the boundary and has the same size as the decode-path difference seen in separate decode-only calls. A follow-up diagnostic places the decode-only difference in the command-line path that turns decoded pictures into output frames, made worse by the static musl allocator, rather than in the H.264 decoder. Decoding and encoding overlap in the end-to-end calls, so that path is the likely source of the residual, not a proven one.
 
 All three arms produced byte-identical AV1 packet streams for each input: one packet hash per input across all nine calls, the same payload bytes and the same PSNR. So the timing differences come from the pipeline around the encoder, not from different encoder work.
 
@@ -64,11 +64,11 @@ Medians in seconds, with the median minor page-fault count. [decode-path-followu
 
 The decoder alone takes 0.83 to 1.16 times FFmpeg's decode time on this runner across all four decoder arms, and writing raw frames adds almost nothing. The gap is in the command-line path that turns decoded pictures into output frames. Built with glibc, that path takes 1.4 to 1.8 times the decoder's time and incurs about 1,500 fresh page faults per 1080p frame, which is about two newly mapped frame-sized buffers per frame. The static musl build makes it worse: its allocator returns large blocks to the system, so at 1080p the same path made 8,244 `mmap` and 8,238 `munmap` calls for 901 frames (glibc: 95 and 79), with 0.7 million more page faults and 1.9 s more time. Decoder-only calls with musl are within 6% of glibc.
 
-All three arms of the end-to-end calls used static musl builds, so they compare like for like. In a single-call count on a development machine with the 480p input, the sandboxed and in-process CoreAV arms incurred 484k and 456k page faults against 248k for FFmpeg. The boundary adds little of this cost, and both CoreAV arms carry it, so the residual I-F most likely reflects the frame path's allocations rather than the H.264 decoder.
+All three arms of the end-to-end calls used static musl builds, so they compare like for like. Both CoreAV arms share the frame path, so its cost most likely falls in the residual I-F rather than in the boundary. The end-to-end calls overlap decoding and encoding, and this split was not measured directly.
 
 ## What this means for encoder isolation
 
-Running SVT-AV1 in-process would remove about 1.8% of end-to-end CoreAV time on these inputs and about two fifths of the gap to FFmpeg. In exchange, it would give up crash isolation, the separate address-space limit and the ability to stop a stuck encoder. The larger part of the gap is outside the boundary, in the frame path described above. These figures are input for a future isolation proposal; they change no policy, and production builds keep the sandbox.
+Running SVT-AV1 in-process would remove about 1.8% of end-to-end CoreAV time on these inputs and about two fifths of the gap to FFmpeg. In exchange, it would give up crash isolation, the separate address-space limit and the ability to stop a stuck encoder. The larger part of the gap is outside the boundary, most likely in the frame path described above. These figures are input for a future isolation proposal; they change no policy, and production builds keep the sandbox.
 
 ## Limits
 
