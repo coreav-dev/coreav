@@ -1,4 +1,5 @@
 import json
+import math
 import pathlib
 import unittest
 
@@ -9,7 +10,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 class SearchReference(unittest.TestCase):
     def test_x264_receipts_preserve_the_native_input_bytes(self):
         record = json.loads((ROOT / 'docs/design/h264-encoder-search-reference.json').read_text())
-        for call in record['calls'] + record['sweep']['calls']:
+        calibration = json.loads((ROOT / 'docs/design/h264-encoder-rate-weight-reference.json').read_text())
+        calls = record['calls'] + record['sweep']['calls'] + calibration['sanity_b']
+        for clip in calibration['curves'].values():
+            calls += clip['curves']['x264']['points']
+        for call in calls:
             if call['arm'] != 'x264':
                 continue
             with self.subTest(clip=call['clip'], qp=call['qp']):
@@ -25,6 +30,19 @@ class SearchReference(unittest.TestCase):
                         self.assertIn(flag, before_input,
                                       'put colour metadata before -i to prevent implicit matrix conversion')
                         self.assertEqual(before_input[before_input.index(flag) + 1], value)
+
+    def test_calibration_quality_is_recomputed_from_complete_frame_errors(self):
+        record = json.loads((ROOT / 'docs/design/h264-encoder-rate-weight-reference.json').read_text())
+        for clip, result in record['curves'].items():
+            self.assertEqual(sorted(result['curves']), ['before', 'q16', 'q4', 'q8', 'x264'])
+            for arm, curve in result['curves'].items():
+                self.assertEqual([c['qp'] for c in curve['points']], [22, 28, 34, 40])
+                for call in curve['points']:
+                    with self.subTest(clip=clip, arm=arm, qp=call['qp']):
+                        self.assertEqual(len(call['frame_plane_sse']), 60)
+                        self.assertEqual(sum(map(sum, call['frame_plane_sse'])), call['sse'])
+                        samples = call['width'] * call['height'] * 3 // 2 * 60
+                        self.assertAlmostEqual(call['psnr'], 10 * math.log10(255 * 255 * samples / call['sse']), places=9)
 
     def test_three_qp_comparison_uses_the_same_complete_source(self):
         record = json.loads((ROOT / 'docs/design/h264-encoder-search-reference.json').read_text())

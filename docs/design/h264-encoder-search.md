@@ -2,6 +2,8 @@
 
 Status: the initial bounded policy and the compression-efficiency amendment below are implemented after their respective design-first commits. They change normal P-picture search, not H.264 reconstruction, the all-IDR path, or default-build admission. Encoded bytes may change.
 
+Complete P-picture decisions now use the independently derived [quantizer-aware rate weight](h264-encoder-rate-weight.md). Complete scores and exact syntax floors share 512 fixed-point units per sample SSE. IDR ordering and the cheap SAD/SATD proposal weights remain unchanged.
+
 ## Inputs and constraints
 
 The specification is Rec. ITU-T H.264, version 15, August 2024. Clauses 7 and 9 define syntax and bit counting, 8.3 and 8.4 define prediction, 8.5 defines reconstruction, and Annex A defines admission. The reviewed [encoder speed note](../technique-notes/h264-encoder-speed.md) and [partition-search note](../technique-notes/h264-partition-search.md) are allowed prose inputs. No other encoder source, unreviewed study report, or new source study is needed for this design.
