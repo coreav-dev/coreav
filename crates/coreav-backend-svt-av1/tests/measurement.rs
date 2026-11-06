@@ -1,3 +1,5 @@
+//! Measurement-only continuous-session retention boundaries.
+
 #![cfg(feature = "measurement")]
 
 use coreav_backend_svt_av1::{
