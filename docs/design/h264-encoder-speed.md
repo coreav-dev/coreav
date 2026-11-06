@@ -42,3 +42,11 @@ Throughput comes from one GitHub-hosted ubuntu-24.04 job on an AMD EPYC 7763 wit
 | C | 40.821 (40.553–41.298) | 32.333 (32.075–32.615) | 41.436 (41.103–41.557) | 1.013 (1.003–1.023) | 1.284 (1.264–1.290) |
 
 This recovers about 87% of the throughput lost on A, 86% on B and all of it on C. A and B remain 6% and 9% below the build before the rate-weight change. In the local profile, the remaining cost is spread across motion scoring, quantization, deblocking, syntax counting and copies. Closing that gap is left to a later change.
+
+## Second byte-identical round
+
+After this change, A and B remained 6% and 9% below the build before the rate-weight change on the same runner. The follow-up is limited to byte-identical work and starts from a profile of the merged encoder. A site enters the round only if removing its cost would recover at least 3% of QP28 driver time on A or B; otherwise the round stops and reports the profile instead.
+
+The profile's largest encoder entry is the bit writer, at about 5% of samples on A and B. Almost all of it is the counting mode used during mode decisions: each counted syntax element pays a function call and the write path's setup, because one non-inlined function serves both counting and writing. The round keeps the counting path inline and moves byte writing into its own function, without changing any syntax check, limit or written bit. Other entries are each below that threshold: copies are spread over several callers at about 1% each, the 16x16 tile fill in fractional motion scoring is about 1.6%, and deblocking as a whole is about 5.5%.
+
+Verification is the same as for the first byte-identical commit: every case of both identity sets must match the merged encoder's stream and reconstruction in dispatched and scalar builds. Timing again uses one GitHub Actions job with the merged encoder and the candidate, plus the build before the rate-weight change for reference. That reference build also predates later decoder changes in the driver's verification path, so its ratio is context, not a pure encoder comparison.
