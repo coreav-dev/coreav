@@ -24,3 +24,19 @@ Throughput is measured only on a GitHub-hosted runner. One job builds three arms
 ## Correctness and delivery
 
 Run both encoder build modes and their complete-stream identity comparison, encoder Clippy, formatting, the Python receipt tests, the existing decoder CI and the current-main similarity guard. No new unsafe code, public tuning API or dependency is needed. The plan, implementation, review fixes and reference outcome ship in one signed-off pull request.
+
+## Reference outcome
+
+The [reference record](h264-encoder-speed-reference.json) keeps every compression cell, both identity summaries and every timed call. The byte-identical commit reproduces the rate-weight stream and reconstruction in all 57 identity cases: A and C at four QPs, B at QP28 and 48 small synthetic cases. The final commit changes only the nine real-input cells, leaves the synthetic cases unchanged, and keeps dispatched and scalar builds byte-identical. Pinned FFmpeg 9.0.2 decodes every stream to the encoder reconstruction.
+
+Against the rate-weight curves, BD-rate is +0.032% on A and −0.242% on C. At QP28, B moves from 127.448 to 127.360 kbit/s and from 44.448141 to 44.434092 dB.
+
+Throughput comes from one GitHub-hosted ubuntu-24.04 job on an AMD EPYC 7763 with four visible CPUs, timing calls pinned to one CPU. The job built all three arms with rustc 1.99.1, checked every prepared input's SHA-256 and checked every call's stream and reconstruction. Each input runs one warm-up call per arm and then seven repeats of all three arms in rotated order. Ratios are paired within each repeat. The runner class differs from the host of the earlier figures, so only same-job comparisons are meaningful.
+
+| Input | Before fps, median (range) | Rate weight fps | This change fps | This change / before | This change / rate weight |
+|---|---:|---:|---:|---:|---:|
+| A | 49.162 (48.123–49.405) | 26.229 (26.078–26.376) | 46.215 (45.299–46.290) | 0.938 (0.919–0.961) | 1.762 (1.724–1.769) |
+| B | 44.707 (44.366–45.151) | 18.252 (18.027–18.319) | 40.921 (40.500–41.321) | 0.913 (0.909–0.928) | 2.254 (2.229–2.275) |
+| C | 40.821 (40.553–41.298) | 32.333 (32.075–32.615) | 41.436 (41.103–41.557) | 1.013 (1.003–1.023) | 1.284 (1.264–1.290) |
+
+This recovers about 87% of the throughput lost on A, 86% on B and all of it on C. A and B remain 6% and 9% below the build before the rate-weight change. In the local profile, the remaining cost is spread across motion scoring, quantization, deblocking, syntax counting and copies. Closing that gap is left to a later change.
