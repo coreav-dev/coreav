@@ -13,6 +13,11 @@ on:
     - cron: "45 3 * * *"
     - cron: "45 4 * * 0"
   workflow_dispatch:
+    inputs:
+      scalar:
+        description: Force scalar kernels for the complete correctness run
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -65,6 +70,7 @@ jobs:
           toolchain: stable
       - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc --no-default-features
       - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc --features native-hevc --all-targets
+      - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc --features native-hevc,scalar --all-targets
       - run: cargo clippy --locked -p coreav-hevc -p coreav-kernels-hevc --features native-hevc --all-targets -- -D warnings
       - name: Keep HEVC out of feature-disabled and default consumers
         run: |
@@ -127,7 +133,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example intra --example decode
+      - run: cargo build --locked --release -p coreav-hevc --features native-hevc${{ inputs.scalar && ',scalar' || '' }} --example headers --example intra --example decode
       - name: Install the pinned binary oracle
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Verify registered synthetic references before native classification
@@ -188,7 +194,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example intra --example packets
+      - run: cargo build --locked --release -p coreav-hevc --features native-hevc${{ inputs.scalar && ',scalar' || '' }} --example headers --example intra --example packets
       - name: Install the pinned binary oracle
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Inspect all fixed files with isolated metadata subprocesses
@@ -252,3 +258,46 @@ jobs:
           path: ${{ runner.temp }}/profile-summary.json
           if-no-files-found: ignore
           retention-days: 30
+
+  kernel-differential:
+    if: github.event_name == 'workflow_dispatch' && !inputs.scalar
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Require AVX2 on the vector execution host
+        if: runner.os == 'Linux'
+        run: grep -qw avx2 /proc/cpuinfo
+      - name: Prepare bounded interpolation differential targets
+        run: |
+          scripts/fuzz_run.sh setup
+          printf '%s\n' 'crates/coreav-kernels-hevc/fuzz horizontal' 'crates/coreav-kernels-hevc/fuzz vertical' > "$RUNNER_TEMP/interpolation-plan.txt"
+          scripts/fuzz_run.sh build "$RUNNER_TEMP/interpolation-plan.txt"
+      - id: differential
+        name: Compare automatic and scalar interpolation for ten minutes per target
+        env:
+          ASAN_OPTIONS: quarantine_size_mb=64
+        run: scripts/fuzz_run.sh run "$RUNNER_TEMP/interpolation-plan.txt" 600 "$RUNNER_TEMP/fuzz"
+      - name: Keep differential findings private
+        if: failure() && steps.differential.outcome == 'failure'
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+          HOST: ${{ matrix.os }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet 'boto3==1.35.36'
+          "$RUNNER_TEMP/venv/bin/python" -I scripts/fuzz_upload.py "$RUNNER_TEMP/fuzz/findings" \
+            "hevc-differential/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$HOST"
