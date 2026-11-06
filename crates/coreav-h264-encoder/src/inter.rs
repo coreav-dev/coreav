@@ -4,6 +4,8 @@ use super::*;
 use crate::motion::{Layout, Part};
 use coreav_kernels_h264::Block;
 
+const SPLIT_SATD: u64 = 64;
+
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct Inter {
     pub(super) layout: Layout,
@@ -770,7 +772,7 @@ impl Search<'_> {
         self.decision.cost(0, prefix.len + bits)
     }
 
-    fn propose(&self, layout: Layout, ceiling: Option<u64>) -> Result<Option<(usize, Inter)>> {
+    fn propose(&self, layout: Layout, ceiling: Option<u64>) -> Result<Option<(usize, Inter, u64)>> {
         let mut inter = Inter::new(layout)?;
         if !motion::admitted(self.previous, inter.len) {
             return Ok(None);
@@ -785,14 +787,16 @@ impl Search<'_> {
             return Ok(None);
         }
         let mut grid = [None; 16];
+        let mut rank = 0;
         for part in inter.parts.iter_mut().take(inter.len) {
             let predictor = self.border.predictor(&grid, *part, layout)?;
-            let (_, _, mv) = self.compact(*part, predictor)?;
+            let (cost, _, mv) = self.compact(*part, predictor)?;
+            rank += cost;
             part.mv = mv;
             motion::commit(&mut grid, *part)?;
         }
         let (bits, inter) = self.coalesce(inter)?;
-        Ok(Some((bits, inter)))
+        Ok(Some((bits, inter, rank)))
     }
 
     fn quiet(&self, skip: &Candidate) -> Result<bool> {
@@ -862,10 +866,16 @@ impl Search<'_> {
             }
         }
         let ceiling = best.as_ref().map(|candidate| candidate.key.cost);
-        let mut plans = [
-            self.propose(Layout::Whole, ceiling)?,
-            self.propose(Layout::Sub([0; 4]), ceiling)?,
-        ];
+        let whole = self.propose(Layout::Whole, ceiling)?;
+        let split = if whole
+            .as_ref()
+            .is_none_or(|plan| plan.2 > SPLIT_SATD << (self.decision.qp / 6))
+        {
+            self.propose(Layout::Sub([0; 4]), ceiling)?
+        } else {
+            None
+        };
+        let mut plans = [whole, split];
         plans.sort_by_key(|plan| plan.as_ref().map_or(usize::MAX, |plan| plan.0));
         let [first, second] = &mut plans;
         if first
@@ -875,7 +885,7 @@ impl Search<'_> {
         {
             *second = None;
         }
-        for (bits, inter) in plans.into_iter().flatten() {
+        for (bits, inter, _) in plans.into_iter().flatten() {
             if inter.layout == Layout::Whole
                 && coded.is_some_and(|mv| inter.parts.first().is_some_and(|part| part.mv == mv))
             {
@@ -1066,6 +1076,57 @@ mod tests {
     }
 
     #[test]
+    fn split_search_runs_only_when_the_whole_prediction_leaves_a_large_satd() {
+        let mut reference = [
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+        ];
+        for plane in &mut reference {
+            plane.data.fill(128);
+        }
+        let csources = [Tile::empty(), Tile::empty()];
+        for (amplitude, searches) in [(4, 1), (60, 2)] {
+            let mut source = Tile::empty();
+            for y in 0..16 {
+                for x in 0..16 {
+                    source.0[Tile::at(x, y)] = if (x + y) % 2 == 0 {
+                        128 + amplitude
+                    } else {
+                        128 - amplitude
+                    };
+                }
+            }
+            let decision = Decision {
+                source: &source,
+                csources: &csources,
+                context: MbContext {
+                    top: None,
+                    left: None,
+                    p_slice: true,
+                },
+                qp: 28,
+                pending_skip: 0,
+            };
+            let search = Search {
+                reference: &reference,
+                decision: &decision,
+                border: Border::default(),
+                mx: 0,
+                my: 0,
+                previous: 0,
+            };
+            let whole = search.propose(Layout::Whole, None).unwrap().unwrap();
+            assert_eq!(whole.2 > SPLIT_SATD << (28 / 6), searches == 2);
+            SEARCHES.with(|count| count.set(0));
+            search
+                .candidates(&mut None, &mut Error::Coefficient)
+                .unwrap();
+            assert_eq!(SEARCHES.with(|count| count.get()), searches);
+        }
+    }
+
+    #[test]
     fn inter_syntax_floors_preserve_equal_bounds_and_skip_noncompetitive_trials() {
         let mut reference = [
             FramePlane::new(16, 16).unwrap(),
@@ -1119,7 +1180,7 @@ mod tests {
                 assert_eq!(SEARCHES.with(|count| count.get()), 0);
                 assert_eq!(PROBES.with(|count| count.get()), 0);
             } else {
-                assert_eq!(SEARCHES.with(|count| count.get()), 2);
+                assert_eq!(SEARCHES.with(|count| count.get()), 1);
                 assert!(PROBES.with(|count| count.get()) > 0);
             }
             let floor = search.syntax_floor(3).unwrap();
