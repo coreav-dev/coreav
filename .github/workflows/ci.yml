@@ -1121,6 +1121,7 @@ jobs:
             --ffmpeg "$FFMPEG" --ffprobe "$FFPROBE" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
             --report "$RUNNER_TEMP/coreav-ffmpeg.json"
+          COREAV_CURRENT_CI_ORACLE=1 python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_copy_check.py
       - name: Preserve the writers' reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1277,6 +1278,14 @@ jobs:
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
             --test legacy_encoders --target-dir target/fallback
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test transcode \
+            --target-dir target/fallback
+      - name: Check the MP3 worker encoder-only protocol
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
+        run: |
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test mp3_worker \
+            --target-dir target/fallback
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test mp3_worker \
             --target-dir target/fallback
       - name: Copied video with AAC encoding preserves exact fallback
         env:

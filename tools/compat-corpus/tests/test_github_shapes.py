@@ -191,7 +191,7 @@ class AcquisitionAndReplay(unittest.TestCase):
     def test_replay_checks_inventory_and_recomputes_instead_of_trusting_labels(self):
         opts = types.SimpleNamespace(bundle=self.bundle, scratch=self.root / 'scratch',
                                      summary=self.root / 'summary.json', **{
-                                         k: str(self.fake) for k in ('coreav', 'ffmpeg', 'ffprobe', 'x264')})
+                                         k: str(self.fake) for k in ('coreav', 'ffmpeg', 'ffprobe', 'x264', 'pns_diagnostic')})
         identity = {'coreav': {'sha256': run.digest(self.fake)}}
         build = {'commit': 'a' * 40, 'command': run.BUILD, 'coreav_sha256': run.digest(self.fake),
                  'lock_sha256': run.digest(run.ROOT / 'Cargo.lock')}
@@ -220,6 +220,14 @@ class AcquisitionAndReplay(unittest.TestCase):
             self.assertEqual(run.replay(opts), 0)
             summary = json.loads(opts.summary.read_text())
             self.assertEqual((summary['counted'], summary[run.COMPATIBLE]), (1, 0))
+            self.record['outcome'] = run.aac.COMPATIBLE
+            run.write(self.bundle / 'records.json', records)
+            manifest['inventory'] = run.inventory(self.bundle)
+            run.write(self.bundle / 'manifest.json', manifest)
+            opts.scratch = self.root / 'replay-aac-label'
+            self.assertEqual(run.replay(opts), 0)
+            summary = json.loads(opts.summary.read_text())
+            self.assertEqual((summary['counted'], summary[run.aac.COMPATIBLE]), (1, 0))
             self.fake.write_text('changed executable')
             with mock.patch.object(run, 'verify_programs', return_value={'changed': {}}), \
                  self.assertRaisesRegex(ValueError, 'program_identity'):

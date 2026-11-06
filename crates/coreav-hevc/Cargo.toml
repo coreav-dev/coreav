@@ -1,6 +1,6 @@
 [package]
 name = "coreav-hevc"
-description = "Opt-in HEVC headers and scalar intra reconstruction from ITU-T H.265"
+description = "Opt-in HEVC headers and scalar reconstruction from ITU-T H.265"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -20,6 +20,9 @@ coreav-kernels-hevc = { path = "../coreav-kernels-hevc", optional = true, defaul
 
 [dev-dependencies]
 serde_json.workspace = true
+coreav-decode = { path = "../coreav-decode" }
+coreav-isobmff = { path = "../coreav-isobmff" }
+coreav-thumbnail = { path = "../coreav-thumbnail", default-features = false }
 
 [[example]]
 name = "headers"
@@ -27,6 +30,14 @@ required-features = ["native-hevc"]
 
 [[example]]
 name = "intra"
+required-features = ["native-hevc"]
+
+[[example]]
+name = "decode"
+required-features = ["native-hevc"]
+
+[[example]]
+name = "packets"
 required-features = ["native-hevc"]
 
 [lints]

@@ -74,6 +74,12 @@ jobs:
           cargo clippy --locked -p coreav-h264-encoder --features full --all-targets -- -D warnings
           cargo build --locked --release -p coreav-h264-encoder --features full --example g1
           cargo build --locked --release -p coreav-h264-encoder --features full --example p
+          cp target/release/examples/p "$RUNNER_TEMP/p-auto"
+          cargo test --locked --release -p coreav-h264-encoder --features full,scalar
+          cargo build --locked --release -p coreav-h264-encoder --features full,scalar --example p
+          cp target/release/examples/p "$RUNNER_TEMP/p-scalar"
+          python3 -I scripts/h264_g1_simd_identity.py --auto-driver "$RUNNER_TEMP/p-auto" --scalar-driver "$RUNNER_TEMP/p-scalar" --output "$RUNNER_TEMP/simd-identity"
+          cp "$RUNNER_TEMP/p-auto" target/release/examples/p
           cargo build --locked --release -p coreav-h264 --example decode
           if cargo tree --locked -p coreav-h264-encoder --no-default-features -e normal | grep coreav-kernels-h264; then
             echo 'default encoder feature graph links H.264 kernels' >&2
@@ -135,4 +141,5 @@ jobs:
           path: |
             ${{ runner.temp }}/p-conformance
             ${{ runner.temp }}/p-forced
+            ${{ runner.temp }}/simd-identity/summary.json
           if-no-files-found: ignore

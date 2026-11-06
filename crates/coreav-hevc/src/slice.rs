@@ -17,6 +17,34 @@ pub struct LongTermRef {
     pub delta_msb_cycle: Option<u32>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Weight {
+    pub weight: i16,
+    pub offset: i16,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Weights {
+    pub denominators: [u8; 2],
+    pub lists: [[[Weight; 3]; 15]; 2],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Collocated {
+    pub from_l0: bool,
+    pub index: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct InterSlice {
+    pub active: [u8; 2],
+    pub modifications: [Option<[u8; 15]>; 2],
+    pub mvd_l1_zero: bool,
+    pub collocated: Option<Collocated>,
+    pub weights: Option<Weights>,
+    pub max_merge_candidates: u8,
+}
+
 /// Parsed slice segment syntax; entropy data remains unread.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SliceHeader {
@@ -61,6 +89,7 @@ pub struct SliceHeader {
     /// Active long-term reference entries.
     pub long_term_count: usize,
     pub(crate) reference_syntax: Option<(usize, [u8; 32])>,
+    pub(crate) inter: Option<InterSlice>,
 }
 
 pub(crate) struct Prefix {
@@ -116,6 +145,7 @@ pub(crate) fn parse(
         long_term: [LongTermRef::default(); 16],
         long_term_count: 0,
         reference_syntax: None,
+        inter: None,
     };
     if !h.first {
         h.dependent = p.dependent_segments && bits.flag()?;
@@ -257,19 +287,31 @@ pub(crate) fn parse(
                     l1 = bits.ue(14)? + 1;
                 }
             }
+            let mut inter = InterSlice {
+                active: [l0 as u8, if kind == 0 { l1 as u8 } else { 0 }],
+                modifications: [None; 2],
+                mvd_l1_zero: false,
+                collocated: None,
+                weights: None,
+                max_merge_candidates: 5,
+            };
             if p.lists_modification && total_current > 1 {
-                for count in [l0, if kind == 0 { l1 } else { 0 }] {
+                for (modification, count) in inter.modifications.iter_mut().zip(inter.active) {
                     if count > 0 && bits.flag()? {
-                        for _ in 0..count {
-                            if bits.u(ceil_log2(total_current))? >= total_current {
+                        let mut entries = [0; 15];
+                        for entry in entries.iter_mut().take(usize::from(count)) {
+                            let index = bits.u(ceil_log2(total_current))?;
+                            if index >= total_current {
                                 return Err(Error::InvalidData("list_entry"));
                             }
+                            *entry = index as u8;
                         }
+                        *modification = Some(entries);
                     }
                 }
             }
             if kind == 0 {
-                bits.flag()?;
+                inter.mvd_l1_zero = bits.flag()?;
             }
             if p.cabac_init {
                 h.cabac_init_flag = Some(bits.flag()?);
@@ -277,14 +319,17 @@ pub(crate) fn parse(
             if temporal_mvp {
                 let from_l0 = kind != 0 || bits.flag()?;
                 let count = if from_l0 { l0 } else { l1 };
-                if count > 1 {
-                    bits.ue(count - 1)?;
-                }
+                let index = if count > 1 { bits.ue(count - 1)? } else { 0 };
+                inter.collocated = Some(Collocated {
+                    from_l0,
+                    index: index as u8,
+                });
             }
             if kind == 1 && p.weighted_pred || kind == 0 && p.weighted_bipred {
-                weights(bits, l0, if kind == 0 { l1 } else { 0 })?;
+                inter.weights = Some(weights(bits, l0, if kind == 0 { l1 } else { 0 })?);
             }
-            bits.ue(4)?;
+            inter.max_merge_candidates = 5 - bits.ue(4)? as u8;
+            h.inter = Some(inter);
         }
         let qp = p.init_qp + bits.se(-87, 77)?;
         if qp < -6 * (s.bit_depth as i32 - 8) || qp > 51 {
@@ -371,14 +416,26 @@ pub(crate) fn ceil_log2(value: u32) -> u32 {
     32 - value.saturating_sub(1).leading_zeros()
 }
 
-fn weights(bits: &mut Bits<'_>, l0: u32, l1: u32) -> Result<()> {
+fn weights(bits: &mut Bits<'_>, l0: u32, l1: u32) -> Result<Weights> {
     let denom = bits.ue(7)? as i32;
     let chroma_denom = denom + bits.se(-7, 7)?;
     if !(0..=7).contains(&chroma_denom) {
         return Err(Error::InvalidData("chroma_weight_denom"));
     }
+    let luma_default = Weight {
+        weight: 1 << denom,
+        offset: 0,
+    };
+    let chroma_default = Weight {
+        weight: 1 << chroma_denom,
+        offset: 0,
+    };
+    let mut result = Weights {
+        denominators: [denom as u8, chroma_denom as u8],
+        lists: [[[luma_default, chroma_default, chroma_default]; 15]; 2],
+    };
     let mut total_flags = 0;
-    for count in [l0, l1] {
+    for (entries, count) in result.lists.iter_mut().zip([l0, l1]) {
         let mut luma = [false; 15];
         let mut chroma = [false; 15];
         for flag in luma.iter_mut().take(count as usize) {
@@ -389,15 +446,24 @@ fn weights(bits: &mut Bits<'_>, l0: u32, l1: u32) -> Result<()> {
             *flag = bits.flag()?;
             total_flags += 2 * u32::from(*flag);
         }
-        for (&y, &c) in luma.iter().zip(&chroma).take(count as usize) {
+        for ((entry, &y), &c) in entries
+            .iter_mut()
+            .zip(&luma)
+            .zip(&chroma)
+            .take(count as usize)
+        {
             if y {
-                bits.se(-128, 127)?;
-                bits.se(-128, 127)?;
+                let value = entry.first_mut().ok_or(Error::InvalidData("luma_weight"))?;
+                value.weight += bits.se(-128, 127)? as i16;
+                value.offset = bits.se(-128, 127)? as i16;
             }
             if c {
-                for _ in 0..2 {
-                    bits.se(-128, 127)?;
-                    bits.se(-512, 511)?;
+                for value in entry.iter_mut().skip(1) {
+                    value.weight += bits.se(-128, 127)? as i16;
+                    let delta_offset = bits.se(-512, 511)?;
+                    value.offset = (128 + delta_offset
+                        - ((128 * i32::from(value.weight)) >> chroma_denom))
+                        .clamp(-128, 127) as i16;
                 }
             }
         }
@@ -405,5 +471,129 @@ fn weights(bits: &mut Bits<'_>, l0: u32, l1: u32) -> Result<()> {
     if total_flags > 24 {
         return Err(Error::InvalidData("weight_flag_count"));
     }
-    Ok(())
+    Ok(result)
+}
+
+#[cfg(test)]
+#[allow(clippy::indexing_slicing)]
+mod tests {
+    use super::*;
+    use crate::params::tests::Writer;
+
+    #[test]
+    fn weights_retain_both_lists_defaults_and_clipped_chroma_offsets() -> Result<()> {
+        let mut writer = Writer::default();
+        writer.ue(2);
+        writer.se(-1);
+        for flag in [true, false, true, false] {
+            writer.flag(flag);
+        }
+        for value in [-3, -128, 1, 0, -3, 511] {
+            writer.se(value);
+        }
+        writer.flag(false);
+        writer.flag(true);
+        for value in [0, -512, 127, 511] {
+            writer.se(value);
+        }
+        let bytes = writer.bytes();
+        let mut bits = Bits::new(&bytes);
+        let parsed = weights(&mut bits, 2, 1)?;
+        assert_eq!(bits.position(), writer.len());
+        assert_eq!(parsed.denominators, [2, 1]);
+        assert_eq!(
+            parsed.lists[0][0],
+            [
+                Weight {
+                    weight: 1,
+                    offset: -128
+                },
+                Weight {
+                    weight: 3,
+                    offset: -64
+                },
+                Weight {
+                    weight: -1,
+                    offset: 127
+                },
+            ]
+        );
+        assert_eq!(
+            parsed.lists[0][1],
+            [
+                Weight {
+                    weight: 4,
+                    offset: 0
+                },
+                Weight {
+                    weight: 2,
+                    offset: 0
+                },
+                Weight {
+                    weight: 2,
+                    offset: 0
+                },
+            ]
+        );
+        assert_eq!(
+            parsed.lists[1][0],
+            [
+                Weight {
+                    weight: 4,
+                    offset: 0
+                },
+                Weight {
+                    weight: 2,
+                    offset: -128
+                },
+                Weight {
+                    weight: 129,
+                    offset: -128
+                },
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn weighted_prediction_accepts_24_flags_but_refuses_27() {
+        for (l0, l1, valid) in [(4, 4, true), (5, 4, false)] {
+            let mut writer = Writer::default();
+            writer.ue(0);
+            writer.se(0);
+            for count in [l0, l1] {
+                for _ in 0..count * 2 {
+                    writer.flag(true);
+                }
+                for _ in 0..count * 6 {
+                    writer.se(0);
+                }
+            }
+            let bytes = writer.bytes();
+            let result = weights(&mut Bits::new(&bytes), l0, l1);
+            if valid {
+                assert!(result.is_ok());
+            } else {
+                assert_eq!(result, Err(Error::InvalidData("weight_flag_count")));
+            }
+        }
+    }
+
+    #[test]
+    fn weighted_prediction_refuses_invalid_chroma_denominators_and_truncation() {
+        for (denom, delta) in [(0, -1), (7, 1)] {
+            let mut writer = Writer::default();
+            writer.ue(denom);
+            writer.se(delta);
+            let bytes = writer.bytes();
+            assert_eq!(
+                weights(&mut Bits::new(&bytes), 1, 0),
+                Err(Error::InvalidData("chroma_weight_denom"))
+            );
+        }
+        assert_eq!(
+            weights(&mut Bits::new(&[]), 1, 0),
+            Err(Error::InvalidData("truncated_header"))
+        );
+    }
 }

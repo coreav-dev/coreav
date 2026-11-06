@@ -1,6 +1,6 @@
 [package]
 name = "coreav-h264-encoder"
-description = "Opt-in safe scalar H.264 encoder"
+description = "Opt-in H.264 encoder with bit-identical SIMD"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,7 @@ publish = false
 [features]
 default = []
 full = ["dep:coreav-kernels-h264"]
+scalar = []
 
 [dependencies]
 coreav-kernels-h264 = { path = "../coreav-kernels-h264", optional = true }
@@ -18,8 +19,18 @@ coreav-kernels-h264 = { path = "../coreav-kernels-h264", optional = true }
 [dev-dependencies]
 coreav-h264 = { path = "../coreav-h264" }
 
-[lints]
-workspace = true
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+todo = "deny"
+unimplemented = "deny"
 
 [[example]]
 name = "g1"

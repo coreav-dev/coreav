@@ -1,8 +1,10 @@
+#![forbid(unsafe_code)]
+
 use super::*;
 use crate::motion::{Layout, Part};
 use coreav_kernels_h264::Block;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct Inter {
     pub(super) layout: Layout,
     pub(super) parts: [Part; 16],
@@ -109,9 +111,9 @@ fn predict(
         part.mv.y.rem_euclid(divisor) as u8,
     );
     if chroma {
-        Scalar.chroma_mc(dst, src, xf, yf);
+        crate::kernels::pixels().chroma_mc(dst, src, xf, yf);
     } else {
-        Scalar.luma_mc(dst, src, xf, yf);
+        crate::kernels::pixels().luma_mc(dst, src, xf, yf);
     }
     Ok(())
 }
@@ -266,9 +268,7 @@ impl Search<'_> {
                         .data
                         .get(start..start + part.width)
                         .ok_or(Error::Internal)?;
-                    for (&a, &b) in original.iter().zip(predicted) {
-                        sad += u64::from(a.abs_diff(b));
-                    }
+                    sad += crate::kernels::sad(original, predicted)?;
                 } else {
                     for (x, &a) in original.iter().enumerate() {
                         sad += u64::from(a.abs_diff(reference.sample(ix + x as i32, iy)?));
@@ -283,12 +283,15 @@ impl Search<'_> {
             let mut tile = Tile::empty();
             predict(reference, &mut tile, part, self.mx, self.my, false)?;
             for y in part.y..part.y + part.height {
-                for x in part.x..part.x + part.width {
-                    let at = Tile::at(x, y);
-                    let original = *self.decision.source.0.get(at).ok_or(Error::Internal)?;
-                    let predicted = *tile.0.get(at).ok_or(Error::Internal)?;
-                    sad += u64::from((i32::from(original) - i32::from(predicted)).unsigned_abs());
-                }
+                let at = Tile::at(part.x, y);
+                let original = self
+                    .decision
+                    .source
+                    .0
+                    .get(at..at + part.width)
+                    .ok_or(Error::Internal)?;
+                let predicted = tile.0.get(at..at + part.width).ok_or(Error::Internal)?;
+                sad += crate::kernels::sad(original, predicted)?;
                 if cutoff.is_some_and(|limit| sad + motion_cost > limit) {
                     return Ok(None);
                 }
@@ -680,35 +683,112 @@ impl Search<'_> {
                 }
             }
         }
-        motions
-            .ranked
-            .first()
-            .copied()
-            .flatten()
-            .ok_or(Error::Internal)
+        let retained = [
+            motions.ranked.first().copied().flatten(),
+            motions.ranked.get(1).copied().flatten(),
+            motions
+                .seen
+                .get(..motions.len)
+                .ok_or(Error::Internal)?
+                .iter()
+                .flatten()
+                .find(|value| value.2 == predictor)
+                .copied(),
+        ];
+        let mut best = None;
+        for (index, value) in retained.iter().enumerate() {
+            let Some((_, bits, mv)) = *value else {
+                continue;
+            };
+            if retained.iter().take(index).flatten().any(|old| old.2 == mv) {
+                continue;
+            }
+            #[cfg(test)]
+            tests::RESCORES.with(|count| count.set(count.get() + 1));
+            let mut tile = Tile::empty();
+            let mut proposed = part;
+            proposed.mv = mv;
+            predict(
+                self.reference.first().ok_or(Error::Internal)?,
+                &mut tile,
+                proposed,
+                self.mx,
+                self.my,
+                false,
+            )?;
+            let cost = tile.satd(self.decision.source, part.x, part.y, part.width)?
+                + (1u64 << (self.decision.qp / 6)) * bits as u64;
+            let value = (cost, bits, mv);
+            if best.is_none_or(|old| value < old) {
+                best = Some(value);
+            }
+        }
+        best.ok_or(Error::Internal)
     }
 
-    fn propose(&self, layout: Layout) -> Result<Option<(u64, Inter)>> {
+    fn coalesce(&self, mut inter: Inter) -> Result<(usize, Inter)> {
+        inter.derive(self.border)?;
+        let mut bits = Bits::count();
+        inter.syntax(&mut bits)?;
+        let mut key = (bits.len, inter.len, inter.layout.code());
+        if !matches!(inter.layout, Layout::Sub(_)) {
+            return Ok((bits.len, inter));
+        }
+        let vectors = inter.motion()?.vectors;
+        for layout in [Layout::Whole, Layout::Horizontal, Layout::Vertical] {
+            let mut merged = Inter::new(layout)?;
+            if !motion::admitted(self.previous, merged.len) {
+                continue;
+            }
+            for part in merged.parts.iter_mut().take(merged.len) {
+                part.mv = *vectors
+                    .get(part.y / 4 * 4 + part.x / 4)
+                    .ok_or(Error::Internal)?;
+            }
+            if merged.motion()?.vectors != vectors {
+                continue;
+            }
+            merged.derive(self.border)?;
+            let mut count = Bits::count();
+            merged.syntax(&mut count)?;
+            let next = (count.len, merged.len, merged.layout.code());
+            if next < key {
+                key = next;
+                inter = merged;
+            }
+        }
+        Ok((key.0, inter))
+    }
+
+    fn syntax_floor(&self, bits: usize) -> Result<u64> {
+        let mut prefix = Bits::count();
+        prefix.ue(self.decision.pending_skip)?;
+        self.decision.cost(0, prefix.len + bits)
+    }
+
+    fn propose(&self, layout: Layout, ceiling: Option<u64>) -> Result<Option<(usize, Inter)>> {
         let mut inter = Inter::new(layout)?;
         if !motion::admitted(self.previous, inter.len) {
             return Ok(None);
         }
         #[cfg(test)]
         tests::SEARCHES.with(|count| count.set(count.get() + 1));
+        let mut minimum = Bits::count();
+        minimum.ue(Layout::Whole.code())?;
+        Mv::default().write(&mut minimum)?;
+        let floor = self.syntax_floor(minimum.len)?;
+        if ceiling.is_some_and(|cost| cost < floor) {
+            return Ok(None);
+        }
         let mut grid = [None; 16];
-        let mut sad = 0;
-        let penalty = 1u64 << (self.decision.qp / 6);
         for part in inter.parts.iter_mut().take(inter.len) {
             let predictor = self.border.predictor(&grid, *part, layout)?;
-            let (cost, bits, mv) = self.compact(*part, predictor)?;
-            sad += cost - penalty * bits as u64;
+            let (_, _, mv) = self.compact(*part, predictor)?;
             part.mv = mv;
             motion::commit(&mut grid, *part)?;
         }
-        inter.derive(self.border)?;
-        let mut bits = Bits::count();
-        inter.syntax(&mut bits)?;
-        Ok(Some((sad + penalty * bits.len as u64, inter)))
+        let (bits, inter) = self.coalesce(inter)?;
+        Ok(Some((bits, inter)))
     }
 
     pub(super) fn candidates(
@@ -724,8 +804,7 @@ impl Search<'_> {
                 skip.parts.first_mut().ok_or(Error::Internal)?.mv = mv;
                 match self.evaluate(skip) {
                     Ok(c) => {
-                        let exact =
-                            c.key.cost == (1u64 << (self.decision.qp / 3)) * c.key.bits as u64;
+                        let exact = c.key.cost == self.decision.cost(0, c.key.bits)?;
                         consider(best, c);
                         if exact {
                             return Ok(());
@@ -737,16 +816,31 @@ impl Search<'_> {
                 }
             }
         }
+        let ceiling = best.as_ref().map(|candidate| candidate.key.cost);
         let mut plans = [
-            self.propose(Layout::Whole)?,
-            self.propose(Layout::Sub([0; 4]))?,
+            self.propose(Layout::Whole, ceiling)?,
+            self.propose(Layout::Sub([0; 4]), ceiling)?,
         ];
-        plans.sort_by_key(|plan| plan.as_ref().map_or(u64::MAX, |plan| plan.0));
-        for (_, inter) in plans.into_iter().flatten() {
+        plans.sort_by_key(|plan| plan.as_ref().map_or(usize::MAX, |plan| plan.0));
+        let [first, second] = &mut plans;
+        if first
+            .as_ref()
+            .zip(second.as_ref())
+            .is_some_and(|(a, b)| a.1 == b.1)
+        {
+            *second = None;
+        }
+        for (bits, inter) in plans.into_iter().flatten() {
+            let floor = self.syntax_floor(bits)?;
+            if best
+                .as_ref()
+                .is_some_and(|candidate| candidate.key.cost < floor)
+            {
+                continue;
+            }
             match self.evaluate(inter) {
                 Ok(candidate) => {
                     consider(best, candidate);
-                    break;
                 }
                 Err(Error::Coefficient | Error::Syntax) => {}
                 Err(Error::MacroblockLimit) => *refusal = Error::MacroblockLimit,
@@ -767,6 +861,299 @@ mod tests {
         pub(super) static SEARCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
         pub(super) static PROBES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
         pub(super) static EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        pub(super) static RESCORES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    #[test]
+    fn retained_motion_reranking_is_deterministic_and_bounded() {
+        let mut reference = [
+            FramePlane::new(32, 32).unwrap(),
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(16, 16).unwrap(),
+        ];
+        for (p, sample) in reference[0].data.iter_mut().enumerate() {
+            *sample = (p * 37 + p / 11 * 53) as u8;
+        }
+        let mut source = Tile::empty();
+        for y in 0..16 {
+            for x in 0..16 {
+                source.0[Tile::at(x, y)] = (x * 23 + y * 19) as u8;
+            }
+        }
+        let csources = [Tile::empty(), Tile::empty()];
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context: MbContext {
+                top: None,
+                left: None,
+                p_slice: true,
+            },
+            qp: 28,
+            pending_skip: 0,
+        };
+        let search = Search {
+            reference: &reference,
+            decision: &decision,
+            border: Border::default(),
+            mx: 0,
+            my: 0,
+            previous: 0,
+        };
+        let part = Inter::new(Layout::Whole).unwrap().parts[0];
+        for predictor in [Mv::default(), Mv { x: 3, y: -7 }, Mv { x: 8191, y: 2047 }] {
+            let mut selected = None;
+            for _ in 0..2 {
+                PROBES.with(|count| count.set(0));
+                RESCORES.with(|count| count.set(0));
+                let value = search.compact(part, predictor).unwrap();
+                assert!(value.2.valid());
+                assert!(value.2.difference(predictor).is_ok());
+                assert!(PROBES.with(|count| count.get()) <= 23);
+                assert!((1..=3).contains(&RESCORES.with(|count| count.get())));
+                if let Some(old) = selected {
+                    assert_eq!(value, old);
+                }
+                selected = Some(value);
+            }
+        }
+    }
+
+    #[test]
+    fn coalesced_motion_preserves_prediction_coefficients_and_probe_budget() {
+        let mut reference = [
+            FramePlane::new(64, 64).unwrap(),
+            FramePlane::new(32, 32).unwrap(),
+            FramePlane::new(32, 32).unwrap(),
+        ];
+        for plane in &mut reference {
+            for (p, sample) in plane.data.iter_mut().enumerate() {
+                *sample = (112 + (p / plane.width * 3 + p % plane.width * 5) % 32) as u8;
+            }
+        }
+        let source = Tile::empty();
+        let csources = [Tile::empty(), Tile::empty()];
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context: MbContext {
+                top: None,
+                left: None,
+                p_slice: true,
+            },
+            qp: 28,
+            pending_skip: 0,
+        };
+        for phase in 0..4 {
+            let a = Mv {
+                x: phase,
+                y: -phase,
+            };
+            let b = Mv {
+                x: phase + 4,
+                y: 4 - phase,
+            };
+            let c = Mv {
+                x: phase + 8,
+                y: -phase,
+            };
+            let d = Mv {
+                x: phase,
+                y: 8 - phase,
+            };
+            for origin in 0..2 {
+                let search = Search {
+                    reference: &reference,
+                    decision: &decision,
+                    border: Border::default(),
+                    mx: origin,
+                    my: origin,
+                    previous: 12,
+                };
+                for (vectors, layout) in [
+                    ([a, a, a, a], Layout::Whole),
+                    ([a, a, b, b], Layout::Horizontal),
+                    ([a, b, a, b], Layout::Vertical),
+                    ([a, b, c, d], Layout::Sub([0; 4])),
+                ] {
+                    let mut original = Inter::new(Layout::Sub([0; 4])).unwrap();
+                    for (part, mv) in original.parts.iter_mut().zip(vectors) {
+                        part.mv = mv;
+                    }
+                    original.derive(search.border).unwrap();
+                    let mut bits = Bits::count();
+                    original.syntax(&mut bits).unwrap();
+                    PROBES.with(|count| count.set(0));
+                    let (merged_bits, merged) = search.coalesce(original.clone()).unwrap();
+                    assert_eq!(PROBES.with(|count| count.get()), 0);
+                    assert_eq!(merged.layout, layout);
+                    assert!(motion::admitted(search.previous, merged.len));
+                    assert_eq!(
+                        merged.motion().unwrap().vectors,
+                        original.motion().unwrap().vectors
+                    );
+                    let before = search.evaluate(original).unwrap();
+                    let after = search.evaluate(merged).unwrap();
+                    assert_eq!(before.luma.tile.0, after.luma.tile.0);
+                    assert_eq!(before.luma.levels, after.luma.levels);
+                    assert_eq!(before.chroma.levels, after.chroma.levels);
+                    assert_eq!(before.chroma.dc, after.chroma.dc);
+                    for (a, b) in before.chroma.tiles.iter().zip(&after.chroma.tiles) {
+                        assert_eq!(a.0, b.0);
+                    }
+                    assert_eq!(before.key.bits - after.key.bits, bits.len - merged_bits);
+                    assert_eq!(
+                        before.key.cost - after.key.cost,
+                        decision.cost(0, bits.len - merged_bits).unwrap()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn inter_syntax_floors_preserve_equal_bounds_and_skip_noncompetitive_trials() {
+        let mut reference = [
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+        ];
+        for plane in &mut reference {
+            plane.data.fill(128);
+        }
+        let csources = [Tile::empty(), Tile::empty()];
+        for (pixels, value, evaluations) in [(1, 129, 1), (3, 136, 2)] {
+            let mut source = Tile::empty();
+            for x in 0..pixels {
+                source.0[Tile::at(x, 0)] = value;
+            }
+            let decision = Decision {
+                source: &source,
+                csources: &csources,
+                context: MbContext {
+                    top: None,
+                    left: None,
+                    p_slice: true,
+                },
+                qp: 28,
+                pending_skip: 0,
+            };
+            let search = Search {
+                reference: &reference,
+                decision: &decision,
+                border: Border::default(),
+                mx: 0,
+                my: 0,
+                previous: 0,
+            };
+            EVALUATIONS.with(|count| count.set(0));
+            SEARCHES.with(|count| count.set(0));
+            PROBES.with(|count| count.set(0));
+            let mut best = None;
+            search
+                .candidates(&mut best, &mut Error::Coefficient)
+                .unwrap();
+            assert!(best.unwrap().inter.unwrap().skip);
+            assert_eq!(SEARCHES.with(|count| count.get()), 2);
+            assert_eq!(EVALUATIONS.with(|count| count.get()), evaluations);
+            if evaluations == 1 {
+                assert_eq!(PROBES.with(|count| count.get()), 0);
+            } else {
+                assert!(PROBES.with(|count| count.get()) > 0);
+            }
+            let floor = search.syntax_floor(3).unwrap();
+            assert!(
+                search
+                    .propose(Layout::Whole, Some(floor - 1))
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(
+                search
+                    .propose(Layout::Whole, Some(floor))
+                    .unwrap()
+                    .is_some()
+            );
+        }
+    }
+
+    #[test]
+    fn intra_syntax_floor_skips_only_strictly_uncompetitive_construction() {
+        let mut reference = [
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+        ];
+        for plane in &mut reference {
+            plane.data.fill(128);
+        }
+        let base = Tile::empty();
+        let csources = [base.clone(), base.clone()];
+        for pending_skip in [0, 2, 126] {
+            let mut prefix = Bits::count();
+            prefix.ue(pending_skip).unwrap();
+            let mut skipped = Bits::count();
+            skipped.ue(pending_skip + 1).unwrap();
+            let floor = 512 * 32 * (prefix.len + 6) as u64;
+            for equality in [false, true] {
+                let mut source = base.clone();
+                if equality {
+                    let count = (floor - 512 * 32 * skipped.len as u64) / (512 * 64);
+                    for x in 0..count as usize {
+                        source.0[Tile::at(x, 0)] = 136;
+                    }
+                } else {
+                    source.0[Tile::at(0, 0)] = 129;
+                }
+                let decision = Decision {
+                    source: &source,
+                    csources: &csources,
+                    context: MbContext {
+                        top: None,
+                        left: None,
+                        p_slice: true,
+                    },
+                    qp: 28,
+                    pending_skip,
+                };
+                let search = Search {
+                    reference: &reference,
+                    decision: &decision,
+                    border: Border::default(),
+                    mx: 0,
+                    my: 0,
+                    previous: 0,
+                };
+                let mut skip = Inter::new(Layout::Whole).unwrap();
+                skip.skip = true;
+                let candidate = search.evaluate(skip.clone()).unwrap();
+                assert_eq!(candidate.key.cost == floor, equality);
+                let mut expected = Some(candidate);
+                consider(
+                    &mut expected,
+                    decision
+                        .quick_intra(&base, &csources, intra_availability(search.border))
+                        .unwrap(),
+                );
+                let mut best = Some(search.evaluate(skip).unwrap());
+                super::super::tests::INTRA_PAIRS.with(|count| count.set(0));
+                decision
+                    .intra(
+                        &base,
+                        &csources,
+                        intra_availability(search.border),
+                        false,
+                        &mut best,
+                        &mut Error::Coefficient,
+                    )
+                    .unwrap();
+                assert!(best.unwrap().key == expected.unwrap().key);
+                assert_eq!(
+                    super::super::tests::INTRA_PAIRS.with(|count| count.get()),
+                    usize::from(equality)
+                );
+            }
+        }
     }
 
     #[test]
@@ -2037,13 +2424,13 @@ mod tests {
                 0,
             )
             .unwrap();
-        assert!(oversized as u64 * (1 << (decision.qp / 3)) < alternative.key.cost);
+        assert!(decision.cost(0, oversized).unwrap() < alternative.key.cost);
         let mut best = Some(alternative);
         match decision.candidate(luma.clone(), chroma.clone(), Some(prediction.clone()), 0) {
             Ok(candidate) => consider(&mut best, candidate),
             Err(e) => assert_eq!(e, Error::MacroblockLimit),
         }
-        assert!(best.unwrap().key.cost > oversized as u64 * (1 << (decision.qp / 3)));
+        assert!(best.unwrap().key.cost > decision.cost(0, oversized).unwrap());
         for index in 0..392 {
             if index < 256 {
                 luma.levels[index / 16][index % 16] = 0;

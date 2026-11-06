@@ -6,6 +6,7 @@ import bisect
 import collections
 import contextlib
 import hashlib
+import http.client
 import functools
 import json
 import os
@@ -14,6 +15,7 @@ import re
 import resource
 import shutil
 import signal
+import ssl
 import stat
 import subprocess
 import sys
@@ -42,6 +44,8 @@ TOTAL_EXPANDED_CAP = 64 << 30
 TEXT_CAP = 256 << 10
 CAPTURE_CAP = 64 << 20
 TIMEOUT = 300
+PACKET_TOOLING_REFUSALS = frozenset(('packet_container_truncated', 'packet_container_structure',
+                                   'packet_container_unsupported'))
 BITSTREAM_EXTENSIONS = {'.bit', '.bin', '.265', '.h265', '.hevc'}
 TERMINAL_PACKETS = {
     'DELTAQP_A': ('1274e3e308dfe684b38a88f8b3a2845b84f57492b0b02aaecbe5dc29ca8ed532', 12),
@@ -456,16 +460,18 @@ def manifest(args):
     write_json(args.out, data)
 
 
-def child_limits(file_limit=CAPTURE_CAP):
+def child_limits(file_limit=CAPTURE_CAP, cpu_seconds=None):
     resource.setrlimit(resource.RLIMIT_AS, (6 << 30, 6 << 30))
     resource.setrlimit(resource.RLIMIT_FSIZE, (file_limit, file_limit))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    resource.setrlimit(resource.RLIMIT_CPU, (TIMEOUT, TIMEOUT))
+    cpu_seconds = TIMEOUT if cpu_seconds is None else cpu_seconds
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
 
 
-def child(command, directory, label, *, file_limit=CAPTURE_CAP):
+def child(command, directory, label, *, file_limit=CAPTURE_CAP, timeout=None):
     require(sys.platform == 'linux', 'hostile subprocesses require Linux limits')
     require(integer(file_limit) and CAPTURE_CAP <= file_limit <= 4 << 30, 'invalid subprocess file limit')
+    require(timeout is None or integer(timeout, 1) and timeout <= 3600, 'invalid subprocess timeout')
     directory.mkdir(parents=True, exist_ok=True)
     stdout, stderr = directory / f'{label}.stdout', directory / f'{label}.stderr'
     environment = {k: v for k, v in os.environ.items() if k in ('PATH', 'LANG', 'TMPDIR')}
@@ -473,9 +479,10 @@ def child(command, directory, label, *, file_limit=CAPTURE_CAP):
     with stdout.open('wb') as out, stderr.open('wb') as err:
         process = subprocess.Popen(list(map(str, command)), stdout=out, stderr=err,
                                    env=environment, start_new_session=True,
-                                   preexec_fn=functools.partial(child_limits, file_limit))
+                                   preexec_fn=functools.partial(child_limits, file_limit) if timeout is None
+                                   else functools.partial(child_limits, file_limit, timeout))
         try:
-            code = process.wait(timeout=TIMEOUT)
+            code = process.wait(timeout=TIMEOUT if timeout is None else timeout)
         except BaseException:
             os.killpg(process.pid, signal.SIGKILL)
             process.wait()
@@ -1194,19 +1201,60 @@ def roster(path=ROSTER):
     return files
 
 
+class Acquisition:
+    """Retry untimed immutable reads without replacing the pool or its caps."""
+
+    def __init__(self, pool):
+        self.pool = pool
+
+    @staticmethod
+    def request(operation, *args, **kwargs):
+        for attempt in range(3):
+            try:
+                return operation(*args, **kwargs)
+            except (ConnectionError, TimeoutError, http.client.IncompleteRead, ssl.SSLEOFError):
+                if attempt == 2:
+                    raise
+                time.sleep(1 << attempt)
+
+    def head(self, key):
+        return self.request(self.pool.head, key)
+
+    def get(self, *args, **kwargs):
+        return self.request(self.pool.get, *args, **kwargs)
+
+
+def corpus_shard(files, index, count):
+    require(integer(count, 1) and count <= 4 and integer(index) and index < count, 'invalid corpus shard')
+    if count == 1:
+        return files
+    return sorted(files, key=lambda item: (-item['size'], item['sha256']))[index::count]
+
+
 def fetch_corpus(args, inspect=False):
     require(sys.platform == 'linux', 'hostile corpus files require Linux')
     sys.path.insert(0, str(ROOT / 'tools/compat-corpus'))
     import round_files
     files = roster()
+    count, index = getattr(args, 'shard_count', 1), getattr(args, 'shard_index', 0)
+    selected = corpus_shard(files, index, count)
+    expected = selected if count != 1 else None
+    scope = dict(kind='fixed_roster_shard', index=index, count=count, roster_files=len(files),
+                 files=len(selected)) if count != 1 else None
+    files = selected
     if inspect:
         try:
             oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
         except test_oracle.QualificationError:
             raise ValueError('pinned oracle binaries are required') from None
+        if getattr(args, 'packet_native', None):
+            require(args.parser and args.packet_native.is_file() and args.parser.is_file()
+                    and 0 < args.decode_memory_bytes <= 4 << 30
+                    and 0 < args.picture_bins <= args.stream_bins < 1 << 64, 'invalid complete-decode options')
     pool = round_files.pool()
     from r2pool import Limits
     pool.limits = Limits(requests=4000, bytes_=32 << 30)
+    acquisition = Acquisition(pool)
     args.dest.mkdir(mode=0o700, parents=True, exist_ok=True)
     try:
         required_space = (max(f['size'] for f in files) if inspect else sum(f['size'] for f in files)) + (128 << 20)
@@ -1219,9 +1267,9 @@ def fetch_corpus(args, inspect=False):
                 manifest = read_json(path)
             else:
                 key = f'corpus/{corpus_name}/manifest.json'
-                size, etag = pool.head(key)
+                size, etag = acquisition.head(key)
                 require(size <= 32 << 20, 'manifest exceeds byte cap')
-                manifest = json.loads(pool.get(key, size, etag), object_pairs_hook=unique_object)
+                manifest = json.loads(acquisition.get(key, size, etag), object_pairs_hook=unique_object)
             entries_list = manifest['files'] if isinstance(manifest, dict) else manifest
             for entry in entries_list:
                 sha = entry.get('sha256')
@@ -1242,32 +1290,37 @@ def fetch_corpus(args, inspect=False):
             destination = pathlib.Path(destination)
             records = [dict(item, status='not_run') for item in files]
             if inspect:
-                write_json(args.out / 'corpus-census.json', corpus_result(records))
+                write_json(args.out / 'corpus-census.json', corpus_result(records, expected, scope))
             for index, item in enumerate(files):
                 if inspect:
                     require(shutil.disk_usage(destination).free >= item['size'] + (128 << 20),
                             'insufficient per-file acquisition disk space')
-                path = round_files.fetch_one(pool, entries[item['sha256']], destination)
+                path = round_files.fetch_one(acquisition, entries[item['sha256']], destination)
                 if inspect:
                     try:
                         options = dict(native=args.native, parser=args.parser,
                                        max_memory_bytes=args.max_memory_bytes, max_bins=args.max_bins) if getattr(args, 'native', None) else None
-                        records[index] = corpus_record(item, path, args.out, oracle, intra=options)
-                        write_json(args.out / 'corpus-census.json', corpus_result(records))
+                        complete = dict(native=args.packet_native, parser=args.parser,
+                                        max_memory_bytes=args.decode_memory_bytes,
+                                        max_stream_bins=args.stream_bins, max_picture_bins=args.picture_bins) if getattr(args, 'packet_native', None) else None
+                        records[index] = corpus_record(item, path, args.out, oracle, intra=options, complete=complete)
+                        write_json(args.out / 'corpus-census.json', corpus_result(records, expected, scope))
                     finally:
                         path.unlink(missing_ok=True)
             if inspect:
-                require(all(r['status'] == 'inspected' for r in records), 'corpus metadata census blocked')
+                passed = (corpus_result(records, expected, scope)['passed'] if getattr(args, 'packet_native', None)
+                          else all(r['status'] == 'inspected' for r in records))
+                require(passed, 'corpus metadata census blocked')
     finally:
         pool.close()
 
 
-def corpus_record(item, path, directory, oracle, *, intra=None):
+def corpus_record(item, path, directory, oracle, *, intra=None, complete=None):
     record = dict(item)
     try:
         require(path.stat().st_size == item['size'] and digest(path) == item['sha256'],
                 'corpus size or SHA-256 differs')
-        command = [oracle.ffprobe, '-v', 'error', '-show_format', '-show_streams', '-of', 'json', path]
+        command = [oracle.ffprobe, '-v', 'error', '-show_format', '-show_streams', '-show_data', '-of', 'json', path]
         code, out, err = child(command, directory / item['sha256'], 'metadata')
         require(code == 0 and not err.read_bytes().strip(), 'corpus metadata oracle failed')
         meta = read_json(out)
@@ -1286,23 +1339,45 @@ def corpus_record(item, path, directory, oracle, *, intra=None):
             import hevc_intra
             record['intra'] = hevc_intra.development_picture(item, path, directory / item['sha256'], oracle, **intra)
             record['admission'] = 'first independent IRAP validated; full decode not established'
+        if complete:
+            import hevc_decode
+            scope_refusal = (record['profile'] not in ('Main', 'Main 10') or record['bit_depth'] not in (8, 10)
+                             or record['field_order'] not in (None, 'unknown', 'progressive'))
+            record['decode'] = hevc_decode.corpus_decode(item, path, directory / item['sha256'], oracle,
+                                                       scope_refusal=scope_refusal, **complete)
+            record['admission'] = 'expected profile refusal' if 'expected_refusal' in record['decode'] else 'complete packet comparison'
+            if record['decode'].get('follow_up') in PACKET_TOOLING_REFUSALS:
+                record.update(status='follow_up', admission='container follow-up; no pixel comparison credit')
     except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
         record.update(status='blocked', reason=type(error).__name__)
         report = directory / item['sha256'] / 'intra.json'
         if intra and item['partition'] == 'development' and report.exists():
             record['intra'] = read_json(report)
+        report = directory / item['sha256'] / 'decode.json'
+        if complete and report.exists():
+            record['decode'] = read_json(report)
     return record
 
 
-def corpus_result(records):
+def corpus_result(records, expected=None, scope=None):
+    target = 54 if expected is None else len(expected)
+    development = 26 if expected is None else sum(item['partition'] == 'development' for item in expected)
+    identities = expected is None or all(
+        all(record.get(field) == item.get(field) for field in ('sha256', 'size', 'ext', 'partition', 'sets'))
+        for record, item in zip(records, expected))
     counts = collections.Counter((r['partition'], r.get('profile'), r.get('bit_depth'), r['status']) for r in records)
     result = dict(roster_sha256=digest(ROSTER),
-                complete=len(records) == 54 and all(r['status'] == 'inspected' for r in records), files=records,
+                complete=bool(target) and len(records) == target and identities
+                    and all(r['status'] == 'inspected' for r in records), files=records,
+                scope=scope or dict(kind='complete_roster', roster_files=54, files=54),
                 counts=[dict(partition=k[0], profile=k[1], bit_depth=k[2], status=k[3], files=count)
                         for k, count in counts.items()])
+    result['passed'] = bool(target) and len(records) == target and identities and all(r['status'] == 'inspected'
+        or r['status'] == 'follow_up' and (r.get('decode') or {}).get('follow_up') in PACKET_TOOLING_REFUSALS
+        for r in records)
     selected = [r for r in records if 'intra' in r]
     if selected:
-        result['development_intra'] = dict(expected=26, completed=sum(r['intra'].get('complete') is True for r in selected))
+        result['development_intra'] = dict(expected=development, completed=sum(r['intra'].get('complete') is True for r in selected))
         stages = ('extract_first_picture', 'headers', 'oracle', 'reconstruction', 'comparison', 'complete')
         result['development_intra']['stages'] = {stage: sum(r['intra'].get('stage') == stage for r in selected) for stage in stages}
         refusals = collections.Counter()
@@ -1313,7 +1388,30 @@ def corpus_result(records):
                     and isinstance(reason, str) and re.fullmatch('[a-z0-9_]{1,80}', reason)):
                 refusals[reason] += 1
         result['development_intra']['native_refusals'] = dict(refusals)
-        result['complete'] &= len(selected) == 26 and result['development_intra']['completed'] == 26
+        result['complete'] &= len(selected) == development and result['development_intra']['completed'] == development
+        result['passed'] &= len(selected) == development and result['development_intra']['completed'] == development
+    selected = [r for r in records if 'decode' in r]
+    if selected:
+        result['packet_decode'] = dict(expected=target, completed=sum(r['decode'].get('complete') is True for r in selected),
+            profile_refusals=sum('expected_refusal' in r['decode'] for r in selected),
+            prefix_matches=sum(arm.get('complete') is True and arm['packet_limit'] == 120
+                               for r in selected for arm in r['decode'].get('results', [])),
+            eof_matches=sum(arm.get('complete') is True and arm['packet_limit'] == 0
+                            for r in selected for arm in r['decode'].get('results', [])))
+        follow_ups = [r for r in selected if r['status'] == 'follow_up'
+                      and r['decode'].get('follow_up') in PACKET_TOOLING_REFUSALS]
+        result['packet_decode']['follow_ups'] = dict(collections.Counter(r['decode']['follow_up'] for r in follow_ups))
+        result['passed'] &= len(selected) == target and result['packet_decode']['completed'] + len(follow_ups) == target
+        result['complete'] &= len(selected) == target and result['packet_decode']['completed'] == target
+        for record in selected:
+            decode = record['decode']
+            arms = decode.get('results', [])
+            required = set() if 'expected_refusal' in decode else {120, 0} if 'b5' in record['sets'] else {120}
+            complete = (len(arms) == len(required) and {arm['packet_limit'] for arm in arms} == required
+                        and all(arm.get('complete') is True for arm in arms))
+            result['complete'] &= complete
+            result['passed'] &= complete or record in follow_ups
+        result['packet_decode']['passed'] = result['passed']
     return result
 
 
@@ -1362,6 +1460,12 @@ def main():
     online_parser.add_argument('--parser', type=pathlib.Path)
     online_parser.add_argument('--max-memory-bytes', type=int, default=256 << 20)
     online_parser.add_argument('--max-bins', type=int, default=1 << 28)
+    online_parser.add_argument('--packet-native', type=pathlib.Path)
+    online_parser.add_argument('--decode-memory-bytes', type=int, default=1 << 30)
+    online_parser.add_argument('--stream-bins', type=int, default=1 << 40)
+    online_parser.add_argument('--picture-bins', type=int, default=1 << 28)
+    online_parser.add_argument('--shard-index', type=int, default=0)
+    online_parser.add_argument('--shard-count', type=int, default=1)
     args = parser.parse_args()
     try:
         {'acquire': acquire, 'manifest': manifest, 'run': run,

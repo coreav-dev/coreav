@@ -1,4 +1,26 @@
-use crate::{Error, Limits, NalHeader, Result, SliceHeader, params::Sps};
+use crate::{
+    Error, Limits, NalHeader, Result, SliceHeader, params::Sps, reconstruction::RetainedPicture,
+};
+
+pub(crate) struct Emission<'a> {
+    pub(crate) event: OutputEvent,
+    pub(crate) picture: Option<&'a RetainedPicture>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ReferenceIdentity {
+    pub index: u64,
+    pub poc: i32,
+    pub long_term: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct References {
+    pub entries: [Option<ReferenceIdentity>; 16],
+    pub before: u8,
+    pub after: u8,
+    pub long_term: u8,
+}
 
 /// An output-order event derived from headers, without reconstructed samples.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -24,6 +46,8 @@ pub struct PictureOrder {
     pub output: bool,
     /// NoRaslOutputFlag of this picture's associated IRAP.
     pub no_rasl_output: bool,
+    /// Included in the target decoding set, before any sample reconstruction.
+    pub reconstruction_required: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -33,7 +57,6 @@ enum Reference {
     Long,
 }
 
-#[derive(Clone, Copy, Debug)]
 struct Picture {
     event: OutputEvent,
     reference: Reference,
@@ -42,6 +65,15 @@ struct Picture {
     temporal_id: u8,
     unit_type: u8,
     generated: bool,
+    samples: Option<RetainedPicture>,
+}
+
+struct Pending {
+    index: u64,
+    coded_size: [u32; 2],
+    conformance_window: [u32; 4],
+    reorder: usize,
+    latency: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -79,7 +111,11 @@ enum State {
 }
 
 pub(crate) struct Dpb {
+    pub(crate) warnings: crate::Warnings,
     pictures: [Option<Picture>; 16],
+    reconstruction: bool,
+    pending: Option<Pending>,
+    current_references: References,
     count: u64,
     highest_tid: Option<u32>,
     prev_tid0: Option<(u32, i32)>,
@@ -94,7 +130,11 @@ pub(crate) struct Dpb {
 impl Dpb {
     pub(crate) fn new() -> Self {
         Self {
-            pictures: [None; 16],
+            warnings: crate::Warnings::default(),
+            pictures: [const { None }; 16],
+            reconstruction: false,
+            pending: None,
+            current_references: References::default(),
             count: 0,
             highest_tid: None,
             prev_tid0: None,
@@ -105,6 +145,143 @@ impl Dpb {
             last_lower_tid: [None; 7],
             state: State::Reading,
         }
+    }
+
+    pub(crate) fn new_reconstruction() -> Self {
+        Self {
+            reconstruction: true,
+            ..Self::new()
+        }
+    }
+
+    pub(crate) fn fail(&mut self) {
+        self.state = State::Failed;
+        self.pictures = [const { None }; 16];
+        self.pending = None;
+        self.current_references = References::default();
+    }
+
+    pub(crate) fn current_references(&self) -> References {
+        self.current_references
+    }
+
+    pub(crate) fn reconstructs(&self, index: u64) -> bool {
+        self.current_identity(index).is_ok()
+    }
+
+    pub(crate) fn current_identity(&self, index: u64) -> Result<ReferenceIdentity> {
+        self.pictures
+            .iter()
+            .flatten()
+            .find(|p| !p.generated && p.event.picture_index == index)
+            .map(|p| ReferenceIdentity {
+                index,
+                poc: p.event.poc,
+                long_term: p.reference == Reference::Long,
+            })
+            .ok_or(Error::InvalidData("unavailable DPB picture"))
+    }
+
+    pub(crate) fn reference(&self, identity: ReferenceIdentity) -> Result<&RetainedPicture> {
+        if self.state != State::Reading
+            || self
+                .pending
+                .as_ref()
+                .is_some_and(|p| p.index == identity.index)
+        {
+            return Err(Error::InvalidData("unavailable reference samples"));
+        }
+        self.pictures
+            .iter()
+            .flatten()
+            .find(|p| {
+                !p.generated
+                    && p.reference != Reference::Unused
+                    && p.event.picture_index == identity.index
+                    && p.event.poc == identity.poc
+            })
+            .and_then(|p| p.samples.as_ref())
+            .ok_or(Error::InvalidData("unavailable reference samples"))
+    }
+
+    pub(crate) fn heap_bytes(&self) -> Result<usize> {
+        self.pictures.iter().flatten().try_fold(0usize, |total, p| {
+            let bytes = p
+                .samples
+                .as_ref()
+                .map_or(Ok(0), RetainedPicture::heap_bytes)?;
+            total
+                .checked_add(bytes)
+                .ok_or(Error::Limit("reconstruction_memory"))
+        })
+    }
+
+    pub(crate) fn attach(&mut self, samples: RetainedPicture) -> Result<()> {
+        if self.state != State::Reading {
+            return Err(Error::InvalidData("DPB session ended"));
+        }
+        let result = self.attach_picture(samples);
+        if result.is_err() {
+            self.fail();
+        }
+        result
+    }
+
+    fn attach_picture(&mut self, samples: RetainedPicture) -> Result<()> {
+        let pending = self
+            .pending
+            .as_ref()
+            .ok_or(Error::InvalidData("no pending DPB picture"))?;
+        let picture = self
+            .pictures
+            .iter_mut()
+            .flatten()
+            .find(|p| !p.generated && p.event.picture_index == pending.index)
+            .ok_or(Error::InvalidData("pending DPB picture"))?;
+        let info = samples.info();
+        if samples.index() != pending.index
+            || [info.width, info.height] != pending.coded_size
+            || info.conformance_window != pending.conformance_window
+            || info.visible_width != picture.event.width
+            || info.visible_height != picture.event.height
+            || info.bit_depth != picture.event.bit_depth
+            || picture.samples.is_some()
+        {
+            return Err(Error::InvalidData("DPB picture attachment"));
+        }
+        picture.samples = Some(samples);
+        Ok(())
+    }
+
+    pub(crate) fn resume(
+        &mut self,
+        mut emit: impl FnMut(Emission<'_>) -> Result<()>,
+    ) -> Result<()> {
+        if self.state != State::Reading {
+            return Err(Error::InvalidData("DPB session ended"));
+        }
+        let result = self.resume_picture(&mut emit);
+        if result.is_err() {
+            self.fail();
+        }
+        result
+    }
+
+    fn resume_picture(&mut self, emit: &mut impl FnMut(Emission<'_>) -> Result<()>) -> Result<()> {
+        let Some(pending) = self.pending.as_ref() else {
+            return Ok(());
+        };
+        if !self
+            .pictures
+            .iter()
+            .flatten()
+            .any(|p| !p.generated && p.event.picture_index == pending.index && p.samples.is_some())
+        {
+            return Err(Error::InvalidData("unfinished DPB picture"));
+        }
+        let (reorder, latency) = (pending.reorder, pending.latency);
+        self.pending = None;
+        self.additional_bumps(reorder, latency, emit)
     }
 
     pub(crate) fn end_sequence(&mut self) {
@@ -119,20 +296,20 @@ impl Dpb {
         &mut self,
         nal: NalHeader,
         header: &SliceHeader,
-        mut emit: impl FnMut(OutputEvent) -> Result<()>,
+        mut emit: impl FnMut(Emission<'_>) -> Result<()>,
     ) -> Result<()> {
         if self.state != State::Reading {
             return Err(Error::InvalidData("DPB session ended"));
         }
         if !self.starts_cvs(nal) || nal.temporal_id != 0 || !header.first || header.dependent {
-            self.state = State::Failed;
+            self.fail();
             return Err(Error::InvalidData("CVSG requires CVS-start IRAP"));
         }
         let result = self
             .prior_output(nal, header, &mut emit)
             .and_then(|()| self.select_cvsg());
         if result.is_err() {
-            self.state = State::Failed;
+            self.fail();
         }
         result
     }
@@ -146,6 +323,7 @@ impl Dpb {
         }
         *self = Self {
             count: self.count,
+            reconstruction: self.reconstruction,
             ..Self::new()
         };
         Ok(())
@@ -157,28 +335,31 @@ impl Dpb {
         header: &SliceHeader,
         sps: &Sps,
         limits: &Limits,
-        mut emit: impl FnMut(OutputEvent) -> Result<()>,
+        mut emit: impl FnMut(Emission<'_>) -> Result<()>,
     ) -> Result<PictureOrder> {
         if self.state != State::Reading {
             return Err(Error::InvalidData("DPB session ended"));
         }
         let result = self.read_picture(nal, header, sps, limits, &mut emit);
         if result.is_err() {
-            self.state = State::Failed;
+            self.fail();
         }
         result
     }
 
-    pub(crate) fn finish(&mut self, mut emit: impl FnMut(OutputEvent) -> Result<()>) -> Result<()> {
+    pub(crate) fn finish(
+        &mut self,
+        mut emit: impl FnMut(Emission<'_>) -> Result<()>,
+    ) -> Result<()> {
         if self.state != State::Reading {
             return Err(Error::InvalidData("DPB session ended"));
         }
         let result = self.drain(&mut emit);
-        self.state = if result.is_ok() {
-            State::Finished
+        if result.is_ok() {
+            self.state = State::Finished;
         } else {
-            State::Failed
-        };
+            self.fail();
+        }
         result
     }
 
@@ -188,8 +369,12 @@ impl Dpb {
         h: &SliceHeader,
         s: &Sps,
         limits: &Limits,
-        emit: &mut impl FnMut(OutputEvent) -> Result<()>,
+        emit: &mut impl FnMut(Emission<'_>) -> Result<()>,
     ) -> Result<PictureOrder> {
+        self.current_references = References::default();
+        if self.pending.is_some() {
+            return Err(Error::InvalidData("unfinished DPB picture"));
+        }
         if nal.layer_id != 0 {
             return Err(Error::Unsupported("nuh_layer_id"));
         }
@@ -203,7 +388,7 @@ impl Dpb {
             return Err(Error::InvalidData("DPB temporal_id"));
         }
         if s.temporal_nesting && nal.temporal_id > 0 && !matches!(nal.unit_type, 2 | 3 | 6..=9) {
-            return Err(Error::InvalidData("temporal nesting NAL type"));
+            self.warnings.temporal_nesting_nal_type = true;
         }
         if self.count >= limits.max_pictures {
             return Err(Error::Limit("max_pictures"));
@@ -240,6 +425,7 @@ impl Dpb {
                 poc,
                 output: false,
                 no_rasl_output: self.irap.is_some_and(|i| i.no_rasl),
+                reconstruction_required: false,
             });
         }
         let prior_output_max = if irap && !no_rasl {
@@ -270,6 +456,7 @@ impl Dpb {
                 poc,
                 output: false,
                 no_rasl_output: true,
+                reconstruction_required: false,
             });
         }
         let highest = highest as usize;
@@ -348,6 +535,7 @@ impl Dpb {
                     temporal_id: nal.temporal_id,
                     unit_type: nal.unit_type,
                     generated: true,
+                    samples: None,
                 })?;
             }
         }
@@ -387,10 +575,18 @@ impl Dpb {
             temporal_id: nal.temporal_id,
             unit_type: nal.unit_type,
             generated: false,
+            samples: None,
         })?;
-        while self.must_bump(reorder, latency) {
-            self.bump(emit)?;
+        if self.reconstruction {
+            self.pending = Some(Pending {
+                index,
+                coded_size: [s.width, s.height],
+                conformance_window: s.conformance_window,
+                reorder,
+                latency,
+            });
         }
+        self.additional_bumps(reorder, latency, emit)?;
         if irap {
             self.irap = Some(Irap {
                 poc,
@@ -426,6 +622,7 @@ impl Dpb {
         Ok(PictureOrder {
             poc,
             output,
+            reconstruction_required: true,
             no_rasl_output: if irap {
                 no_rasl
             } else {
@@ -689,6 +886,40 @@ impl Dpb {
                 }
             }
         }
+        let mut current = References::default();
+        let mut count = 0;
+        for class in 0..3 {
+            for request in requests.iter().flatten().filter(|r| r.used) {
+                let picture = request
+                    .found
+                    .and_then(|index| self.pictures.get(index))
+                    .and_then(Option::as_ref)
+                    .ok_or(Error::InvalidData("RPS picture"))?;
+                let picture_class = if request.long {
+                    2
+                } else {
+                    usize::from(picture.event.poc > poc)
+                };
+                if picture_class != class {
+                    continue;
+                }
+                *current
+                    .entries
+                    .get_mut(count)
+                    .ok_or(Error::InvalidData("RPS count"))? = Some(ReferenceIdentity {
+                    index: picture.event.picture_index,
+                    poc: picture.event.poc,
+                    long_term: request.long,
+                });
+                count += 1;
+                match class {
+                    0 => current.before += 1,
+                    1 => current.after += 1,
+                    _ => current.long_term += 1,
+                }
+            }
+        }
+        self.current_references = current;
         Ok(())
     }
 
@@ -708,7 +939,9 @@ impl Dpb {
 
     fn remove_unused(&mut self) {
         for p in &mut self.pictures {
-            if p.is_some_and(|p| !p.output && p.reference == Reference::Unused) {
+            if p.as_ref()
+                .is_some_and(|p| !p.output && p.reference == Reference::Unused)
+            {
                 *p = None;
             }
         }
@@ -724,24 +957,62 @@ impl Dpb {
         Ok(())
     }
 
-    fn bump(&mut self, emit: &mut impl FnMut(OutputEvent) -> Result<()>) -> Result<()> {
-        let index = self
-            .pictures
+    fn next_output(&self) -> Result<usize> {
+        self.pictures
             .iter()
             .enumerate()
-            .filter_map(|(i, p)| p.filter(|p| p.output).map(|p| (i, p.event.poc)))
+            .filter_map(|(i, p)| p.as_ref().filter(|p| p.output).map(|p| (i, p.event.poc)))
             .min_by_key(|(_, poc)| *poc)
             .map(|(i, _)| i)
-            .ok_or(Error::InvalidData("DPB cannot bump references"))?;
+            .ok_or(Error::InvalidData("DPB cannot bump references"))
+    }
+
+    fn additional_bumps(
+        &mut self,
+        reorder: usize,
+        latency: Option<u64>,
+        emit: &mut impl FnMut(Emission<'_>) -> Result<()>,
+    ) -> Result<()> {
+        while self.must_bump(reorder, latency) {
+            let picture = self
+                .pictures
+                .get(self.next_output()?)
+                .and_then(Option::as_ref)
+                .ok_or(Error::InvalidData("DPB output picture"))?;
+            if self
+                .pending
+                .as_ref()
+                .is_some_and(|p| p.index == picture.event.picture_index)
+            {
+                break;
+            }
+            self.bump(emit)?;
+        }
+        Ok(())
+    }
+
+    fn bump(&mut self, emit: &mut impl FnMut(Emission<'_>) -> Result<()>) -> Result<()> {
+        let index = self.next_output()?;
         let picture = self
             .pictures
             .get_mut(index)
             .and_then(Option::as_mut)
             .ok_or(Error::InvalidData("DPB output picture"))?;
+        if self
+            .pending
+            .as_ref()
+            .is_some_and(|p| p.index == picture.event.picture_index)
+            || self.reconstruction && picture.samples.is_none()
+        {
+            return Err(Error::InvalidData("unfinished DPB picture"));
+        }
         if self.last_output.is_some_and(|poc| picture.event.poc <= poc) {
             return Err(Error::InvalidData("output POC order"));
         }
-        emit(picture.event)?;
+        emit(Emission {
+            event: picture.event,
+            picture: picture.samples.as_ref(),
+        })?;
         self.last_output = Some(picture.event.poc);
         picture.output = false;
         self.remove_unused();
@@ -752,21 +1023,28 @@ impl Dpb {
         &mut self,
         nal: NalHeader,
         header: &SliceHeader,
-        emit: &mut impl FnMut(OutputEvent) -> Result<()>,
+        emit: &mut impl FnMut(Emission<'_>) -> Result<()>,
     ) -> Result<()> {
+        if self.pending.is_some() {
+            return Err(Error::InvalidData("unfinished DPB picture"));
+        }
         if nal.unit_type == 21 || header.no_output_of_prior_pics {
-            self.pictures = [None; 16];
+            self.pictures = [const { None }; 16];
             Ok(())
         } else {
             self.drain(emit)
         }
     }
 
-    fn drain(&mut self, emit: &mut impl FnMut(OutputEvent) -> Result<()>) -> Result<()> {
+    fn drain(&mut self, emit: &mut impl FnMut(Emission<'_>) -> Result<()>) -> Result<()> {
+        if self.pending.is_some() {
+            return Err(Error::InvalidData("unfinished DPB picture"));
+        }
         while self.pictures.iter().flatten().any(|p| p.output) {
             self.bump(emit)?;
         }
-        self.pictures = [None; 16];
+        self.pictures = [const { None }; 16];
+        self.current_references = References::default();
         Ok(())
     }
 }
@@ -787,6 +1065,7 @@ mod tests {
             conformance_window: [0, 2, 0, 1],
             bit_depth: 8,
             profile_idc: 1,
+            profile_bit_depth_warning: false,
             ctb_log2: 6,
             ctu_count: 1,
             poc_bits: 4,
@@ -806,7 +1085,9 @@ mod tests {
             min_cb_log2: 3,
             min_tb_log2: 2,
             max_tb_log2: 5,
+            max_inter_transform_depth: 0,
             max_intra_transform_depth: 0,
+            amp: false,
             strong_smoothing: false,
             pcm: None,
             scaling_lists: None,
@@ -846,6 +1127,7 @@ mod tests {
             long_term: [LongTermRef::default(); 16],
             long_term_count: 0,
             reference_syntax: None,
+            inter: None,
         }
     }
 
@@ -860,7 +1142,7 @@ mod tests {
     fn push(dpb: &mut Dpb, kind: u8, h: &SliceHeader, s: &Sps) -> Result<Vec<OutputEvent>> {
         let mut events = Vec::new();
         dpb.picture(nal(kind), h, s, &Limits::default(), |event| {
-            events.push(event);
+            events.push(event.event);
             Ok(())
         })?;
         Ok(events)
@@ -869,7 +1151,7 @@ mod tests {
     fn finish(dpb: &mut Dpb) -> Result<Vec<OutputEvent>> {
         let mut events = Vec::new();
         dpb.finish(|event| {
-            events.push(event);
+            events.push(event.event);
             Ok(())
         })?;
         Ok(events)
@@ -877,6 +1159,493 @@ mod tests {
 
     fn pocs(events: &[OutputEvent]) -> Vec<i32> {
         events.iter().map(|e| e.poc).collect()
+    }
+
+    fn info(s: &Sps) -> crate::PictureInfo {
+        crate::PictureInfo {
+            width: s.width,
+            height: s.height,
+            visible_width: s.visible_width,
+            visible_height: s.visible_height,
+            bit_depth: s.bit_depth,
+            profile_idc: s.profile_idc,
+            ctb_log2: s.ctb_log2,
+            tiles: false,
+            wpp: false,
+            conformance_window: s.conformance_window,
+            vui: s.vui,
+        }
+    }
+
+    fn complete(dpb: &mut Dpb, index: u64, s: &Sps) -> Result<Vec<OutputEvent>> {
+        dpb.attach(RetainedPicture::for_test(
+            index,
+            info(s),
+            Some(index as i64),
+        ))?;
+        let mut events = Vec::new();
+        dpb.resume(|emission| {
+            let picture = emission.picture.ok_or(Error::InvalidData("test samples"))?;
+            assert_eq!(picture.index(), emission.event.picture_index);
+            assert_eq!(picture.timestamp(), Some(picture.index() as i64));
+            events.push(emission.event);
+            Ok(())
+        })?;
+        Ok(events)
+    }
+
+    #[test]
+    fn reconstructed_samples_wait_for_attachment_and_suffix_boundary() -> Result<()> {
+        let mut s = sps();
+        s.max_reorder = [0; 7];
+        let mut dpb = Dpb::new_reconstruction();
+        assert_eq!(dpb.heap_bytes()?, 0);
+        assert!(push(&mut dpb, 19, &header(0, &[]), &s)?.is_empty());
+        assert!(dpb.reconstructs(0));
+        assert_eq!(dpb.heap_bytes()?, 0);
+        let identity = ReferenceIdentity {
+            index: 0,
+            poc: 0,
+            long_term: false,
+        };
+        assert_eq!(dpb.current_identity(0)?, identity);
+        assert!(dpb.reference(identity).is_err());
+        let samples = RetainedPicture::for_test(0, info(&s), Some(123));
+        let bytes = samples.heap_bytes()?;
+        assert!(bytes > 0);
+        dpb.attach(samples)?;
+        assert_eq!(dpb.heap_bytes()?, bytes);
+        assert!(dpb.reference(identity).is_err());
+        assert_eq!(dpb.last_output, None);
+        let mut events = Vec::new();
+        dpb.resume(|emission| {
+            let picture = emission.picture.ok_or(Error::InvalidData("test samples"))?;
+            assert_eq!(picture.index(), 0);
+            assert_eq!(picture.timestamp(), Some(123));
+            assert_eq!(picture.info(), info(&s));
+            assert_eq!(
+                picture
+                    .view()
+                    .planes
+                    .first()
+                    .and_then(|p| p.samples.first()),
+                Some(&42)
+            );
+            events.push(emission.event);
+            Ok(())
+        })?;
+        assert_eq!(pocs(&events), [0]);
+        assert_eq!(dpb.reference(identity)?.index(), 0);
+        assert_eq!(dpb.heap_bytes()?, bytes);
+        dpb.resume(|_| Err(Error::InvalidData("duplicate output")))?;
+        assert!(finish(&mut dpb)?.is_empty());
+        assert_eq!(dpb.heap_bytes()?, 0);
+        assert!(!dpb.reconstructs(0));
+        assert!(dpb.reference(identity).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn eager_bumps_emit_ready_predecessors_but_stop_at_pending_samples() -> Result<()> {
+        let mut s = sps();
+        s.max_reorder = [1; 7];
+        let mut dpb = Dpb::new_reconstruction();
+        assert!(push(&mut dpb, 19, &header(0, &[]), &s)?.is_empty());
+        assert!(complete(&mut dpb, 0, &s)?.is_empty());
+        let bytes = dpb.heap_bytes()?;
+        assert_eq!(
+            pocs(&push(&mut dpb, 1, &header(3, &[(-3, false)]), &s)?),
+            [0]
+        );
+        assert_eq!(dpb.heap_bytes()?, bytes);
+        assert!(complete(&mut dpb, 1, &s)?.is_empty());
+        assert_eq!(dpb.heap_bytes()?, 2 * bytes);
+        assert!(push(&mut dpb, 1, &header(1, &[(2, true)]), &s)?.is_empty());
+        assert!(!dpb.reconstructs(0));
+        assert_eq!(dpb.heap_bytes()?, bytes);
+        assert_eq!(pocs(&complete(&mut dpb, 2, &s)?), [1]);
+        assert_eq!(pocs(&finish(&mut dpb)?), [3]);
+        assert_eq!(dpb.heap_bytes()?, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn resumed_reorder_and_latency_bumps_match_header_mode() -> Result<()> {
+        let mut s = sps();
+        s.max_latency = [1; 7];
+        let mut headers = Dpb::new();
+        let mut decoded = Dpb::new_reconstruction();
+        for (index, (kind, poc)) in [(19, 0), (1, 5), (1, 3), (1, 1)].into_iter().enumerate() {
+            let h = header(poc, &[]);
+            let expected = push(&mut headers, kind, &h, &s)?;
+            let mut actual = push(&mut decoded, kind, &h, &s)?;
+            actual.extend(complete(&mut decoded, index as u64, &s)?);
+            assert_eq!(actual, expected);
+            if index == 3 {
+                assert_eq!(pocs(&actual), [1, 3, 5]);
+            }
+        }
+        assert_eq!(finish(&mut decoded)?, finish(&mut headers)?);
+        assert_eq!(decoded.heap_bytes()?, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn unfinished_pictures_cannot_be_skipped_by_first_slice_drain_or_cvsg() -> Result<()> {
+        let s = sps();
+        for output in [false, true] {
+            for attached in [false, true] {
+                for operation in 0..4 {
+                    let mut dpb = Dpb::new_reconstruction();
+                    let mut h = header(0, &[]);
+                    h.output = Some(output);
+                    push(&mut dpb, 19, &h, &s)?;
+                    if attached {
+                        dpb.attach(RetainedPicture::for_test(0, info(&s), None))?;
+                    }
+                    let mut calls = 0;
+                    let mut emit = |_: Emission<'_>| {
+                        calls += 1;
+                        Ok(())
+                    };
+                    let result = match operation {
+                        0 => dpb
+                            .picture(nal(1), &header(1, &[]), &s, &Limits::default(), &mut emit)
+                            .map(|_| ()),
+                        1 => dpb.finish(&mut emit),
+                        2 => dpb.start_cvsg(nal(19), &header(0, &[]), &mut emit),
+                        _ => {
+                            let mut h = header(0, &[]);
+                            h.no_output_of_prior_pics = true;
+                            dpb.start_cvsg(nal(19), &h, &mut emit)
+                        }
+                    };
+                    assert_eq!(result, Err(Error::InvalidData("unfinished DPB picture")));
+                    assert_eq!(calls, 0);
+                    assert_eq!(dpb.heap_bytes()?, 0);
+                    assert!(!dpb.reconstructs(0));
+                    assert_eq!(
+                        dpb.finish(|_| Ok(())),
+                        Err(Error::InvalidData("DPB session ended"))
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn attachments_validate_identity_geometry_uniqueness_and_completion() -> Result<()> {
+        let s = sps();
+        for field in 0..8 {
+            let mut dpb = Dpb::new_reconstruction();
+            push(&mut dpb, 19, &header(0, &[]), &s)?;
+            let mut format = info(&s);
+            let index = u64::from(field == 0);
+            match field {
+                1 => format.width = 32,
+                2 => format.height = 32,
+                3 => format.visible_width -= 2,
+                4 => format.visible_height -= 2,
+                5 => format.bit_depth = 10,
+                6 => format.conformance_window = [1, 1, 0, 1],
+                7 => dpb.attach(RetainedPicture::for_test(0, format, None))?,
+                _ => {}
+            }
+            assert_eq!(
+                dpb.attach(RetainedPicture::for_test(index, format, None)),
+                Err(Error::InvalidData("DPB picture attachment"))
+            );
+            assert_eq!(dpb.heap_bytes()?, 0);
+            assert_eq!(dpb.fullness(), 0);
+            assert_eq!(
+                dpb.resume(|_| Ok(())),
+                Err(Error::InvalidData("DPB session ended"))
+            );
+        }
+        let mut dpb = Dpb::new_reconstruction();
+        push(&mut dpb, 19, &header(0, &[]), &s)?;
+        assert_eq!(
+            dpb.resume(|_| Ok(())),
+            Err(Error::InvalidData("unfinished DPB picture"))
+        );
+        assert_eq!(dpb.heap_bytes()?, 0);
+        let mut headers = Dpb::new();
+        push(&mut headers, 19, &header(0, &[]), &s)?;
+        assert_eq!(headers.heap_bytes()?, 0);
+        assert_eq!(
+            headers.attach(RetainedPicture::for_test(0, info(&s), None)),
+            Err(Error::InvalidData("no pending DPB picture"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn callback_failures_and_explicit_failure_release_all_retained_samples() -> Result<()> {
+        let mut s = sps();
+        for operation in 0..5 {
+            let mut dpb = Dpb::new_reconstruction();
+            s.max_reorder = [if operation == 0 { 0 } else { 1 }; 7];
+            push(&mut dpb, 19, &header(0, &[]), &s)?;
+            dpb.attach(RetainedPicture::for_test(0, info(&s), None))?;
+            if operation != 0 {
+                dpb.resume(|_| Ok(()))?;
+            }
+            assert!(dpb.heap_bytes()? > 0);
+            let mut calls = 0;
+            let mut fail = |emission: Emission<'_>| {
+                assert!(emission.picture.is_some());
+                calls += 1;
+                Err(Error::Limit("test callback"))
+            };
+            let result = match operation {
+                0 => dpb.resume(&mut fail),
+                1 => dpb
+                    .picture(nal(1), &header(1, &[]), &s, &Limits::default(), &mut fail)
+                    .map(|_| ()),
+                2 => dpb.finish(&mut fail),
+                3 => dpb.start_cvsg(nal(19), &header(0, &[]), &mut fail),
+                _ => {
+                    dpb.fail();
+                    Err(Error::Limit("test callback"))
+                }
+            };
+            assert_eq!(result, Err(Error::Limit("test callback")));
+            assert_eq!(calls, usize::from(operation != 4));
+            assert_eq!(dpb.heap_bytes()?, 0);
+            assert_eq!(dpb.fullness(), 0);
+            assert_eq!(dpb.current_references(), References::default());
+            assert_eq!(
+                dpb.finish(|_| Ok(())),
+                Err(Error::InvalidData("DPB session ended"))
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn prior_output_rules_release_samples_and_preserve_reconstruction_mode() -> Result<()> {
+        let s = sps();
+        for (kind, discard) in [(19, false), (19, true), (21, false)] {
+            let mut dpb = Dpb::new_reconstruction();
+            push(&mut dpb, 19, &header(0, &[]), &s)?;
+            complete(&mut dpb, 0, &s)?;
+            assert!(dpb.heap_bytes()? > 0);
+            let mut next = header(0, &[]);
+            next.no_output_of_prior_pics = discard;
+            if kind == 21 {
+                dpb.end_sequence();
+            }
+            let mut events = Vec::new();
+            dpb.start_cvsg(nal(kind), &next, |emission| {
+                assert_eq!(emission.picture.map(RetainedPicture::index), Some(0));
+                events.push(emission.event);
+                Ok(())
+            })?;
+            assert_eq!(events.len(), usize::from(kind != 21 && !discard));
+            assert_eq!(dpb.heap_bytes()?, 0);
+            assert_eq!(dpb.fullness(), 0);
+            assert_eq!(dpb.count, 1);
+            assert!(dpb.reconstruction);
+            assert_eq!(dpb.current_references(), References::default());
+            assert!(push(&mut dpb, kind, &next, &s)?.is_empty());
+            assert!(dpb.reconstructs(1));
+            complete(&mut dpb, 1, &s)?;
+            assert_eq!(pocs(&finish(&mut dpb)?), [0]);
+            assert_eq!(dpb.heap_bytes()?, 0);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn current_reference_snapshot_follows_normative_classes_and_request_order() -> Result<()> {
+        let mut s = sps();
+        s.poc_bits = 8;
+        s.max_dpb = [16; 7];
+        s.max_reorder = [15; 7];
+        let mut dpb = Dpb::new_reconstruction();
+        let previous = [0, 2, 4, 8, 10, 12, 14];
+        for (index, &poc) in previous.iter().enumerate() {
+            let entries: Vec<_> = previous
+                .iter()
+                .take(index)
+                .rev()
+                .map(|&p| (p - poc, false))
+                .collect();
+            let mut h = header(poc as u32, &entries);
+            h.output = Some(false);
+            assert!(push(&mut dpb, if index == 0 { 19 } else { 1 }, &h, &s)?.is_empty());
+            complete(&mut dpb, index as u64, &s)?;
+        }
+        let mut h = header(
+            6,
+            &[(-2, true), (-4, false), (-6, true), (2, true), (6, true)],
+        );
+        h.output = Some(false);
+        h.long_term_count = 2;
+        for (entry, lsb) in h.long_term.iter_mut().zip([14, 10]) {
+            *entry = LongTermRef {
+                poc_lsb: lsb,
+                used: true,
+                delta_msb_cycle: None,
+            };
+        }
+        push(&mut dpb, 1, &h, &s)?;
+        let refs = dpb.current_references();
+        assert_eq!((refs.before, refs.after, refs.long_term), (2, 2, 2));
+        let expected = [
+            (2, 4, false),
+            (0, 0, false),
+            (3, 8, false),
+            (5, 12, false),
+            (6, 14, true),
+            (4, 10, true),
+        ];
+        for (actual, (index, poc, long_term)) in refs.entries.iter().zip(expected) {
+            let identity = ReferenceIdentity {
+                index,
+                poc,
+                long_term,
+            };
+            assert_eq!(*actual, Some(identity));
+            assert_eq!(dpb.reference(identity)?.index(), index);
+        }
+        assert!(refs.entries.iter().skip(6).all(Option::is_none));
+        assert!(dpb.reconstructs(1));
+        complete(&mut dpb, 7, &s)?;
+        let mut next = header(7, &[(-7, true)]);
+        next.output = Some(false);
+        next.long_term_count = 1;
+        if let Some(entry) = next.long_term.first_mut() {
+            *entry = LongTermRef {
+                poc_lsb: 4,
+                used: true,
+                delta_msb_cycle: None,
+            };
+        }
+        push(&mut dpb, 1, &next, &s)?;
+        let new = dpb.current_references();
+        assert_eq!((new.before, new.after, new.long_term), (1, 0, 1));
+        assert_eq!(
+            new.entries.get(1),
+            Some(&Some(ReferenceIdentity {
+                index: 2,
+                poc: 4,
+                long_term: true
+            }))
+        );
+        assert!(dpb.current_identity(2)?.long_term);
+        assert_eq!(
+            refs.entries.first(),
+            Some(&Some(ReferenceIdentity {
+                index: 2,
+                poc: 4,
+                long_term: false
+            }))
+        );
+        complete(&mut dpb, 8, &s)?;
+        finish(&mut dpb)?;
+        assert_eq!(dpb.heap_bytes()?, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn reference_identity_never_aliases_a_recycled_slot_or_repeated_poc() -> Result<()> {
+        let mut s = sps();
+        s.max_reorder = [0; 7];
+        let mut dpb = Dpb::new_reconstruction();
+        push(&mut dpb, 19, &header(0, &[]), &s)?;
+        complete(&mut dpb, 0, &s)?;
+        let old = ReferenceIdentity {
+            index: 0,
+            poc: 0,
+            long_term: false,
+        };
+        assert_eq!(dpb.reference(old)?.index(), 0);
+        assert!(dpb.reference(ReferenceIdentity { poc: 1, ..old }).is_err());
+        assert!(
+            dpb.reference(ReferenceIdentity { index: 1, ..old })
+                .is_err()
+        );
+        push(&mut dpb, 19, &header(0, &[]), &s)?;
+        assert!(dpb.reference(old).is_err());
+        assert!(!dpb.reconstructs(0));
+        complete(&mut dpb, 1, &s)?;
+        assert!(dpb.reference(old).is_err());
+        assert_eq!(
+            dpb.reference(ReferenceIdentity { index: 1, ..old })?
+                .index(),
+            1
+        );
+        dpb.fail();
+        assert!(
+            dpb.reference(ReferenceIdentity { index: 1, ..old })
+                .is_err()
+        );
+        assert_eq!(dpb.heap_bytes()?, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn generated_unavailable_references_never_acquire_or_alias_pixels() -> Result<()> {
+        let mut s = sps();
+        s.max_reorder = [0; 7];
+        let mut dpb = Dpb::new_reconstruction();
+        push(&mut dpb, 21, &header(8, &[(-3, false)]), &s)?;
+        assert_eq!(dpb.heap_bytes()?, 0);
+        assert_eq!(dpb.fullness(), 2);
+        complete(&mut dpb, 0, &s)?;
+        let unavailable = ReferenceIdentity {
+            index: 0,
+            poc: 5,
+            long_term: false,
+        };
+        assert!(dpb.reference(unavailable).is_err());
+        assert_eq!(dpb.current_references(), References::default());
+        let mut radl = header(7, &[(-2, false)]);
+        radl.output = Some(false);
+        push(&mut dpb, 7, &radl, &s)?;
+        assert!(!dpb.reconstructs(0));
+        assert!(dpb.reconstructs(1));
+        assert!(dpb.current_identity(0).is_err());
+        assert_eq!(dpb.heap_bytes()?, 0);
+        assert!(dpb.reference(unavailable).is_err());
+        complete(&mut dpb, 1, &s)?;
+        assert!(dpb.reference(unavailable).is_err());
+        assert!(
+            dpb.pictures
+                .iter()
+                .flatten()
+                .filter(|p| p.generated)
+                .all(|p| p.samples.is_none())
+        );
+        finish(&mut dpb)?;
+        assert_eq!(dpb.heap_bytes()?, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn extracted_and_suppressed_pictures_reset_current_reference_snapshot() -> Result<()> {
+        let mut s = sps();
+        let mut dpb = Dpb::new();
+        push(&mut dpb, 19, &header(0, &[]), &s)?;
+        push(&mut dpb, 1, &header(1, &[(-1, true)]), &s)?;
+        assert_eq!(dpb.current_references().before, 1);
+        s.sub_layers = 1;
+        let mut n = nal(1);
+        n.temporal_id = 1;
+        dpb.picture(n, &header(2, &[]), &s, &Limits::default(), |_| Ok(()))?;
+        assert!(!dpb.reconstructs(2));
+        assert_eq!(dpb.current_references(), References::default());
+        assert_eq!(dpb.heap_bytes()?, 0);
+        let mut dpb = Dpb::new();
+        push(&mut dpb, 21, &header(4, &[]), &s)?;
+        push(&mut dpb, 7, &header(3, &[(1, true)]), &s)?;
+        assert_eq!(dpb.current_references().after, 1);
+        push(&mut dpb, 9, &header(2, &[]), &s)?;
+        assert!(!dpb.reconstructs(2));
+        assert_eq!(dpb.current_references(), References::default());
+        Ok(())
     }
 
     #[test]
@@ -1053,7 +1822,8 @@ mod tests {
             PictureOrder {
                 poc: 5,
                 output: false,
-                no_rasl_output: true
+                no_rasl_output: true,
+                reconstruction_required: false,
             }
         );
         push(&mut dpb, 1, &header(9, &[(-1, true)]), &s)?;
@@ -1231,7 +2001,7 @@ mod tests {
         n.temporal_id = 1;
         let mut output = Vec::new();
         let order = dpb.picture(n, &header(1, &[]), &s, &Limits::default(), |event| {
-            output.push(event);
+            output.push(event.event);
             Ok(())
         })?;
         assert!(order.output);
@@ -1473,6 +2243,28 @@ mod tests {
                 |_| Ok(())
             ),
             Err(Error::InvalidData("reference precedes STSA"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn complete_layers_warn_on_a_temporal_nesting_nal_type() -> Result<()> {
+        let mut dpb = Dpb::new();
+        let mut s = sps();
+        s.sub_layers = 1;
+        s.temporal_nesting = true;
+        push(&mut dpb, 19, &header(0, &[]), &s)?;
+        let mut n = nal(1);
+        n.temporal_id = 1;
+        let order = dpb.picture(n, &header(1, &[(-1, true)]), &s, &Limits::default(), |_| {
+            Ok(())
+        })?;
+        assert_eq!(order.poc, 1);
+        assert!(dpb.warnings.temporal_nesting_nal_type);
+        n.temporal_id = 2;
+        assert_eq!(
+            dpb.picture(n, &header(2, &[]), &s, &Limits::default(), |_| Ok(())),
+            Err(Error::InvalidData("DPB temporal_id"))
         );
         Ok(())
     }

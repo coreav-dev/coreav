@@ -1,0 +1,30 @@
+[
+  {
+    "arm": "main",
+    "input_sha256": "ea684713a5bed3eb044a1251da92d412f1b85044385bc7eb766db5b0e07c4ded",
+    "tick_hz": 100,
+    "sample_interval_seconds": 0.05,
+    "writer_last_observation": {
+      "user_ticks": 7,
+      "system_ticks": 366,
+      "voluntary": 252646,
+      "involuntary": 50676
+    },
+    "output_sha256": "e2ee77922ce8c9b2158dc48626929f24a798b7d96b0073b66478ead5977ef33a",
+    "frames": 1593
+  },
+  {
+    "arm": "candidate",
+    "input_sha256": "ea684713a5bed3eb044a1251da92d412f1b85044385bc7eb766db5b0e07c4ded",
+    "tick_hz": 100,
+    "sample_interval_seconds": 0.05,
+    "writer_last_observation": {
+      "user_ticks": 13,
+      "system_ticks": 406,
+      "voluntary": 226154,
+      "involuntary": 51106
+    },
+    "output_sha256": "e2ee77922ce8c9b2158dc48626929f24a798b7d96b0073b66478ead5977ef33a",
+    "frames": 1593
+  }
+]

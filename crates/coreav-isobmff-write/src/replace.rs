@@ -446,6 +446,21 @@ pub(crate) fn audio_edits_exact<R>(
     exact(replacement.start) && exact(replacement.presented)
 }
 
+pub(crate) fn roll_boxes_all(samples: u32, roll: u16) -> Vec<RawBox> {
+    let mut boxes = roll_boxes(samples, roll);
+    for entry in &mut boxes {
+        if entry.kind.0 == *b"sbgp" {
+            let mut payload = vec![0, 0, 0, 0];
+            payload.extend_from_slice(b"roll");
+            payload.extend_from_slice(&1u32.to_be_bytes());
+            payload.extend_from_slice(&samples.to_be_bytes());
+            payload.extend_from_slice(&1u32.to_be_bytes());
+            entry.payload = payload;
+        }
+    }
+    boxes
+}
+
 /// The audio replacement's `roll` sample group (ISO/IEC 14496-12 8.9.3
 /// and 8.9.2): a version 1 description of one `AudioRollRecoveryEntry`,
 /// and the first `roll` of `samples` samples outside the group, every

@@ -239,8 +239,9 @@ pub struct ClipSummary {
     pub audio: Option<ClipTrack>,
     /// The requested start.
     pub start: Rational,
-    /// Where the clip starts: the presentation time of its first sync
-    /// sample; the output's time 0.
+    /// Where presentation starts on the source timeline; the output's time 0.
+    /// Native clipping may snap to an earlier sync sample. Audio-bearing
+    /// input-seek copies use the requested start and hide decode pre-roll.
     pub snapped_start: Rational,
     /// The requested end, `None` for the end of the video.
     pub end: Option<Rational>,

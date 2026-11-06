@@ -80,19 +80,7 @@ fn picture(
         "ctb_log2":picture.info.ctb_log2,
         "profile_idc":picture.info.profile_idc,"conformance_window":picture.info.conformance_window,
         "planes":planes,"output_bytes":bytes,"packing":"planar_y_cb_cr_u16le",
-        "stats":{"ctus":stats.ctus,"coding_units":stats.coding_units,
-            "transform_units":stats.transform_units,"nonzero_transform_units":stats.nonzero_transform_units,
-            "transform_skips":stats.transform_skips,"transquant_bypass_units":stats.transquant_bypass_units,
-            "pcm_units":stats.pcm_units,"dependent_segments":stats.dependent_segments,
-            "tile_restarts":stats.tile_restarts,"wpp_restarts":stats.wpp_restarts,
-            "qp_deltas":stats.qp_deltas,"nonzero_qp_deltas":stats.nonzero_qp_deltas,
-            "scaling_list_blocks":stats.scaling_list_blocks,"sign_hidden_groups":stats.sign_hidden_groups,
-            "dst_blocks":stats.dst_blocks,"bins":stats.bins,"picture_hashes":stats.picture_hashes,
-            "reserved_hashes":stats.reserved_hashes,"memory_bytes":stats.memory_bytes,
-            "deblock_edges":stats.deblock_edges,"deblock_changed_samples":stats.deblock_changed_samples,
-            "sao_blocks":stats.sao_blocks,"sao_changed_samples":stats.sao_changed_samples,"sao_merges":stats.sao_merges,
-            "luma_modes":stats.luma_modes.as_slice(),"chroma_modes":stats.chroma_modes.as_slice(),
-            "dct_blocks":stats.dct_blocks.as_slice()}}),
+        "stats":common::reconstruction_stats(stats)}),
     )
 }
 

@@ -1,9 +1,11 @@
 import copy
 import hashlib
+import http.client
 import importlib.util
 import json
 import pathlib
 import os
+import ssl
 import stat
 import sys
 import tempfile
@@ -16,6 +18,89 @@ PATH = pathlib.Path(__file__).resolve().parents[1] / 'hevc_conformance.py'
 SPEC = importlib.util.spec_from_file_location('hevc_conformance', PATH)
 runner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runner)
+
+
+class AcquisitionRetries(unittest.TestCase):
+    def test_tls_eof_retries_without_replacing_the_capped_pool(self):
+        pool = mock.Mock()
+        limits = pool.limits
+        pool.head.side_effect = [ssl.SSLEOFError(), (3, 'etag')]
+        reader = runner.Acquisition(pool)
+        with mock.patch.object(runner.time, 'sleep') as sleep:
+            self.assertEqual(reader.head('fixture'), (3, 'etag'))
+        self.assertIs(reader.pool, pool)
+        self.assertIs(pool.limits, limits)
+        self.assertEqual(pool.head.call_args_list, [mock.call('fixture')] * 2)
+        sleep.assert_called_once_with(1)
+
+    def test_other_tls_failures_do_not_retry(self):
+        for failure in (ssl.SSLCertVerificationError(), ssl.SSLError()):
+            with self.subTest(error=type(failure).__name__):
+                pool = mock.Mock()
+                pool.head.side_effect = failure
+                with mock.patch.object(runner.time, 'sleep') as sleep:
+                    with self.assertRaises(type(failure)):
+                        runner.Acquisition(pool).head('fixture')
+                self.assertEqual(pool.head.call_count, 1)
+                sleep.assert_not_called()
+
+    def test_a_closed_idle_connection_retries_the_same_capped_pool(self):
+        pool = mock.Mock()
+        limits = pool.limits
+        pool.head.side_effect = [http.client.RemoteDisconnected(), (3, 'etag')]
+        reader = runner.Acquisition(pool)
+        with mock.patch.object(runner.time, 'sleep') as sleep:
+            self.assertEqual(reader.head('fixture'), (3, 'etag'))
+        self.assertIs(reader.pool, pool)
+        self.assertIs(pool.limits, limits)
+        self.assertEqual(pool.head.call_args_list, [mock.call('fixture')] * 2)
+        sleep.assert_called_once_with(1)
+
+    def test_partial_range_retry_preserves_offsets_etag_and_sink(self):
+        pool = mock.Mock()
+        target = bytearray(b'------')
+        calls = []
+
+        def sink(offset, data):
+            target[offset:offset + len(data)] = data
+
+        def get(key, size, etag, offset, length, *, sink):
+            calls.append((key, size, etag, offset, length))
+            if len(calls) == 1:
+                sink(offset, b'xx')
+                raise http.client.IncompleteRead(b'xx', 1)
+            sink(offset, b'abc')
+            return 3
+
+        pool.get.side_effect = get
+        with mock.patch.object(runner.time, 'sleep'):
+            result = runner.Acquisition(pool).get('fixture', 6, 'etag', 2, 3, sink=sink)
+        self.assertEqual(result, 3)
+        self.assertEqual(target, b'--abc-')
+        self.assertEqual(calls, [('fixture', 6, 'etag', 2, 3)] * 2)
+
+    def test_transport_exhaustion_is_bounded_and_still_fails(self):
+        pool = mock.Mock()
+        failure = http.client.RemoteDisconnected()
+        pool.head.side_effect = failure
+        with mock.patch.object(runner.time, 'sleep') as sleep:
+            with self.assertRaises(http.client.RemoteDisconnected) as caught:
+                runner.Acquisition(pool).head('fixture')
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(pool.head.call_count, 3)
+        self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)])
+
+    def test_budget_and_response_integrity_failures_never_retry(self):
+        for failure in [RuntimeError('R2 run cap exceeded'), RuntimeError('unexpected ETag'),
+                        ValueError('invalid range')]:
+            with self.subTest(failure=type(failure).__name__):
+                pool = mock.Mock()
+                pool.get.side_effect = failure
+                with mock.patch.object(runner.time, 'sleep') as sleep:
+                    with self.assertRaises(type(failure)):
+                        runner.Acquisition(pool).get('fixture', 3, 'etag')
+                self.assertEqual(pool.get.call_count, 1)
+                sleep.assert_not_called()
 
 
 class OracleDiagnostics(unittest.TestCase):
@@ -950,8 +1035,9 @@ class Conformance(unittest.TestCase):
             path.write_bytes(b'abc')
             return path
 
-        def inspect(item, path, out, oracle, *, intra=None):
+        def inspect(item, path, out, oracle, *, intra=None, complete=None):
             self.assertIsNone(intra)
+            self.assertIsNone(complete)
             self.assertEqual(path.read_bytes(), b'abc')
             return dict(item, status='inspected')
 
@@ -969,8 +1055,27 @@ class Conformance(unittest.TestCase):
         receipt = runner.read_json(args.out / 'corpus-census.json')
         self.assertEqual([f['status'] for f in receipt['files']], ['inspected', 'inspected'])
         self.assertFalse(receipt['complete'])
+        self.assertFalse(receipt['passed'])
         self.assertTrue(all('key' not in f for f in receipt['files']))
         pool.close.assert_called_once()
+
+    def test_configuration_diagnostics_stay_out_of_public_census_records(self):
+        source = self.root / 'original.mp4'
+        source.write_bytes(b'abc')
+        out, err = self.root / 'metadata.stdout', self.root / 'metadata.stderr'
+        runner.write_json(out, dict(format=dict(format_name='mp4'), streams=[dict(codec_type='video', codec_name='hevc',
+            profile='Main 10', width=16, height=16, pix_fmt='yuv420p10le', extradata='private configuration canary')]))
+        err.write_text('')
+        item = dict(sha256=runner.digest(source), size=3, partition='held-out-partition')
+        oracle = SimpleNamespace(ffmpeg=self.root / 'ffmpeg', ffprobe=self.root / 'ffprobe')
+        with mock.patch.object(runner, 'child', return_value=(0, out, err)) as child:
+            record = runner.corpus_record(item, source, self.root, oracle)
+        self.assertEqual(child.call_args.args[0][0], oracle.ffprobe)
+        self.assertIn('-show_data', child.call_args.args[0])
+        self.assertEqual(record['status'], 'inspected')
+        self.assertNotIn('canary', json.dumps(record))
+        self.assertNotIn('canary', json.dumps(runner.corpus_result([record])))
+        self.assertIn('canary', out.read_text())
 
     def test_development_pixel_work_never_decodes_the_metadata_only_partition(self):
         source = self.root / 'original.mp4'
