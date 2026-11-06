@@ -91,7 +91,11 @@ impl<'a> Configuration<'a> {
                 if !matches!(unit_type, 32..=34 | 39 | 40) {
                     return Err(invalid("hvcC array is not initialization data"));
                 }
-                feed(nal)?;
+                feed(
+                    coreav_hevc::packet_nal(nal, coreav_hevc::Limits::default().max_nal_bytes)
+                        .map_err(codec_error)?
+                        .0,
+                )?;
                 remaining = remaining
                     .get(length..)
                     .ok_or(invalid("truncated hvcC NAL"))?;

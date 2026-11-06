@@ -118,6 +118,42 @@ fn native_frames_preserve_depth_pts_and_discard_through_eof() -> Result<()> {
 }
 
 #[test]
+fn stored_terminal_zero_padding_follows_the_annex_b_rule_in_configuration_and_packets() -> Result<()>
+{
+    let fixture = pcm::pcm_fixture(8, 8, false)?;
+    let padded = |nal: &Vec<u8>| {
+        let mut nal = nal.clone();
+        nal.push(0);
+        nal
+    };
+    let sets = [
+        padded(&fixture.sets[0]),
+        padded(&fixture.sets[1]),
+        padded(&fixture.sets[2]),
+    ];
+    let mut stream = StreamConfig::new(Codec::Hevc);
+    stream.config = Some(configuration(&sets, 8));
+    let mut decoder = NativeHevc::new().open(&stream, &Limits::default())?;
+    decoder.send_packet(&packet(
+        &access_unit([padded(&fixture.nal)], true),
+        Some(3),
+        false,
+    ))?;
+    decoder.send_eof()?;
+    let frame = decoder.receive_frame()?.ok_or("no frame")?;
+    assert_eq!(frame.pts, Some(3));
+    let Pixels::Cpu(picture) = frame.pixels else {
+        return Err("not CPU output".into());
+    };
+    for (plane, samples) in picture.planes().iter().zip(&fixture.planes) {
+        let expected: Vec<u8> = samples.iter().map(|value| *value as u8).collect();
+        assert_eq!(plane.data(), expected);
+    }
+    assert!(decoder.receive_frame()?.is_none());
+    Ok(())
+}
+
+#[test]
 fn malformed_or_multi_picture_access_units_close_and_discard_queued_output() -> Result<()> {
     let fixture = pcm::pcm_fixture(8, 8, false)?;
     for bad in [
