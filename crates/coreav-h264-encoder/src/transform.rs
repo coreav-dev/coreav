@@ -42,6 +42,14 @@ pub(crate) fn forward(samples: &[i32; 16]) -> Result<[i64; 16]> {
     matrix::<false>(samples.map(i64::from))
 }
 
+pub(crate) fn satd(samples: &[i32; 16]) -> Result<u64> {
+    Ok(matrix::<true>(samples.map(i64::from))?
+        .into_iter()
+        .map(i64::unsigned_abs)
+        .sum::<u64>()
+        / 2)
+}
+
 fn line<const DC: bool>([a, b, c, d]: [i64; 4]) -> [i64; 4] {
     if DC {
         let (p, q, r, s) = (a + b, c + d, a - b, c - d);
@@ -195,6 +203,31 @@ mod tests {
                 .map(|(k, sample)| basis[p / 4][k / 4] * sample * basis[p % 4][k % 4])
                 .sum()
         })
+    }
+
+    #[test]
+    fn satd_matches_the_direct_matrix_for_constant_impulse_and_signed_residuals() {
+        let mut samples = vec![[0; 16], [255; 16], [-255; 16]];
+        for position in 0..16 {
+            for value in [i32::MIN, -255, -1, 1, 255, i32::MAX] {
+                let mut block = [0; 16];
+                block[position] = value;
+                samples.push(block);
+            }
+        }
+        for seed in 0..128i32 {
+            samples.push(std::array::from_fn(|k| {
+                (seed * 73 + k as i32 * 131 + k as i32 * seed * 17) % 511 - 255
+            }));
+        }
+        for input in samples {
+            let expected = generic(input.map(i64::from), &HADAMARD)
+                .into_iter()
+                .map(i64::unsigned_abs)
+                .sum::<u64>()
+                / 2;
+            assert_eq!(satd(&input).unwrap(), expected);
+        }
     }
 
     #[test]
