@@ -1,10 +1,10 @@
-# Transcode frame handoff, phase B
+# Transcode frame handoff
 
 ## Goal and constraints
 
 Reduce the remaining end-to-end time against FFmpeg using the same decoder source revisions and encoder settings. The target is within 1%; measurements are reference figures, not a judged speed claim. Keep the decoder sandbox, separate encoder process, deadlines, memory limits, descriptor validation and bounded slot ownership. Keep default and release builds free of GPL dependencies. Complete output files must remain byte-identical to main.
 
-Outcome: reject the evaluated snapshot helper. It preserves complete-file bytes but regresses the AV1 and VP9 x264 cohort medians. The production encoder paths and their licensing are unchanged. See the [full reference results](../measurements/transcode-frame-handoff.md#phase-b-rejected-snapshot-helper).
+Outcome: reject the evaluated snapshot helper and the final pipe-batching candidate. Neither gives a measurable full-cohort gain. The production encoder paths and their licensing are unchanged. See the [helper results](../measurements/transcode-frame-handoff.md#phase-b-rejected-snapshot-helper) and [final pipe results](../measurements/transcode-frame-handoff.md#final-round-rejected-pipe-batching).
 
 ## Profile before implementation
 
@@ -79,7 +79,7 @@ Repeat the phase A method on all six AV1 and ten VP9 inputs, using three rotated
 
 ## Final pipe round
 
-Evaluate one bounded round without changing the encoder executable, decoder isolation, publication credits or default build. The same sixteen inputs, two encoder programs and three rotated calls supply reference figures, not new acceptance bars. Keep complete-file identity with main. If neither target gives a measurable gain, remove the runtime candidate and retain the negative result in this document and the measurement page. Do not retry the rejected helper, page loans or a larger pipe.
+The following plan was committed before the runtime candidate. The completed round rejects that candidate, whose production changes and unsafe-site update are removed. The same sixteen inputs, two encoder programs and three rotated calls supply reference figures, not new acceptance bars. Encoder executables, decoder isolation, publication credits and the default build stay unchanged. The rejected helper, page loans and larger pipes were not retried.
 
 ### Writer batching
 
@@ -96,3 +96,11 @@ The current FFmpeg encoder process already receives native planar `yuv420p10le`,
 ### Verification
 
 Check complete framing bytes, partial writes, invalid ranges before publication, fallback memory, retained frame ownership, encoder failure and cancellation. Run targeted worker and transcode tests, pinned encoder identity fixtures, the unsafe inventory and the main-allowlist similarity guard. The full comparison uses independent main and candidate build directories with the phase A decoder source revisions. Record every elapsed call and complete output hash, plus first-round decoded frame hashes, outside the timed region. Report call variation and remaining distance from FFmpeg even if a partial gain is retained.
+
+### Outcome
+
+All 240 calls succeed and all 96 main/candidate complete-file pairs match. The paired time ratios are AV1 1.0022 with FFmpeg and 1.0048 with x264, and VP9 1.0031 and 0.9979. These changes are smaller than the median within-cell ranges of 1.26–2.43% for the candidate arms. There is no measurable gain, so retain only the result and stop this round without changing the batch size or selecting another candidate.
+
+One separate VP9 writer observation shows voluntary context switches falling from 252,646 to 226,154, but observed writer CPU rises from 3.73 to 4.19 seconds. Fewer wakeups alone do not establish lower end-to-end time. These are last-observed thread counters from one untimed call per arm, not an independent speed measurement.
+
+The pinned x264 binary refuses `i420p10` and the explicit `depth` filter. A lossless 10-to-16-bit left shift produces identical encoded bytes but leaves the same 66,114 scalar `get_frame` instructions on two synthetic frames. This confirms the existing conversion diagnosis rather than a native-input bypass. No pixel conversion, precision reduction, encoder substitution or quality cost is introduced. The [complete results and observations](../measurements/transcode-frame-handoff.md#final-round-rejected-pipe-batching) retain the evidence.

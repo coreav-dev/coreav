@@ -1693,13 +1693,6 @@ impl Chunk {
             Self::Bytes(bytes) => return out.write_all(bytes),
             Self::Frame { head, pixels } => (head, pixels),
         };
-        #[cfg(unix)]
-        if let (Pixels::Shared(picture), Some(pipe)) = (pixels, pipe) {
-            out.flush()?;
-            if picture.memory.write_prefixed_to_pipe(pipe.as_fd(), head)? {
-                return Ok(());
-            }
-        }
         out.write_all(head)?;
         #[cfg(unix)]
         if let (Pixels::Shared(picture), Some(pipe)) = (pixels, pipe) {
@@ -2026,47 +2019,6 @@ mod tests {
                 assert_eq!(out, expected, "{size}");
             }
         }
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn a_shared_frame_batches_its_header_without_reading_pixels() {
-        struct Prefixed(Vec<u8>);
-        impl SharedMemory for Prefixed {
-            fn read_packed(&self, _: usize, _: &mut [u8]) -> Option<usize> {
-                panic!("pixels must use the direct pipe operation")
-            }
-
-            fn write_prefixed_to_pipe(
-                &self,
-                pipe: std::os::fd::BorrowedFd<'_>,
-                prefix: &[u8],
-            ) -> io::Result<bool> {
-                let mut file = std::fs::File::from(pipe.try_clone_to_owned()?);
-                file.write_all(prefix)?;
-                file.write_all(&self.0)?;
-                Ok(true)
-            }
-        }
-        let (mut read, write) = std::io::pipe().unwrap();
-        let pipe = OwnedFd::from(write);
-        let mut out = Vec::new();
-        Chunk::Frame {
-            head: b"header".to_vec(),
-            pixels: Pixels::Shared(SharedPicture {
-                width: 2,
-                height: 2,
-                format: PixelFormat::YUV420P,
-                memory: Arc::new(Prefixed(vec![1, 2, 3, 4, 5, 6])),
-            }),
-        }
-        .write_to(&mut out, &mut Vec::new(), Some(&pipe))
-        .unwrap();
-        drop(pipe);
-        let mut actual = Vec::new();
-        read.read_to_end(&mut actual).unwrap();
-        assert_eq!(actual, b"header\x01\x02\x03\x04\x05\x06");
-        assert!(out.is_empty());
     }
 
     #[test]

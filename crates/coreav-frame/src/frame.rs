@@ -229,15 +229,4 @@ pub trait SharedMemory: Send + Sync {
     fn write_to_pipe(&self, _pipe: std::os::fd::BorrowedFd<'_>) -> std::io::Result<bool> {
         Ok(false)
     }
-
-    /// Writes `prefix` followed by the packed pixels in the same direct
-    /// pipe operation, or returns `false` without writing either.
-    #[cfg(unix)]
-    fn write_prefixed_to_pipe(
-        &self,
-        _pipe: std::os::fd::BorrowedFd<'_>,
-        _prefix: &[u8],
-    ) -> std::io::Result<bool> {
-        Ok(false)
-    }
 }

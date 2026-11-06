@@ -128,17 +128,6 @@ impl ParentMemory {
     /// Writes checked ranges directly to a pipe without borrowing the
     /// worker-writable bytes. The kernel copies them before returning.
     pub fn write_ranges(&self, pipe: BorrowedFd<'_>, ranges: &[Range<usize>]) -> io::Result<()> {
-        self.write_prefixed_ranges(pipe, &[], ranges)
-    }
-
-    /// Writes an owned prefix and checked mapped ranges in one sequence
-    /// of synchronous writes, without borrowing worker-writable bytes.
-    pub fn write_prefixed_ranges(
-        &self,
-        pipe: BorrowedFd<'_>,
-        prefix: &[u8],
-        ranges: &[Range<usize>],
-    ) -> io::Result<()> {
         if ranges
             .iter()
             .any(|r| r.start > r.end || r.end > self.map.len())
@@ -148,40 +137,22 @@ impl ParentMemory {
                 "range outside shared memory",
             ));
         }
-        let prefix = (!prefix.is_empty()).then_some(libc::iovec {
-            iov_base: prefix.as_ptr().cast_mut().cast(),
-            iov_len: prefix.len(),
-        });
-        let mut ranges = prefix
-            .into_iter()
-            .chain(ranges.iter().map(|r| libc::iovec {
-                iov_base: self.map.as_ptr().wrapping_add(r.start).cast_mut().cast(),
-                iov_len: r.len(),
-            }))
-            .filter(|r| r.iov_len > 0)
-            .peekable();
-        let mut vectors = Vec::with_capacity(1024);
+        let mut ranges = ranges.iter();
         loop {
-            vectors.clear();
-            let mut bytes = 0;
-            while bytes < 65_536 && vectors.len() < 1024 {
-                let Some(range) = ranges.peek_mut() else {
-                    break;
-                };
-                let len = range.iov_len.min(65_536 - bytes);
-                vectors.push(libc::iovec {
-                    iov_base: range.iov_base,
-                    iov_len: len,
-                });
-                range.iov_base = range.iov_base.cast::<u8>().wrapping_add(len).cast();
-                range.iov_len -= len;
-                bytes += len;
-                if range.iov_len == 0 {
-                    ranges.next();
-                }
-            }
+            let mut vectors: Vec<libc::iovec> = ranges
+                .by_ref()
+                .take(1024)
+                .filter(|r| !r.is_empty())
+                .map(|r| libc::iovec {
+                    iov_base: self.map.as_ptr().wrapping_add(r.start).cast_mut().cast(),
+                    iov_len: r.len(),
+                })
+                .collect();
             if vectors.is_empty() {
-                return Ok(());
+                if ranges.len() == 0 {
+                    return Ok(());
+                }
+                continue;
             }
             let mut first = 0;
             while first < vectors.len() {
@@ -578,65 +549,6 @@ mod tests {
         drop(input);
         assert!(child.wait().expect("wait").success());
         assert_eq!(reader.join().expect("reader"), expected);
-    }
-
-    #[test]
-    fn prefixed_pipe_batches_keep_exact_bytes_and_copy_before_return() {
-        use std::io::Read;
-        use std::os::fd::AsFd;
-
-        let parent = ParentMemory::create(1 << 20).unwrap();
-        let mut worker = WorkerMemory::open(&parent.path_for_worker(), 1 << 20).unwrap();
-        for (index, byte) in worker.bytes_mut().iter_mut().enumerate() {
-            *byte = (index % 251) as u8;
-        }
-        for size in [0, 1, 4096, 65_536, 65_537, 131_073] {
-            let prefix = vec![253; size];
-            let ranges = [0..0, 7..4093, 65_000..300_003];
-            let mut expected = prefix.clone();
-            for range in &ranges {
-                expected.extend_from_slice(worker.bytes_mut().get(range.clone()).unwrap());
-            }
-            let (mut read, write) = std::io::pipe().unwrap();
-            let reader = std::thread::spawn(move || {
-                let mut bytes = Vec::new();
-                read.read_to_end(&mut bytes).unwrap();
-                bytes
-            });
-            parent
-                .write_prefixed_ranges(write.as_fd(), &prefix, &ranges)
-                .unwrap();
-            drop(write);
-            assert_eq!(reader.join().unwrap(), expected);
-        }
-
-        let (mut read, write) = std::io::pipe().unwrap();
-        assert!(
-            parent
-                .write_prefixed_ranges(
-                    write.as_fd(),
-                    b"must not be written",
-                    std::slice::from_ref(&(0..usize::MAX)),
-                )
-                .is_err()
-        );
-        drop(write);
-        let mut bytes = Vec::new();
-        read.read_to_end(&mut bytes).unwrap();
-        assert!(bytes.is_empty());
-
-        let (mut read, write) = std::io::pipe().unwrap();
-        let prefix = b"header";
-        let mut expected = prefix.to_vec();
-        expected.extend_from_slice(worker.bytes_mut().get(..4090).unwrap());
-        parent
-            .write_prefixed_ranges(write.as_fd(), prefix, std::slice::from_ref(&(0..4090)))
-            .unwrap();
-        worker.bytes_mut().fill(255);
-        drop(write);
-        let mut bytes = Vec::new();
-        read.read_to_end(&mut bytes).unwrap();
-        assert_eq!(bytes, expected);
     }
 
     #[test]
