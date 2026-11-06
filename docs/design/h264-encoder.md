@@ -4,6 +4,8 @@ Status: Safe scalar implementation spike and pre-registered acceptance protocol.
 
 The crate is `crates/coreav-h264-encoder`. It is opt-in in the full build only. The default build links no still-patented codec. G1 does not change `coreav ffmpeg`, `coreav ffprobe`, transcode selection, containers, or release packaging. See the [backend design](encoders.md) for those separate contracts.
 
+This document retains the initial scalar design and evaluation protocol. The later [SIMD policy and design](h264-encoder-simd.md) supersedes its implementation-safety and no-intrinsics statements, with scalar-forced builds and byte-identical output. It changes no original G1 acceptance result.
+
 ## Specification and provenance
 
 The sole codec-design source for this initial design is [Rec. ITU-T H.264, version 15, 08/2024](https://www.itu.int/rec/T-REC-H.264-202408-I/en). The relevant clauses are 6.4 for block order and neighbours, 7 for syntax and semantics, 8.3 for intra prediction, 8.5 for reconstruction, 9.1 and 9.2 for entropy coding, and Annex A for profile and level limits.

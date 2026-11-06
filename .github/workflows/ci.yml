@@ -1161,6 +1161,7 @@ jobs:
           python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
             --report "$RUNNER_TEMP/coreav-ffmpeg.json"
+          COREAV_CURRENT_CI_ORACLE=1 python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_copy_check.py
       - name: Preserve the writers' reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

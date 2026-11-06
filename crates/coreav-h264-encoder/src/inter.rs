@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use super::*;
 use crate::motion::{Layout, Part};
 use coreav_kernels_h264::Block;
@@ -109,9 +111,9 @@ fn predict(
         part.mv.y.rem_euclid(divisor) as u8,
     );
     if chroma {
-        Scalar.chroma_mc(dst, src, xf, yf);
+        crate::kernels::pixels().chroma_mc(dst, src, xf, yf);
     } else {
-        Scalar.luma_mc(dst, src, xf, yf);
+        crate::kernels::pixels().luma_mc(dst, src, xf, yf);
     }
     Ok(())
 }
@@ -266,9 +268,7 @@ impl Search<'_> {
                         .data
                         .get(start..start + part.width)
                         .ok_or(Error::Internal)?;
-                    for (&a, &b) in original.iter().zip(predicted) {
-                        sad += u64::from(a.abs_diff(b));
-                    }
+                    sad += crate::kernels::sad(original, predicted)?;
                 } else {
                     for (x, &a) in original.iter().enumerate() {
                         sad += u64::from(a.abs_diff(reference.sample(ix + x as i32, iy)?));
@@ -283,12 +283,15 @@ impl Search<'_> {
             let mut tile = Tile::empty();
             predict(reference, &mut tile, part, self.mx, self.my, false)?;
             for y in part.y..part.y + part.height {
-                for x in part.x..part.x + part.width {
-                    let at = Tile::at(x, y);
-                    let original = *self.decision.source.0.get(at).ok_or(Error::Internal)?;
-                    let predicted = *tile.0.get(at).ok_or(Error::Internal)?;
-                    sad += u64::from((i32::from(original) - i32::from(predicted)).unsigned_abs());
-                }
+                let at = Tile::at(part.x, y);
+                let original = self
+                    .decision
+                    .source
+                    .0
+                    .get(at..at + part.width)
+                    .ok_or(Error::Internal)?;
+                let predicted = tile.0.get(at..at + part.width).ok_or(Error::Internal)?;
+                sad += crate::kernels::sad(original, predicted)?;
                 if cutoff.is_some_and(|limit| sad + motion_cost > limit) {
                     return Ok(None);
                 }
@@ -760,7 +763,7 @@ impl Search<'_> {
     fn syntax_floor(&self, bits: usize) -> Result<u64> {
         let mut prefix = Bits::count();
         prefix.ue(self.decision.pending_skip)?;
-        Ok((1u64 << (self.decision.qp / 3)) * (prefix.len + bits) as u64)
+        self.decision.cost(0, prefix.len + bits)
     }
 
     fn propose(&self, layout: Layout, ceiling: Option<u64>) -> Result<Option<(usize, Inter)>> {
@@ -801,8 +804,7 @@ impl Search<'_> {
                 skip.parts.first_mut().ok_or(Error::Internal)?.mv = mv;
                 match self.evaluate(skip) {
                     Ok(c) => {
-                        let exact =
-                            c.key.cost == (1u64 << (self.decision.qp / 3)) * c.key.bits as u64;
+                        let exact = c.key.cost == self.decision.cost(0, c.key.bits)?;
                         consider(best, c);
                         if exact {
                             return Ok(());
@@ -1002,7 +1004,7 @@ mod tests {
                     assert_eq!(before.key.bits - after.key.bits, bits.len - merged_bits);
                     assert_eq!(
                         before.key.cost - after.key.cost,
-                        512 * (bits.len - merged_bits) as u64
+                        decision.cost(0, bits.len - merged_bits).unwrap()
                     );
                 }
             }
@@ -1020,7 +1022,7 @@ mod tests {
             plane.data.fill(128);
         }
         let csources = [Tile::empty(), Tile::empty()];
-        for (pixels, value, evaluations) in [(1, 129, 1), (6, 144, 2)] {
+        for (pixels, value, evaluations) in [(1, 129, 1), (3, 136, 2)] {
             let mut source = Tile::empty();
             for x in 0..pixels {
                 source.0[Tile::at(x, 0)] = value;
@@ -1059,6 +1061,19 @@ mod tests {
             } else {
                 assert!(PROBES.with(|count| count.get()) > 0);
             }
+            let floor = search.syntax_floor(3).unwrap();
+            assert!(
+                search
+                    .propose(Layout::Whole, Some(floor - 1))
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(
+                search
+                    .propose(Layout::Whole, Some(floor))
+                    .unwrap()
+                    .is_some()
+            );
         }
     }
 
@@ -1079,13 +1094,13 @@ mod tests {
             prefix.ue(pending_skip).unwrap();
             let mut skipped = Bits::count();
             skipped.ue(pending_skip + 1).unwrap();
-            let floor = 512 * (prefix.len + 6) as u64;
+            let floor = 512 * 32 * (prefix.len + 6) as u64;
             for equality in [false, true] {
                 let mut source = base.clone();
                 if equality {
-                    let count = (floor - 512 * skipped.len as u64) / 256;
+                    let count = (floor - 512 * 32 * skipped.len as u64) / (512 * 64);
                     for x in 0..count as usize {
-                        source.0[Tile::at(x, 0)] = 144;
+                        source.0[Tile::at(x, 0)] = 136;
                     }
                 } else {
                     source.0[Tile::at(0, 0)] = 129;
@@ -2409,13 +2424,13 @@ mod tests {
                 0,
             )
             .unwrap();
-        assert!(oversized as u64 * (1 << (decision.qp / 3)) < alternative.key.cost);
+        assert!(decision.cost(0, oversized).unwrap() < alternative.key.cost);
         let mut best = Some(alternative);
         match decision.candidate(luma.clone(), chroma.clone(), Some(prediction.clone()), 0) {
             Ok(candidate) => consider(&mut best, candidate),
             Err(e) => assert_eq!(e, Error::MacroblockLimit),
         }
-        assert!(best.unwrap().key.cost > oversized as u64 * (1 << (decision.qp / 3)));
+        assert!(best.unwrap().key.cost > decision.cost(0, oversized).unwrap());
         for index in 0..392 {
             if index < 256 {
                 luma.levels[index / 16][index % 16] = 0;

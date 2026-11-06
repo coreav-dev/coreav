@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::{Error, Result};
 
 pub(crate) const SCAN: [usize; 16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15];
@@ -21,7 +23,7 @@ pub(crate) fn chroma_qp(qp: u8) -> u8 {
     }
 }
 
-fn norm(qp: u8, position: usize) -> Result<i64> {
+pub(crate) fn norm(qp: u8, position: usize) -> Result<i64> {
     let row = (position / 4) % 2;
     let col = position % 2;
     let column = if row == col { row } else { 2 };

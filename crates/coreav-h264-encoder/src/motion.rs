@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::{Error, Result, bits::Bits};
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]

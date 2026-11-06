@@ -1,10 +1,11 @@
 use super::{
-    Cell, Frame, Memory,
+    Cell, Frame, Memory, Motion,
     filter::{Ctu, Sao},
+    inter::{self, Partition, Pu},
 };
 use crate::{
     Error, Result,
-    cabac::{Cabac, Context},
+    cabac::{Cabac, Context, Initialization},
     ctu::Location,
     parser::SliceInput,
     residual, substream,
@@ -19,7 +20,8 @@ use coreav_kernels_hevc::{
 pub(super) struct Contexts {
     split_cu: [Context; 3],
     bypass: Context,
-    part: Context,
+    part: [Context; 4],
+    inter: Option<InterContexts>,
     previous_mode: Context,
     chroma_mode: Context,
     split_transform: [Context; 3],
@@ -31,21 +33,74 @@ pub(super) struct Contexts {
     sao_type: Context,
 }
 
+#[derive(Clone, Copy)]
+struct InterContexts {
+    skip: [Context; 3],
+    pred_mode: Context,
+    root_cbf: Context,
+    merge: Context,
+    merge_idx: Context,
+    direction: [Context; 5],
+    ref_idx: [Context; 2],
+    mvp: Context,
+    mvd: [Context; 2],
+}
+
+impl InterContexts {
+    fn new(qp: i32, initialization: Initialization) -> Option<Self> {
+        if initialization == Initialization::I {
+            return None;
+        }
+        Some(Self {
+            skip: [197, 185, 201].map(|value| Context::new(value, qp)),
+            pred_mode: Context::new(initialization.select([154, 149, 134]), qp),
+            root_cbf: Context::new(79, qp),
+            merge: Context::new(initialization.select([154, 110, 154]), qp),
+            merge_idx: Context::new(initialization.select([154, 122, 137]), qp),
+            direction: [95, 79, 63, 31, 31].map(|value| Context::new(value, qp)),
+            ref_idx: [Context::new(153, qp); 2],
+            mvp: Context::new(168, qp),
+            mvd: initialization
+                .select([[154; 2], [140, 198], [169, 198]])
+                .map(|value| Context::new(value, qp)),
+        })
+    }
+}
+
 impl Contexts {
-    pub(super) fn new(slice_qp: i32) -> Self {
+    pub(super) fn new(slice_qp: i32, initialization: Initialization) -> Self {
         Self {
-            split_cu: [139, 141, 157].map(|value| Context::new(value, slice_qp)),
+            split_cu: initialization
+                .select([[139, 141, 157], [107, 139, 126], [107, 139, 126]])
+                .map(|value| Context::new(value, slice_qp)),
             bypass: Context::new(154, slice_qp),
-            part: Context::new(184, slice_qp),
-            previous_mode: Context::new(184, slice_qp),
-            chroma_mode: Context::new(63, slice_qp),
-            split_transform: [153, 138, 138].map(|value| Context::new(value, slice_qp)),
-            cbf_luma: [111, 141].map(|value| Context::new(value, slice_qp)),
-            cbf_chroma: [94, 138, 182, 154].map(|value| Context::new(value, slice_qp)),
+            part: initialization
+                .select([
+                    [184, 154, 154, 154],
+                    [154, 139, 154, 154],
+                    [154, 139, 154, 154],
+                ])
+                .map(|value| Context::new(value, slice_qp)),
+            inter: InterContexts::new(slice_qp, initialization),
+            previous_mode: Context::new(initialization.select([184, 154, 183]), slice_qp),
+            chroma_mode: Context::new(initialization.select([63, 152, 152]), slice_qp),
+            split_transform: initialization
+                .select([[153, 138, 138], [124, 138, 94], [224, 167, 122]])
+                .map(|value| Context::new(value, slice_qp)),
+            cbf_luma: initialization
+                .select([[111, 141], [153, 111], [153, 111]])
+                .map(|value| Context::new(value, slice_qp)),
+            cbf_chroma: initialization
+                .select([
+                    [94, 138, 182, 154],
+                    [149, 107, 167, 154],
+                    [149, 92, 167, 154],
+                ])
+                .map(|value| Context::new(value, slice_qp)),
             qp_delta: [Context::new(154, slice_qp); 2],
-            residual: residual::Contexts::new(slice_qp),
+            residual: residual::Contexts::new(slice_qp, initialization),
             sao_merge: Context::new(153, slice_qp),
-            sao_type: Context::new(200, slice_qp),
+            sao_type: Context::new(initialization.select([200, 185, 160]), slice_qp),
         }
     }
 }
@@ -77,14 +132,14 @@ impl Qp {
 }
 
 #[derive(Clone, Copy)]
-struct Area {
-    x: usize,
-    y: usize,
-    log2: u32,
+pub(super) struct Area {
+    pub(super) x: usize,
+    pub(super) y: usize,
+    pub(super) log2: u32,
 }
 
 impl Area {
-    fn side(self) -> usize {
+    pub(super) fn side(self) -> usize {
         1 << self.log2
     }
 
@@ -124,7 +179,8 @@ struct Cu {
     area: Area,
     nxn: bool,
     bypass: bool,
-    chroma_mode: IntraMode,
+    chroma_mode: Option<IntraMode>,
+    inter_split: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -139,12 +195,27 @@ struct Transform {
 struct ReconstructionBlock {
     area: Area,
     component: usize,
-    mode: IntraMode,
+    mode: Option<IntraMode>,
     coded: bool,
     bypass: bool,
 }
 
-fn decision(cabac: &mut Cabac<'_, '_>, contexts: &mut [Context], index: usize) -> Result<bool> {
+trait Bins {
+    fn decision(&mut self, context: &mut Context) -> Result<bool>;
+    fn bypass(&mut self) -> Result<bool>;
+}
+
+impl Bins for Cabac<'_, '_> {
+    fn decision(&mut self, context: &mut Context) -> Result<bool> {
+        Cabac::decision(self, context)
+    }
+
+    fn bypass(&mut self) -> Result<bool> {
+        Cabac::bypass(self)
+    }
+}
+
+fn decision(cabac: &mut impl Bins, contexts: &mut [Context], index: usize) -> Result<bool> {
     cabac.decision(
         contexts
             .get_mut(index)
@@ -152,7 +223,7 @@ fn decision(cabac: &mut Cabac<'_, '_>, contexts: &mut [Context], index: usize) -
     )
 }
 
-fn bypass_bits(cabac: &mut Cabac<'_, '_>, width: u32) -> Result<u32> {
+fn bypass_bits(cabac: &mut impl Bins, width: u32) -> Result<u32> {
     if width > 32 {
         return Err(Error::InvalidData("intra_bin_width"));
     }
@@ -161,6 +232,138 @@ fn bypass_bits(cabac: &mut Cabac<'_, '_>, width: u32) -> Result<u32> {
         value = (value << 1) | u32::from(cabac.bypass()?);
     }
     Ok(value)
+}
+
+fn partition(
+    bins: &mut impl Bins,
+    contexts: &mut [Context; 4],
+    log2: u32,
+    minimum: u32,
+    amp: bool,
+) -> Result<Partition> {
+    if !(3..=6).contains(&minimum) || !(minimum..=6).contains(&log2) {
+        return Err(Error::InvalidData("inter_partition_size"));
+    }
+    if decision(bins, contexts, 0)? {
+        return Ok(Partition::Full);
+    }
+    let horizontal = decision(bins, contexts, 1)?;
+    if log2 == minimum {
+        return Ok(if horizontal {
+            Partition::Horizontal
+        } else if log2 == 3 || decision(bins, contexts, 2)? {
+            Partition::Vertical
+        } else {
+            Partition::Quad
+        });
+    }
+    if !amp || decision(bins, contexts, 3)? {
+        return Ok(if horizontal {
+            Partition::Horizontal
+        } else {
+            Partition::Vertical
+        });
+    }
+    Ok(match (horizontal, bins.bypass()?) {
+        (true, false) => Partition::Up,
+        (true, true) => Partition::Down,
+        (false, false) => Partition::Left,
+        (false, true) => Partition::Right,
+    })
+}
+
+fn merge_index(bins: &mut impl Bins, context: &mut Context, count: u8) -> Result<u8> {
+    if !(1..=5).contains(&count) {
+        return Err(Error::InvalidData("inter_merge_count"));
+    }
+    let mut index = 0;
+    while index + 1 < count {
+        let more = if index == 0 {
+            bins.decision(context)?
+        } else {
+            bins.bypass()?
+        };
+        if !more {
+            break;
+        }
+        index += 1;
+    }
+    Ok(index)
+}
+
+fn reference_index(bins: &mut impl Bins, contexts: &mut [Context; 2], count: u8) -> Result<u8> {
+    if !(1..=15).contains(&count) {
+        return Err(Error::InvalidData("inter_reference_count"));
+    }
+    let mut index = 0;
+    while index + 1 < count {
+        let more = if index < 2 {
+            decision(bins, contexts, usize::from(index))?
+        } else {
+            bins.bypass()?
+        };
+        if !more {
+            break;
+        }
+        index += 1;
+    }
+    Ok(index)
+}
+
+fn inter_direction(
+    bins: &mut impl Bins,
+    contexts: &mut [Context; 5],
+    depth: u8,
+    pu: Pu,
+) -> Result<u8> {
+    if depth > 3 || !(4..=64).contains(&pu.width) || !(4..=64).contains(&pu.height) {
+        return Err(Error::InvalidData("inter_direction"));
+    }
+    if pu.width + pu.height != 12 && decision(bins, contexts, usize::from(depth))? {
+        return Ok(3);
+    }
+    Ok(if decision(bins, contexts, 4)? { 2 } else { 1 })
+}
+
+fn motion_difference(
+    bins: &mut impl Bins,
+    contexts: &mut [Context; 2],
+) -> Result<kernels::MotionVector> {
+    let nonzero = [decision(bins, contexts, 0)?, decision(bins, contexts, 0)?];
+    let mut greater1 = [false; 2];
+    for (greater, nonzero) in greater1.iter_mut().zip(nonzero) {
+        *greater = nonzero && decision(bins, contexts, 1)?;
+    }
+    let mut components = [0i16; 2];
+    for ((component, nonzero), greater) in components.iter_mut().zip(nonzero).zip(greater1) {
+        if !nonzero {
+            continue;
+        }
+        let mut magnitude = 1;
+        if greater {
+            let mut value = 0u32;
+            let mut width = 1;
+            while bins.bypass()? {
+                value += 1 << width;
+                if value > 32766 {
+                    return Err(Error::InvalidData("inter_mvd"));
+                }
+                width += 1;
+            }
+            magnitude = 2 + value + bypass_bits(bins, width)?;
+            if magnitude > 32768 {
+                return Err(Error::InvalidData("inter_mvd"));
+            }
+        }
+        let signed = if bins.bypass()? {
+            -(magnitude as i32)
+        } else {
+            magnitude as i32
+        };
+        *component = i16::try_from(signed).map_err(|_| Error::InvalidData("inter_mvd"))?;
+    }
+    let [x, y] = components;
+    Ok(kernels::MotionVector { x, y })
 }
 
 fn alignment(cabac: &mut Cabac<'_, '_>) -> Result<()> {
@@ -350,7 +553,7 @@ impl Frame {
         Ok(())
     }
 
-    pub(super) fn decode(
+    pub(crate) fn decode(
         &mut self,
         input: SliceInput<'_>,
         remaining: &mut u64,
@@ -358,6 +561,34 @@ impl Frame {
         limit: usize,
     ) -> Result<usize> {
         Self::admit(&input)?;
+        self.decode_common(input, None, remaining, fixed, limit)
+    }
+
+    pub(crate) fn decode_full(
+        &mut self,
+        input: SliceInput<'_>,
+        dpb: &crate::dpb::Dpb,
+        remaining: &mut u64,
+        fixed: usize,
+        limit: usize,
+    ) -> Result<usize> {
+        if self.reference.is_none()
+            || input.syntax.kind > 2
+            || input.syntax.kind < 2 && input.syntax.inter.is_none()
+        {
+            return Err(Error::InvalidData("inter_segment_state"));
+        }
+        self.decode_common(input, Some(dpb), remaining, fixed, limit)
+    }
+
+    fn decode_common(
+        &mut self,
+        input: SliceInput<'_>,
+        dpb: Option<&crate::dpb::Dpb>,
+        remaining: &mut u64,
+        fixed: usize,
+        limit: usize,
+    ) -> Result<usize> {
         if self.index != input.index
             || self.info != input.picture
             || self.hash_seen
@@ -399,7 +630,7 @@ impl Frame {
                 .ok_or(Error::Limit("reconstruction_memory"))?,
         )?;
         if !input.header.dependent {
-            self.contexts = Contexts::new(input.syntax.qp_y);
+            self.contexts = Contexts::new(input.syntax.qp_y, input.syntax.initialization);
             self.qp = Qp::new(input.syntax.qp_y);
             self.wpp = None;
         } else {
@@ -426,6 +657,7 @@ impl Frame {
                     input: &input,
                     location,
                     slice,
+                    dpb,
                 };
                 walker.coding_tree(
                     &mut cabac,
@@ -470,7 +702,7 @@ impl Frame {
         Err(Error::InvalidData("intra_missing_substream"))
     }
 
-    fn cell_index(&self, x: usize, y: usize) -> Result<usize> {
+    pub(super) fn cell_index(&self, x: usize, y: usize) -> Result<usize> {
         if x >= self.info.width as usize || y >= self.info.height as usize {
             return Err(Error::InvalidData("intra_cell_address"));
         }
@@ -486,7 +718,7 @@ impl Frame {
     fn start_ctu(&mut self, input: &SliceInput<'_>, location: Location, slice: u32) -> Result<()> {
         let [tile_x, tile_y] = location.tile_origin;
         if location.x == tile_x && location.y == tile_y {
-            self.contexts = Contexts::new(input.syntax.qp_y);
+            self.contexts = Contexts::new(input.syntax.qp_y, input.syntax.initialization);
             self.qp = Qp::new(input.syntax.qp_y);
             self.wpp = None;
             self.stats.tile_restarts += 1;
@@ -514,7 +746,7 @@ impl Frame {
                     .ok_or(Error::InvalidData("intra_wpp_checkpoint"))?
                     .contexts
             } else {
-                Contexts::new(input.syntax.qp_y)
+                Contexts::new(input.syntax.qp_y, input.syntax.initialization)
             };
             self.qp = Qp::new(input.syntax.qp_y);
             self.stats.wpp_restarts += 1;
@@ -535,11 +767,12 @@ impl Frame {
     }
 }
 
-struct Walker<'f, 'i, 'data> {
-    frame: &'f mut Frame,
-    input: &'i SliceInput<'data>,
-    location: Location,
-    slice: u32,
+pub(super) struct Walker<'f, 'i, 'data> {
+    pub(super) frame: &'f mut Frame,
+    pub(super) input: &'i SliceInput<'data>,
+    pub(super) location: Location,
+    pub(super) slice: u32,
+    pub(super) dpb: Option<&'i crate::dpb::Dpb>,
 }
 
 impl Walker<'_, '_, '_> {
@@ -557,7 +790,7 @@ impl Walker<'_, '_, '_> {
         Ok(())
     }
 
-    fn neighbour(&self, x: Option<usize>, y: Option<usize>) -> Result<Option<Cell>> {
+    pub(super) fn neighbour(&self, x: Option<usize>, y: Option<usize>) -> Result<Option<Cell>> {
         let (Some(x), Some(y)) = (x, y) else {
             return Ok(None);
         };
@@ -565,7 +798,9 @@ impl Walker<'_, '_, '_> {
             return Ok(None);
         }
         let cell = *self.frame.cell(x, y)?;
-        if cell.slice != self.slice || cell.mode.is_none() && cell.reconstructed == 0 {
+        if cell.slice != self.slice
+            || cell.mode.is_none() && cell.motion.is_none() && cell.reconstructed == 0
+        {
             return Ok(None);
         }
         let raster = (y as u32 >> self.input.sps.ctb_log2) * self.input.layout.width
@@ -662,11 +897,15 @@ impl Walker<'_, '_, '_> {
                 }
                 *cell = Cell {
                     mode: None,
+                    motion: None,
+                    skipped: false,
+                    luma_residual: false,
                     depth,
                     reconstructed: 0,
                     qp: self.frame.qp.current as i8,
                     slice: self.slice,
                     edges: u8::from(x == area.x) | (u8::from(y == area.y) << 1),
+                    transform_edges: 0,
                     protected: false,
                 };
             }
@@ -731,8 +970,41 @@ impl Walker<'_, '_, '_> {
             self.frame.stats.transquant_bypass_units += 1;
             self.protect(area)?;
         }
+        let skipped = if self.input.syntax.kind != 2 {
+            let left = self.neighbour(area.x.checked_sub(1), Some(area.y))?;
+            let above = self.neighbour(Some(area.x), area.y.checked_sub(1))?;
+            let index = usize::from(left.is_some_and(|cell| cell.skipped))
+                + usize::from(above.is_some_and(|cell| cell.skipped));
+            decision(
+                cabac,
+                &mut self
+                    .frame
+                    .contexts
+                    .inter
+                    .as_mut()
+                    .ok_or(Error::InvalidData("inter_context"))?
+                    .skip,
+                index,
+            )?
+        } else {
+            false
+        };
+        let intra = self.input.syntax.kind == 2
+            || !skipped
+                && cabac.decision(
+                    &mut self
+                        .frame
+                        .contexts
+                        .inter
+                        .as_mut()
+                        .ok_or(Error::InvalidData("inter_context"))?
+                        .pred_mode,
+                )?;
+        if !intra {
+            return self.inter_coding_unit(cabac, area, bypass, skipped);
+        }
         let nxn = area.log2 == self.input.sps.min_cb_log2
-            && !cabac.decision(&mut self.frame.contexts.part)?;
+            && !decision(cabac, &mut self.frame.contexts.part, 0)?;
         if !nxn {
             if let Some(pcm) = self.input.sps.pcm {
                 if (pcm.min_log2..=pcm.max_log2).contains(&area.log2) && cabac.terminate()? {
@@ -765,7 +1037,8 @@ impl Walker<'_, '_, '_> {
             area,
             nxn,
             bypass,
-            chroma_mode: chroma_mode(chroma_index, luma)?,
+            chroma_mode: Some(chroma_mode(chroma_index, luma)?),
+            inter_split: false,
         };
         self.transform_tree(
             cabac,
@@ -780,8 +1053,159 @@ impl Walker<'_, '_, '_> {
         )
     }
 
+    fn inter_coding_unit(
+        &mut self,
+        cabac: &mut Cabac<'_, '_>,
+        area: Area,
+        bypass: bool,
+        skipped: bool,
+    ) -> Result<()> {
+        let partition = if skipped {
+            Partition::Full
+        } else {
+            partition(
+                cabac,
+                &mut self.frame.contexts.part,
+                area.log2,
+                self.input.sps.min_cb_log2,
+                self.input.sps.amp,
+            )?
+        };
+        if skipped {
+            for y in (area.y..area.y + area.side()).step_by(4) {
+                for x in (area.x..area.x + area.side()).step_by(4) {
+                    let index = self.frame.cell_index(x, y)?;
+                    self.frame
+                        .cells
+                        .get_mut(index)
+                        .ok_or(Error::InvalidData("inter_cell"))?
+                        .skipped = true;
+                }
+            }
+        }
+        let (units, count) = partition.units(area)?;
+        let mut merged_full = false;
+        for (index, pu) in units.into_iter().take(count).enumerate() {
+            let merged = self.prediction_unit(cabac, pu, area, partition, index)?;
+            merged_full = matches!(partition, Partition::Full) && merged;
+        }
+        let root = !skipped
+            && (merged_full
+                || cabac.decision(
+                    &mut self
+                        .frame
+                        .contexts
+                        .inter
+                        .as_mut()
+                        .ok_or(Error::InvalidData("inter_context"))?
+                        .root_cbf,
+                )?);
+        if root {
+            self.transform_tree(
+                cabac,
+                Cu {
+                    area,
+                    nxn: false,
+                    bypass,
+                    chroma_mode: None,
+                    inter_split: !matches!(partition, Partition::Full),
+                },
+                Transform {
+                    area,
+                    base: [area.x, area.y],
+                    depth: 0,
+                    index: 0,
+                    parent_chroma: [false; 2],
+                },
+            )?;
+        } else {
+            self.mark(area, 7)?;
+        }
+        self.frame.inter_stats.skip_units += u64::from(skipped);
+        *self
+            .frame
+            .inter_stats
+            .partitions
+            .get_mut(partition.index())
+            .ok_or(Error::InvalidData("inter_partition"))? += 1;
+        Ok(())
+    }
+
+    fn prediction_unit(
+        &mut self,
+        cabac: &mut Cabac<'_, '_>,
+        pu: Pu,
+        cu: Area,
+        partition: Partition,
+        index: usize,
+    ) -> Result<bool> {
+        let syntax = self
+            .input
+            .syntax
+            .inter
+            .ok_or(Error::InvalidData("inter_slice"))?;
+        let cell = *self.frame.cell(cu.x, cu.y)?;
+        let contexts = self
+            .frame
+            .contexts
+            .inter
+            .as_mut()
+            .ok_or(Error::InvalidData("inter_context"))?;
+        if cell.skipped || cabac.decision(&mut contexts.merge)? {
+            let merge_index =
+                merge_index(cabac, &mut contexts.merge_idx, syntax.max_merge_candidates)?;
+            let resolved = inter::merge(self, pu, cu, partition, index, merge_index)?;
+            inter::predict(self, pu, resolved.motion, resolved.temporal, true)?;
+            return Ok(true);
+        }
+        let direction = match self.input.syntax.kind {
+            0 => inter_direction(cabac, &mut contexts.direction, cell.depth, pu)?,
+            1 => 1,
+            _ => return Err(Error::InvalidData("inter_slice")),
+        };
+        let mut lists = [None; 2];
+        let mut temporal = false;
+        for (list, value) in lists.iter_mut().enumerate() {
+            if direction & (1 << list) == 0 {
+                continue;
+            }
+            let contexts = self
+                .frame
+                .contexts
+                .inter
+                .as_mut()
+                .ok_or(Error::InvalidData("inter_context"))?;
+            let count = *syntax
+                .active
+                .get(list)
+                .ok_or(Error::InvalidData("inter_list"))?;
+            let reference = reference_index(cabac, &mut contexts.ref_idx, count)?;
+            let difference = if list == 1 && direction == 3 && syntax.mvd_l1_zero {
+                kernels::MotionVector { x: 0, y: 0 }
+            } else {
+                motion_difference(cabac, &mut contexts.mvd)?
+            };
+            let mvp = cabac.decision(&mut contexts.mvp)?;
+            let resolved = inter::amvp(
+                self, pu, cu, partition, index, list, reference, mvp, difference,
+            )?;
+            *value = Some(resolved.value);
+            temporal |= resolved.temporal;
+        }
+        let motion = match lists {
+            [Some(first), Some(second)] => Motion::Bi([first, second]),
+            [Some(first), None] => Motion::L0(first),
+            [None, Some(second)] => Motion::L1(second),
+            _ => return Err(Error::InvalidData("inter_direction")),
+        };
+        inter::predict(self, pu, motion, temporal, false)?;
+        self.frame.inter_stats.amvp_lists += u64::from(direction.count_ones());
+        Ok(false)
+    }
+
     fn pcm(&mut self, cabac: &mut Cabac<'_, '_>, area: Area) -> Result<()> {
         alignment(cabac)?;
+        self.set_mode(area, IntraMode::new(1)?)?;
         let pcm = self.input.sps.pcm.ok_or(Error::InvalidData("intra_pcm"))?;
         if pcm.loop_filter_disabled {
             self.protect(area)?;
@@ -887,11 +1311,15 @@ impl Walker<'_, '_, '_> {
         if depth > 6 || area.log2 < self.input.sps.min_tb_log2 {
             return Err(Error::InvalidData("intra_transform_tree"));
         }
-        let forced = area.log2 > self.input.sps.max_tb_log2 || cu.nxn && depth == 0;
-        let split = if !forced
-            && area.log2 > self.input.sps.min_tb_log2
-            && depth < self.input.sps.max_intra_transform_depth + u32::from(cu.nxn)
-        {
+        let intra = cu.chroma_mode.is_some();
+        let max_depth = if intra {
+            self.input.sps.max_intra_transform_depth + u32::from(cu.nxn)
+        } else {
+            self.input.sps.max_inter_transform_depth
+        };
+        let forced = area.log2 > self.input.sps.max_tb_log2
+            || depth == 0 && (cu.nxn || !intra && cu.inter_split && max_depth == 0);
+        let split = if !forced && area.log2 > self.input.sps.min_tb_log2 && depth < max_depth {
             decision(
                 cabac,
                 &mut self.frame.contexts.split_transform,
@@ -926,19 +1354,22 @@ impl Walker<'_, '_, '_> {
         if area.log2 > 5 {
             return Err(Error::InvalidData("intra_transform_size"));
         }
-        let luma = decision(
-            cabac,
-            &mut self.frame.contexts.cbf_luma,
-            usize::from(depth == 0),
-        )?;
+        let luma = if intra || depth != 0 || chroma.into_iter().any(|value| value) {
+            decision(
+                cabac,
+                &mut self.frame.contexts.cbf_luma,
+                usize::from(depth == 0),
+            )?
+        } else {
+            true
+        };
         if luma || chroma.into_iter().any(|value| value) {
             self.delta_qp(cabac, cu.area)?;
         }
-        let mode = self
-            .frame
-            .cell(area.x, area.y)?
-            .mode
-            .ok_or(Error::InvalidData("intra_luma_mode"))?;
+        let mode = self.frame.cell(area.x, area.y)?.mode;
+        if intra && mode.is_none() {
+            return Err(Error::InvalidData("intra_luma_mode"));
+        }
         self.reconstruct(
             cabac,
             ReconstructionBlock {
@@ -992,7 +1423,10 @@ impl Walker<'_, '_, '_> {
             let value = if let (Some(nx), Some(ny)) = (nx, ny) {
                 if self
                     .neighbour(Some(nx * scale), Some(ny * scale))?
-                    .is_some_and(|cell| cell.reconstructed & (1 << block.component) != 0)
+                    .is_some_and(|cell| {
+                        cell.reconstructed & (1 << block.component) != 0
+                            && (!self.input.pps.constrained_intra || cell.mode.is_some())
+                    })
                 {
                     Some(
                         *self
@@ -1032,7 +1466,11 @@ impl Walker<'_, '_, '_> {
                 }
                 cell.reconstructed |= mask;
                 if mask & 1 != 0 {
-                    cell.edges |= u8::from(x == luma_area.x) | (u8::from(y == luma_area.y) << 1);
+                    let edges = u8::from(x == luma_area.x) | (u8::from(y == luma_area.y) << 1);
+                    cell.edges |= edges;
+                    if mask == 1 {
+                        cell.transform_edges |= edges;
+                    }
                 }
             }
         }
@@ -1060,7 +1498,7 @@ impl Walker<'_, '_, '_> {
                     } else {
                         residual::Component::Chroma
                     },
-                    intra_mode: block.mode.number(),
+                    intra_mode: block.mode.map(IntraMode::number),
                     transform_skip_enabled: self.input.pps.transform_skip,
                     transquant_bypass: block.bypass,
                     sign_data_hiding_enabled: self.input.pps.sign_data_hiding,
@@ -1074,7 +1512,7 @@ impl Walker<'_, '_, '_> {
                 InverseTransform::Bypass
             } else if decoded.transform_skip {
                 InverseTransform::Skip
-            } else if block.component == 0 && side == 4 {
+            } else if block.component == 0 && side == 4 && block.mode.is_some() {
                 InverseTransform::IntraLumaDst4
             } else {
                 InverseTransform::Dct
@@ -1091,25 +1529,48 @@ impl Walker<'_, '_, '_> {
                     .ok_or(Error::InvalidData("intra_transform_size"))? += 1;
             }
         }
-        self.references(&block)?;
-        kernels::predict_intra(
-            IntraPrediction {
-                depth: self.frame.depth,
-                component,
-                mode: block.mode,
-                strong_smoothing: self.input.sps.strong_smoothing,
-            },
-            &self.frame.scratch.references,
-            BlockMut::new(&mut self.frame.scratch.prediction, side, size)?,
-        )?;
-        let mode_counts = if block.component == 0 {
-            &mut self.frame.stats.luma_modes
+        if let Some(mode) = block.mode {
+            self.references(&block)?;
+            kernels::predict_intra(
+                IntraPrediction {
+                    depth: self.frame.depth,
+                    component,
+                    mode,
+                    strong_smoothing: self.input.sps.strong_smoothing,
+                },
+                &self.frame.scratch.references,
+                BlockMut::new(&mut self.frame.scratch.prediction, side, size)?,
+            )?;
+            let mode_counts = if block.component == 0 {
+                &mut self.frame.stats.luma_modes
+            } else {
+                &mut self.frame.stats.chroma_modes
+            };
+            *mode_counts
+                .get_mut(usize::from(mode.number()))
+                .ok_or(Error::InvalidData("intra_mode"))? += 1;
         } else {
-            &mut self.frame.stats.chroma_modes
-        };
-        *mode_counts
-            .get_mut(usize::from(block.mode.number()))
-            .ok_or(Error::InvalidData("intra_mode"))? += 1;
+            let scale = if block.component == 0 { 1 } else { 2 };
+            let width = self.frame.info.width as usize / scale;
+            let plane = self
+                .frame
+                .planes
+                .get(block.component)
+                .ok_or(Error::InvalidData("inter_plane"))?;
+            for y in 0..side {
+                let source = (block.area.y + y) * width + block.area.x;
+                self.frame
+                    .scratch
+                    .prediction
+                    .get_mut(y * side..(y + 1) * side)
+                    .ok_or(Error::InvalidData("inter_transform_size"))?
+                    .copy_from_slice(
+                        plane
+                            .get(source..source + side)
+                            .ok_or(Error::InvalidData("inter_sample_address"))?,
+                    );
+            }
+        }
         if block.coded {
             let lists = self.input.pps.scaling_lists.as_ref().or(self
                 .input
@@ -1119,7 +1580,7 @@ impl Walker<'_, '_, '_> {
             if let Some(lists) = lists {
                 lists.factors(
                     block.area.log2,
-                    block.component,
+                    block.component + if block.mode.is_none() { 3 } else { 0 },
                     &mut self.frame.scratch.scaling,
                 )?;
                 self.frame.stats.scaling_list_blocks += u64::from(!block.bypass);
@@ -1192,6 +1653,18 @@ impl Walker<'_, '_, '_> {
             },
             1 << block.component,
         )?;
+        if block.component == 0 && block.coded {
+            for y in (block.area.y..block.area.y + side).step_by(4) {
+                for x in (block.area.x..block.area.x + side).step_by(4) {
+                    let index = self.frame.cell_index(x, y)?;
+                    self.frame
+                        .cells
+                        .get_mut(index)
+                        .ok_or(Error::InvalidData("inter_cell"))?
+                        .luma_residual = true;
+                }
+            }
+        }
         self.frame.stats.transform_units += 1;
         Ok(())
     }
@@ -1207,6 +1680,378 @@ mod tests {
         params::{self, Pcm, Pps, Sps},
         parser::SliceSyntax,
     };
+
+    enum Bin {
+        Decision(bool),
+        Bypass(bool),
+    }
+
+    struct Script {
+        bins: std::vec::IntoIter<Bin>,
+        contexts: Vec<Context>,
+    }
+
+    impl Script {
+        fn new(bins: Vec<Bin>) -> Self {
+            Self {
+                bins: bins.into_iter(),
+                contexts: Vec::new(),
+            }
+        }
+    }
+
+    impl Bins for Script {
+        fn decision(&mut self, context: &mut Context) -> Result<bool> {
+            self.contexts.push(*context);
+            match self.bins.next() {
+                Some(Bin::Decision(value)) => Ok(value),
+                _ => Err(Error::InvalidData("test_decision")),
+            }
+        }
+
+        fn bypass(&mut self) -> Result<bool> {
+            match self.bins.next() {
+                Some(Bin::Bypass(value)) => Ok(value),
+                _ => Err(Error::InvalidData("test_bypass")),
+            }
+        }
+    }
+
+    #[test]
+    fn complete_inter_contexts_follow_tables_9_9_through_9_23() -> Result<()> {
+        for qp in -12..=63 {
+            assert!(Contexts::new(qp, Initialization::I).inter.is_none());
+            for (initialization, pred, merge, index, mvd) in [
+                (Initialization::P, 149, 110, 122, [140, 198]),
+                (Initialization::B, 134, 154, 137, [169, 198]),
+            ] {
+                let contexts = Contexts::new(qp, initialization);
+                assert_eq!(
+                    contexts.part,
+                    [154, 139, 154, 154].map(|v| Context::new(v, qp))
+                );
+                let actual = contexts.inter.ok_or(Error::InvalidData("test_contexts"))?;
+                assert_eq!(actual.skip, [197, 185, 201].map(|v| Context::new(v, qp)));
+                assert_eq!(actual.pred_mode, Context::new(pred, qp));
+                assert_eq!(actual.root_cbf, Context::new(79, qp));
+                assert_eq!(actual.merge, Context::new(merge, qp));
+                assert_eq!(actual.merge_idx, Context::new(index, qp));
+                assert_eq!(
+                    actual.direction,
+                    [95, 79, 63, 31, 31].map(|v| Context::new(v, qp))
+                );
+                assert_eq!(actual.ref_idx, [Context::new(153, qp); 2]);
+                assert_eq!(actual.mvp, Context::new(168, qp));
+                assert_eq!(actual.mvd, mvd.map(|v| Context::new(v, qp)));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn inter_partition_strings_and_contexts_follow_tables_9_45_and_9_48() -> Result<()> {
+        let mut contexts = [31, 63, 95, 127].map(|v| Context::new(v, 26));
+        for minimum in 3..=6 {
+            for log2 in minimum..=6 {
+                for amp in [false, true] {
+                    let cases: &[(usize, &str)] = if log2 > minimum && amp {
+                        &[
+                            (0, "1"),
+                            (1, "011"),
+                            (2, "001"),
+                            (4, "0100"),
+                            (5, "0101"),
+                            (6, "0000"),
+                            (7, "0001"),
+                        ]
+                    } else if log2 == minimum && log2 > 3 {
+                        &[(0, "1"), (1, "01"), (2, "001"), (3, "000")]
+                    } else {
+                        &[(0, "1"), (1, "01"), (2, "00")]
+                    };
+                    for &(expected, string) in cases {
+                        let bins = string
+                            .bytes()
+                            .enumerate()
+                            .map(|(index, bit)| {
+                                if index == 3 {
+                                    Bin::Bypass(bit == b'1')
+                                } else {
+                                    Bin::Decision(bit == b'1')
+                                }
+                            })
+                            .collect();
+                        let mut script = Script::new(bins);
+                        assert_eq!(
+                            partition(&mut script, &mut contexts, log2, minimum, amp)?.index(),
+                            expected
+                        );
+                        assert_eq!(script.bins.len(), 0);
+                        let expected_contexts: Vec<_> = (0..string.len().min(3))
+                            .map(|bin| {
+                                contexts
+                                    .get(if bin == 2 && log2 > minimum { 3 } else { bin })
+                                    .copied()
+                            })
+                            .collect();
+                        assert_eq!(
+                            script
+                                .contexts
+                                .iter()
+                                .copied()
+                                .map(Some)
+                                .collect::<Vec<_>>(),
+                            expected_contexts
+                        );
+                    }
+                }
+            }
+        }
+        for (log2, minimum) in [(2, 3), (7, 3), (3, 4), (4, 2)] {
+            let mut script = Script::new(Vec::new());
+            assert!(partition(&mut script, &mut contexts, log2, minimum, true).is_err());
+            assert!(script.contexts.is_empty());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn merge_and_reference_indices_use_shared_context_prefixes_only() -> Result<()> {
+        for maximum in [5u8, 15] {
+            for count in 1..=maximum {
+                for expected in 0..count {
+                    let length = usize::from(expected + u8::from(expected + 1 < count));
+                    let prefix = if maximum == 5 { 1 } else { 2 };
+                    let mut contexts = [31, 95].map(|v| Context::new(v, 26));
+                    let bins = (0..length)
+                        .map(|index| {
+                            let value = index < usize::from(expected);
+                            if index < prefix {
+                                Bin::Decision(value)
+                            } else {
+                                Bin::Bypass(value)
+                            }
+                        })
+                        .collect();
+                    let mut script = Script::new(bins);
+                    let actual = if maximum == 5 {
+                        merge_index(
+                            &mut script,
+                            &mut contexts
+                                .first()
+                                .copied()
+                                .ok_or(Error::InvalidData("test_context"))?,
+                            count,
+                        )?
+                    } else {
+                        reference_index(&mut script, &mut contexts, count)?
+                    };
+                    assert_eq!(actual, expected);
+                    assert_eq!(script.bins.len(), 0);
+                    assert_eq!(
+                        script.contexts,
+                        contexts
+                            .iter()
+                            .take(length.min(prefix))
+                            .copied()
+                            .collect::<Vec<_>>()
+                    );
+                }
+            }
+        }
+        let mut script = Script::new(Vec::new());
+        assert!(merge_index(&mut script, &mut Context::new(122, 26), 0).is_err());
+        assert!(merge_index(&mut script, &mut Context::new(122, 26), 6).is_err());
+        assert!(reference_index(&mut script, &mut [Context::new(153, 26); 2], 0).is_err());
+        assert!(reference_index(&mut script, &mut [Context::new(153, 26); 2], 16).is_err());
+        assert!(script.contexts.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn inter_direction_excludes_bi_for_four_by_eight_and_uses_ct_depth() -> Result<()> {
+        let mut contexts = [31, 63, 95, 127, 151].map(|v| Context::new(v, 26));
+        for depth in 0..=3 {
+            for (width, height) in [(4, 8), (8, 4), (8, 8), (16, 32), (64, 64)] {
+                for expected in 1..=3 {
+                    let small = width + height == 12;
+                    if small && expected == 3 {
+                        continue;
+                    }
+                    let mut bins = Vec::new();
+                    if !small {
+                        bins.push(Bin::Decision(expected == 3));
+                    }
+                    if expected != 3 {
+                        bins.push(Bin::Decision(expected == 2));
+                    }
+                    let mut script = Script::new(bins);
+                    assert_eq!(
+                        inter_direction(
+                            &mut script,
+                            &mut contexts,
+                            depth,
+                            Pu {
+                                x: 0,
+                                y: 0,
+                                width,
+                                height
+                            }
+                        )?,
+                        expected
+                    );
+                    assert_eq!(script.bins.len(), 0);
+                    let mut indices = Vec::new();
+                    if !small {
+                        indices.push(usize::from(depth));
+                    }
+                    if expected != 3 {
+                        indices.push(4);
+                    }
+                    assert_eq!(
+                        script.contexts,
+                        indices
+                            .into_iter()
+                            .filter_map(|i| contexts.get(i).copied())
+                            .collect::<Vec<_>>()
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn eg1(bins: &mut Vec<Bin>, mut value: u32) {
+        for width in 1..=16 {
+            if value >= 1 << width {
+                bins.push(Bin::Bypass(true));
+                value -= 1 << width;
+            } else {
+                bins.push(Bin::Bypass(false));
+                for bit in (0..width).rev() {
+                    bins.push(Bin::Bypass(value & (1 << bit) != 0));
+                }
+                return;
+            }
+        }
+    }
+
+    fn mvd_bins(values: [i32; 2]) -> Vec<Bin> {
+        let mut bins = Vec::new();
+        for value in values {
+            bins.push(Bin::Decision(value != 0));
+        }
+        for value in values.into_iter().filter(|v| *v != 0) {
+            bins.push(Bin::Decision(value.unsigned_abs() > 1));
+        }
+        for value in values.into_iter().filter(|v| *v != 0) {
+            if value.unsigned_abs() > 1 {
+                eg1(&mut bins, value.unsigned_abs() - 2);
+            }
+            bins.push(Bin::Bypass(value < 0));
+        }
+        bins
+    }
+
+    #[test]
+    fn mvd_flags_eg1_signs_and_limits_follow_7_73_and_9_13() -> Result<()> {
+        let mut contexts = [31, 95].map(|v| Context::new(v, 26));
+        for x in [0, 1, -1, 2, -2, 3, -4, 31, -64, 32767, -32768] {
+            for y in [0, 1, -1, 2, -2, 3, -4, 31, -64, 32767, -32768] {
+                let mut script = Script::new(mvd_bins([x, y]));
+                assert_eq!(
+                    motion_difference(&mut script, &mut contexts)?,
+                    kernels::MotionVector {
+                        x: x as i16,
+                        y: y as i16
+                    }
+                );
+                assert_eq!(script.bins.len(), 0);
+                let expected = [contexts.first().copied(), contexts.first().copied()]
+                    .into_iter()
+                    .chain(
+                        [x, y]
+                            .into_iter()
+                            .filter(|v| *v != 0)
+                            .map(|_| contexts.get(1).copied()),
+                    )
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    script.contexts.into_iter().map(Some).collect::<Vec<_>>(),
+                    expected
+                );
+            }
+        }
+        for value in [32768, -32769, 65536, -65536] {
+            for values in [[value, 0], [0, value]] {
+                assert_eq!(
+                    motion_difference(&mut Script::new(mvd_bins(values)), &mut contexts),
+                    Err(Error::InvalidData("inter_mvd"))
+                );
+            }
+        }
+        assert!(motion_difference(&mut Script::new(Vec::new()), &mut contexts).is_err());
+        let mut budget = 0;
+        let mut cabac = Cabac::new(&[0; 4], &mut budget)?;
+        assert_eq!(
+            motion_difference(&mut cabac, &mut contexts),
+            Err(Error::Limit("cabac_bin_budget"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn non_residual_initialization_follows_tables_9_5_through_9_24() {
+        for qp in -12..=51 {
+            for (initialization, previous, chroma, split, luma, chroma_cbf, sao) in [
+                (
+                    Initialization::I,
+                    184,
+                    63,
+                    [153, 138, 138],
+                    [111, 141],
+                    [94, 138, 182, 154],
+                    200,
+                ),
+                (
+                    Initialization::P,
+                    154,
+                    152,
+                    [124, 138, 94],
+                    [153, 111],
+                    [149, 107, 167, 154],
+                    185,
+                ),
+                (
+                    Initialization::B,
+                    183,
+                    152,
+                    [224, 167, 122],
+                    [153, 111],
+                    [149, 92, 167, 154],
+                    160,
+                ),
+            ] {
+                let actual = Contexts::new(qp, initialization);
+                assert_eq!(actual.previous_mode, Context::new(previous, qp));
+                assert_eq!(actual.chroma_mode, Context::new(chroma, qp));
+                assert_eq!(actual.split_transform, split.map(|v| Context::new(v, qp)));
+                assert_eq!(actual.cbf_luma, luma.map(|v| Context::new(v, qp)));
+                assert_eq!(actual.cbf_chroma, chroma_cbf.map(|v| Context::new(v, qp)));
+                assert_eq!(actual.sao_type, Context::new(sao, qp));
+                assert_eq!(actual.bypass, Context::new(154, qp));
+                assert_eq!(actual.qp_delta, [Context::new(154, qp); 2]);
+                assert_eq!(actual.sao_merge, Context::new(153, qp));
+                let (split_cu, part) = if initialization == Initialization::I {
+                    ([139, 141, 157], 184)
+                } else {
+                    ([107, 139, 126], 154)
+                };
+                assert_eq!(actual.split_cu, split_cu.map(|v| Context::new(v, qp)));
+                assert_eq!(actual.part.first(), Some(&Context::new(part, qp)));
+            }
+        }
+    }
 
     struct Fixture {
         sps: Sps,
@@ -1308,11 +2153,12 @@ mod tests {
                 independent_address: segment.independent,
                 qp_y: 26,
                 chroma_qp_offsets: [0; 2],
-                cabac_init: false,
+                initialization: Initialization::I,
                 sao: [false; 2],
                 deblock_disabled: true,
                 deblock_offsets: [0; 2],
                 loop_filter_slices: true,
+                inter: None,
             };
             SliceInput {
                 index: 0,
@@ -1338,6 +2184,7 @@ mod tests {
                     long_term: [LongTermRef::default(); 16],
                     long_term_count: 0,
                     reference_syntax: None,
+                    inter: None,
                 },
                 picture: self.picture,
                 original: segment.original,
@@ -1399,6 +2246,543 @@ mod tests {
             .cells
             .get_mut(index)
             .ok_or(Error::InvalidData("test_cell"))
+    }
+
+    fn inter_input<'a>(
+        fixture: &'a Fixture,
+        rbsp: &'a [u8],
+        original: &'a [u8],
+        initialization: Initialization,
+    ) -> SliceInput<'a> {
+        let mut input = fixture.input(segment(rbsp, original, &[]));
+        input.index = 1;
+        input.syntax.kind = if initialization == Initialization::B {
+            0
+        } else {
+            1
+        };
+        input.syntax.initialization = initialization;
+        input.syntax.inter = Some(crate::slice::InterSlice {
+            active: [1, u8::from(initialization == Initialization::B)],
+            modifications: [None; 2],
+            mvd_l1_zero: false,
+            collocated: None,
+            weights: None,
+            max_merge_candidates: 1,
+        });
+        input.header.slice_type = Some(input.syntax.kind);
+        input.header.poc_lsb = Some(1);
+        input.header.inter = input.syntax.inter;
+        input.header.short_term_rps = Rps {
+            count: 1,
+            negative_count: 1,
+            ..Rps::default()
+        };
+        if let Some(value) = input.header.short_term_rps.delta.first_mut() {
+            *value = -1;
+        }
+        if let Some(value) = input.header.short_term_rps.used.first_mut() {
+            *value = true;
+        }
+        input
+    }
+
+    fn reference_dpb(input: &SliceInput<'_>) -> Result<crate::dpb::Dpb> {
+        let mut dpb = crate::dpb::Dpb::new_reconstruction();
+        let mut first = input.header;
+        first.poc_lsb = Some(0);
+        first.slice_type = Some(2);
+        first.short_term_rps = Rps::default();
+        first.inter = None;
+        let mut nal = crate::NalHeader {
+            unit_type: 19,
+            layer_id: 0,
+            temporal_id: 0,
+        };
+        dpb.picture(nal, &first, input.sps, &Limits::default(), |_| Ok(()))?;
+        dpb.attach(super::super::RetainedPicture::for_test(
+            0,
+            input.picture,
+            None,
+        ))?;
+        dpb.resume(|_| Ok(()))?;
+        nal.unit_type = 1;
+        dpb.picture(
+            nal,
+            &input.header,
+            input.sps,
+            &Limits::default(),
+            |_| Ok(()),
+        )?;
+        Ok(dpb)
+    }
+
+    #[test]
+    fn actual_p_b_skip_and_no_root_wires_finish_without_transform_bins() -> Result<()> {
+        for depth in [8, 10] {
+            for (initialization, skipped, body, bins) in [
+                (Initialization::P, true, [0xfe, 0xe0], 2),
+                (Initialization::B, true, [0xfe, 0xe0], 2),
+                (Initialization::P, false, [0x5e, 0xf7], 9),
+                (Initialization::B, false, [0x3c, 0x07], 11),
+            ] {
+                let mut fixture = fixture(8, 8, depth, false, 1)?;
+                fixture.sps.min_cb_log2 = 3;
+                fixture.sps.pcm = None;
+                fixture.sps.conformance_window = [0; 4];
+                fixture.pps.qp_delta_enabled = true;
+                let rbsp = [0x80, body[0], body[1]];
+                let original = escaped(&rbsp);
+                let input = inter_input(&fixture, &rbsp, &original, initialization);
+                let dpb = reference_dpb(&input)?;
+                let mut frame =
+                    Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
+                let mut budget = bins;
+                let decoded = frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX);
+                assert!(
+                    decoded.is_ok(),
+                    "{initialization:?} skip={skipped} depth={depth}: {decoded:?}"
+                );
+                assert_eq!(budget, 0);
+                assert!(frame.complete());
+                assert_eq!(frame.stats.transform_units, 0);
+                assert!(frame.cells.iter().all(|cell| cell.transform_edges == 0));
+                assert_eq!(frame.stats.qp_deltas, 0);
+                assert!(frame.cells.iter().all(|cell| cell.reconstructed == 7
+                    && cell.qp == 26
+                    && !cell.luma_residual
+                    && cell.skipped == skipped
+                    && cell.motion.is_some()
+                    && cell.mode.is_none()));
+                for (plane, value) in frame.planes.iter().zip([42, 43, 44]) {
+                    assert!(plane.iter().all(|sample| *sample == value));
+                }
+                assert_eq!(frame.inter_stats.skip_units, u64::from(skipped));
+                assert_eq!(frame.inter_stats.prediction_units, 1);
+                assert_eq!(frame.inter_stats.merge_units, u64::from(skipped));
+                assert_eq!(frame.inter_stats.amvp_lists, u64::from(!skipped));
+                assert_eq!(frame.inter_stats.partitions, [1, 0, 0, 0, 0, 0, 0, 0]);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn actual_p_b_intra_units_share_the_existing_reconstruction_walker() -> Result<()> {
+        for depth in [8, 10] {
+            for (initialization, body) in [
+                (Initialization::P, [0xbb, 0x97, 0xc0]),
+                (Initialization::B, [0xc0, 0x03, 0x60]),
+            ] {
+                let mut fixture = fixture(8, 8, depth, false, 1)?;
+                fixture.sps.min_cb_log2 = 3;
+                fixture.sps.pcm = None;
+                fixture.sps.conformance_window = [0; 4];
+                let rbsp = [0x80, body[0], body[1], body[2]];
+                let original = escaped(&rbsp);
+                let input = inter_input(&fixture, &rbsp, &original, initialization);
+                let dpb = reference_dpb(&input)?;
+                let mut frame =
+                    Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
+                let mut budget = 10;
+                frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX)?;
+                assert_eq!(budget, 0);
+                assert!(frame.complete());
+                assert!(
+                    frame
+                        .planes
+                        .iter()
+                        .all(|plane| plane.iter().all(|sample| *sample == 1 << (depth - 1)))
+                );
+                assert!(
+                    frame
+                        .cells
+                        .iter()
+                        .all(|cell| cell.mode.is_some() && cell.motion.is_none())
+                );
+                assert_eq!(frame.stats.transform_units, 3);
+                assert_eq!(frame.inter_stats.prediction_units, 0);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn actual_p_b_pcm_units_preserve_intra_classification_and_restart_budget() -> Result<()> {
+        for initialization in [Initialization::P, Initialization::B] {
+            let mut fixture = fixture(16, 16, 8, false, 1)?;
+            fixture.sps.conformance_window = [0; 4];
+            let mut rbsp = vec![0x80];
+            rbsp.extend(pcm_body(&[[0xc1, 0x7c]], [0xfe, 0x80], &[37])?);
+            let original = escaped(&rbsp);
+            let input = inter_input(&fixture, &rbsp, &original, initialization);
+            let dpb = reference_dpb(&input)?;
+            let mut frame = Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
+            let mut budget = 5;
+            frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX)?;
+            assert_eq!(budget, 0);
+            assert!(frame.complete());
+            assert!(
+                frame
+                    .planes
+                    .iter()
+                    .all(|plane| plane.iter().all(|sample| *sample == 37))
+            );
+            assert!(
+                frame
+                    .cells
+                    .iter()
+                    .all(|cell| cell.mode.is_some() && cell.motion.is_none())
+            );
+            assert_eq!(frame.stats.pcm_units, 1);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn inter_transform_inference_forces_partition_split_and_preserves_mc_samples() -> Result<()> {
+        for depth in [8, 10] {
+            let mut fixture = fixture(8, 8, depth, false, 1)?;
+            fixture.sps.min_cb_log2 = 3;
+            fixture.sps.max_inter_transform_depth = 0;
+            let input = fixture.input(segment(&[], &[], &[]));
+            let mut frame = Frame::new(&input, 0, usize::MAX)?;
+            frame.contexts = Contexts::new(26, Initialization::P);
+            for (plane, value) in frame.planes.iter_mut().zip([42, 43, 44]) {
+                plane.fill(value);
+            }
+            let mut walker = Walker {
+                frame: &mut frame,
+                input: &input,
+                location: fixture.layout.at_raster(0)?,
+                slice: 1,
+                dpb: None,
+            };
+            let area = Area {
+                x: 0,
+                y: 0,
+                log2: 3,
+            };
+            walker.initialize_cells(area, 0)?;
+            let mut budget = 6;
+            let mut cabac = Cabac::new(&[0; 8], &mut budget)?;
+            walker.transform_tree(
+                &mut cabac,
+                Cu {
+                    area,
+                    nxn: false,
+                    bypass: false,
+                    chroma_mode: None,
+                    inter_split: true,
+                },
+                Transform {
+                    area,
+                    base: [0, 0],
+                    depth: 0,
+                    index: 0,
+                    parent_chroma: [false; 2],
+                },
+            )?;
+            assert_eq!(budget, 0);
+            assert_eq!(walker.frame.stats.transform_units, 6);
+            assert_eq!(walker.frame.stats.nonzero_transform_units, 0);
+            assert!(
+                walker
+                    .frame
+                    .cells
+                    .iter()
+                    .all(|cell| cell.reconstructed == 7 && !cell.luma_residual)
+            );
+            for (plane, value) in walker.frame.planes.iter().zip([42, 43, 44]) {
+                assert!(plane.iter().all(|sample| *sample == value));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn inter_root_luma_cbf_is_inferred_and_selects_dct_not_dst() -> Result<()> {
+        let fixture = fixture(8, 8, 8, false, 1)?;
+        let input = fixture.input(segment(&[], &[], &[]));
+        let mut frame = Frame::new(&input, 0, usize::MAX)?;
+        frame.contexts = Contexts::new(26, Initialization::P);
+        for plane in &mut frame.planes {
+            plane.fill(42);
+        }
+        let mut walker = Walker {
+            frame: &mut frame,
+            input: &input,
+            location: fixture.layout.at_raster(0)?,
+            slice: 1,
+            dpb: None,
+        };
+        let area = Area {
+            x: 0,
+            y: 0,
+            log2: 3,
+        };
+        walker.begin_qp_group(area)?;
+        walker.initialize_cells(area, 0)?;
+        let mut budget = 6;
+        let mut cabac = Cabac::new(&[0xc2, 0, 0, 0], &mut budget)?;
+        walker.transform_tree(
+            &mut cabac,
+            Cu {
+                area,
+                nxn: false,
+                bypass: false,
+                chroma_mode: None,
+                inter_split: false,
+            },
+            Transform {
+                area,
+                base: [0, 0],
+                depth: 0,
+                index: 0,
+                parent_chroma: [false; 2],
+            },
+        )?;
+        assert_eq!(budget, 0);
+        assert_eq!(walker.frame.stats.dst_blocks, 0);
+        assert_eq!(walker.frame.stats.dct_blocks, [0, 1, 0, 0]);
+        assert_eq!(walker.frame.stats.nonzero_transform_units, 1);
+        assert!(
+            walker
+                .frame
+                .cells
+                .iter()
+                .all(|cell| cell.luma_residual && cell.reconstructed == 7)
+        );
+        assert!(
+            walker
+                .frame
+                .planes
+                .iter()
+                .skip(1)
+                .all(|plane| plane.iter().all(|sample| *sample == 42))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn actual_bi_prediction_omits_only_list_one_mvd_when_signalled() -> Result<()> {
+        let mut fixture = fixture(8, 8, 8, false, 1)?;
+        fixture.sps.min_cb_log2 = 3;
+        fixture.sps.pcm = None;
+        fixture.sps.conformance_window = [0; 4];
+        let rbsp = [0x80, 0x57, 0x63];
+        let original = escaped(&rbsp);
+        for zero in [true, false] {
+            let mut input = inter_input(&fixture, &rbsp, &original, Initialization::B);
+            if let Some(inter) = input.syntax.inter.as_mut() {
+                inter.mvd_l1_zero = zero;
+            }
+            let dpb = reference_dpb(&input)?;
+            let mut frame = Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
+            let mut budget = 11;
+            let result = frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX);
+            if !zero {
+                assert!(result.is_err());
+                continue;
+            }
+            result?;
+            assert_eq!(budget, 0);
+            assert!(frame.complete());
+            assert_eq!(frame.inter_stats.bi_units, 1);
+            assert_eq!(frame.inter_stats.amvp_lists, 2);
+            assert!(frame.cells.iter().all(|cell| matches!(cell.motion,
+                Some(Motion::Bi([first, second])) if first.vector == (kernels::MotionVector { x: 0, y: 0 })
+                    && second.vector == first.vector)));
+            for (plane, value) in frame.planes.iter().zip([42, 43, 44]) {
+                assert!(plane.iter().all(|sample| *sample == value));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn intra_references_distinguish_unfinished_inter_and_constrained_intra() -> Result<()> {
+        for constrained in [false, true] {
+            for reconstructed in [0, 1] {
+                let mut fixture = fixture(8, 8, 8, false, 1)?;
+                fixture.pps.constrained_intra = constrained;
+                let input = fixture.input(segment(&[], &[], &[]));
+                let mut frame = Frame::new(&input, 0, usize::MAX)?;
+                for plane in &mut frame.planes {
+                    plane.fill(42);
+                }
+                let mut walker = Walker {
+                    frame: &mut frame,
+                    input: &input,
+                    location: fixture.layout.at_raster(0)?,
+                    slice: 1,
+                    dpb: None,
+                };
+                let cell = cell_mut(walker.frame, 0, 4)?;
+                cell.slice = 1;
+                cell.reconstructed = reconstructed;
+                assert!(walker.neighbour(Some(3), Some(4))?.is_some() == (reconstructed != 0));
+                let cell = cell_mut(walker.frame, 0, 4)?;
+                cell.motion = Some(Motion::L0(super::super::MotionReference {
+                    reference: 0,
+                    index: 0,
+                    vector: kernels::MotionVector { x: 0, y: 0 },
+                }));
+                assert!(walker.neighbour(Some(3), Some(4))?.is_some());
+                walker.references(&ReconstructionBlock {
+                    area: Area {
+                        x: 4,
+                        y: 4,
+                        log2: 2,
+                    },
+                    component: 0,
+                    mode: Some(IntraMode::new(1)?),
+                    coded: false,
+                    bypass: false,
+                })?;
+                assert_eq!(
+                    walker.frame.scratch.references.get(4),
+                    Some(&if !constrained && reconstructed != 0 {
+                        Some(42)
+                    } else {
+                        None
+                    })
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn inter_four_sample_dct_and_chroma_only_residual_have_distinct_luma_flags() -> Result<()> {
+        for component in [0, 1] {
+            let mut fixture = fixture(8, 8, 8, false, 1)?;
+            if component == 0 {
+                fixture.sps.scaling_lists = Some(crate::scaling::ScalingLists::flat());
+                let mut writer = params::tests::Writer::default();
+                for size in 0..4 {
+                    for matrix in (0..6).step_by(if size == 3 { 3 } else { 1 }) {
+                        if size == 0 && matrix == 3 {
+                            writer.flag(true);
+                            writer.se(24);
+                            for _ in 1..16 {
+                                writer.se(0);
+                            }
+                        } else {
+                            writer.flag(false);
+                            writer.ue(0);
+                        }
+                    }
+                }
+                fixture.pps.scaling_lists = Some(crate::scaling::ScalingLists::parse(
+                    &mut Bits::new(&writer.bytes()),
+                )?);
+            }
+            let input = fixture.input(segment(&[], &[], &[]));
+            let mut frame = Frame::new(&input, 0, usize::MAX)?;
+            frame.contexts = Contexts::new(26, Initialization::P);
+            for plane in &mut frame.planes {
+                plane.fill(42);
+            }
+            let mut walker = Walker {
+                frame: &mut frame,
+                input: &input,
+                location: fixture.layout.at_raster(0)?,
+                slice: 1,
+                dpb: None,
+            };
+            walker.initialize_cells(
+                Area {
+                    x: 0,
+                    y: 0,
+                    log2: 3,
+                },
+                0,
+            )?;
+            let bytes = if component == 0 {
+                [0xe0, 0x80, 0, 0]
+            } else {
+                [0; 4]
+            };
+            let mut budget = 4;
+            let mut cabac = Cabac::new(&bytes, &mut budget)?;
+            walker.reconstruct(
+                &mut cabac,
+                ReconstructionBlock {
+                    area: Area {
+                        x: 0,
+                        y: 0,
+                        log2: 2,
+                    },
+                    component,
+                    mode: None,
+                    coded: true,
+                    bypass: component != 0,
+                },
+            )?;
+            assert_eq!(budget, 0);
+            assert_eq!(walker.frame.stats.dst_blocks, 0);
+            if component == 0 {
+                assert_eq!(walker.frame.stats.dct_blocks, [1, 0, 0, 0]);
+                assert!(walker.frame.cell(0, 0)?.luma_residual);
+                assert!(!walker.frame.cell(4, 0)?.luma_residual);
+                assert_eq!(walker.frame.stats.scaling_list_blocks, 1);
+                let plane = walker
+                    .frame
+                    .planes
+                    .first()
+                    .ok_or(Error::InvalidData("test_plane"))?;
+                for y in 0..8 {
+                    for x in 0..8 {
+                        assert_eq!(
+                            plane.get(y * 8 + x),
+                            Some(&if x < 4 && y < 4 { 48 } else { 42 })
+                        );
+                    }
+                }
+            } else {
+                assert!(walker.frame.cells.iter().all(|cell| !cell.luma_residual));
+                assert_eq!(
+                    walker.frame.planes.get(1).and_then(|p| p.first()),
+                    Some(&43)
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn luma_transform_marking_preserves_but_does_not_promote_internal_pu_edges() -> Result<()> {
+        let fixture = fixture(16, 16, 8, false, 1)?;
+        let input = fixture.input(segment(&[], &[], &[]));
+        let mut frame = Frame::new(&input, 0, usize::MAX)?;
+        let mut walker = Walker {
+            frame: &mut frame,
+            input: &input,
+            location: fixture.layout.at_raster(0)?,
+            slice: 1,
+            dpb: None,
+        };
+        let area = Area {
+            x: 0,
+            y: 0,
+            log2: 4,
+        };
+        walker.initialize_cells(area, 0)?;
+        for y in (0..16).step_by(4) {
+            cell_mut(walker.frame, 8, y)?.edges |= 1;
+        }
+        walker.mark(area, 1)?;
+        assert_eq!(walker.frame.cell(8, 4)?.edges, 1);
+        assert_eq!(walker.frame.cell(8, 4)?.transform_edges, 0);
+        assert_eq!(walker.frame.cell(0, 4)?.transform_edges, 1);
+        assert_eq!(walker.frame.cell(8, 0)?.edges, 3);
+        assert_eq!(walker.frame.cell(8, 0)?.transform_edges, 2);
+        assert_eq!(walker.frame.cell(0, 0)?.transform_edges, 3);
+        walker.mark(area, 6)?;
+        assert_eq!(walker.frame.cell(8, 4)?.transform_edges, 0);
+        assert_eq!(walker.frame.cell(0, 0)?.transform_edges, 3);
+        Ok(())
     }
 
     #[test]
@@ -1672,11 +3056,15 @@ mod tests {
         let mut frame = Frame::new(&input, 0, usize::MAX)?;
         *cell_mut(&mut frame, 0, 12)? = Cell {
             mode: Some(IntraMode::new(26)?),
+            motion: None,
+            skipped: false,
+            luma_residual: false,
             depth: 0,
             reconstructed: 7,
             qp: 26,
             slice: 1,
             edges: 0,
+            transform_edges: 0,
             protected: false,
         };
         let mut walker = Walker {
@@ -1684,6 +3072,7 @@ mod tests {
             input: &input,
             location: fixture.layout.at_raster(1)?,
             slice: 1,
+            dpb: None,
         };
         assert!(walker.neighbour(Some(0), Some(15))?.is_some());
         let mut budget = 1;
@@ -1713,11 +3102,15 @@ mod tests {
         let mut frame = Frame::new(&input, 0, usize::MAX)?;
         let mut value = Cell {
             mode: Some(IntraMode::new(1)?),
+            motion: None,
+            skipped: false,
+            luma_residual: false,
             depth: 1,
             reconstructed: 7,
             qp: 20,
             slice: 1,
             edges: 0,
+            transform_edges: 0,
             protected: false,
         };
         *cell_mut(&mut frame, 4, 8)? = value;
@@ -1729,6 +3122,7 @@ mod tests {
             input: &input,
             location,
             slice: 1,
+            dpb: None,
         };
         walker.begin_qp_group(Area {
             x: 8,
@@ -1767,6 +3161,7 @@ mod tests {
             input: &input,
             location: fixture.layout.at_raster(0)?,
             slice: 1,
+            dpb: None,
         };
         let earlier = Area {
             x: 0,

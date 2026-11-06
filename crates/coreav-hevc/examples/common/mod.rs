@@ -4,6 +4,22 @@ use std::io::Read;
 pub const INPUT_LIMIT: u64 = 4 << 30;
 pub const CHUNK: usize = 65536;
 
+pub fn reconstruction_stats(stats: coreav_hevc::IntraStats) -> serde_json::Value {
+    serde_json::json!({"ctus":stats.ctus,"coding_units":stats.coding_units,
+        "transform_units":stats.transform_units,"nonzero_transform_units":stats.nonzero_transform_units,
+        "transform_skips":stats.transform_skips,"transquant_bypass_units":stats.transquant_bypass_units,
+        "pcm_units":stats.pcm_units,"dependent_segments":stats.dependent_segments,
+        "tile_restarts":stats.tile_restarts,"wpp_restarts":stats.wpp_restarts,
+        "qp_deltas":stats.qp_deltas,"nonzero_qp_deltas":stats.nonzero_qp_deltas,
+        "scaling_list_blocks":stats.scaling_list_blocks,"sign_hidden_groups":stats.sign_hidden_groups,
+        "dst_blocks":stats.dst_blocks,"bins":stats.bins,"picture_hashes":stats.picture_hashes,
+        "reserved_hashes":stats.reserved_hashes,"memory_bytes":stats.memory_bytes,
+        "deblock_edges":stats.deblock_edges,"deblock_changed_samples":stats.deblock_changed_samples,
+        "sao_blocks":stats.sao_blocks,"sao_changed_samples":stats.sao_changed_samples,"sao_merges":stats.sao_merges,
+        "luma_modes":stats.luma_modes.as_slice(),"chroma_modes":stats.chroma_modes.as_slice(),
+        "dct_blocks":stats.dct_blocks.as_slice()})
+}
+
 pub struct Receipt {
     pub bytes: u64,
     pub capacity: usize,
@@ -109,6 +125,80 @@ fn emit_nal(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reconstruction_counter_projection_preserves_the_intra_schema() -> Result<()> {
+        let stats = coreav_hevc::IntraStats {
+            ctus: 17,
+            bins: 19,
+            memory_bytes: 23,
+            deblock_edges: [1, 2, 3],
+            dct_blocks: [4, 5, 6, 7],
+            ..coreav_hevc::IntraStats::default()
+        };
+        let value = reconstruction_stats(stats);
+        let object = value.as_object().ok_or(Error::InvalidData("test_stats"))?;
+        let mut expected = [
+            "ctus",
+            "coding_units",
+            "transform_units",
+            "nonzero_transform_units",
+            "transform_skips",
+            "transquant_bypass_units",
+            "pcm_units",
+            "dependent_segments",
+            "tile_restarts",
+            "wpp_restarts",
+            "qp_deltas",
+            "nonzero_qp_deltas",
+            "scaling_list_blocks",
+            "sign_hidden_groups",
+            "dst_blocks",
+            "bins",
+            "picture_hashes",
+            "reserved_hashes",
+            "memory_bytes",
+            "deblock_edges",
+            "deblock_changed_samples",
+            "sao_blocks",
+            "sao_changed_samples",
+            "sao_merges",
+            "luma_modes",
+            "chroma_modes",
+            "dct_blocks",
+        ];
+        expected.sort_unstable();
+        assert_eq!(
+            object.keys().map(String::as_str).collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(value.get("ctus"), Some(&serde_json::json!(17)));
+        assert_eq!(value.get("bins"), Some(&serde_json::json!(19)));
+        assert_eq!(value.get("memory_bytes"), Some(&serde_json::json!(23)));
+        assert_eq!(
+            value.get("deblock_edges"),
+            Some(&serde_json::json!([1, 2, 3]))
+        );
+        assert_eq!(
+            value.get("dct_blocks"),
+            Some(&serde_json::json!([4, 5, 6, 7]))
+        );
+        assert_eq!(
+            value
+                .get("luma_modes")
+                .and_then(serde_json::Value::as_array)
+                .map(Vec::len),
+            Some(35)
+        );
+        assert_eq!(
+            value
+                .get("chroma_modes")
+                .and_then(serde_json::Value::as_array)
+                .map(Vec::len),
+            Some(35)
+        );
+        Ok(())
+    }
 
     struct Short<'a> {
         bytes: &'a [u8],

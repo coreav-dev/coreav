@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::{Deblocking, Encoder, Result, bits::Bits};
 
 pub(crate) fn sps(w: &mut Bits, e: &Encoder) -> Result<()> {

@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub(crate) const TOKENS: [[u32; 5]; 68] = [
     [33, 98, 484, 102, 34],
     [0, 0, 0, 0, 0],

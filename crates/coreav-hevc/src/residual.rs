@@ -1,4 +1,4 @@
-use crate::cabac::{Cabac, Context};
+use crate::cabac::{Cabac, Context, Initialization};
 use crate::{Error, Result};
 
 const LAST_INIT: [u8; 18] = [
@@ -15,6 +15,33 @@ const GREATER1_INIT: [u8; 24] = [
     182, 140, 227, 122, 197,
 ];
 const GREATER2_INIT: [u8; 6] = [138, 153, 136, 167, 152, 152];
+const LAST_P_INIT: [u8; 18] = [
+    125, 110, 94, 110, 95, 79, 125, 111, 110, 78, 110, 111, 111, 95, 94, 108, 123, 108,
+];
+const LAST_B_INIT: [u8; 18] = [
+    125, 110, 124, 110, 95, 94, 125, 111, 111, 79, 125, 126, 111, 111, 79, 108, 123, 93,
+];
+const SUBBLOCK_INTER_INIT: [u8; 4] = [121, 140, 61, 154];
+const SIGNIFICANCE_P_INIT: [u8; 42] = [
+    155, 154, 139, 153, 139, 123, 123, 63, 153, 166, 183, 140, 136, 153, 154, 166, 183, 140, 136,
+    153, 154, 166, 183, 140, 136, 153, 154, 170, 153, 123, 123, 107, 121, 107, 121, 167, 151, 183,
+    140, 151, 183, 140,
+];
+const SIGNIFICANCE_B_INIT: [u8; 42] = [
+    170, 154, 139, 153, 139, 123, 123, 63, 124, 166, 183, 140, 136, 153, 154, 166, 183, 140, 136,
+    153, 154, 166, 183, 140, 136, 153, 154, 170, 153, 138, 138, 122, 121, 122, 121, 167, 151, 183,
+    140, 151, 183, 140,
+];
+const GREATER1_P_INIT: [u8; 24] = [
+    154, 196, 196, 167, 154, 152, 167, 182, 182, 134, 149, 136, 153, 121, 136, 137, 169, 194, 166,
+    167, 154, 167, 137, 182,
+];
+const GREATER1_B_INIT: [u8; 24] = [
+    154, 196, 167, 167, 154, 152, 167, 182, 182, 134, 149, 136, 153, 121, 136, 122, 169, 208, 166,
+    167, 154, 152, 167, 182,
+];
+const GREATER2_P_INIT: [u8; 6] = [107, 167, 91, 122, 107, 167];
+const GREATER2_B_INIT: [u8; 6] = [107, 167, 91, 107, 107, 167];
 const SIGNIFICANCE_4X4: [usize; 15] = [0, 1, 4, 5, 2, 3, 4, 5, 6, 6, 8, 8, 7, 7, 8];
 
 #[derive(Clone, Copy)]
@@ -29,15 +56,38 @@ pub(crate) struct Contexts {
 }
 
 impl Contexts {
-    pub(crate) fn new(slice_qp_y: i32) -> Self {
+    pub(crate) fn new(slice_qp_y: i32, initialization: Initialization) -> Self {
+        let (last, subblock, significance, greater1, greater2) = match initialization {
+            Initialization::I => (
+                LAST_INIT,
+                SUBBLOCK_INIT,
+                SIGNIFICANCE_INIT,
+                GREATER1_INIT,
+                GREATER2_INIT,
+            ),
+            Initialization::P => (
+                LAST_P_INIT,
+                SUBBLOCK_INTER_INIT,
+                SIGNIFICANCE_P_INIT,
+                GREATER1_P_INIT,
+                GREATER2_P_INIT,
+            ),
+            Initialization::B => (
+                LAST_B_INIT,
+                SUBBLOCK_INTER_INIT,
+                SIGNIFICANCE_B_INIT,
+                GREATER1_B_INIT,
+                GREATER2_B_INIT,
+            ),
+        };
         Self {
             transform_skip: [Context::new(139, slice_qp_y); 2],
-            last_x: LAST_INIT.map(|value| Context::new(value, slice_qp_y)),
-            last_y: LAST_INIT.map(|value| Context::new(value, slice_qp_y)),
-            subblock: SUBBLOCK_INIT.map(|value| Context::new(value, slice_qp_y)),
-            significance: SIGNIFICANCE_INIT.map(|value| Context::new(value, slice_qp_y)),
-            greater1: GREATER1_INIT.map(|value| Context::new(value, slice_qp_y)),
-            greater2: GREATER2_INIT.map(|value| Context::new(value, slice_qp_y)),
+            last_x: last.map(|value| Context::new(value, slice_qp_y)),
+            last_y: last.map(|value| Context::new(value, slice_qp_y)),
+            subblock: subblock.map(|value| Context::new(value, slice_qp_y)),
+            significance: significance.map(|value| Context::new(value, slice_qp_y)),
+            greater1: greater1.map(|value| Context::new(value, slice_qp_y)),
+            greater2: greater2.map(|value| Context::new(value, slice_qp_y)),
         }
     }
 }
@@ -58,7 +108,7 @@ impl Component {
 pub(crate) struct Block {
     pub(crate) log2_size: u8,
     pub(crate) component: Component,
-    pub(crate) intra_mode: u8,
+    pub(crate) intra_mode: Option<u8>,
     pub(crate) transform_skip_enabled: bool,
     pub(crate) transquant_bypass: bool,
     pub(crate) sign_data_hiding_enabled: bool,
@@ -75,8 +125,8 @@ impl Block {
     fn scan(self) -> Scan {
         if self.log2_size == 2 || (self.log2_size == 3 && self.component == Component::Luma) {
             match self.intra_mode {
-                6..=14 => Scan::Vertical,
-                22..=30 => Scan::Horizontal,
+                Some(6..=14) => Scan::Vertical,
+                Some(22..=30) => Scan::Horizontal,
                 _ => Scan::Diagonal,
             }
         } else {
@@ -135,7 +185,7 @@ fn decode_block(
     block: Block,
     output: &mut [i16],
 ) -> Result<Decoded> {
-    if !(2..=5).contains(&block.log2_size) || block.intra_mode > 34 {
+    if !(2..=5).contains(&block.log2_size) || block.intra_mode.is_some_and(|mode| mode > 34) {
         return Err(Error::InvalidData("residual_block"));
     }
     let side = 1usize << block.log2_size;
@@ -558,7 +608,7 @@ mod tests {
         Block {
             log2_size,
             component,
-            intra_mode,
+            intra_mode: Some(intra_mode),
             transform_skip_enabled: false,
             transquant_bypass: false,
             sign_data_hiding_enabled: false,
@@ -635,7 +685,7 @@ mod tests {
         );
         assert_eq!(GREATER2_INIT, [138, 153, 136, 167, 152, 152]);
         for qp in [-12, 0, 26, 51, 63] {
-            let contexts = Contexts::new(qp);
+            let contexts = Contexts::new(qp, Initialization::I);
             let copy = contexts;
             assert_eq!(contexts.transform_skip, [Context::new(139, qp); 2]);
             for ((x, y), init) in copy.last_x.iter().zip(copy.last_y.iter()).zip(LAST_INIT) {
@@ -654,6 +704,84 @@ mod tests {
             for (context, init) in copy.greater2.iter().zip(GREATER2_INIT) {
                 assert_eq!(*context, Context::new(init, qp));
             }
+        }
+    }
+
+    #[test]
+    fn p_initialization_tables_9_25_through_9_31() {
+        for qp in (-12..=63).filter(|qp| *qp == -12 || (0..=51).contains(qp) || *qp == 63) {
+            let contexts = Contexts::new(qp, Initialization::P);
+            let last = [
+                125, 110, 94, 110, 95, 79, 125, 111, 110, 78, 110, 111, 111, 95, 94, 108, 123, 108,
+            ]
+            .map(|init| Context::new(init, qp));
+            assert_eq!(contexts.transform_skip, [Context::new(139, qp); 2]);
+            assert_eq!(contexts.last_x, last);
+            assert_eq!(contexts.last_y, last);
+            assert_eq!(
+                contexts.subblock,
+                [121, 140, 61, 154].map(|init| Context::new(init, qp))
+            );
+            assert_eq!(
+                contexts.significance,
+                [
+                    155, 154, 139, 153, 139, 123, 123, 63, 153, 166, 183, 140, 136, 153, 154, 166,
+                    183, 140, 136, 153, 154, 166, 183, 140, 136, 153, 154, 170, 153, 123, 123, 107,
+                    121, 107, 121, 167, 151, 183, 140, 151, 183, 140,
+                ]
+                .map(|init| Context::new(init, qp))
+            );
+            assert_eq!(
+                contexts.greater1,
+                [
+                    154, 196, 196, 167, 154, 152, 167, 182, 182, 134, 149, 136, 153, 121, 136, 137,
+                    169, 194, 166, 167, 154, 167, 137, 182,
+                ]
+                .map(|init| Context::new(init, qp))
+            );
+            assert_eq!(
+                contexts.greater2,
+                [107, 167, 91, 122, 107, 167].map(|init| Context::new(init, qp))
+            );
+        }
+    }
+
+    #[test]
+    fn b_initialization_tables_9_25_through_9_31() {
+        for qp in (-12..=63).filter(|qp| *qp == -12 || (0..=51).contains(qp) || *qp == 63) {
+            let contexts = Contexts::new(qp, Initialization::B);
+            let last = [
+                125, 110, 124, 110, 95, 94, 125, 111, 111, 79, 125, 126, 111, 111, 79, 108, 123, 93,
+            ]
+            .map(|init| Context::new(init, qp));
+            assert_eq!(contexts.transform_skip, [Context::new(139, qp); 2]);
+            assert_eq!(contexts.last_x, last);
+            assert_eq!(contexts.last_y, last);
+            assert_eq!(
+                contexts.subblock,
+                [121, 140, 61, 154].map(|init| Context::new(init, qp))
+            );
+            assert_eq!(
+                contexts.significance,
+                [
+                    170, 154, 139, 153, 139, 123, 123, 63, 124, 166, 183, 140, 136, 153, 154, 166,
+                    183, 140, 136, 153, 154, 166, 183, 140, 136, 153, 154, 170, 153, 138, 138, 122,
+                    121, 122, 121, 167, 151, 183, 140, 151, 183, 140,
+                ]
+                .map(|init| Context::new(init, qp))
+            );
+            assert_eq!(
+                contexts.greater1,
+                [
+                    154, 196, 167, 167, 154, 152, 167, 182, 182, 134, 149, 136, 153, 121, 136, 122,
+                    169, 208, 166, 167, 154, 152, 167, 182,
+                ]
+                .map(|init| Context::new(init, qp))
+            );
+            assert_eq!(
+                contexts.greater2,
+                [107, 167, 91, 107, 107, 167].map(|init| Context::new(init, qp))
+            );
         }
     }
 
@@ -729,6 +857,77 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn inter_scan_and_eight_by_eight_chroma_follow_7_4_9_11() -> Result<()> {
+        for size in 2..=5 {
+            for component in [Component::Luma, Component::Chroma] {
+                let inter = Block {
+                    intra_mode: None,
+                    ..block(size, component, 0)
+                };
+                assert_eq!(inter.scan(), Scan::Diagonal);
+            }
+        }
+        for (mode, scan) in [(10, Scan::Vertical), (26, Scan::Horizontal)] {
+            assert_eq!(block(2, Component::Chroma, mode).scan(), scan);
+            assert_eq!(block(3, Component::Luma, mode).scan(), scan);
+            let chroma = block(3, Component::Chroma, mode);
+            assert_eq!(chroma.scan(), Scan::Diagonal);
+            assert_eq!(significance_context(chroma, 1, 0, 0)?, 37);
+            let inter = Block {
+                intra_mode: None,
+                ..block(3, Component::Luma, mode)
+            };
+            assert_eq!(significance_context(inter, 1, 0, 0)?, 10);
+            assert_eq!(
+                significance_context(block(3, Component::Luma, mode), 1, 0, 0)?,
+                16
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn inter_residual_syntax_places_a_diagonal_scan_coefficient() -> Result<()> {
+        for initialization in [Initialization::P, Initialization::B] {
+            for size in 2..=5 {
+                for component in [Component::Luma, Component::Chroma] {
+                    let mut source = SyntaxBins::new(vec![
+                        Bin::Decision(true),
+                        Bin::Decision(false),
+                        Bin::Decision(false),
+                        Bin::Decision(false),
+                        Bin::Decision(false),
+                        Bin::Decision(false),
+                        Bin::Bypass(false),
+                    ]);
+                    let mut output = [99; 1025];
+                    let inter = Block {
+                        intra_mode: None,
+                        ..block(size, component, 0)
+                    };
+                    decode_block(
+                        &mut source,
+                        &mut Contexts::new(26, initialization),
+                        inter,
+                        &mut output,
+                    )?;
+                    assert!(source.finished());
+                    let length = 1usize << (2 * size);
+                    for (index, coefficient) in output.iter().take(length).enumerate() {
+                        assert_eq!(*coefficient, i16::from(index == 1));
+                    }
+                    assert!(
+                        output
+                            .get(length..)
+                            .is_some_and(|tail| tail.iter().all(|&value| value == 99))
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]
@@ -963,8 +1162,13 @@ mod tests {
                     let mut source = SyntaxBins::new(bins);
                     let mut output = [99; 1025];
                     assert_eq!(
-                        decode_block(&mut source, &mut Contexts::new(26), b, &mut output)?
-                            .transform_skip,
+                        decode_block(
+                            &mut source,
+                            &mut Contexts::new(26, Initialization::I),
+                            b,
+                            &mut output
+                        )?
+                        .transform_skip,
                         skip_present
                     );
                     assert!(source.finished());
@@ -1005,7 +1209,7 @@ mod tests {
             let mut output = [0; 64];
             decode_block(
                 &mut source,
-                &mut Contexts::new(26),
+                &mut Contexts::new(26, Initialization::I),
                 block(3, Component::Luma, mode),
                 &mut output,
             )?;
@@ -1039,7 +1243,7 @@ mod tests {
             let mut output = [0; 256];
             decode_block(
                 &mut source,
-                &mut Contexts::new(26),
+                &mut Contexts::new(26, Initialization::I),
                 block(4, Component::Luma, 0),
                 &mut output,
             )?;
@@ -1082,7 +1286,7 @@ mod tests {
             let mut previous = LevelState::new(1);
             let levels = decode_levels(
                 &mut source,
-                &mut Contexts::new(26),
+                &mut Contexts::new(26, Initialization::I),
                 &mut coefficients,
                 Component::Luma,
                 0,
@@ -1122,7 +1326,7 @@ mod tests {
         ]);
         let levels = decode_levels(
             &mut source,
-            &mut Contexts::new(26),
+            &mut Contexts::new(26, Initialization::I),
             &mut coefficients,
             Component::Luma,
             0,
@@ -1165,7 +1369,12 @@ mod tests {
             }
             let mut source = SyntaxBins::new(bins);
             let mut output = [0; 16];
-            let decoded = decode_block(&mut source, &mut Contexts::new(26), b, &mut output)?;
+            let decoded = decode_block(
+                &mut source,
+                &mut Contexts::new(26, Initialization::I),
+                b,
+                &mut output,
+            )?;
             assert_eq!(decoded.transform_skip, !bypass);
             assert_eq!(decoded.sign_hidden_groups, u64::from(!bypass));
             assert_eq!(output.first(), Some(if bypass { &1 } else { &-1 }));
@@ -1191,7 +1400,7 @@ mod tests {
             let mut source = SyntaxBins::new(bins);
             let result = decode_levels(
                 &mut source,
-                &mut Contexts::new(26),
+                &mut Contexts::new(26, Initialization::I),
                 &mut coefficients,
                 Component::Luma,
                 0,
@@ -1223,7 +1432,7 @@ mod tests {
             let mut previous = LevelState::new(0);
             let output = decode_levels(
                 &mut source,
-                &mut Contexts::new(26),
+                &mut Contexts::new(26, Initialization::I),
                 &mut coefficients,
                 component,
                 1,
@@ -1254,7 +1463,7 @@ mod tests {
         let mut source = SyntaxBins::new(bins);
         let output = decode_levels(
             &mut source,
-            &mut Contexts::new(26),
+            &mut Contexts::new(26, Initialization::I),
             &mut coefficients,
             Component::Luma,
             1,
@@ -1269,7 +1478,7 @@ mod tests {
     #[test]
     fn invalid_block_domains_and_output_fail_before_bins() {
         let mut source = SyntaxBins::new(Vec::new());
-        let mut contexts = Contexts::new(26);
+        let mut contexts = Contexts::new(26, Initialization::I);
         for size in [0, 1, 6, 255] {
             assert_eq!(
                 decode_block(
@@ -1303,6 +1512,34 @@ mod tests {
     }
 
     #[test]
+    fn invalid_intra_modes_preserve_output_contexts_and_bins() {
+        for initialization in [Initialization::I, Initialization::P, Initialization::B] {
+            for mode in 35..=u8::MAX {
+                let mut contexts = Contexts::new(26, initialization);
+                let before = contexts;
+                let mut output = [99; 16];
+                let mut source = SyntaxBins::new(vec![Bin::Decision(true)]);
+                let mut invalid = block(2, Component::Luma, mode);
+                invalid.transform_skip_enabled = true;
+                assert_eq!(
+                    decode_block(&mut source, &mut contexts, invalid, &mut output),
+                    Err(Error::InvalidData("residual_block"))
+                );
+                assert_eq!(output, [99; 16]);
+                assert_eq!(source.bins.len(), 1);
+                assert!(source.contexts.is_empty());
+                assert_eq!(contexts.transform_skip, before.transform_skip);
+                assert_eq!(contexts.last_x, before.last_x);
+                assert_eq!(contexts.last_y, before.last_y);
+                assert_eq!(contexts.subblock, before.subblock);
+                assert_eq!(contexts.significance, before.significance);
+                assert_eq!(contexts.greater1, before.greater1);
+                assert_eq!(contexts.greater2, before.greater2);
+            }
+        }
+    }
+
+    #[test]
     fn residual_uses_the_callers_arithmetic_bin_budget() -> Result<()> {
         let mut budget = 0;
         let mut cabac = Cabac::new(&[0; 8], &mut budget)?;
@@ -1310,7 +1547,7 @@ mod tests {
         assert_eq!(
             decode(
                 &mut cabac,
-                &mut Contexts::new(26),
+                &mut Contexts::new(26, Initialization::I),
                 block(2, Component::Luma, 0),
                 &mut output,
             ),
