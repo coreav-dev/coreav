@@ -50,7 +50,7 @@ def fixture_rows():
 
 def commands(oracle, x264, output):
     roster = registry()
-    ffmpeg = str(oracle / "ffmpeg")
+    ffmpeg = str(oracle.ffmpeg)
     geometries = roster["geometries"] + [{"id": "4k", "width": 3840, "height": 2160},
                                          {"id": "sar", "width": 640, "height": 360, "sar": "4:3"}]
     for geometry in geometries:
@@ -209,10 +209,11 @@ def generate(oracle, x264, output, hostile_manifest=None):
     external = hostile_rows(hostile_manifest)
     if output.exists() and any(output.iterdir()):
         raise ValueError("output directory must be empty")
+    try:
+        oracle = test_oracle.require(oracle / "ffmpeg", oracle / "ffprobe")
+    except test_oracle.QualificationError:
+        raise ValueError("the pinned oracle programs are required") from None
     output.mkdir(parents=True, exist_ok=True)
-    problems = list(test_oracle.verify_bin(oracle))
-    if problems:
-        raise ValueError("the pinned oracle programs are required")
     logs = []
     pin = oracle_pin.load()
     version = execute([str(x264), "--version"], logs, 10).decode("utf8", "replace")
@@ -222,7 +223,7 @@ def generate(oracle, x264, output, hostile_manifest=None):
                 "generatorSha256": digest(pathlib.Path(__file__).read_bytes()),
                 "oraclePinSha256": digest((ROOT / oracle_pin.PIN).read_bytes()),
                 "binaries": {name: digest(path.read_bytes()) for name, path in
-                             [("ffmpeg", oracle / "ffmpeg"), ("ffprobe", oracle / "ffprobe"), ("x264", x264)]},
+                             [("ffmpeg", oracle.ffmpeg), ("ffprobe", oracle.ffprobe), ("x264", x264)]},
                 "fixtures": [], "hostile": [], "boundary": []}
     stage, item = "commands", 0
     try:
@@ -256,7 +257,7 @@ def generate(oracle, x264, output, hostile_manifest=None):
                 original = output / f"4k-{row['entropy']}-{row['container']}.{extension}"
                 path.write_bytes(patch_dimensions(original.read_bytes(), row["container"]))
             stage = "probe"
-            probe = execute([str(oracle / "ffprobe"), "-v", "error", "-select_streams", "v", "-show_streams",
+            probe = execute([str(oracle.ffprobe), "-v", "error", "-select_streams", "v", "-show_streams",
                              "-show_packets", "-show_entries", "stream=index,codec_name,width,height,pix_fmt,sample_aspect_ratio:stream_side_data:packet=stream_index,pts_time,flags",
                              "-of", "json", str(path)], logs, 30)
             description = json.loads(probe)
@@ -317,7 +318,8 @@ def main():
     parser.add_argument("--plan", action="store_true")
     args = parser.parse_args()
     if args.plan:
-        print(json.dumps({"roster": list(fixture_rows()), "commands": list(commands(args.oracle_bin, args.x264, args.output))}, sort_keys=True))
+        oracle = test_oracle.Oracle(args.oracle_bin / "ffmpeg", args.oracle_bin / "ffprobe")
+        print(json.dumps({"roster": list(fixture_rows()), "commands": list(commands(oracle, args.x264, args.output))}, sort_keys=True))
         return
     try:
         count = generate(args.oracle_bin.resolve(), args.x264.resolve(), args.output, args.hostile_manifest)

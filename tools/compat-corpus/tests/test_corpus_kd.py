@@ -464,19 +464,46 @@ class Driver(unittest.TestCase):
         self.frozen['selection_sha256'] = kd.file_hash(self.files)
         self.inventory.write_text(json.dumps(self.frozen))
 
-    def execute(self):
+    def execute(self, oracle=None, qualification_error=None):
         sys.path.insert(0, str(kd.ROOT / 'scripts'))
         import oracle_pin
         import test_oracle
+        oracle = oracle or test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe')
         args = ['corpus_kd.py', 'compare', '--inventory', str(self.inventory), '--files', str(self.files),
                 '--coreav', str(self.root / 'coreav'), '--oracle-dir', str(self.root), '--out', str(self.output)]
         with mock.patch.object(sys, 'argv', args), mock.patch.dict(os.environ), \
                 mock.patch.object(run, 'ENV', run.ENV.copy()), \
                 mock.patch.object(kd, 'inventory', return_value=self.frozen), \
-                mock.patch.object(test_oracle, 'verify_bin', return_value=[]) as checked:
+                mock.patch.object(test_oracle, 'require', return_value=oracle,
+                                  side_effect=qualification_error) as checked:
             result = kd.main()
-            checked.assert_called_once_with(self.root)
+            checked.assert_called_once_with(self.root / 'ffmpeg', self.root / 'ffprobe')
             return result
+
+    def test_capture_executes_the_owner_returned_probe(self):
+        import test_oracle
+        qualified = self.root / 'qualified'
+        qualified.mkdir()
+        for name in ('ffmpeg', 'ffprobe'):
+            target = qualified / name
+            target.write_bytes((self.root / name).read_bytes())
+            target.chmod(0o755)
+        oracle = test_oracle.Oracle(qualified / 'ffmpeg', qualified / 'ffprobe')
+        with mock.patch.object(run, 'run', wraps=run.run) as sections, \
+                mock.patch.object(run, 'run_to_file', wraps=run.run_to_file) as packets:
+            self.assertEqual(self.execute(oracle), 1)
+        self.assertEqual([call.args[0][0] for call in sections.call_args_list],
+                         [str(oracle.ffprobe), str((self.root / 'coreav').resolve())] * 3)
+        self.assertEqual([call.args[0][0] for call in packets.call_args_list],
+                         [str(oracle.ffprobe), str((self.root / 'coreav').resolve())] * 3)
+
+    def test_pin_failure_precedes_capture_and_output(self):
+        import test_oracle
+        with mock.patch.object(kd, 'capture_file') as capture, \
+                self.assertRaisesRegex(ValueError, 'pin-marker'):
+            self.execute(qualification_error=test_oracle.QualificationError('pin-marker'))
+        capture.assert_not_called()
+        self.assertFalse(self.output.exists())
 
     def test_real_standin_capture_and_report_preserve_the_manifest_and_do_not_pass_a_subset(self):
         self.assertEqual(self.execute(), 1)

@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('input_summary_development', ROOT / 'scripts/input_summary_development.py')
 CHECK = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECK)
+ORACLE = CHECK.test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified/ffprobe'))
 
 
 def row(identity='a' * 64, **changes):
@@ -48,7 +49,8 @@ class DevelopmentAdmission(unittest.TestCase):
                     return subprocess.CompletedProcess(command, 0, b'', b'')
                 stdout, stderr = io.StringIO(), io.StringIO()
                 with patch.object(CHECK.sys, 'argv', arguments), patch.object(CHECK.sys, 'platform', 'linux'), \
-                        patch.object(CHECK.test_oracle, 'verify_bin', return_value=diagnostics), \
+                        patch.object(CHECK.test_oracle, 'require', return_value=ORACLE,
+                                     side_effect=CHECK.test_oracle.QualificationError(marker) if diagnostics else None), \
                         patch.object(CHECK.round_files, 'manifest', side_effect=manifests), \
                         patch.object(CHECK.round_files, 'pool') as pool, \
                         patch.object(CHECK.subprocess, 'run', side_effect=encrypt), \
@@ -78,7 +80,7 @@ class DevelopmentAdmission(unittest.TestCase):
                         stop.set()
                     return subprocess.CompletedProcess(command, int(count > 4), marker if current else b'', prefix)
                 with patch.object(CHECK, 'execute', side_effect=execute) as child, self.assertRaises(CHECK.CaptureFailure) as caught:
-                    CHECK.compare(Path('native'), Path('oracle'), Path('media'), stop=stop)
+                    CHECK.compare(Path('native'), ORACLE, Path('media'), stop=stop)
                 self.assertEqual(child.call_count, 2 * pair + 1)
                 error = caught.exception
                 self.assertEqual((error.stage, error.reason), ('capture', 'cancelled'))
@@ -94,7 +96,7 @@ class DevelopmentAdmission(unittest.TestCase):
     def test_candidate_failure_retains_completed_reference_stdout(self):
         results = [subprocess.CompletedProcess([], 0, b'private-stdout', b'private-stderr'), OSError('private-error')]
         with patch.object(CHECK, 'execute', side_effect=results), self.assertRaises(CHECK.CaptureFailure) as caught:
-            CHECK.compare(Path('native'), Path('oracle'), Path('media'))
+            CHECK.compare(Path('native'), ORACLE, Path('media'))
         current = caught.exception.details[-1]
         self.assertEqual(current['reference_stdout'], 'private-stdout')
         self.assertEqual(current['reference_stderr'], 'private-stderr')
@@ -118,16 +120,30 @@ class DevelopmentAdmission(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0, b'', b'')
             stdout, stderr = io.StringIO(), io.StringIO()
             with patch.object(CHECK.sys, 'argv', arguments), patch.object(CHECK.sys, 'platform', 'linux'), \
-                    patch.object(CHECK.test_oracle, 'verify_bin', return_value=[]), \
+                    patch.object(CHECK.test_oracle, 'require', return_value=ORACLE), \
                     patch.object(CHECK.round_files, 'manifest', side_effect=[rows or [row()], []]), \
                     patch.object(CHECK.round_files, 'pool', return_value=MagicMock()), \
                     patch.object(CHECK.round_files, 'fetch_one', side_effect=fetch), \
-                    patch.object(CHECK, 'compare', return_value=('identical', [])), \
+                    patch.object(CHECK, 'compare', return_value=('identical', [])) as compare, \
                     patch.object(CHECK.subprocess, 'run', side_effect=encrypt), \
                     contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 code = CHECK.main()
+            self.comparison_calls = compare.call_args_list
             return (code, json.loads((evidence / 'summary.json').read_text()), captured,
                     stdout.getvalue() + stderr.getvalue(), (evidence / 'details.p7m').exists())
+
+    def test_workers_receive_and_execute_the_owner_returned_pair(self):
+        code, _, _, _, _ = self.run_worker_case(
+            lambda _, entry, destination: destination / (entry['sha256'] + '.mp4'))
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.comparison_calls), 1)
+        self.assertIs(self.comparison_calls[0].args[1], ORACLE)
+        prefix = b"Input #0, wav, from 'file':\n"
+        with patch.object(CHECK, 'execute', return_value=subprocess.CompletedProcess([], 0, b'', prefix)) as execute:
+            CHECK.compare(Path('native'), self.comparison_calls[0].args[1], Path('media'))
+        self.assertEqual([call.args[0][0] for call in execute.call_args_list],
+                         [str(ORACLE.ffprobe), 'native', str(ORACLE.ffprobe), 'native',
+                          str(ORACLE.ffmpeg), 'native'])
 
     def test_validation_exit_is_retained_without_printing_its_message(self):
         marker = 'private-fetch-validation-marker'
@@ -206,7 +222,7 @@ class DevelopmentAdmission(unittest.TestCase):
         results.extend([subprocess.CompletedProcess([], 1, b'', prefix),
                         subprocess.TimeoutExpired([marker], 30, stderr=marker.encode())])
         with patch.object(CHECK, 'execute', side_effect=results), self.assertRaises(CHECK.CaptureFailure) as caught:
-            CHECK.compare(Path('native'), Path('oracle'), Path('media'))
+            CHECK.compare(Path('native'), ORACLE, Path('media'))
         error = caught.exception
         self.assertEqual((error.stage, error.reason), ('candidate', 'timeout'))
         self.assertEqual(len(error.details), 3)
@@ -231,7 +247,7 @@ class DevelopmentAdmission(unittest.TestCase):
             stdout, stderr = io.StringIO(), io.StringIO()
             fault = subprocess.TimeoutExpired([marker], 30, output=marker.encode(), stderr=marker.encode())
             with patch.object(CHECK.sys, 'argv', arguments), patch.object(CHECK.sys, 'platform', 'linux'), \
-                    patch.object(CHECK.test_oracle, 'verify_bin', return_value=[]), \
+                    patch.object(CHECK.test_oracle, 'require', return_value=ORACLE), \
                     patch.object(CHECK.round_files, 'manifest', side_effect=[[row()], []]), \
                     patch.object(CHECK.round_files, 'pool', return_value=MagicMock()), \
                     patch.object(CHECK.round_files, 'fetch_one', side_effect=fault), \
@@ -267,7 +283,7 @@ class DevelopmentAdmission(unittest.TestCase):
 
             stdout, stderr = io.StringIO(), io.StringIO()
             with patch.object(CHECK.sys, 'argv', arguments), patch.object(CHECK.sys, 'platform', 'linux'), \
-                    patch.object(CHECK.test_oracle, 'verify_bin', return_value=[]), \
+                    patch.object(CHECK.test_oracle, 'require', return_value=ORACLE), \
                     patch.object(CHECK.round_files, 'manifest', side_effect=[[row()], []]), \
                     patch.object(CHECK.round_files, 'pool', return_value=MagicMock()), \
                     patch.object(CHECK.round_files, 'fetch_one', return_value=root / 'not-opened.mp4'), \
@@ -309,10 +325,10 @@ class DevelopmentAdmission(unittest.TestCase):
         for status, text in [(0, prefix), (0, prefix), (1, prefix + terminal)]:
             results.extend([subprocess.CompletedProcess([], status, b'', text)] * 2)
         with patch.object(CHECK, 'execute', side_effect=results):
-            self.assertEqual(CHECK.compare(Path('native'), Path('oracle'), Path('media'))[0], 'identical')
+            self.assertEqual(CHECK.compare(Path('native'), ORACLE, Path('media'))[0], 'identical')
         results[-1] = subprocess.CompletedProcess([], 2, b'', prefix + terminal)
         with patch.object(CHECK, 'execute', side_effect=results):
-            self.assertEqual(CHECK.compare(Path('native'), Path('oracle'), Path('media'))[0], 'mismatch')
+            self.assertEqual(CHECK.compare(Path('native'), ORACLE, Path('media'))[0], 'mismatch')
 
     def test_refusal_cannot_leak_partial_summary_or_stdout(self):
         prefix = b"Input #0, wav, from 'file':\n  Stream #0:0: Audio: pcm_s16le\n"
@@ -323,7 +339,7 @@ class DevelopmentAdmission(unittest.TestCase):
                 results.extend([subprocess.CompletedProcess([], status, b'', reference),
                                 subprocess.CompletedProcess([], 4, stdout, stderr)])
             with self.subTest(stdout=stdout, stderr=stderr), patch.object(CHECK, 'execute', side_effect=results):
-                self.assertEqual(CHECK.compare(Path('native'), Path('oracle'), Path('media'))[0], 'mismatch')
+                self.assertEqual(CHECK.compare(Path('native'), ORACLE, Path('media'))[0], 'mismatch')
 
 
 if __name__ == '__main__':

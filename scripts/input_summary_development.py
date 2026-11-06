@@ -97,7 +97,7 @@ def compare(coreav, oracle, path, stop=None):
     ):
         results = {}
         for stage, command, strict in (
-            ('reference', [str(oracle / tool), '-hide_banner', *arguments], False),
+            ('reference', [str(getattr(oracle, tool)), '-hide_banner', *arguments], False),
             ('candidate', [str(coreav), tool, *arguments], True),
         ):
             if stop is not None and stop.is_set():
@@ -164,8 +164,10 @@ def main():
     selected = []
     stage = 'preparation'
     try:
-        if list(test_oracle.verify_bin(args.oracle_dir)):
-            raise CaptureFailure('oracle-pin', 'verification', [])
+        try:
+            oracle = test_oracle.require(args.oracle_dir / 'ffmpeg', args.oracle_dir / 'ffprobe')
+        except test_oracle.QualificationError:
+            raise CaptureFailure('oracle-pin', 'verification', []) from None
         selected = select({name: round_files.manifest(name, None) for name in ('v1', 'v1-ts-audio')})
         if not selected:
             raise CaptureFailure('selection', 'empty', [])
@@ -185,7 +187,7 @@ def main():
                         path = round_files.fetch_one(pool, row, destination)
                         stage = 'capture'
                         if not stop.is_set():
-                            outcome, evidence = compare(args.coreav.resolve(), args.oracle_dir.resolve(), path, stop=stop)
+                            outcome, evidence = compare(args.coreav.resolve(), oracle, path, stop=stop)
                 except CaptureFailure as error:
                     evidence = error.details
                     if error.reason != 'cancelled':

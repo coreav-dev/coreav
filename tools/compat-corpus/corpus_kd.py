@@ -953,9 +953,9 @@ def validate_manifest(files):
         media_hashes.add(row['sha256'])
 
 
-def capture_file(coreav, media, directory):
+def capture_file(coreav, oracle, media, directory):
     directory.mkdir(parents=True, exist_ok=False)
-    ref_code, ref_out, _ = run.run(['ffprobe'] + run.SECTION_ARGS + [str(media)])
+    ref_code, ref_out, _ = run.run([str(oracle.ffprobe)] + run.SECTION_ARGS + [str(media)])
     got_code, got_out, _ = run.run([coreav, 'ffprobe'] + run.SECTION_ARGS + [str(media)])
     (directory / 'reference.json').write_bytes(ref_out)
     (directory / 'candidate.json').write_bytes(got_out)
@@ -964,7 +964,7 @@ def capture_file(coreav, media, directory):
     reference = section_document(ref_out)
     candidate = section_document(got_out) if got_code == 0 else {}
     ref_path, got_path = directory / 'reference.packets', directory / 'candidate.packets'
-    ref_packets = run.run_to_file(['ffprobe'] + run.PACKET_ARGS + [str(media)], ref_path)
+    ref_packets = run.run_to_file([str(oracle.ffprobe)] + run.PACKET_ARGS + [str(media)], ref_path)
     got_packets = run.run_to_file([coreav, 'ffprobe'] + run.PACKET_ARGS + [str(media)], got_path)
     if ref_packets != 0:
         raise ValueError('oracle packet listing failed')
@@ -1011,13 +1011,14 @@ def main():
     sys.path.insert(0, str(ROOT / 'scripts'))
     import oracle_pin
     import test_oracle
-    problems = list(test_oracle.verify_bin(args.oracle_dir))
-    if problems:
-        raise ValueError('; '.join(problems))
+    try:
+        oracle = test_oracle.require(args.oracle_dir / 'ffmpeg', args.oracle_dir / 'ffprobe')
+    except test_oracle.QualificationError as error:
+        raise ValueError(str(error)) from None
     os.environ['PATH'] = str(args.oracle_dir.resolve()) + os.pathsep + os.environ['PATH']
     args.coreav = str(pathlib.Path(args.coreav).resolve(strict=True))
     identities = {'binary_sha256': file_hash(args.coreav),
-                  'oracle_sha256': file_hash(args.oracle_dir / 'ffprobe'),
+                  'oracle_sha256': file_hash(oracle.ffprobe),
                   'selection_sha256': selection,
                   'tooling_commit': git(ROOT, 'rev-parse', 'HEAD').decode().strip(),
                   'tool_sha256': file_hash(__file__), 'comparator_sha256': file_hash(HERE / 'run.py'),
@@ -1037,7 +1038,7 @@ def main():
             media = pathlib.Path(row['path'])
             if file_hash(media) != row['sha256']:
                 raise ValueError('manifest media checksum differs')
-            cap = capture_file(args.coreav, media, args.out / 'private' / row['alias'])
+            cap = capture_file(args.coreav, oracle, media, args.out / 'private' / row['alias'])
             prepared = prepare(cap, media, registry, row['container'])
             result = compare(cap, media, registry, row['container'], prepared=prepared)
             audited = audit(cap, media, registry, row['container'], prepared=prepared)
