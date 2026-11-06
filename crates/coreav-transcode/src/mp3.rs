@@ -1,5 +1,5 @@
 //! External libmp3lame encoding and checked Layer III output. The process
-//! writes Matroska (RFC 9559); file metadata follows ID3v2.4 and the MP3
+//! writes MP3; file metadata follows ID3v2.4 and the MP3
 //! Info Tag specification linked from `docs/design/transcode.md`.
 
 use std::ffi::OsString;
@@ -8,7 +8,6 @@ use std::ops::Range;
 
 use coreav_audio::mp3::{Header, Version};
 use coreav_isobmff::Source;
-use coreav_mkv::{Allowlist, Codec, Encoding, TrackKind};
 
 /// The decoder's filterbank delay plus its one-sample alignment.
 pub const DECODER_DELAY: u32 = 529;
@@ -43,13 +42,14 @@ pub fn takes_rate(rate: u32) -> bool {
     )
 }
 
-/// Raw float input and one MP3 track on Matroska standard output.
+/// Raw float input and Layer III frames on MP3 standard output.
 pub fn encode_args(rate: u32, channels: u8, mode: Mode) -> Vec<OsString> {
     let mut args: Vec<OsString> = [
         "-nostdin",
         "-hide_banner",
+        "-nostats",
         "-loglevel",
-        "error",
+        "info",
         "-f",
         "f32le",
         "-ar",
@@ -71,11 +71,11 @@ pub fn encode_args(rate: u32, channels: u8, mode: Mode) -> Vec<OsString> {
         Mode::Quality(quality) => args.extend(["-q:a".into(), quality.to_string().into()]),
         Mode::Constant(None) => {}
     }
-    args.extend(["-f", "matroska", "pipe:1"].map(OsString::from));
+    args.extend(["-f", "mp3", "pipe:1"].map(OsString::from));
     args
 }
 
-/// A conservative bound for frames, Matroska headers and block overhead.
+/// A conservative bound for frames and the encoder's ID3 header.
 pub fn most_bytes(samples: u64) -> u64 {
     samples
         .saturating_add(u64::from(DECODER_DELAY + 2 * MAX_TRIM))
@@ -136,7 +136,7 @@ pub struct Output {
 #[derive(Debug)]
 pub(crate) struct Info {
     header: u32,
-    encoder: String,
+    pub(crate) encoder: String,
     software: String,
     delay: u32,
     padding: u32,
@@ -168,152 +168,117 @@ fn version(text: &str, prefix: &str) -> bool {
     })
 }
 
-/// Reads only one uncompressed MP3 track, validating each frame and the
-/// exact sample total after CodecDelay and final DiscardPadding.
+pub(crate) fn encoder_identity(stderr: &str) -> Result<String, ReadError> {
+    let mut identities = stderr.lines().filter_map(|line| {
+        let (key, value) = line.trim().split_once(':')?;
+        if key.trim() != "encoder" {
+            return None;
+        }
+        value.trim().strip_suffix(" libmp3lame")
+    });
+    let identity = identities
+        .next()
+        .filter(|text| version(text, "Lavc"))
+        .ok_or_else(|| refused("no bounded libmp3lame encoder identity"))?;
+    if identities.next().is_some() {
+        return Err(refused("multiple encoder identities"));
+    }
+    Ok(identity.to_owned())
+}
+
+/// Reads the encoder-only MP3 pipe, checking its complete framing and
+/// libmp3lame's frame-aligned sample accounting before publishing metadata.
 pub fn read_output<S: Source>(
     mut source: S,
     expected: &Expected,
     limits: &coreav_mkv::Limits,
 ) -> Result<Output, ReadError> {
+    let frame_samples = if expected.sample_rate >= 32_000 {
+        1152
+    } else {
+        576
+    };
     if !takes_rate(expected.sample_rate)
         || !matches!(expected.channels, 1 | 2)
         || expected.samples <= u64::from(expected.guard)
+        || u32::from(expected.guard) >= frame_samples
+        || expected.samples % u64::from(frame_samples) != 0
     {
         return Err(refused("invalid submitted PCM settings"));
     }
-    let mkv = |error: coreav_mkv::Error| refused(format!("its Matroska: {error}"));
-    let segment =
-        coreav_mkv::probe_with_metadata(&mut source, limits, &Allowlist::all()).map_err(mkv)?;
-    let [track] = segment.tracks.as_slice() else {
-        return Err(refused("not one track"));
-    };
-    if segment.timestamp_scale == 0 || segment.timestamp_scale > 1_000_000 {
-        return Err(refused(
-            "encoder timestamps are coarser than one millisecond",
-        ));
+    let length = source.len().map_err(|e| refused(e.to_string()))?;
+    if length > most_bytes(expected.samples) {
+        return Err(refused("output exceeds its submitted PCM bound"));
     }
-    if !segment.dropped.is_empty()
-        || !segment.warnings.is_empty()
-        || track.kind != TrackKind::Audio
-        || track.codec != Codec::Mp3
-        || track.encoding != Encoding::None
-        || track.codec_private.as_ref().is_some_and(|v| !v.is_empty())
-    {
-        return Err(refused("not one uncompressed MP3 track"));
+    let mut header = [0u8; 10];
+    source
+        .read_exact_at(0, &mut header)
+        .map_err(|e| refused(e.to_string()))?;
+    if header.get(..6) != Some(b"ID3\x04\0\0") {
+        return Err(refused("not an unflagged ID3v2.4 header"));
     }
-    let audio = track
-        .audio
-        .as_ref()
-        .ok_or_else(|| refused("no audio settings"))?;
-    if audio.sampling_frequency.to_bits() != f64::from(expected.sample_rate).to_bits()
-        || audio.channels != u64::from(expected.channels)
-    {
-        return Err(refused("its rate or channels are not those submitted"));
+    let size = read_syncsafe(header.get(6..10).unwrap_or_default())?;
+    if !(10..=256).contains(&size) || u64::from(size) + 10 > length {
+        return Err(refused("invalid encoder metadata size"));
     }
-    let to_samples = |ns: u64| {
-        u32::try_from(
-            (u128::from(ns) * u128::from(expected.sample_rate) + 500_000_000) / 1_000_000_000,
-        )
-        .map_err(|_| refused("sample trim overflow"))
-    };
-    let priming = to_samples(track.codec_delay)?;
-    let delay = priming
-        .checked_sub(DECODER_DELAY)
-        .filter(|&n| n <= MAX_TRIM)
-        .ok_or_else(|| refused("an unrepresentable encoder delay"))?;
-    let software = segment
-        .muxing_app
-        .as_deref()
-        .filter(|s| version(s, "Lavf"))
+    let mut metadata = vec![0; usize::try_from(size).map_err(|_| refused("ID3 size overflow"))?];
+    source
+        .read_exact_at(10, &mut metadata)
+        .map_err(|e| refused(e.to_string()))?;
+    if metadata.get(..4) != Some(b"TSSE") || metadata.get(8..11) != Some(&[0, 0, 3]) {
+        return Err(refused("not the encoder software text frame"));
+    }
+    let text_size = usize::try_from(read_syncsafe(metadata.get(4..8).unwrap_or_default())?)
+        .map_err(|_| refused("text size overflow"))?;
+    let end = 10usize
+        .checked_add(text_size)
+        .ok_or_else(|| refused("text size overflow"))?;
+    let software = metadata
+        .get(11..end)
+        .and_then(|bytes| bytes.strip_suffix(&[0]))
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .filter(|text| version(text, "Lavf"))
         .ok_or_else(|| refused("no bounded encoder software identity"))?
         .to_owned();
-    let encoder = segment
-        .tags
-        .iter()
-        .filter(|tag| track.uid.is_some_and(|uid| tag.track_uids.contains(&uid)))
-        .flat_map(|tag| &tag.simple_tags)
-        .filter(|tag| tag.name == "ENCODER")
-        .filter_map(|tag| tag.string.as_deref())
-        .find_map(|s| s.strip_suffix(" libmp3lame").filter(|s| version(s, "Lavc")))
-        .ok_or_else(|| refused("no libmp3lame encoder identity"))?
-        .to_owned();
-    let most = expected
+    if !metadata
+        .get(end..)
+        .is_some_and(|bytes| bytes.iter().all(|&b| b == 0))
+    {
+        return Err(refused("unexpected encoder metadata"));
+    }
+    let count = expected
         .samples
-        .saturating_add(u64::from(DECODER_DELAY + 2 * MAX_TRIM))
-        .div_ceil(576);
+        .checked_add(1152)
+        .map(|n| n / u64::from(frame_samples))
+        .ok_or_else(|| refused("sample count overflow"))?;
+    if count > limits.max_index_bytes / std::mem::size_of::<Frame>() as u64 {
+        return Err(refused("frame index exceeds its limit"));
+    }
     let mut frames = Vec::new();
-    let mut total = 0u64;
-    let mut padding = None;
+    let mut offset = u64::from(size) + 10;
     let mut first = None;
     let mut first_rate = None;
-    let mut frame_samples = 0;
     let mut music_crc = 0;
     let mut bytes = Vec::new();
-    let mut packets = segment.packets(&mut source, limits).with_audit();
-    while let Some(packet) = packets.next() {
-        let packet = packet.map_err(mkv)?;
-        if packet.track != 0
-            || packet.block_additions.is_some()
-            || packet.codec_state
-            || padding.is_some()
-            || u64::try_from(frames.len()).unwrap_or(u64::MAX) >= most
-        {
-            return Err(refused("frames after the final padding or too many frames"));
+    while offset < length {
+        if frames.len() as u64 >= count {
+            return Err(refused("frames after the submitted PCM"));
         }
-        let size = u32::try_from(packet.stored_size)
-            .ok()
-            .filter(|n| packet.stripped == 0 && (4..=MAX_FRAME_BYTES).contains(n))
-            .ok_or_else(|| refused("invalid frame size"))?;
-        bytes.resize(
-            usize::try_from(size).map_err(|_| refused("frame size overflow"))?,
-            0,
-        );
-        packets
-            .source_mut()
-            .read_exact_at(packet.offset, &mut bytes)
+        let mut word = [0u8; 4];
+        source
+            .read_exact_at(offset, &mut word)
             .map_err(|e| refused(e.to_string()))?;
-        let header = Header::parse(&bytes).map_err(|e| refused(e.to_string()))?;
-        let expected_ns = i128::from(total) * 1_000_000_000 / i128::from(expected.sample_rate)
-            - i128::from(track.codec_delay);
-        let delta = packet
-            .pts_ns(&segment)
-            .and_then(|pts| pts.checked_sub(expected_ns))
-            .ok_or_else(|| refused("an unknown or overflowing frame timestamp"))?;
-        if delta.unsigned_abs() > u128::from(segment.timestamp_scale) {
-            return Err(refused(
-                "a frame timestamp does not match the sample sequence",
-            ));
-        }
-        let frame_ns = u128::try_from(header.samples())
-            .map_err(|_| refused("frame duration overflow"))?
-            * 1_000_000_000
-            / u128::from(expected.sample_rate);
-        let trim_ns = u128::try_from(packet.discard_padding.unwrap_or(0))
-            .map_err(|_| refused("negative discard padding"))?;
-        if trim_ns > frame_ns + 1 {
-            return Err(refused("discard padding exceeds its frame"));
-        }
-        let presented_ns = frame_ns.saturating_sub(trim_ns);
-        if packet.block_duration.is_some_and(|n| {
-            (u128::from(n) * u128::from(segment.timestamp_scale)).abs_diff(presented_ns)
-                > u128::from(segment.timestamp_scale)
-        }) || track
-            .default_duration
-            .is_some_and(|n| u128::from(n).abs_diff(frame_ns) > 1)
-        {
-            return Err(refused(format!(
-                "a frame duration does not match its header: block {:?} ticks, default {:?} ns, frame {frame_ns} ns",
-                packet.block_duration, track.default_duration
-            )));
-        }
-        music_crc = crc(music_crc, &bytes);
+        let header = Header::parse(&word).map_err(|e| refused(e.to_string()))?;
+        let size = header
+            .frame_bytes()
+            .filter(|&n| (4..=MAX_FRAME_BYTES as usize).contains(&n))
+            .ok_or_else(|| refused("invalid frame size"))?;
         if header.sample_rate != expected.sample_rate
             || header.channels() != usize::from(expected.channels)
-            || header.frame_bytes() != Some(bytes.len())
+            || header.samples() as u32 != frame_samples
+            || size as u64 > length - offset
         {
-            return Err(refused(
-                "a frame header does not match its size, rate or channels",
-            ));
+            return Err(refused("a frame does not match its size, rate or channels"));
         }
         if !expected.variable && first_rate.is_some_and(|rate| rate != header.bit_rate) {
             return Err(refused(
@@ -321,53 +286,63 @@ pub fn read_output<S: Source>(
             ));
         }
         first_rate.get_or_insert(header.bit_rate);
-        let word = <[u8; 4]>::try_from(bytes.get(..4).unwrap_or_default())
-            .map_err(|_| refused("no frame header"))?;
         first.get_or_insert(u32::from_be_bytes(word));
-        frame_samples =
-            u32::try_from(header.samples()).map_err(|_| refused("frame sample overflow"))?;
-        total = total
-            .checked_add(u64::from(frame_samples))
-            .ok_or_else(|| refused("sample count overflow"))?;
-        if let Some(ns) = packet.discard_padding.filter(|&n| n != 0) {
-            let ns = u64::try_from(ns).map_err(|_| refused("negative discard padding"))?;
-            padding = Some(to_samples(ns)?);
+        bytes.resize(size, 0);
+        source
+            .read_exact_at(offset, &mut bytes)
+            .map_err(|e| refused(e.to_string()))?;
+        let side = match (header.version, header.channels()) {
+            (Version::Mpeg1, 1) => 17,
+            (Version::Mpeg1, _) => 32,
+            (_, 1) => 9,
+            _ => 17,
+        };
+        if frames.is_empty()
+            && bytes
+                .get(4 + side..8 + side)
+                .is_some_and(|tag| matches!(tag, b"Xing" | b"Info"))
+        {
+            return Err(refused(
+                "an unexpected information frame in the encoder pipe",
+            ));
         }
+        music_crc = crc(music_crc, &bytes);
+        frames
+            .try_reserve(1)
+            .map_err(|_| refused("frame index allocation failed"))?;
         frames.push(Frame {
-            offset: packet.offset,
-            size,
+            offset,
+            size: size as u32,
         });
+        offset += size as u64;
     }
-    if !packets.warnings().is_empty() {
-        return Err(refused("invalid packet listing"));
-    }
-    let discarded = padding.unwrap_or(0);
-    if total.checked_sub(u64::from(priming) + u64::from(discarded)) != Some(expected.samples) {
+    if frames.len() as u64 != count {
         return Err(refused(
             "the decoded sample total does not match the submitted PCM",
         ));
     }
-    let padding = discarded
-        .checked_add(DECODER_DELAY)
-        .and_then(|n| n.checked_add(u32::from(expected.guard)))
-        .filter(|&n| n <= MAX_TRIM)
-        .ok_or_else(|| refused("unrepresentable final padding"))?;
     Ok(Output {
         frames,
         frame_samples,
-        priming,
+        priming: 576 + DECODER_DELAY,
         info: Info {
             header: first.ok_or_else(|| refused("no frames"))?,
-            encoder,
+            encoder: software.clone(),
             software,
-            delay,
-            padding,
+            delay: 576,
+            padding: 576 + u32::from(expected.guard),
             variable: expected.variable,
             music_crc,
         },
     })
 }
 
+fn read_syncsafe(bytes: &[u8]) -> Result<u32, ReadError> {
+    if bytes.len() != 4 || bytes.iter().any(|&b| b & 128 != 0) {
+        return Err(refused("invalid ID3 syncsafe size"));
+    }
+    Ok(bytes.iter().fold(0, |n, &b| (n << 7) | u32::from(b)))
+}
 fn syncsafe(n: usize) -> Result<[u8; 4], ReadError> {
     let n = u32::try_from(n)
         .ok()
@@ -534,99 +509,21 @@ pub(crate) fn info_frame(info: &Info, sizes: &[u32]) -> Result<Vec<u8>, ReadErro
 pub(crate) mod tests {
     use super::*;
 
-    fn element(id: &[u8], bytes: &[u8]) -> Vec<u8> {
-        let mut out = id.to_vec();
-        out.push(1);
-        out.extend_from_slice(&u64::try_from(bytes.len()).unwrap().to_be_bytes()[1..]);
-        out.extend_from_slice(bytes);
-        out
-    }
-
-    fn uint(id: &[u8], n: u64) -> Vec<u8> {
-        element(id, &n.to_be_bytes())
-    }
-
-    pub(crate) fn fixture(
-        codec: &str,
-        delay: u64,
-        frames: &[Vec<u8>],
-        padding: &[Option<i64>],
-    ) -> Vec<u8> {
-        fixture_extra(codec, delay, frames, padding, &[])
-    }
-
-    fn fixture_extra(
-        codec: &str,
-        delay: u64,
-        frames: &[Vec<u8>],
-        padding: &[Option<i64>],
-        extra: &[u8],
-    ) -> Vec<u8> {
-        let header = [
-            uint(&[0x42, 0x86], 1),
-            uint(&[0x42, 0xf7], 1),
-            uint(&[0x42, 0xf2], 4),
-            uint(&[0x42, 0xf3], 8),
-            element(&[0x42, 0x82], b"matroska"),
-            uint(&[0x42, 0x87], 4),
-            uint(&[0x42, 0x85], 2),
-        ]
-        .concat();
-        let audio = [element(&[0xb5], &48000f64.to_be_bytes()), uint(&[0x9f], 1)].concat();
-        let track = [
-            uint(&[0xd7], 1),
-            uint(&[0x73, 0xc5], 1),
-            uint(&[0x83], 2),
-            element(&[0x86], codec.as_bytes()),
-            uint(&[0x56, 0xaa], delay),
-            element(&[0xe1], &audio),
-        ]
-        .concat();
-        let info = [
-            uint(&[0x2a, 0xd7, 0xb1], 1_000_000),
-            element(&[0x4d, 0x80], b"Lavf1.2.3"),
-            element(&[0x57, 0x41], b"Lavf1.2.3"),
-        ]
-        .concat();
-        let tag = [
-            element(&[0x63, 0xc0], &uint(&[0x63, 0xc5], 1)),
-            element(
-                &[0x67, 0xc8],
-                &[
-                    element(&[0x45, 0xa3], b"ENCODER"),
-                    element(&[0x44, 0x87], b"Lavc1.2.3 libmp3lame"),
-                ]
-                .concat(),
-            ),
-        ]
-        .concat();
-        let mut cluster = uint(&[0xe7], 0);
-        for (index, frame) in frames.iter().enumerate() {
-            let mut block = vec![0x81];
-            block.extend_from_slice(&i16::try_from(index * 24).unwrap().to_be_bytes());
-            block.push(0);
-            block.extend_from_slice(frame);
-            let mut group = element(&[0xa1], &block);
-            if index == 0 {
-                group.extend_from_slice(extra);
-            }
-            if let Some(padding) = padding.get(index).copied().flatten() {
-                group.extend(element(&[0x75, 0xa2], &padding.to_be_bytes()));
-            }
-            cluster.extend(element(&[0xa0], &group));
+    pub(crate) fn fixture(frames: &[Vec<u8>]) -> Vec<u8> {
+        let info = Info {
+            header: 0,
+            encoder: "Lavc1.2.3".into(),
+            software: "Lavf1.2.3".into(),
+            delay: 576,
+            padding: 576,
+            variable: false,
+            music_crc: 0,
+        };
+        let mut out = metadata(&info, &[]).unwrap();
+        for frame in frames {
+            out.extend_from_slice(frame);
         }
-        let segment = [
-            element(&[0x15, 0x49, 0xa9, 0x66], &info),
-            element(&[0x16, 0x54, 0xae, 0x6b], &element(&[0xae], &track)),
-            element(&[0x12, 0x54, 0xc3, 0x67], &element(&[0x73, 0x73], &tag)),
-            element(&[0x1f, 0x43, 0xb6, 0x75], &cluster),
-        ]
-        .concat();
-        [
-            element(&[0x1a, 0x45, 0xdf, 0xa3], &header),
-            element(&[0x18, 0x53, 0x80, 0x67], &segment),
-        ]
-        .concat()
+        out
     }
 
     fn frame() -> Vec<u8> {
@@ -654,9 +551,24 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn encoder_identity_requires_one_declared_libmp3lame_version() {
+        let line = "      encoder         : Lavc63.1.102 libmp3lame\n";
+        assert_eq!(encoder_identity(line).unwrap(), "Lavc63.1.102");
+        for text in [
+            String::new(),
+            line.repeat(2),
+            line.replace("Lavc", "Lavf"),
+            line.replace("libmp3lame", "aac"),
+            line.replace("63.1.102", "invalid"),
+            line.replace("63.1.102", &"1".repeat(65)),
+        ] {
+            assert!(encoder_identity(&text).is_err());
+        }
+    }
+
+    #[test]
     fn complete_frames_and_exact_sample_accounting_are_required() {
-        let frames = [frame(), frame()];
-        let file = fixture("A_MPEG/L3", 23_020_833, &frames, &[None, Some(979_167)]);
+        let file = fixture(&[frame(), frame()]);
         let output = read(&file, expected()).unwrap();
         assert_eq!(output.frames.len(), 2);
         assert_eq!(output.priming, 1105);
@@ -672,22 +584,10 @@ pub(crate) mod tests {
         .unwrap();
         assert_eq!(guarded.info.padding, 1727);
         for bytes in [
-            fixture("A_AAC", 23_020_833, &frames, &[None, Some(979_167)]),
-            fixture("A_MPEG/L3", 0, &frames, &[None, Some(979_167)]),
-            fixture("A_MPEG/L3", 23_020_833, &frames, &[Some(979_167), None]),
-            fixture("A_MPEG/L3", 23_020_833, &frames, &[None, Some(-1)]),
-            fixture(
-                "A_MPEG/L3",
-                23_020_833,
-                &[vec![0; 192], frame()],
-                &[None, Some(979_167)],
-            ),
-            fixture(
-                "A_MPEG/L3",
-                23_020_833,
-                &[vec![0xff, 0xfb, 0x54, 0xc4], frame()],
-                &[None, Some(979_167)],
-            ),
+            fixture(&[frame()]),
+            fixture(&[frame(), frame(), frame()]),
+            fixture(&[vec![0; 192], frame()]),
+            fixture(&[vec![0xff, 0xfb, 0x54, 0xc4], frame()]),
         ] {
             assert!(read(&bytes, expected()).is_err());
         }
@@ -708,6 +608,10 @@ pub(crate) mod tests {
                 guard: 1152,
                 ..expected()
             },
+            Expected {
+                samples: u64::MAX,
+                ..expected()
+            },
         ] {
             assert!(read(&file, changed).is_err());
         }
@@ -718,44 +622,58 @@ pub(crate) mod tests {
 
     #[test]
     fn full_output_structure_auxiliary_data_and_timestamps_are_checked() {
-        let frames = [frame(), frame()];
-        let padding = [None, Some(979_167)];
-        let file = fixture("A_MPEG/L3", 23_020_833, &frames, &padding);
-        for tail in [vec![0xff; 10], file.clone()] {
+        let file = fixture(&[frame(), frame()]);
+        for tail in [vec![0xff; 10], file.clone(), vec![0; 128]] {
             let mut appended = file.clone();
             appended.extend(tail);
             assert!(read(&appended, expected()).is_err());
         }
-        for extra in [
-            element(&[0xa4], b"state"),
-            element(
-                &[0x75, 0xa1],
-                &element(&[0xa6], &element(&[0xa5], b"addition")),
-            ),
-            uint(&[0x9b], 1000),
+        for (at, value) in [
+            (3, 3),
+            (5, 0x10),
+            (6, 128),
+            (9, 255),
+            (10, b'X'),
+            (11, b'I'),
+            (18, 1),
+            (20, 1),
+            (21, b'X'),
         ] {
-            let bytes = fixture_extra("A_MPEG/L3", 23_020_833, &frames, &padding, &extra);
-            assert!(read(&bytes, expected()).is_err());
+            let mut changed = file.clone();
+            changed[at] = value;
+            assert!(read(&changed, expected()).is_err(), "{at}");
         }
-        let mut moved = file;
-        let frame_offsets: Vec<_> = moved
-            .windows(4)
-            .enumerate()
-            .filter_map(|(i, bytes)| (bytes == [0xff, 0xfb, 0x54, 0xc4]).then_some(i))
-            .collect();
-        let second = frame_offsets[1];
-        moved[second - 3..second - 1].copy_from_slice(&(-30000i16).to_be_bytes());
-        assert!(read(&moved, expected()).is_err());
+        let mut info_frame = frame();
+        info_frame[21..25].copy_from_slice(b"Info");
+        assert!(read(&fixture(&[info_frame, frame()]), expected()).is_err());
+        let mut changed = frame();
+        changed[3] = 0;
+        assert!(read(&fixture(&[frame(), changed]), expected()).is_err());
+        let mut changed = frame();
+        changed[2] = 0x64;
+        changed.resize(240, 0);
+        let bytes = fixture(&[frame(), changed]);
+        assert!(read(&bytes, expected()).is_err());
+        assert!(
+            read(
+                &bytes,
+                Expected {
+                    variable: true,
+                    ..expected()
+                }
+            )
+            .is_ok()
+        );
+        let limits = coreav_mkv::Limits {
+            max_index_bytes: 0,
+            ..Default::default()
+        };
+        assert!(read_output(coreav_mkv::SliceSource::new(&file), &expected(), &limits).is_err());
     }
 
     #[test]
     fn the_writer_describes_audio_frames_without_counting_its_information_frame() {
-        let file = fixture(
-            "A_MPEG/L3",
-            23_020_833,
-            &[frame(), frame()],
-            &[None, Some(979_167)],
-        );
+        let file = fixture(&[frame(), frame()]);
         let output = read(&file, expected()).unwrap();
         let info = info_frame(&output.info, &[192, 192]).unwrap();
         assert_eq!(&info[21..25], b"Info");

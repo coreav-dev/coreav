@@ -992,24 +992,36 @@ transcode fixture target with and without `aac`.
 
 MP3 encoding uses the operator's `ffmpeg -c:a libmp3lame` as a separate
 resource-limited process under policy record 0042. CoreAV supplies decoded
-float PCM, never the input file. The process writes Matroska to a bounded
-spool: RFC 9559's `CodecDelay` and final `DiscardPadding` retain the
-presentation boundaries that a raw MP3 pipe does not. At EOF, CoreAV adds
+float PCM, never the input file. The process writes MP3 on standard output
+to a bounded spool, using only raw-input and encoder options. CoreAV owns
+the ID3 and Xing/Info adaptation and every destination container. The
+encoder keeps its existing pipe transport, process limits and sandbox;
+allowing it to write a seekable file would weaken the no-file-writes rule.
+MP3 checks availability with an empty raw-PCM encode, not an encoder-help
+command. Both starts are encoder-only MP3 invocations; an unavailable
+encoder is refused before source decoding or output publication.
+At EOF, CoreAV adds
 an explicit zero guard to finish a complete codec frame: for N presented
 samples and a frame size F, G = (F - N mod F) mod F. F is 1,152 at
 32, 44.1 and 48 kHz, and 576 at the lower supported rates. The reader
 validates all N + G fed samples, and the writer adds G to its final
 padding field so that the published file presents only N. CoreAV's reader
-checks one uncompressed `A_MPEG/L3` track, rate, channels, every complete
-Layer III frame and the exact decoded sample total before writing output.
-The existing Matroska structure audit covers the entire spool, including
-anything after the first segment. Block additions and codec-state changes
-are refused, and frame timestamps and durations must match the sample
-sequence within the container's timestamp quantum. Readback checks the
+checks the bounded ID3v2.4 software identity and every complete Layer III
+frame through the exact end of the spool, with no resynchronization or
+trailing metadata. Headers must retain the submitted rate and channels,
+and constant-rate mode must retain its bit rate. The raw pipe has no
+gapless tag: the adapter uses libmp3lame's documented default 576-sample
+encoder delay, plus the 529-sample decoder delay. With frame-aligned fed
+PCM, the encoder must produce exactly 1,152 additional decoded samples;
+CoreAV rejects a different total instead of deriving arbitrary padding
+from it. The stored delay is 576 and the stored final padding is 576 + G.
+This contract is specific to the external libmp3lame encoder, not a general
+MP3 parser or a claim that raw frames describe their presentation.
+Readback checks the
 encode deadline before and after source reads, including buffered reads;
 a single synchronous source operation cannot be interrupted.
 
-These checks add a bounded structural walk and a clock check at each
+These checks add a bounded frame walk and a clock check at each
 readback source call. Packet listing retains one codec-state flag; no
 throughput or instruction-count improvement is claimed.
 
@@ -1023,6 +1035,14 @@ documented by the [LAME technical FAQ](https://lame.sourceforge.io/tech-FAQ.txt)
 it is not counted twice in the stored encoder-delay field. ID3 text uses
 the [ID3v2.4 structure](https://id3.org/id3v2.4.0-structure) and
 [frame specification](https://id3.org/id3v2.4.0-frames).
+The raw output's `Lavf` software identity is retained in ID3. The real
+encoding command's bounded standard-error tail supplies its declared
+`Lavc` encoder identity for the information tag. Progress statistics are
+disabled, and missing or ambiguous identities fail closed. No version is
+inferred from a different library's version.
+The fixed delay and flush contract is qualified against the pinned
+FFmpeg build, not independently signalled by raw MP3 frames. An operator's
+custom libmp3lame build with a changed encoder delay is outside this contract.
 
 The compatibility surface is `-c:a` or `-acodec libmp3lame`, default MP3
 encoding for `.mp3` or `-f mp3`, `-b:a` and `-q:a`/`-qscale:a`, with `-vn`
@@ -1077,6 +1097,15 @@ Committed before the MP3 correctness matrix runs:
    settings, strict-safe mode and failed readback leave no published
    output. Every command in the requested MP3 command set is reported as
    passed or blocked, with a reason; unsupported containers stay blocked.
+
+The worker-protocol regression uses generated lossless sources at all nine
+rates, mono and stereo, with default rate control, an explicit constant
+rate and variable-rate quality. It records every actual encoder start
+through the existing sandbox-safe FIFO logger and passes them to the
+unchanged compatibility classifier. The frozen output comparator checks
+complete decoded samples and exact frame timing against FFmpeg 9.0.2.
+This is development evidence, not a new command-set measurement or a claim
+that AAC source decoding is byte-identical to the oracle.
 
 ## Through `coreav ffmpeg`
 
