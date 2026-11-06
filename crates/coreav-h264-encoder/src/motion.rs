@@ -65,7 +65,9 @@ pub(crate) struct Part {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Layout {
     Whole,
+    #[cfg(test)]
     Horizontal,
+    #[cfg(test)]
     Vertical,
     Sub([u8; 4]),
 }
@@ -75,7 +77,9 @@ impl Layout {
         let mut len = 0;
         let (groups, w, h) = match self {
             Self::Whole => (1, 16, 16),
+            #[cfg(test)]
             Self::Horizontal => (2, 16, 8),
+            #[cfg(test)]
             Self::Vertical => (2, 8, 16),
             Self::Sub(_) => (4, 8, 8),
         };
@@ -107,7 +111,9 @@ impl Layout {
     pub(crate) fn code(self) -> u32 {
         match self {
             Self::Whole => 0,
+            #[cfg(test)]
             Self::Horizontal => 1,
+            #[cfg(test)]
             Self::Vertical => 2,
             Self::Sub(_) => 3,
         }
@@ -172,10 +178,14 @@ impl Border<'_> {
         layout: Layout,
     ) -> Result<Mv> {
         let [a, mut b, mut c] = self.neighbours(grid, part)?;
-        let preferred = match layout {
+        let preferred: Option<Sample> = match layout {
+            #[cfg(test)]
             Layout::Horizontal if part.y == 0 => Some(b),
+            #[cfg(test)]
             Layout::Horizontal => Some(a),
+            #[cfg(test)]
             Layout::Vertical if part.x == 0 => Some(a),
+            #[cfg(test)]
             Layout::Vertical => Some(c),
             _ => None,
         };

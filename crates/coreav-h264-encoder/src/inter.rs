@@ -160,6 +160,7 @@ impl Motions {
         Ok(())
     }
 
+    #[cfg(test)]
     fn finalists(&self, predictor: Mv) -> Result<[Option<Mv>; 6]> {
         let mut finalists = [None; 6];
         let mut len = 0;
@@ -188,6 +189,7 @@ impl Motions {
     }
 }
 
+#[cfg(test)]
 struct Prepared {
     luma: Luma,
     chroma: [Tile; 2],
@@ -195,6 +197,7 @@ struct Prepared {
     levels: [[[i32; 16]; 4]; 2],
 }
 
+#[cfg(test)]
 fn overlaps(part: Part, x: usize, y: usize, size: usize) -> bool {
     x < part.x + part.width && x + size > part.x && y < part.y + part.height && y + size > part.y
 }
@@ -207,6 +210,8 @@ impl Search<'_> {
         predictor: Mv,
         motions: &mut Motions,
     ) -> Result<Option<Ranked>> {
+        #[cfg(test)]
+        tests::PROBES.with(|count| count.set(count.get() + 1));
         if let Some(&value) = motions
             .seen
             .get(..motions.len)
@@ -294,6 +299,7 @@ impl Search<'_> {
         Ok(Some(value))
     }
 
+    #[cfg(test)]
     fn motions(&self, part: Part, predictor: Mv) -> Result<Motions> {
         let mut motions = Motions::new();
         self.score(part, Mv::default(), predictor, &mut motions)?;
@@ -353,6 +359,7 @@ impl Search<'_> {
         Ok(motions)
     }
 
+    #[cfg(test)]
     fn prepare(&self, base: &Inter, index: usize) -> Result<Prepared> {
         let changed = *base.parts.get(index).ok_or(Error::Internal)?;
         let mut prepared = Prepared {
@@ -425,6 +432,7 @@ impl Search<'_> {
         Ok(prepared)
     }
 
+    #[cfg(test)]
     fn evaluate_part(&self, mut inter: Inter, index: usize, base: &Prepared) -> Result<Candidate> {
         if !motion::admitted(self.previous, inter.len) {
             return Err(Error::Syntax);
@@ -494,6 +502,8 @@ impl Search<'_> {
     }
 
     fn evaluate(&self, mut inter: Inter) -> Result<Candidate> {
+        #[cfg(test)]
+        tests::EVALUATIONS.with(|count| count.set(count.get() + 1));
         if !motion::admitted(self.previous, inter.len) {
             return Err(Error::Syntax);
         }
@@ -566,6 +576,7 @@ impl Search<'_> {
         self.trial_prepared(base, index, mv, &prepared, best, refusal)
     }
 
+    #[cfg(test)]
     fn trial_prepared(
         &self,
         base: &Inter,
@@ -589,6 +600,7 @@ impl Search<'_> {
         Ok(())
     }
 
+    #[cfg(test)]
     fn search_parts(
         &self,
         mut base: Inter,
@@ -625,6 +637,80 @@ impl Search<'_> {
         Ok(result)
     }
 
+    fn compact(&self, part: Part, predictor: Mv) -> Result<Ranked> {
+        let mut motions = Motions::new();
+        for mv in [
+            Mv::default(),
+            predictor,
+            Mv {
+                x: (predictor.x + 2).div_euclid(4) * 4,
+                y: (predictor.y + 2).div_euclid(4) * 4,
+            },
+        ] {
+            self.score(part, mv, predictor, &mut motions)?;
+        }
+        for step in [16, 8, 4] {
+            let origin = motions.integer.ok_or(Error::Internal)?.2;
+            for (dx, dy) in [(step, 0), (-step, 0), (0, step), (0, -step)] {
+                self.score(
+                    part,
+                    Mv {
+                        x: origin.x + dx,
+                        y: origin.y + dy,
+                    },
+                    predictor,
+                    &mut motions,
+                )?;
+            }
+        }
+        let mut centre = motions.integer.ok_or(Error::Internal)?;
+        for step in [2, 1] {
+            let origin = centre.2;
+            for (dx, dy) in [(step, 0), (-step, 0), (0, step), (0, -step)] {
+                if let Some(value) = self.score(
+                    part,
+                    Mv {
+                        x: origin.x + dx,
+                        y: origin.y + dy,
+                    },
+                    predictor,
+                    &mut motions,
+                )? {
+                    centre = centre.min(value);
+                }
+            }
+        }
+        motions
+            .ranked
+            .first()
+            .copied()
+            .flatten()
+            .ok_or(Error::Internal)
+    }
+
+    fn propose(&self, layout: Layout) -> Result<Option<(u64, Inter)>> {
+        let mut inter = Inter::new(layout)?;
+        if !motion::admitted(self.previous, inter.len) {
+            return Ok(None);
+        }
+        #[cfg(test)]
+        tests::SEARCHES.with(|count| count.set(count.get() + 1));
+        let mut grid = [None; 16];
+        let mut sad = 0;
+        let penalty = 1u64 << (self.decision.qp / 6);
+        for part in inter.parts.iter_mut().take(inter.len) {
+            let predictor = self.border.predictor(&grid, *part, layout)?;
+            let (cost, bits, mv) = self.compact(*part, predictor)?;
+            sad += cost - penalty * bits as u64;
+            part.mv = mv;
+            motion::commit(&mut grid, *part)?;
+        }
+        inter.derive(self.border)?;
+        let mut bits = Bits::count();
+        inter.syntax(&mut bits)?;
+        Ok(Some((sad + penalty * bits.len as u64, inter)))
+    }
+
     pub(super) fn candidates(
         &self,
         best: &mut Option<Candidate>,
@@ -651,57 +737,20 @@ impl Search<'_> {
                 }
             }
         }
-        for layout in [Layout::Whole, Layout::Horizontal, Layout::Vertical] {
-            let base = Inter::new(layout)?;
-            if motion::admitted(self.previous, base.len) {
-                let len = base.len;
-                if let Some(candidate) = self.search_parts(base, 0, len, refusal)? {
+        let mut plans = [
+            self.propose(Layout::Whole)?,
+            self.propose(Layout::Sub([0; 4]))?,
+        ];
+        plans.sort_by_key(|plan| plan.as_ref().map_or(u64::MAX, |plan| plan.0));
+        for (_, inter) in plans.into_iter().flatten() {
+            match self.evaluate(inter) {
+                Ok(candidate) => {
                     consider(best, candidate);
+                    break;
                 }
-            }
-        }
-        let mut selected = Inter::new(Layout::Sub([0; 4]))?;
-        if !motion::admitted(self.previous, selected.len) {
-            return Ok(());
-        }
-        let mut start = 0;
-        for group in 0..4 {
-            let mut group_best = None;
-            for shape in 0..4 {
-                let Layout::Sub(mut shapes) = selected.layout else {
-                    return Err(Error::Internal);
-                };
-                *shapes.get_mut(group).ok_or(Error::Internal)? = shape;
-                let mut trial = Inter::new(Layout::Sub(shapes))?;
-                if !motion::admitted(self.previous, trial.len) {
-                    continue;
-                }
-                for (dst, src) in trial.parts.iter_mut().zip(&selected.parts).take(start) {
-                    *dst = *src;
-                }
-                let count = match shape {
-                    0 => 1,
-                    1 | 2 => 2,
-                    _ => 4,
-                };
-                if let Some(candidate) = self.search_parts(trial, start, start + count, refusal)? {
-                    consider(&mut group_best, candidate);
-                }
-            }
-            let Some(candidate) = group_best else {
-                return Ok(());
-            };
-            selected = candidate.inter.as_ref().ok_or(Error::Internal)?.clone();
-            let Layout::Sub(shapes) = selected.layout else {
-                return Err(Error::Internal);
-            };
-            start += match shapes.get(group).ok_or(Error::Internal)? {
-                0 => 1,
-                1 | 2 => 2,
-                _ => 4,
-            };
-            if group == 3 {
-                consider(best, candidate);
+                Err(Error::Coefficient | Error::Syntax) => {}
+                Err(Error::MacroblockLimit) => *refusal = Error::MacroblockLimit,
+                Err(e) => return Err(e),
             }
         }
         Ok(())
@@ -716,6 +765,83 @@ mod tests {
 
     std::thread_local! {
         pub(super) static SEARCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        pub(super) static PROBES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        pub(super) static EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    #[test]
+    fn compact_search_bounds_probes_and_complete_inter_evaluations() {
+        let reference = [
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+        ];
+        let source = Tile::empty();
+        let csources = [Tile::empty(), Tile::empty()];
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context: MbContext {
+                top: None,
+                left: None,
+                p_slice: true,
+            },
+            qp: 28,
+            pending_skip: 0,
+        };
+        for previous in [0, 12, 15, 16] {
+            let search = Search {
+                reference: &reference,
+                decision: &decision,
+                border: Border::default(),
+                mx: 0,
+                my: 0,
+                previous,
+            };
+            PROBES.with(|count| count.set(0));
+            EVALUATIONS.with(|count| count.set(0));
+            let mut best = None;
+            search
+                .candidates(&mut best, &mut Error::Coefficient)
+                .unwrap();
+            assert!(PROBES.with(|count| count.get()) <= 115);
+            assert!(EVALUATIONS.with(|count| count.get()) <= 3);
+            assert_eq!(best.is_some(), previous < 16);
+            if let Some(best) = best {
+                let inter = best.inter.unwrap();
+                assert!(motion::admitted(previous, inter.len));
+                assert!(matches!(
+                    inter.layout,
+                    Layout::Whole | Layout::Sub([0, 0, 0, 0])
+                ));
+            }
+        }
+        let zero = Tile([0; STRIDE * 18]);
+        let zero_decision = Decision {
+            source: &zero,
+            ..decision
+        };
+        let search = Search {
+            reference: &reference,
+            decision: &zero_decision,
+            border: Border::default(),
+            mx: 0,
+            my: 0,
+            previous: 0,
+        };
+        let part = Inter::new(Layout::Whole).unwrap().parts[0];
+        for predictor in [
+            Mv::default(),
+            Mv { x: 3, y: -7 },
+            Mv { x: -8192, y: -2048 },
+            Mv { x: 8191, y: 2047 },
+        ] {
+            PROBES.with(|count| count.set(0));
+            let selected = search.compact(part, predictor).unwrap();
+            assert_eq!(selected.2, predictor);
+            assert!(PROBES.with(|count| count.get()) <= 23);
+            assert_eq!(search.compact(part, predictor).unwrap(), selected);
+        }
     }
 
     #[test]
