@@ -228,7 +228,7 @@
   "docs/design/h264-encoder-harness.md": "4103f4b605642e47be0db1f58173cacffbdaf01528fd2829396055d5489ea051",
   "docs/design/h264-encoder.md": "89f856d459abdc26fbb25d705ea7eaee027c7880dc529959556c55b850550bb6",
   "docs/design/oracle-historical-records.json": "ccd62264568922440cbf1167e4b6310558672dea2aef0f66743585e838cb0ed1",
-  "docs/design/oracle-qualification-gate.md": "8c709725f15d67ecc99eea8ca22d5de97c911faacb0384123ab8809ad6c827f2",
+  "docs/design/oracle-qualification-gate.md": "7bbfd76b82f46b88a14433d4efebb6d6e4e4964e823915af3160091c6200bcc8",
   "docs/design/png-bmp-yuv-v1.md": "f9f8f4e76b6d9386682a01372f3caa333136774913a31d75010b2ed367f3bc26",
   "docs/known-divergences-decode-audio.json": "9b776384b90f23bad4c50d9613661f95fc2ccfb8da195e3bb76da00ea2d30a18",
   "docs/known-divergences-mkv.json": "a7a73ce921ed7ce8f8eaaa7b4418f611feea3779528f9c2ef990261ff712c716",
