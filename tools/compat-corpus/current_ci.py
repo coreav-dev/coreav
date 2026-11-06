@@ -181,6 +181,9 @@ def main():
         parser.error(str(error))
     ffmpeg, ffprobe = str(pair.ffmpeg), str(pair.ffprobe)
     legacy = reporter()
+    legacy.ENV = dict(legacy.ENV, PATH=str(pair.ffprobe.parent) + os.pathsep + legacy.ENV.get('PATH', ''))
+    if pathlib.Path(shutil.which('ffprobe', path=legacy.ENV['PATH']) or 'ffprobe').resolve() != pair.ffprobe.resolve():
+        parser.error('PATH does not resolve ffprobe to the qualified oracle')
     records = []
     legacy.ffmpeg_refusals = lambda o, f, c, errors: refusals(legacy, o, f, c, errors, records, ffmpeg, ffprobe)
     status = legacy.cmd_commands(opts)

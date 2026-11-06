@@ -335,7 +335,7 @@ def step_corpus(work, args):
         status, _, err = run([sys.executable, '-I', HERE / 'corpus.py', 'run', '--family', family, '--out', out,
                               '--work', work / f'work-{family}', '--workers', str(args.workers),
                               *(['--recheck', args.recheck] if args.recheck else [])],
-                             timeout=6 * 3600, **corpus_credentials())
+                             timeout=6 * 3600, FFPROBE=str(args.oracle.ffprobe), **corpus_credentials())
         if status:
             sys.exit(f'corpus run failed ({family}):\n{err[-2000:]}')
         result['families'][family] = corpus.summarize(out, family)

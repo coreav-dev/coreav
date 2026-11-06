@@ -17,6 +17,7 @@ import math
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import types
@@ -1015,7 +1016,7 @@ def main():
         oracle = test_oracle.require(args.oracle_dir / 'ffmpeg', args.oracle_dir / 'ffprobe')
     except test_oracle.QualificationError as error:
         raise ValueError(str(error)) from None
-    os.environ['PATH'] = str(args.oracle_dir.resolve()) + os.pathsep + os.environ['PATH']
+    os.environ['PATH'] = str(oracle.ffprobe.parent) + os.pathsep + os.environ['PATH']
     args.coreav = str(pathlib.Path(args.coreav).resolve(strict=True))
     identities = {'binary_sha256': file_hash(args.coreav),
                   'oracle_sha256': file_hash(oracle.ffprobe),
@@ -1029,6 +1030,8 @@ def main():
     (args.out / 'inventory.json').write_text(json.dumps(frozen, indent=2) + '\n')
     (args.out / 'identities.json').write_text(json.dumps(identities, indent=2) + '\n')
     run.ENV = run.release_round.environment(args.out / 'private/fallback.jsonl')
+    if pathlib.Path(shutil.which('ffprobe', path=run.ENV['PATH']) or 'ffprobe').resolve() != oracle.ffprobe.resolve():
+        raise ValueError('PATH does not resolve ffprobe to the qualified oracle')
     results = [{'alias': r['alias'], 'container': r['container'], 'holdout': r['holdout'],
                 'status': 'unprocessed'} for r in files]
     aborted, active = False, None

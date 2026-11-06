@@ -480,6 +480,31 @@ class Driver(unittest.TestCase):
             checked.assert_called_once_with(self.root / 'ffmpeg', self.root / 'ffprobe')
             return result
 
+    def test_bare_strict_probe_resolves_to_the_owner_returned_probe(self):
+        import shutil
+        import test_oracle
+        qualified = self.root / 'qualified'
+        qualified.mkdir()
+        for name in ('ffmpeg', 'ffprobe'):
+            target = qualified / name
+            target.write_bytes((self.root / name).read_bytes())
+            target.chmod(0o755)
+        oracle = test_oracle.Oracle(qualified / 'ffmpeg', qualified / 'ffprobe')
+        resolved = []
+        def capture(*args):
+            resolved.append(pathlib.Path(shutil.which('ffprobe', path=run.ENV['PATH'])).resolve())
+            raise OSError('stop after the first capture')
+        with mock.patch.object(kd, 'capture_file', side_effect=capture), self.assertRaises(OSError):
+            self.execute(oracle)
+        self.assertEqual(resolved, [oracle.ffprobe.resolve()])
+
+    def test_a_path_that_does_not_reach_the_returned_probe_is_rejected_before_capture(self):
+        with mock.patch.object(kd.shutil, 'which', return_value=str(self.root / 'coreav')), \
+                mock.patch.object(kd, 'capture_file') as capture, \
+                self.assertRaisesRegex(ValueError, 'qualified oracle'):
+            self.execute()
+        capture.assert_not_called()
+
     def test_capture_executes_the_owner_returned_probe(self):
         import test_oracle
         qualified = self.root / 'qualified'

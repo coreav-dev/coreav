@@ -67,3 +67,12 @@ class OracleSelection(unittest.TestCase):
                 self.assertEqual(command[command.index('--ffprobe') + 1], str(pair.ffprobe))
                 if script not in ('compat_check.py', 'policy_check.py'):
                     self.assertEqual(command[command.index('--ffmpeg') + 1], str(pair.ffmpeg))
+
+    def test_corpus_children_probe_with_the_retained_path(self):
+        pair = driver.test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified/ffprobe'))
+        with tempfile.TemporaryDirectory() as temporary, \
+                mock.patch.object(driver, 'corpus_credentials', return_value={}), \
+                mock.patch.object(driver, 'run', side_effect=RuntimeError('captured')) as execute:
+            with self.assertRaisesRegex(RuntimeError, 'captured'):
+                driver.step_corpus(Path(temporary), types.SimpleNamespace(oracle=pair, workers=1, recheck=None))
+        self.assertEqual(execute.call_args.kwargs['FFPROBE'], str(pair.ffprobe))
