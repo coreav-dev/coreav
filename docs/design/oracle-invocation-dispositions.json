@@ -13,7 +13,7 @@
   ".github/workflows/fuzz-nightly.yml": "9ae7e2ed7d23522743f1648d8d8c2b83f0d9264dabaf8481e6d7f61514179a11",
   ".github/workflows/github-shapes.yml": "749f86285979c28a617e25c6f5f704ec188b29cb0954ea269e2e2dd4604496cd",
   ".github/workflows/h264-encoder.yml": "2c3d678b0e73ba37e75a44cc7c2ddd5f528f25f6ea164593bc5b297f26a96003",
-  ".github/workflows/hevc-conformance.yml": "0eef5f148718d843434b196901174bfe61093c74a4a61e081256d7b456ebdceb",
+  ".github/workflows/hevc-conformance.yml": "60b1f233ef89d5885e285babd666ceb339a60dd4581efa0097dcb44ea60efed3",
   ".github/workflows/input-summary.yml": "2f5f8189183b17c6a4d5064134a6ad20995a07d465b21b3746243ebfb11103c7",
   ".github/workflows/npm.yml": "f11fe4cac29d57899e8ec84594af7a5328129d16c283d8971443b8949cd6dbd4",
   ".github/workflows/package-rehearsal.yml": "554d72f29e4acaa3299349417009d83e2fca702bba280b592d451a6f7f87eb1c",
@@ -8329,6 +8329,7 @@
     "scripts/clip_check.py",
     "scripts/compat_check.py",
     "scripts/extract_check.py",
+    "scripts/fuzz_upload.py",
     "scripts/hevc_fixture.py",
     "scripts/hls_check.py",
     "scripts/oracle-audio-args.txt",
@@ -8403,13 +8404,13 @@
     "tools/stage3-report/report.py",
     "tools/stage3-report/run.py"
    ],
-   "sha256": "0eef5f148718d843434b196901174bfe61093c74a4a61e081256d7b456ebdceb",
+   "sha256": "60b1f233ef89d5885e285babd666ceb339a60dd4581efa0097dcb44ea60efed3",
    "sites": [
     {
      "class": "reviewed-reference",
-     "evidence": ".github/workflows/hevc-conformance.yml:67 (shell, occurrence 0). scripts/hevc_fixture.py:388-389 replaces both requested paths with require()'s returned fields before identity verification and prepare at scripts/hevc_fixture.py:395-397. prepare expands those fields into synthetic generation/decode argv at scripts/hevc_fixture.py:314-321 and trace argv at scripts/hevc_fixture.py:334; capture at scripts/hevc_fixture.py:58 preserves argv. The verify mode regenerates and compares registered outputs, rather than only checking identity. scripts/test_oracle.py:73-108 returns the complete resolved pair after qualification; the executed oracle value is its returned field, not the requested name or a reconstructed sibling.",
+     "evidence": ".github/workflows/hevc-conformance.yml:73 passes the installed pair to hevc_fixture.py verify. scripts/hevc_fixture.py:380-397 qualifies both arguments with test_oracle.require and replaces them with qualified.ffmpeg and qualified.ffprobe before any identity or media call. scripts/test_oracle.py:73-108 returns the immutable resolved pair after platform verification; its verifier dependencies are scripts/oracle_pin.py:50-58 and scripts/oracle_pin.py:108-121, plus scripts/oracle_pin_macos.py:18-27 and scripts/oracle_pin_macos.py:48-92 with their two pin files. The returned paths pass unchanged through scripts/hevc_fixture.py:271-279, scripts/hevc_fixture.py:301-336 and scripts/hevc_fixture.py:369-370; the FFmpeg templates and expansion at scripts/hevc_fixture.py:111-131 and PCM call at scripts/hevc_fixture.py:286-295 preserve the same executable. All these commands execute through scripts/hevc_fixture.py:56-60 without sibling reconstruction or another oracle selection.",
      "site": [
-      67,
+      73,
       "shell",
       "<shell>",
       "python3 -I scripts/hevc_fixture.py verify \\\n  --ffmpeg \"$RUNNER_TEMP/oracle/ffmpeg\" --ffprobe \"$RUNNER_TEMP/oracle/ffprobe\" \\\n  --output \"$RUNNER_TEMP/hevc-synthetic\""
@@ -8418,14 +8419,36 @@
     },
     {
      "class": "reviewed-reference",
-     "evidence": ".github/workflows/hevc-conformance.yml:101 (shell, occurrence 0). scripts/hevc_fixture.py:388-389 replaces both requested paths with require()'s returned fields before identity verification and prepare at scripts/hevc_fixture.py:395-397. prepare expands those fields into synthetic generation/decode argv at scripts/hevc_fixture.py:314-321 and trace argv at scripts/hevc_fixture.py:334; capture at scripts/hevc_fixture.py:58 preserves argv. The verify mode regenerates and compares registered outputs, rather than only checking identity. scripts/test_oracle.py:73-108 returns the complete resolved pair after qualification; the executed oracle value is its returned field, not the requested name or a reconstructed sibling.",
+     "evidence": ".github/workflows/hevc-conformance.yml:107 passes the installed pair to hevc_fixture.py verify. scripts/hevc_fixture.py:380-397 qualifies both arguments with test_oracle.require and replaces them with qualified.ffmpeg and qualified.ffprobe before any identity or media call. scripts/test_oracle.py:73-108 returns the immutable resolved pair after platform verification; its verifier dependencies are scripts/oracle_pin.py:50-58 and scripts/oracle_pin.py:108-121, plus scripts/oracle_pin_macos.py:18-27 and scripts/oracle_pin_macos.py:48-92 with their two pin files. The returned paths pass unchanged through scripts/hevc_fixture.py:271-279, scripts/hevc_fixture.py:301-336 and scripts/hevc_fixture.py:369-370; the FFmpeg templates and expansion at scripts/hevc_fixture.py:111-131 and PCM call at scripts/hevc_fixture.py:286-295 preserve the same executable. All these commands execute through scripts/hevc_fixture.py:56-60 without sibling reconstruction or another oracle selection.",
      "site": [
-      101,
+      107,
       "shell",
       "<shell>",
       "python3 -I scripts/hevc_fixture.py verify \\\n  --ffmpeg \"$RUNNER_TEMP/oracle/ffmpeg\" --ffprobe \"$RUNNER_TEMP/oracle/ffprobe\" \\\n  --output \"$RUNNER_TEMP/hevc-synthetic\""
      ],
      "verdict": "qualified-via-owner"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": ".github/workflows/hevc-conformance.yml:264 invokes the virtual environment pip solely to install boto3==1.35.36; .github/workflows/hevc-conformance.yml:261-266 separates environment creation, package installation and the subsequent findings upload. This row is a package-install command, not an FFmpeg or ffprobe oracle invocation.",
+     "site": [
+      264,
+      "shell",
+      "<shell>",
+      "\"$RUNNER_TEMP/venv/bin/pip\" install --quiet 'boto3==1.35.36'"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": ".github/workflows/hevc-conformance.yml:265 invokes isolated Python on scripts/fuzz_upload.py with a findings directory and object-key prefix. scripts/fuzz_upload.py:18-68 only enumerates directories, archives each finding in memory and uploads it with boto3 put_object (or returns without findings); it launches no FFmpeg or ffprobe oracle.",
+     "site": [
+      265,
+      "shell",
+      "<shell>",
+      "\"$RUNNER_TEMP/venv/bin/python\" -I scripts/fuzz_upload.py \"$RUNNER_TEMP/fuzz/findings\" \\\n  \"hevc-differential/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$HOST\""
+     ],
+     "verdict": "excluded"
     }
    ]
   },
@@ -182228,7 +182251,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "At scripts/tests/test_hevc_workflow.py:201, process row 'sys.executable'. The child at scripts/tests/test_hevc_workflow.py:201-202 is isolated Python running a workflow JSON projection against the synthetic fixture written at scripts/tests/test_hevc_workflow.py:193-200. scripts/tests/test_hevc_workflow.py:189-190 extracts that projection from .github/workflows/hevc-conformance.yml; it does not launch an oracle.",
+     "evidence": "scripts/tests/test_hevc_workflow.py:201 starts isolated Python with the projection script extracted at scripts/tests/test_hevc_workflow.py:188-190 from .github/workflows/hevc-conformance.yml:181-195. The executed script only reads the synthetic JSON fixture written at scripts/tests/test_hevc_workflow.py:193-200, projects aggregate fields and writes profile-summary.json. The complete workflow heredoc at .github/workflows/hevc-conformance.yml:182-194 imports only json, pathlib and sys and performs no subprocess or oracle invocation; the child does not execute the workflow jobs.",
      "site": [
       201,
       "process",
@@ -264387,6 +264410,12 @@
   "crates/coreav-kernels-h264/tests/equivalence.rs": "source",
   "crates/coreav-kernels-hevc/Cargo.toml": "data",
   "crates/coreav-kernels-hevc/README.md": "data",
+  "crates/coreav-kernels-hevc/fuzz/Cargo.lock": "data",
+  "crates/coreav-kernels-hevc/fuzz/Cargo.toml": "data",
+  "crates/coreav-kernels-hevc/fuzz/deny.toml": "data",
+  "crates/coreav-kernels-hevc/fuzz/fuzz_targets/horizontal.rs": "source",
+  "crates/coreav-kernels-hevc/fuzz/fuzz_targets/interpolation.rs": "source",
+  "crates/coreav-kernels-hevc/fuzz/fuzz_targets/vertical.rs": "source",
   "crates/coreav-kernels-hevc/src/domain.rs": "source",
   "crates/coreav-kernels-hevc/src/filter.rs": "source",
   "crates/coreav-kernels-hevc/src/inter.rs": "source",
@@ -264394,6 +264423,7 @@
   "crates/coreav-kernels-hevc/src/intra.rs": "source",
   "crates/coreav-kernels-hevc/src/inverse.rs": "source",
   "crates/coreav-kernels-hevc/src/lib.rs": "source",
+  "crates/coreav-kernels-hevc/src/simd.rs": "source",
   "crates/coreav-kernels-hevc/src/tables.rs": "source",
   "crates/coreav-kernels-hevc/src/tests.rs": "source",
   "crates/coreav-kernels-vp9/Cargo.toml": "data",
@@ -264850,6 +264880,7 @@
   "docs/design/hevc-input-summary.md": "data",
   "docs/design/hevc-inter.md": "data",
   "docs/design/hevc-intra.md": "data",
+  "docs/design/hevc-simd.md": "data",
   "docs/design/hevc.md": "data",
   "docs/design/hls.md": "data",
   "docs/design/image-timestamp-binding.md": "data",
@@ -266324,6 +266355,7 @@
   "scripts/tests/test_hevc_fixture.py": "source",
   "scripts/tests/test_hevc_intra.py": "source",
   "scripts/tests/test_hevc_oracle_input.py": "source",
+  "scripts/tests/test_hevc_simd_workflow.py": "source",
   "scripts/tests/test_hevc_smoke.py": "source",
   "scripts/tests/test_hevc_synthetic.py": "source",
   "scripts/tests/test_hevc_workflow.py": "source",
