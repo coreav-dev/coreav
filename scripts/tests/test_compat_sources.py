@@ -5,6 +5,7 @@ import fnmatch
 import json
 import os
 from pathlib import Path
+import posixpath
 import re
 import subprocess
 import sys
@@ -13,6 +14,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
+import compat_frozen_check
 import compat_sources as sources
 import registered_candidate
 
@@ -30,8 +32,7 @@ class SourceRepo:
         self.git('init', '-q')
         self.git('symbolic-ref', 'HEAD', 'refs/heads/main')
         for path in sources.FROZEN:
-            target = path + '/mod.rs' if path == 'crates/coreav-isobmff/tests/common' else path
-            self.write(target, path + '\n')
+            self.write(self.frozen_file(path), path + '\n')
         for path in sources.JUDGING:
             self.write(path, path + '\n')
         for name in ('compat_sources.py', 'registered_candidate.py'):
@@ -56,6 +57,13 @@ class SourceRepo:
         target = self.root / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text)
+
+    def frozen_file(self, path):
+        if path == 'crates/coreav-isobmff/tests/common':
+            return path + '/mod.rs'
+        if path == 'tools/compat-corpus/commands-0.1.0':
+            return path + '/commands.json'
+        return path
 
     def save(self, parent=None):
         self.git('add', '.')
@@ -143,7 +151,7 @@ class Sources(unittest.TestCase):
             for missing in (False, True):
                 with self.subTest(path=path, missing=missing):
                     self.repo.git('reset', '--hard', self.repo.tooling)
-                    target = path + '/mod.rs' if path == 'crates/coreav-isobmff/tests/common' else path
+                    target = self.repo.frozen_file(path)
                     if missing:
                         (self.root / target).unlink()
                     else:
@@ -158,6 +166,53 @@ class Sources(unittest.TestCase):
                     else:
                         with self.assertRaises(ValueError):
                             self.plan(tooling=changed, event='pull_request')
+
+    def test_check_rejects_each_tooling_frozen_drift_and_missing_path(self):
+        for path in sorted(set(sources.FROZEN) - set(sources.OBSERVER)):
+            for missing in (False, True):
+                with self.subTest(path=path, missing=missing):
+                    self.repo.git('reset', '--hard', self.repo.tooling)
+                    target = self.repo.frozen_file(path)
+                    if missing:
+                        (self.root / target).unlink()
+                    else:
+                        self.repo.write(target, 'changed tooling input\n')
+                    self.repo.save()
+                    sources.check(self.root)
+                    reason = 'source history is unavailable' if missing else re.escape(path)
+                    with self.assertRaisesRegex(ValueError, reason):
+                        compat_frozen_check.check(self.root)
+
+    def test_check_rejects_an_added_file_in_the_frozen_command_tree(self):
+        path = 'tools/compat-corpus/commands-0.1.0'
+        self.assertEqual(self.repo.git('cat-file', '-t', f'{self.repo.candidate}:{path}'), 'tree')
+        self.repo.write(path + '/extra.json', '{}\n')
+        self.repo.save()
+        with self.assertRaisesRegex(ValueError, re.escape(path)):
+            compat_frozen_check.check(self.root)
+
+    def test_check_preserves_candidate_observer_binding_when_tooling_copies_are_absent(self):
+        for path in sources.OBSERVER:
+            (self.root / self.repo.frozen_file(path)).unlink()
+        self.repo.save()
+        planned = compat_frozen_check.check(self.root)
+        self.assertEqual(planned['judging']['observer']['sources'],
+                         sources.observer_sources(self.root, self.repo.candidate))
+
+    def test_frozen_check_entrypoint_reports_success_and_failing_source_identity(self):
+        command = [sys.executable, '-I', '-B', str(ROOT / 'scripts/compat_frozen_check.py')]
+        passed = subprocess.run(command, cwd=self.root, capture_output=True, text=True, check=False)
+        self.assertEqual(passed.returncode, 0, passed.stderr)
+        count = len(set(sources.FROZEN) - set(sources.OBSERVER))
+        self.assertIn(f'{count} tooling inputs verified', passed.stdout)
+        path = 'tools/compat-corpus/commands-0.1.0'
+        self.repo.write(path + '/extra.json', '{}\n')
+        self.repo.save()
+        failed = subprocess.run(command, cwd=self.root, capture_output=True, text=True, check=False)
+        self.assertEqual(failed.returncode, 1, failed.stderr)
+        self.assertIn('compatibility-frozen-inputs: invalid-source-identity:', failed.stderr)
+        self.assertIn(path, failed.stderr)
+        self.assertEqual(self.repo.git('status', '--porcelain'), '')
 
     def test_floor_registration_is_exact_unique_and_documented(self):
         for text in ('', self.repo.registration * 2, self.repo.registration.replace(self.repo.floor, 'main'),
@@ -238,15 +293,36 @@ class Sources(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.verify(dist)
 
-    def test_the_harness_driver_and_its_path_modules_are_frozen(self):
-        driver = ROOT / 'crates/coreav-cli/tests/ffmpeg.rs'
-        self.assertIn(driver.relative_to(ROOT).as_posix(), sources.FROZEN)
-        modules = re.findall(r'#\[path\s*=\s*"([^"]+)"\]', driver.read_text())
+    def assert_observer_modules_frozen(self, root, candidate):
+        driver = 'crates/coreav-cli/tests/ffmpeg.rs'
+        self.assertIn(driver, sources.FROZEN)
+        source = sources.git(root, 'show', f'{candidate}:{driver}')
+        modules = re.findall(r'#\[path\s*=\s*"([^"]+)"\]', source)
         self.assertTrue(modules)
         for module in modules:
-            path = (driver.parent / module).resolve()
-            self.assertTrue(any(path == ROOT / frozen or path.is_relative_to(ROOT / frozen)
+            path = posixpath.normpath(posixpath.join(posixpath.dirname(driver), module))
+            self.assertTrue(any(path == frozen or path.startswith(frozen + '/')
                                 for frozen in sources.FROZEN), module)
+            sources.git(root, 'cat-file', '-e', f'{candidate}:{path}')
+
+    def test_the_harness_driver_and_its_path_modules_are_frozen(self):
+        candidate = registered_candidate.registered((ROOT / sources.README).read_text())
+        self.assert_observer_modules_frozen(ROOT, candidate)
+
+    def test_changed_candidate_observer_graph_is_rejected_but_tooling_graph_is_unused(self):
+        driver = 'crates/coreav-cli/tests/ffmpeg.rs'
+        candidate = registered_candidate.registered((ROOT / sources.README).read_text())
+        source = sources.git(ROOT, 'show', f'{candidate}:{driver}')
+        self.repo.write(driver, source)
+        observer = self.repo.save()
+        self.assert_observer_modules_frozen(self.root, observer)
+        module = '../../../test-support/oracle.rs'
+        self.repo.write(driver, source + f'\n#[path = "{module}"]\nmod test_oracle;\n')
+        self.repo.write('test-support/oracle.rs', 'pub fn qualification_control() {}\n')
+        changed = self.repo.save()
+        self.assert_observer_modules_frozen(self.root, observer)
+        with self.assertRaisesRegex(AssertionError, re.escape(module)):
+            self.assert_observer_modules_frozen(self.root, changed)
 
     def test_observer_sources_are_registered_at_the_candidate_not_the_tooling_copy(self):
         for path in sources.OBSERVER:
