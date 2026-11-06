@@ -21,7 +21,7 @@ def evaluate(expression, context):
         return repr(item)
 
     expression = expression.strip().removeprefix('${{').removesuffix('}}').strip()
-    expression = re.sub(r'\b(?:github|steps|needs|strategy)\.[\w.*-]+', value, expression)
+    expression = re.sub(r'\b(?:github|steps|needs|strategy|inputs)\.[\w.*-]+', value, expression)
     expression = re.sub(r'!(?!=)', ' not ', expression.replace('&&', ' and ').replace('||', ' or '))
     return eval(expression, {'__builtins__': {}},
                 {'always': lambda: True, 'contains': lambda values, entry: entry in values,

@@ -1,4 +1,5 @@
 import hashlib
+import contextlib
 import io
 import json
 from pathlib import Path
@@ -76,12 +77,17 @@ class Smoke(unittest.TestCase):
                 self.assertEqual(Path(entry['path']).read_bytes(), b'original')
                 self.assertEqual(b5, set())
                 self.assertEqual((tools.native, tools.ffmpeg, tools.ffprobe), ('native', 'ffmpeg', 'ffprobe'))
+                if isinstance(comparison, Exception):
+                    raise comparison
                 return comparison
             with mock.patch.object(vp9_smoke.sys, 'platform', 'linux'), \
                  mock.patch.object(vp9_smoke.test_oracle, 'require', return_value=SimpleNamespace(ffmpeg='ffmpeg', ffprobe='ffprobe')), \
                  mock.patch.object(vp9_smoke, 'fetch', side_effect=fetch), \
                  mock.patch.object(vp9_smoke.vp9_corpus, 'compare', side_effect=compare):
-                if comparison.get('status') == 'agree' and type(comparison.get('frames')) is int and comparison['frames'] > 0:
+                if isinstance(comparison, Exception):
+                    with self.assertRaises(type(comparison)):
+                        vp9_smoke.run(args)
+                elif comparison.get('status') == 'agree' and type(comparison.get('frames')) is int and comparison['frames'] > 0:
                     self.assertEqual(vp9_smoke.run(args), 0)
                 else:
                     with self.assertRaises(ValueError):
@@ -104,6 +110,20 @@ class Smoke(unittest.TestCase):
             self.assertFalse(report['complete'])
             self.assertEqual(report['vectors'], [])
             self.assertEqual(report['failed_stage'], 'comparison')
+
+    def test_diagnostics_name_the_stage_and_closed_reason_without_arbitrary_arguments(self):
+        with contextlib.redirect_stderr(io.StringIO()) as stderr:
+            _, report = self.exercise({'status': 'outside_profile0', 'frames': 7})
+        self.assertEqual(report['failure_reason'], 'missing_pixel_coverage')
+        self.assertEqual(report['failed_vector'], vp9_smoke.VECTORS[0])
+        self.assertIn('stage=comparison reason=missing_pixel_coverage', stderr.getvalue())
+        self.assertEqual(vp9_smoke.failure_reason(ValueError('unknown native eligibility')),
+                         'native_eligibility_unknown')
+        for error in (ValueError('CREDENTIAL_MARKER_untrusted'), RuntimeError('CREDENTIAL_MARKER_untrusted')):
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                _, report = self.exercise(error)
+            self.assertFalse(report['complete'])
+            self.assertNotIn('CREDENTIAL_MARKER', json.dumps(report) + stderr.getvalue())
 
 
 if __name__ == '__main__':

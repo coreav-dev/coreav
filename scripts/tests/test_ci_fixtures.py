@@ -23,12 +23,13 @@ class SharedFixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.workflow = read_yaml(ROOT / '.github/workflows/ci.yml')
+        cls.full = read_yaml(ROOT / '.github/workflows/ci-full.yml')
         cls.action = read_yaml(ROOT / '.github/actions/ci-fixtures/action.yml')
 
     def test_consumers_start_beside_the_other_checks(self):
         jobs = self.workflow['jobs']
         self.assertNotIn('isobmff-fixture-set', jobs)
-        for name in ('isobmff-writers', 'isobmff-decode', 'transcode-compat-shard'):
+        for name in ('isobmff-fixtures', 'isobmff-command-compat', 'isobmff-writers', 'isobmff-decode'):
             with self.subTest(job=name):
                 self.assertEqual(jobs[name]['needs'], 'ci-changes')
                 downloads = [s for s in jobs[name]['steps']
@@ -39,6 +40,13 @@ class SharedFixtures(unittest.TestCase):
         report = jobs['ci-report']
         self.assertEqual(set(report['needs']), set(jobs) - {'ci-report'})
         self.assertEqual(report['if'], 'always()')
+        shard = self.full['jobs']['transcode-compat-shard']
+        self.assertEqual(shard['needs'], 'full-fixtures')
+        fixture, = [s for s in shard['steps'] if s.get('uses', '').startswith('actions/download-artifact@')
+                    and s.get('with', {}).get('name') == 'isobmff-fixture-set']
+        self.assertEqual(fixture['with']['path'], '${{ runner.temp }}/coreav-fixtures')
+        self.assertFalse(any('gen-fixtures.sh' in s.get('run', '') for s in shard['steps']))
+        self.assertEqual(set(self.full['jobs']['ci-full-report']['needs']), set(self.full['jobs']) - {'ci-full-report'})
 
     def test_prepare_runs_for_ready_fixtures_including_reused_main(self):
         gate = self.workflow['jobs']['ci-changes']
@@ -59,10 +67,11 @@ class SharedFixtures(unittest.TestCase):
         save, = [s for s in steps if s.get('name') == 'Save the fixtures']
         publish, = [s for s in steps if s.get('uses', '').startswith('actions/upload-artifact@')
                     and s.get('with', {}).get('name') == 'isobmff-fixture-set']
-        for ref, hit in itertools.product(('refs/heads/main', 'refs/pull/1/merge',
-                                           'refs/heads/gh-readonly-queue/main/group'), ('true', 'false')):
-            context = {'github': {'ref': ref}, 'steps': {'fixtures': {'outputs': {'cache-hit': hit}}}}
-            self.assertEqual(bool(evaluate(generate['if'], context)), hit != 'true')
+        for ref, hit, fresh in itertools.product(('refs/heads/main', 'refs/pull/1/merge',
+                                           'refs/heads/gh-readonly-queue/main/group'), ('true', 'false'), ('true', 'false')):
+            context = {'github': {'ref': ref}, 'steps': {'fixtures': {'outputs': {'cache-hit': hit}}},
+                       'inputs': {'fresh': fresh}}
+            self.assertEqual(bool(evaluate(generate['if'], context)), fresh == 'true' or hit != 'true')
             self.assertEqual(bool(evaluate(save['if'], context)), hit != 'true' and ref == 'refs/heads/main')
         self.assertNotIn('if', publish)
         self.assertEqual(publish['with']['name'], 'isobmff-fixture-set')

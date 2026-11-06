@@ -5,6 +5,7 @@ import http.client
 import io
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -150,13 +151,17 @@ class Acquisition(unittest.TestCase):
 class Workflow(unittest.TestCase):
     def test_both_jobs_restore_acquire_and_save_before_decoding(self):
         root = pathlib.Path(__file__).resolve().parents[2]
-        workflow = (root / '.github/workflows/ci.yml').read_text()
-        for job in ('conformance', 'conformance-arm64'):
-            body = workflow.split(f'\n  {job}:\n', 1)[1].split('\n  #', 1)[0]
+        for filename, job in (('ci.yml', 'conformance'), ('ci-full.yml', 'h264-full'),
+                              ('ci-full.yml', 'conformance-arm64')):
+            workflow = (root / '.github/workflows' / filename).read_text()
+            body = re.split(r'\n  (?=\S)', workflow.split(f'\n  {job}:\n', 1)[1], maxsplit=1)[0]
             self.assertLess(body.index('actions/cache/restore@'), body.index('--download-only'))
             self.assertLess(body.index('--download-only'), body.index('actions/cache/save@'))
             self.assertLess(body.index('actions/cache/save@'), body.index('name: Decode every in-scope stream'))
-            self.assertIn("hashFiles('crates/coreav-h264/tests/data/conformance-streams.json')", body)
+            inputs = "'crates/coreav-h264/tests/data/conformance-streams.json'"
+            if job == 'conformance':
+                inputs += ", 'scripts/h264_ci.py'"
+            self.assertIn(f'hashFiles({inputs})', body)
             self.assertIn("steps.conformance-acquisition.outcome == 'failure'", body)
             self.assertIn("format('-partial-{0}-{1}-{2}'", body)
             self.assertIn("!cancelled()", body)

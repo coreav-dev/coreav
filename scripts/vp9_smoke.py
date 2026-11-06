@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 import sys
 import time
 from types import SimpleNamespace
@@ -22,10 +23,38 @@ VECTORS = (
     'vp90-2-02-size-320x180-05-resize-12-21-encode_speed-5.webm',
     'vp90-2-10-show-existing-frame.webm',
     'vp90-2-14-resize-10frames-fp-tiles-1-2-4-8.webm',
-    'vp90-2-16-intra-only.webm',
+    'vp90-2-07-frame_parallel-1.webm',
     'vp90-2-17-show-existing-frame.webm',
 )
 LIMIT = 16 << 20
+FAILURE_REASONS = {
+    'unknown native eligibility': 'native_eligibility_unknown',
+    'invalid native subsampling': 'native_subsampling_invalid',
+    'independent eligibility observations disagree': 'eligibility_disagreement',
+    'frame count, order, timestamp, size or MD5 differs': 'frame_comparison_mismatch',
+    'public vector checksum mismatch': 'input_checksum_mismatch',
+    'public vector exceeds smoke limit': 'input_size_limit',
+    'smoke did not compare pixels': 'missing_pixel_coverage',
+    'probe failed': 'oracle_probe_failed',
+    'inspect failed': 'native_inspection_failed',
+    'native failed': 'native_decode_failed',
+    'oracle failed': 'oracle_decode_failed',
+    'oracle reported an error': 'oracle_diagnostic_failure',
+}
+
+
+def failure_reason(error):
+    if type(error) is ValueError and len(error.args) == 1 and type(error.args[0]) is str:
+        return FAILURE_REASONS.get(error.args[0], 'invalid_evidence')
+    if isinstance(error, (TimeoutError, subprocess.TimeoutExpired)):
+        return 'timeout'
+    if isinstance(error, urllib.error.HTTPError):
+        return 'http_failure'
+    if isinstance(error, (urllib.error.URLError, ConnectionError)):
+        return 'transport_failure'
+    if isinstance(error, test_oracle.QualificationError):
+        return 'oracle_qualification_failed'
+    return 'unexpected_failure'
 
 
 def registration():
@@ -62,11 +91,14 @@ def run(args):
     args.out.mkdir(mode=0o700, parents=True, exist_ok=False)
     report = {'complete': False, 'vectors': []}
     stage = 'registration'
+    current = None
     try:
         source, rows = registration()
+        stage = 'oracle_qualification'
         oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
         tools = SimpleNamespace(native=str(args.native), ffmpeg=str(oracle.ffmpeg), ffprobe=str(oracle.ffprobe))
         for row in rows:
+            current = row['name']
             stage = 'acquisition'
             path = args.out / row['name']
             fetch(source, row, path)
@@ -83,6 +115,13 @@ def run(args):
         vp9_corpus.require(tuple(row['name'] for row in report['vectors']) == VECTORS, 'incomplete smoke')
         report['complete'] = True
         return 0
+    except Exception as error:
+        reason = failure_reason(error)
+        report.update(failed_stage=stage, failure_reason=reason)
+        if current:
+            report['failed_vector'] = current
+        print(f'vp9-smoke: stage={stage} reason={reason}', file=sys.stderr)
+        raise
     finally:
         if not report['complete']:
             report['failed_stage'] = stage

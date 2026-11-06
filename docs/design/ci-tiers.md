@@ -87,6 +87,8 @@ H.264 smoke selects exact names from `crates/coreav-h264/tests/data/conformance-
 
 VP9 retains all 353 vectors in routine `vp9-conformance.yml` validation. Separately, `vp9-corpus.yml` runs `scripts/vp9_smoke.py` over exactly eight existing pinned public vectors as original files, using the corpus comparator and pinned oracle. Hash, membership, positive frame count, and complete exact coverage are required. Full corpus shards run only on relevant main pushes, daily, and dispatch. Interpolation fuzzing compiles and runs for 30 seconds on PRs and 600 seconds in the full tier. Audio retains its complete existing coverage and qualification controls; no reduction is approved. No roster, baseline, tolerance or frozen judging file changes.
 
+The original-file smoke uses inputs whose container metadata satisfies the unchanged C2 admission checks. The intra-only vector remains in the complete 353-vector suite, but its container probe exposes unknown bit depth and subsampling, so it receives no original-file pixel credit. The smoke selects the existing `vp90-2-07-frame_parallel-1.webm` instead; it never skips an admission refusal or substitutes metadata from the oracle. Failure reports name the stage and a closed reason without exposing arbitrary exception arguments.
+
 ## Full checks and final-head evidence
 
 `ci-full.yml` owns all 99 admitted H.264 streams in fast and safe modes at thread counts 1, 2, and 8, arm64 conformance, and the unchanged three transcode shards and merger. Its fresh producer prepares the registered fixture sets once and keeps exact shard completeness, byte binding, and merger checks. Full work runs after relevant main pushes, daily without path filtering, and by manual dispatch, independently of required-workflow same-tree reuse.
