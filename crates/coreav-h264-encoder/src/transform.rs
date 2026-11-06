@@ -95,6 +95,32 @@ pub(crate) fn quantize(transformed: &[i64; 16], qp: u8, separate_dc: bool) -> Re
     Ok(out)
 }
 
+pub(crate) fn quantizes_to_zero(
+    transformed: &[i64; 16],
+    qp: u8,
+    separate_dc: bool,
+) -> Result<bool> {
+    for (p, coefficient) in transformed
+        .iter()
+        .enumerate()
+        .skip(usize::from(separate_dc))
+    {
+        let weight = (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
+        if 128 * coefficient.abs() > weight * norm(qp, p)? * (1i64 << (qp / 6)) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+pub(crate) fn chroma_dc_quantizes_to_zero(sums: [i64; 4], qp: u8) -> Result<bool> {
+    let [a, b, c, d] = sums;
+    let limit = norm(qp, 0)? * (1i64 << (qp / 6));
+    Ok([a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
+        .iter()
+        .all(|v| 4 * v.abs() <= limit))
+}
+
 pub(crate) fn scaled(levels: &[i32; 16], qp: u8, dc: Option<i32>) -> Result<[i32; 16]> {
     let mut out = [0; 16];
     if levels.iter().any(|&level| level != 0) {
@@ -276,6 +302,53 @@ mod tests {
                     Ok((levels, dc))
                 })();
                 assert_eq!(luma_dc(input, qp), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn zero_checks_match_the_quantizers_at_every_rounding_boundary() {
+        for qp in 0..=51u8 {
+            for separate_dc in [false, true] {
+                let mut blocks = Vec::new();
+                for p in 0..16 {
+                    let weight =
+                        (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
+                    let boundary = weight * norm(qp, p).unwrap() * (1i64 << (qp / 6)) / 128;
+                    for value in boundary - 2..=boundary + 2 {
+                        for sign in [1, -1] {
+                            let mut block = [0; 16];
+                            block[p] = sign * value;
+                            blocks.push(block);
+                        }
+                    }
+                }
+                for seed in 0..64i64 {
+                    let scale = 1 + seed % 7 * (1 << (qp / 6));
+                    blocks.push(std::array::from_fn(|k| {
+                        ((seed * 37 + k as i64 * 11 + k as i64 * seed) % 9 - 4) * scale
+                    }));
+                }
+                for block in blocks {
+                    assert_eq!(
+                        quantizes_to_zero(&block, qp, separate_dc).unwrap(),
+                        quantize(&block, qp, separate_dc)
+                            .unwrap()
+                            .iter()
+                            .all(|&l| l == 0),
+                        "{qp} {separate_dc} {block:?}"
+                    );
+                }
+            }
+            let boundary = norm(qp, 0).unwrap() * (1i64 << (qp / 6)) / 4;
+            for a in boundary - 2..=boundary + 2 {
+                for sums in [[a, 0, 0, 0], [a, a, 0, 0], [a, -a, a, -a], [-a, 1, 2, -3]] {
+                    assert_eq!(
+                        chroma_dc_quantizes_to_zero(sums, qp).unwrap(),
+                        chroma_dc(sums, qp).unwrap().0.iter().all(|&l| l == 0),
+                        "{qp} {sums:?}"
+                    );
+                }
             }
         }
     }

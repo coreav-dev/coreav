@@ -600,7 +600,10 @@ impl FramePlane {
             .get(start..start + self.width)
             .ok_or(Error::Internal)?;
         if x >= 0 && x as usize + out.len() <= self.width {
-            out.copy_from_slice(row.get(x as usize..x as usize + out.len()).ok_or(Error::Internal)?);
+            out.copy_from_slice(
+                row.get(x as usize..x as usize + out.len())
+                    .ok_or(Error::Internal)?,
+            );
             return Ok(());
         }
         for (i, value) in out.iter_mut().enumerate() {
@@ -755,7 +758,13 @@ impl Decision<'_> {
         })
     }
 
-    fn quick_intra(&self, base: &Tile, cbases: &[Tile; 2], a: IntraAvail) -> Result<Candidate> {
+    fn quick_intra(
+        &self,
+        base: &Tile,
+        cbases: &[Tile; 2],
+        a: IntraAvail,
+        four: bool,
+    ) -> Result<Candidate> {
         let mut luma = None;
         let mut chroma_mode = None;
         for mode in 0..4 {
@@ -784,22 +793,25 @@ impl Decision<'_> {
         }
         let luma_mode = luma.ok_or(Error::Internal)?.1;
         let chroma_mode = chroma_mode.ok_or(Error::Internal)?.1;
-        let (score, four) = intra4(
-            base,
-            self.source,
-            a,
-            self.qp,
-            self.context.top,
-            self.context.left,
-            true,
-        )?;
-        let (luma, choice) = if score < luma.ok_or(Error::Internal)?.0 {
-            (four, 4)
+        let four = if four {
+            Some(intra4(
+                base,
+                self.source,
+                a,
+                self.qp,
+                self.context.top,
+                self.context.left,
+                true,
+            )?)
         } else {
-            (
+            None
+        };
+        let (luma, choice) = match four {
+            Some((score, four)) if score < luma.ok_or(Error::Internal)?.0 => (four, 4),
+            _ => (
                 intra16(base, self.source, a, luma_mode, self.qp)?,
                 luma_mode,
-            )
+            ),
         };
         self.candidate(
             luma,
@@ -814,10 +826,14 @@ impl Decision<'_> {
         base: &Tile,
         cbases: &[Tile; 2],
         a: IntraAvail,
-        exhaustive: bool,
+        scope: IntraScope,
         best: &mut Option<Candidate>,
         refusal: &mut Error,
     ) -> Result<()> {
+        if scope == IntraScope::None {
+            return Ok(());
+        }
+        let exhaustive = scope == IntraScope::Exhaustive;
         if !exhaustive && self.context.p_slice && best.is_some() {
             let mut floor = Bits::count();
             floor.ue(self.pending_skip)?;
@@ -832,7 +848,7 @@ impl Decision<'_> {
             }
         }
         if !exhaustive {
-            match self.quick_intra(base, cbases, a) {
+            match self.quick_intra(base, cbases, a, scope == IntraScope::Quick) {
                 Ok(candidate) => {
                     consider(best, candidate);
                     return Ok(());
@@ -890,6 +906,14 @@ impl Decision<'_> {
         }
         Ok(())
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum IntraScope {
+    None,
+    Sixteen,
+    Quick,
+    Exhaustive,
 }
 
 fn consider(best: &mut Option<Candidate>, candidate: Candidate) {
@@ -982,7 +1006,9 @@ pub(crate) fn picture(
             };
             let mut best = None;
             let mut refusal = Error::Coefficient;
-            if !slice.idr {
+            let scope = if slice.idr {
+                IntraScope::Exhaustive
+            } else {
                 inter::Search {
                     reference: e.reference.as_ref().ok_or(Error::Internal)?,
                     decision: &decision,
@@ -991,17 +1017,9 @@ pub(crate) fn picture(
                     my,
                     previous: previous_mv_count,
                 }
-                .candidates(&mut best, &mut refusal)?;
-            }
-            let exact_skip = match best.as_ref() {
-                Some(candidate) if candidate.inter.as_ref().is_some_and(|inter| inter.skip) => {
-                    candidate.key.cost == decision.cost(0, candidate.key.bits)?
-                }
-                _ => false,
+                .candidates(&mut best, &mut refusal)?
             };
-            if !exact_skip {
-                decision.intra(&base, &cbases, a, slice.idr, &mut best, &mut refusal)?;
-            }
+            decision.intra(&base, &cbases, a, scope, &mut best, &mut refusal)?;
             let Candidate {
                 luma,
                 chroma,
@@ -1210,9 +1228,14 @@ mod tests {
                 pending_skip: 0,
             };
             INTRA_PAIRS.with(|count| count.set(0));
-            let candidate = decision.quick_intra(&base, &csources, a).unwrap();
+            let candidate = decision.quick_intra(&base, &csources, a, true).unwrap();
             selected_four |= candidate.luma.mode.is_none();
             assert_eq!(INTRA_PAIRS.with(|count| count.get()), 1);
+            let sixteen = decision.quick_intra(&base, &csources, a, false).unwrap();
+            assert!(sixteen.luma.mode.is_some_and(|mode| legal(mode, 16, a)));
+            if candidate.luma.mode.is_some() {
+                assert!(sixteen.key == candidate.key);
+            }
         }
         assert!(selected_four);
     }
@@ -1247,7 +1270,7 @@ mod tests {
                         &base,
                         &csources,
                         a,
-                        false,
+                        IntraScope::Quick,
                         &mut best,
                         &mut Error::Coefficient,
                     )
@@ -1292,7 +1315,7 @@ mod tests {
         };
         let a = intra_availability(Border::default());
         assert!(matches!(
-            decision.quick_intra(&base, &[base.clone(), base.clone()], a),
+            decision.quick_intra(&base, &[base.clone(), base.clone()], a, true),
             Err(Error::MacroblockLimit)
         ));
         INTRA_PAIRS.with(|count| count.set(0));
@@ -1303,7 +1326,7 @@ mod tests {
                 &base,
                 &[base.clone(), base.clone()],
                 a,
-                false,
+                IntraScope::Quick,
                 &mut best,
                 &mut refusal,
             )
