@@ -10,11 +10,11 @@ under "Required status checks" below.
 
 ### Scheduled full runs already covered by main
 
-Each full workflow first checks scheduled runs through the existing `merge-group-result` lookup. Only the newest main-push attempt of the same workflow at the exact scheduled SHA can cover it, and every registered full job, matrix leg and proof step must have succeeded. Running, failed, cancelled, mismatching, incomplete or unavailable evidence runs the full work. Covered schedules do no media or build work and write one line naming the covering run and attempt. Push filters, push events, cron times, manual dispatch and PR-only cancellation are unchanged; the metadata gate starts a runner only on schedule.
+Each full workflow first checks daily scheduled runs through the existing `merge-group-result` lookup. Only the newest main-push attempt of the same workflow at the exact scheduled SHA can cover it, and every registered full job, matrix leg and proof step must have succeeded. Running, failed, cancelled, mismatching, incomplete or unavailable evidence runs the full work. Covered dailies do no media or build work and write one line naming the covering run and attempt. Push filters, push events, daily cron times, manual dispatch and PR-only cancellation are unchanged; the metadata gate starts a runner only for the exact daily cron expression.
 
 The claim is pinned in the coverage step's name. Trusted failure reporting independently verifies that exact attempt using Actions metadata and the same full-proof predicate, so legitimate covered skips do not become missing-work issues. No artifacts or logs are read with its issue-writing token. Other skipped or failed full jobs retain the existing failure path. Manual final-head verification never accepts push or scheduled coverage in place of its dispatches.
 
-Coverage has no age limit. While main remains at one SHA, a successful covering push can suppress every later daily run. Those skips do not detect subsequent external toolchain, runner-image or remote-input changes; a manual dispatch or a new uncovered SHA is needed for a fresh full check.
+Coverage has no age limit. While main remains at one SHA, a successful covering push can suppress later daily runs. Each of `ci-full`, `vp9-corpus`, `vp9-conformance` and `hevc-conformance` also has one Sunday weekly schedule that bypasses the coverage gate and always runs the existing full jobs, even at a covered SHA. These weekly runs check external toolchain, runner-image and remote-input drift and use the same trusted failure reporter as daily runs.
 
 ## Verify a correctness PR's final head
 
@@ -430,6 +430,8 @@ The `main` ruleset can require a merge queue. The queue applies each pull reques
 - **Concurrency.** Merge groups have run-id groups of their own and cannot cancel one another. Main jobs in the filtered workflows are independent too; an unfiltered deny replacement may cancel its whole predecessor ("Concurrency"). `workflow_check.py` refuses a required workflow with neither a workflow-level group nor job groups: its superseded PR runs would never be cancelled. When the queue drops a group, GitHub deletes its branch and starts a new group; the old run is not cancelled and ends on its own.
 
 ### Merge groups after a pull request
+
+Merge-group reuse keeps `bench-guard` by accepting only the PR run's comparison of the identical tested tree against the identical base; main pushes still compare against the committed baseline.
 
 The existing `merge-group-result` action also records the actual checkout of each ready, same-repository PR. A small artifact's name binds its tested tree, first-parent base and run attempt. The helper requires the checked-out merge SHA and both parents to match the event. Dependabot-authored or triggered runs do not publish reusable receipts because their secret availability differs. Receipt upload failure leaves ordinary checks running but makes later reuse unavailable.
 

@@ -19,13 +19,14 @@ on:
       - '.github/actions/**'
   schedule:
     - cron: '30 3 * * *'
+    - cron: '30 4 * * 0'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   full-coverage:
     name: ci-full-coverage
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' && github.event.schedule == '30 3 * * *'
     concurrency:
       group: ${{ github.workflow }}-full-coverage-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}

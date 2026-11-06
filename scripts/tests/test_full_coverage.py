@@ -147,6 +147,14 @@ class Coverage(unittest.TestCase):
         self.scheduled['event'] = 'push'
         self.assertFalse(ci.covered_schedule(self.api, self.name, self.scheduled, self.api.jobs[900]))
 
+    def test_uncovered_weekly_work_uses_the_existing_failure_reporter(self):
+        self.gate.update(conclusion='skipped', steps=[])
+        self.api.jobs[900] = [dict(job, run_id=900) for job in self.api.jobs[42]] + [self.gate]
+        self.assertEqual(ci.report(self.api.event(900), self.api), [])
+        self.scheduled['conclusion'] = 'failure'
+        self.api.jobs[900][0]['conclusion'] = 'failure'
+        self.assertTrue(ci.report(self.api.event(900), self.api))
+
     def test_api_failure_does_not_write_an_issue_or_skip_full_work(self):
         with mock.patch.object(self, 'request', side_effect=OSError('SECRET')):
             result, message = self.lookup()
@@ -183,7 +191,10 @@ class Wiring(unittest.TestCase):
                 self.assertEqual(workflow['name'], name)
                 gate = workflow['jobs']['full-coverage']
                 self.assertEqual(gate['name'], name + '-coverage')
-                self.assertEqual(gate['if'], "github.event_name == 'schedule'")
+                daily, weekly = workflow['on']['schedule']
+                self.assertEqual(daily['cron'].split()[2:], ['*', '*', '*'])
+                self.assertEqual(weekly['cron'].split()[2:], ['*', '*', '0'])
+                self.assertEqual(gate['if'], "github.event_name == 'schedule' && github.event.schedule == '" + daily['cron'] + "'")
                 self.assertEqual(gate['permissions'], {'contents': 'read', 'actions': 'read'})
                 self.assertEqual(gate['outputs']['reuse'], "${{ steps.result.outputs.reuse == 'true' }}")
                 self.assertTrue(gate['steps'][0]['continue-on-error'])
@@ -193,6 +204,36 @@ class Wiring(unittest.TestCase):
                 self.assertTrue(action['continue-on-error'])
                 self.assertEqual(gate['steps'][2]['name'], 'Covered by run ${{ steps.result.outputs.run }} attempt ${{ steps.result.outputs.attempt }}')
                 self.assertEqual(gate['steps'][2]['run'], 'true')
+
+    def test_weekly_schedule_cannot_take_the_covered_skip(self):
+        for name, spec in ci.FULL_WORKFLOWS.items():
+            workflow = document(name)
+            daily, weekly = workflow['on']['schedule']
+            for cron, covered in ((daily['cron'], True), (weekly['cron'], False), ('unknown', False)):
+                with self.subTest(workflow=name, cron=cron):
+                    context = {'github': {'event_name': 'schedule', 'event': {'schedule': cron},
+                                          'ref': 'refs/heads/main', 'repository': ci.REPOSITORY},
+                               'inputs': {'mode': 'conformance'}, 'needs': {},
+                               'steps': {'result': {'outputs': {'reuse': 'true'}}}}
+                    selected = set()
+                    for job_id, job in workflow['jobs'].items():
+                        condition = job.get('if', 'true')
+                        needs = job.get('needs', [])
+                        needs = [needs] if isinstance(needs, str) else needs
+                        parents = all(context['needs'][parent]['result'] == 'success' for parent in needs)
+                        explicit = any(function in condition for function in ('always()', 'cancelled()'))
+                        run = (parents or explicit) and bool(evaluate(condition, context))
+                        outputs = {key: str(evaluate(value, context)).lower()
+                                   for key, value in job.get('outputs', {}).items()} if run else {}
+                        context['needs'][job_id] = {'result': 'success' if run else 'skipped', 'outputs': outputs}
+                        if run:
+                            selected.add(job_id)
+                    self.assertEqual('full-coverage' in selected, covered)
+                    full_jobs = {job.split(' (', 1)[0] for area in spec['areas'].values() for job in area}
+                    if covered:
+                        self.assertEqual(selected, {'full-coverage'})
+                    else:
+                        self.assertTrue(full_jobs <= selected)
 
     def test_all_scheduled_work_is_gated_and_descendants_require_success(self):
         for name in ci.FULL_WORKFLOWS:

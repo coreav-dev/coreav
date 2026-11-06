@@ -108,7 +108,8 @@ class Tiers(unittest.TestCase):
                          'transcode-compat-shard', 'transcode-compat', 'ci-full-report'})
         self.assertNotIn('concurrency', self.full)
         self.assertIn('merge-group-result', json.dumps(self.full['jobs']['full-coverage']))
-        self.assertEqual(self.full['jobs']['full-coverage']['if'], "github.event_name == 'schedule'")
+        self.assertEqual(self.full['jobs']['full-coverage']['if'],
+                         "github.event_name == 'schedule' && github.event.schedule == '30 3 * * *'")
         for name in ('h264-full', 'conformance-arm64', 'transcode-compat-shard', 'transcode-compat'):
             self.assertNotIn(name, self.ci['jobs'])
         for event in ('schedule', 'workflow_dispatch', 'push'):

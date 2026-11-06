@@ -19,6 +19,7 @@ on:
     paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "tools/decode-oracle/**", "scripts/fuzz_run.sh", "scripts/vp9_pixel*", "scripts/tests/test_vp9_pixel*", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "docs/measurements/vp9-pixel-round/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-conformance.yml"]
   schedule:
     - cron: '41 17 * * *'
+    - cron: '41 18 * * 0'
   workflow_dispatch:
     inputs:
       mode:
@@ -41,7 +42,7 @@ concurrency:
 jobs:
   full-coverage:
     name: vp9-conformance-coverage
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' && github.event.schedule == '41 17 * * *'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

@@ -9,6 +9,7 @@ on:
     paths: ["crates/coreav-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/vp9_smoke.py", "scripts/tests/test_vp9_smoke.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
   schedule:
     - cron: '11 17 * * *'
+    - cron: '11 18 * * 0'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +22,7 @@ concurrency:
 jobs:
   full-coverage:
     name: vp9-corpus-coverage
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' && github.event.schedule == '11 17 * * *'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

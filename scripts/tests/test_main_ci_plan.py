@@ -342,6 +342,8 @@ class MainPlan(unittest.TestCase):
             github = {'event_name': event, 'ref': 'refs/heads/main', 'run_id': '17', 'workflow': name,
                       'repository': 'owner/repo', 'event': {'pull_request': {'draft': False, 'labels': [],
                       'head': {'repo': {'full_name': 'owner/repo'}}}}}
+            if event == 'schedule':
+                github['event']['schedule'] = workflow['on']['schedule'][0]['cron']
             steps = {key: {'outputs': {'run': 'true' if selected else 'false'}}
                      for key, selected in (('filter', code), ('platforms', code),
                                             ('h264-conformance', h264), ('bench-guard', code),
