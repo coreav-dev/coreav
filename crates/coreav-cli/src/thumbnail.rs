@@ -229,6 +229,7 @@ fn order(exact: bool) -> Vec<coreav_decode::BackendKind> {
         feature = "ffmpeg-fallback",
         feature = "native-h264",
         feature = "native-vp9",
+        feature = "native-hevc",
         feature = "dav1d",
         feature = "libvpx"
     )),
@@ -246,6 +247,8 @@ pub(crate) fn backends(
     out.push(Box::new(coreav_backend_h264::NativeH264::new()));
     #[cfg(feature = "native-vp9")]
     out.push(Box::new(coreav_backend_vp9::NativeVp9::new()));
+    #[cfg(feature = "native-hevc")]
+    out.push(Box::new(coreav_backend_hevc::NativeHevc::new()));
     #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
     if let Some(program) = this {
         use coreav_worker::{SandboxedBackend, WorkerBackend, WorkerCommand, WorkerOptions};

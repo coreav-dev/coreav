@@ -1291,6 +1291,8 @@ fn decode_through<S: Source>(
 ) -> Result<(Option<Frame>, DecoderInfo, Vec<Skipped>, u32), Error> {
     let opened = coreav_decode::open(&plan.stream, &options.policy, limits, backends)?;
     let mut decoder: Box<dyn Decoder> = opened.decoder;
+    let native_hevc = plan.stream.codec == Codec::Hevc
+        && decoder.info().backend == coreav_decode::BackendKind::Native;
     let target_pts = plan
         .packets
         .get(choice.target)
@@ -1298,8 +1300,7 @@ fn decode_through<S: Source>(
         .ok_or_else(|| Error::Unsupported("no such packet".into()))?;
     let mut found = None;
     let mut decoded = 0u32;
-    let mut skip = options
-        .skip_disposable
+    let mut skip = (options.skip_disposable && !native_hevc)
         .then(|| skip::Rule::of(plan.stream.codec, plan.stream.config.as_ref()))
         .flatten();
     // HEVC: the highest TemporalId of the packets to decode, read from them
@@ -1337,7 +1338,7 @@ fn decode_through<S: Source>(
             dts: packet.dts,
             keyframe: packet.keyframe,
             // Only the target's frame is wanted.
-            discard: index != choice.target && packet.pts != target_pts,
+            discard: index != choice.target && (native_hevc || packet.pts != target_pts),
         })?;
         decoded = decoded.saturating_add(1);
         while let Some(frame) = decoder.receive_frame()? {
@@ -1350,16 +1351,24 @@ fn decode_through<S: Source>(
             break;
         }
     }
-    if found.is_none() {
+    if found.is_none() || native_hevc {
         decoder.send_eof()?;
         // Frames come in presentation order: stop at the target, without
         // waiting for the decoder to drain.
         while let Some(frame) = decoder.receive_frame()? {
             if frame.pts == Some(target_pts) {
                 found = Some(frame);
-                break;
+                if !native_hevc {
+                    break;
+                }
             }
         }
+    }
+    if native_hevc && found.is_none() {
+        return Err(Error::Decode(coreav_decode::Error::new(
+            coreav_decode::ErrorKind::InvalidData,
+            "the selected HEVC access unit produced no target frame",
+        )));
     }
     let info = decoder.info().clone();
     Ok((found, info, opened.skipped, decoded))
@@ -1986,6 +1995,161 @@ mod skip_tests {
         };
         decode(&mut low_source, &low_plan, choice, &options, &backends).expect("decoded");
         assert_eq!(*sent.lock().expect("lock"), vec![0, 2]);
+    }
+
+    struct Spy {
+        kind: BackendKind,
+        log: Arc<Mutex<Vec<String>>>,
+        emit: bool,
+        fail_eof: bool,
+    }
+
+    struct SpyDecoder {
+        log: Arc<Mutex<Vec<String>>>,
+        emit: bool,
+        fail_eof: bool,
+        ready: Vec<i64>,
+        info: DecoderInfo,
+    }
+
+    impl Backend for Spy {
+        fn kind(&self) -> BackendKind {
+            self.kind
+        }
+        fn supports(&self, _: &StreamConfig, _: &StreamTraits) -> Support {
+            Support::Yes
+        }
+        fn open(&self, _: &StreamConfig, _: &Limits) -> Result<Box<dyn Decoder>, DecodeError> {
+            Ok(Box::new(SpyDecoder {
+                log: Arc::clone(&self.log),
+                emit: self.emit,
+                fail_eof: self.fail_eof,
+                ready: Vec::new(),
+                info: DecoderInfo {
+                    backend: self.kind,
+                    isolation: Isolation::InProcess,
+                    decoder: "spy".into(),
+                },
+            }))
+        }
+    }
+
+    impl Decoder for SpyDecoder {
+        fn send_packet(&mut self, packet: &Packet<'_>) -> Result<(), DecodeError> {
+            let pts = packet.pts.unwrap_or(-1);
+            let mark = if packet.discard { "d" } else { "" };
+            self.log.lock().expect("lock").push(format!("{pts}{mark}"));
+            if self.emit && !packet.discard {
+                self.ready.push(pts);
+            }
+            Ok(())
+        }
+        fn send_eof(&mut self) -> Result<(), DecodeError> {
+            self.log.lock().expect("lock").push("eof".into());
+            if self.fail_eof {
+                return Err(DecodeError::new(
+                    coreav_decode::ErrorKind::InvalidData,
+                    "late failure",
+                ));
+            }
+            Ok(())
+        }
+        fn receive_frame(&mut self) -> Result<Option<Frame>, DecodeError> {
+            if self.ready.is_empty() {
+                return Ok(None);
+            }
+            let pts = self.ready.remove(0);
+            let picture = Picture::zeroed(2, 2, PixelFormat::YUV420P).expect("picture");
+            Ok(Some(Frame {
+                pts: Some(pts),
+                color: ColorInfo::default(),
+                pixels: Pixels::Cpu(picture),
+            }))
+        }
+        fn info(&self) -> &DecoderInfo {
+            &self.info
+        }
+    }
+
+    #[test]
+    fn only_native_hevc_decodes_every_packet_and_drains_the_selected_access_unit() {
+        let packets = [unit(19, 0), unit(0, 0), unit(0, 1), unit(1, 1)];
+        let mut file = Vec::new();
+        let mut refs = Vec::new();
+        for (i, p) in packets.iter().enumerate() {
+            refs.push(PacketRef {
+                offset: file.len() as u64,
+                size: p.len() as u64,
+                pts: i as i64,
+                dts: Some(i as i64),
+                keyframe: i == 0,
+            });
+            file.extend_from_slice(p);
+        }
+        let mut hvcc = vec![0u8; 23];
+        hvcc[21] = (1 << 3) | 3;
+        let hevc = Plan {
+            stream: StreamConfig {
+                config: Some(CodecConfig {
+                    kind: ConfigKind::Hvcc,
+                    data: hvcc,
+                }),
+                ..StreamConfig::new(Codec::Hevc)
+            },
+            packets: refs,
+            rule: CutRule::Hevc { length_size: 4 },
+            stated: vec![true; 4],
+            samples: Vec::new(),
+            durations: vec![None; 4],
+            ..preparation_plan()
+        };
+        let h264 = Plan {
+            stream: StreamConfig::new(Codec::H264),
+            ..preparation_plan()
+        };
+        let options = ThumbnailOptions::at(Rational::from_int(0));
+        let run = |plan: &Plan, target: usize, kind: BackendKind, emit: bool, fail_eof: bool| {
+            let log = Arc::new(Mutex::new(Vec::new()));
+            let spy = Spy {
+                kind,
+                log: Arc::clone(&log),
+                emit,
+                fail_eof,
+            };
+            let backends: [&dyn Backend; 1] = [&spy];
+            let data = if plan.stream.codec == Codec::Hevc {
+                file.clone()
+            } else {
+                vec![0; 6]
+            };
+            let result = decode(
+                &mut SliceSource::new(&data),
+                plan,
+                Choice { start: 0, target },
+                &options,
+                &backends,
+            )
+            .map(|(frame, ..)| frame.pts);
+            let log = log.lock().expect("lock").clone();
+            (result.map_err(|error| error.to_string()), log)
+        };
+        let (result, log) = run(&hevc, 3, BackendKind::Native, true, false);
+        assert_eq!(result, Ok(Some(3)));
+        assert_eq!(log, ["0d", "1d", "2d", "3", "eof"]);
+        let (result, log) = run(&hevc, 3, BackendKind::Fallback, true, false);
+        assert_eq!(result, Ok(Some(3)));
+        assert_eq!(log, ["0d", "1d", "3"]);
+        let (result, log) = run(&h264, 2, BackendKind::Native, true, false);
+        assert_eq!(result, Ok(Some(2)));
+        assert_eq!(log, ["0d", "1d", "2"]);
+        let (result, log) = run(&hevc, 3, BackendKind::Native, false, false);
+        assert!(result.is_err_and(|error| error.contains("produced no target frame")));
+        assert_eq!(log, ["0d", "1d", "2d", "3", "eof"]);
+        let (result, _) = run(&hevc, 3, BackendKind::Native, true, true);
+        assert!(result.is_err_and(|error| error.contains("late failure")));
+        let (result, log) = run(&hevc, 3, BackendKind::Fallback, true, true);
+        assert_eq!(result, Ok(Some(3)));
+        assert_eq!(log, ["0d", "1d", "3"]);
     }
 
     /// A backend whose frames come only once `hold` more packets follow

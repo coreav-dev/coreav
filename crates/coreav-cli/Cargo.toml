@@ -42,6 +42,7 @@ ffmpeg-fallback = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker
 native-h264 = ["thumbnail", "transcode", "dep:coreav-backend-h264"]
 # Experimental native profile-0 VP9, not in a default or release build.
 native-vp9 = ["thumbnail", "transcode", "dep:coreav-backend-vp9"]
+native-hevc = ["thumbnail", "transcode", "dep:coreav-backend-hevc", "coreav-backend-hevc/native-hevc"]
 # Thumbnails (frame decoding, resampling, image encoding); a decoder backend
 # feature turns it on. Without it there is no `coreav thumbnail` subcommand
 # and the code is not linked, which keeps every command's start-up at its
@@ -102,6 +103,7 @@ coreav-transcode = { path = "../coreav-transcode", optional = true }
 coreav-backend-svt-av1 = { path = "../coreav-backend-svt-av1", optional = true }
 coreav-backend-h264 = { path = "../coreav-backend-h264", optional = true }
 coreav-backend-vp9 = { path = "../coreav-backend-vp9", optional = true }
+coreav-backend-hevc = { path = "../coreav-backend-hevc", optional = true, default-features = false }
 coreav-backend-dav1d = { path = "../coreav-backend-dav1d", optional = true, features = ["dav1d"] }
 coreav-backend-libvpx = { path = "../coreav-backend-libvpx", optional = true, features = ["libvpx"] }
 coreav-worker = { path = "../coreav-worker", optional = true }
