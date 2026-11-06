@@ -48,6 +48,23 @@ jobs:
       - name: Install the pinned FFmpeg
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Preflight the original-file oracle on a pinned public vector
+        run: |
+          set -euo pipefail
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          python3 -I - "$RUNNER_TEMP/preflight.webm" <<'PY'
+          import hashlib, json, pathlib, sys, urllib.request
+          manifest = json.load(open('crates/coreav-vp9/tests/data/vectors.json'))
+          vector = next(v for v in manifest['vectors'] if v['name'] == 'vp90-2-00-quantizer-10.webm')
+          with urllib.request.urlopen(manifest['source'] + vector['name'], timeout=60) as response:
+              data = response.read(1 << 24)
+          if hashlib.sha256(data).hexdigest() != vector['sha256']:
+              raise SystemExit('public preflight vector checksum mismatch')
+          pathlib.Path(sys.argv[1]).write_bytes(data)
+          PY
+          python3 -I scripts/vp9_corpus.py preflight --file "$RUNNER_TEMP/preflight.webm" \
+            --native target/release/vp9-corpus-oracle --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" --private "$RUNNER_TEMP/preflight"
       - name: Compare the routine original-file smoke subset
         run: |
           set -euo pipefail

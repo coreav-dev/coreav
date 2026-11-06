@@ -50,6 +50,7 @@ PROOF_STEPS = {
     ('ci-full', 'transcode-compat'): ('Judge the registered compatibility check over every shard',
                                     'Check the registered version and pinned oracle'),
     ('vp9-corpus', 'contract'): ('Check the comparison contract before corpus acquisition',
+                                'Preflight the original-file oracle on a pinned public vector',
                                 'Compare the routine original-file smoke subset'),
     ('vp9-corpus', 'corpus'): ('Compare exact clocks and pixels without credentials',),
     ('vp9-corpus', 'corpus-summary'): ('Require every registered shard and comparison',),
