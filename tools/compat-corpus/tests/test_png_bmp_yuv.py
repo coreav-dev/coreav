@@ -14,6 +14,7 @@ from unittest import mock
 HERE = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 import png_bmp_yuv as image
+import oracle_pin_macos
 
 
 def description(codec='png', width=2, height=1):
@@ -899,6 +900,41 @@ class WorkflowScope(unittest.TestCase):
             self.assertFalse(any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns), path)
 
 
+class LiveOracleSelection(unittest.TestCase):
+    def test_image_controls_forward_the_normalized_owner_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary).resolve()
+            programs = {'COREAV': root / 'coreav', 'COREAV_IMAGE_HARNESS': root / 'harness',
+                        'COREAV_FFMPEG': root / 'selected/ffmpeg', 'COREAV_FFPROBE': root / 'selected/ffprobe'}
+            for path in programs.values():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'')
+            pair = image.eb.test_oracle.Oracle(root / 'verified/ffmpeg', root / 'verified/ffprobe')
+
+            def qualify(opts):
+                self.assertEqual((opts.ffmpeg, opts.ffprobe),
+                                 (str(programs['COREAV_FFMPEG']), str(programs['COREAV_FFPROBE'])))
+                opts.ffmpeg, opts.ffprobe = str(pair.ffmpeg), str(pair.ffprobe)
+                return {}
+
+            with mock.patch.dict(os.environ, {name: str(path) for name, path in programs.items()}), \
+                    mock.patch.object(RealImageCapture, 'programs', None, create=True), \
+                    mock.patch.object(image.eb, 'oracle_programs', side_effect=qualify) as owner, \
+                    mock.patch.object(oracle_pin_macos, 'verify_bin', return_value=[]) as legacy:
+                RealImageCapture.setUpClass()
+                owner.assert_called_once()
+                self.assertEqual(RealImageCapture.programs,
+                                 {**{name: str(path) for name, path in programs.items()},
+                                  'COREAV_FFMPEG': str(pair.ffmpeg), 'COREAV_FFPROBE': str(pair.ffprobe)})
+                legacy.assert_not_called()
+                case = RealImageCapture()
+                try:
+                    case.setUp()
+                    self.assertEqual((case.ffmpeg, case.ffprobe), (str(pair.ffmpeg), str(pair.ffprobe)))
+                finally:
+                    case.doCleanups()
+
+
 @unittest.skipUnless(os.environ.get('COREAV_IMAGE_ORACLE') == '1', 'opt-in pinned-oracle synthetic controls')
 class RealImageCapture(unittest.TestCase):
     @classmethod
@@ -909,17 +945,8 @@ class RealImageCapture(unittest.TestCase):
             raise AssertionError('missing required image-control programs: ' + ', '.join(missing))
         cls.programs = {name: str(pathlib.Path(os.environ[name]).resolve(strict=True)) for name in names}
         opts = types.SimpleNamespace(ffmpeg=cls.programs['COREAV_FFMPEG'], ffprobe=cls.programs['COREAV_FFPROBE'])
-        if sys.platform == 'darwin':
-            import oracle_pin_macos
-            directory = pathlib.Path(opts.ffmpeg).parent
-            if pathlib.Path(opts.ffmpeg) != directory / 'ffmpeg' or pathlib.Path(opts.ffprobe) != directory / 'ffprobe':
-                raise AssertionError('synthetic controls require the installed pinned executable pair')
-            problems = list(oracle_pin_macos.verify_bin(directory))
-            if problems:
-                raise AssertionError('; '.join(problems))
-            cls.verified = {name: image.eb.sha256(getattr(opts, name)) for name in ('ffmpeg', 'ffprobe')}
-        else:
-            cls.verified = image.eb.oracle_programs(opts)
+        image.eb.oracle_programs(opts)
+        cls.programs.update(COREAV_FFMPEG=opts.ffmpeg, COREAV_FFPROBE=opts.ffprobe)
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix='coreav-image-control-')

@@ -17,6 +17,7 @@ import decoded_output
 import github_shapes as run
 import github_shapes_inputs as inputs
 import github_shapes_set as roster
+import test_oracle
 
 
 def shape(tool='ffprobe', options=()):
@@ -652,6 +653,30 @@ class ProbeAvailability(unittest.TestCase):
         self.assertLessEqual(writers, set(PinnedProbeWriters.WRITERS))
 
 
+class LiveOracleSelection(unittest.TestCase):
+    def test_writer_controls_retain_the_complete_owner_pair(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            selected = root / 'selected'
+            pair = test_oracle.Oracle(root / 'verified/ffmpeg', root / 'verified/ffprobe')
+            with mock.patch.dict(os.environ, COREAV_SHAPES_ORACLE=str(selected)), \
+                    mock.patch.multiple(PinnedProbeWriters, oracle=None, temp=None, folder=None, control=None, create=True), \
+                    mock.patch.object(test_oracle, 'require', return_value=pair) as qualify, \
+                    mock.patch.object(run.oracle_pin, 'verify_bin', return_value=[]) as legacy:
+                try:
+                    PinnedProbeWriters.setUpClass()
+                    qualify.assert_called_once_with(selected / 'ffmpeg', selected / 'ffprobe')
+                    self.assertIs(PinnedProbeWriters.oracle, pair)
+                    legacy.assert_not_called()
+                    with mock.patch.object(run.subprocess, 'run', return_value=types.SimpleNamespace(stdout=b'{}', stderr=b'')) as execute:
+                        PinnedProbeWriters().capture('json')
+                    self.assertEqual(len(execute.call_args_list), 2)
+                    self.assertTrue(all(call.args[0][0] == str(pair.ffprobe) for call in execute.call_args_list))
+                finally:
+                    if PinnedProbeWriters.temp is not None:
+                        PinnedProbeWriters.tearDownClass()
+
+
 @unittest.skipUnless(os.environ.get('COREAV_SHAPES_ORACLE'), 'pinned writer controls run in dedicated CI')
 class PinnedProbeWriters(unittest.TestCase):
     WRITERS = ('default', 'json', 'csv', 'csv=p=0', 'csv=p=1', 'csv=p=1:s=,', 'flat', 'flat=s=,', 'ini', 'compact',
@@ -660,10 +685,8 @@ class PinnedProbeWriters(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.oracle = Path(os.environ['COREAV_SHAPES_ORACLE']).resolve()
-        problems = list(run.oracle_pin.verify_bin(cls.oracle))
-        if problems:
-            raise AssertionError('pinned oracle identity failed')
+        selected = Path(os.environ['COREAV_SHAPES_ORACLE']).resolve()
+        cls.oracle = test_oracle.require(selected / 'ffmpeg', selected / 'ffprobe')
         cls.temp = tempfile.TemporaryDirectory()
         cls.folder = Path(cls.temp.name)
         cls.control = cls.folder / 'independent-writer-control.wav'
@@ -683,12 +706,12 @@ class PinnedProbeWriters(unittest.TestCase):
         if selection:
             args.extend(['-select_streams', selection])
         args.extend(['-i', str(self.control)])
-        result = subprocess.run([str(self.oracle / 'ffprobe'), '-v', 'error', *run.AUDIO_DECODE_INPUT, *args],
+        result = subprocess.run([str(self.oracle.ffprobe), '-v', 'error', *run.AUDIO_DECODE_INPUT, *args],
                                 env=run.environment(), capture_output=True, timeout=10, check=True)
         self.assertEqual(result.stderr, b'')
         command = inputs.Command('ffprobe', tuple(args), (), (), ())
         witness = run.probe_witness_invocation(command)
-        witness[0] = str(self.oracle / 'ffprobe')
+        witness[0] = str(self.oracle.ffprobe)
         witness = subprocess.run(witness, env=run.environment(), capture_output=True, timeout=10, check=True)
         self.assertEqual(witness.stderr, b'')
         return command, result.stdout, witness.stdout
@@ -743,7 +766,7 @@ class PinnedProbeWriters(unittest.TestCase):
     def test_independent_avc1_carriage_control_uses_complete_real_packet_bytes(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
-            ffmpeg, ffprobe = (str(self.oracle / name) for name in ('ffmpeg', 'ffprobe'))
+            ffmpeg, ffprobe = str(self.oracle.ffmpeg), str(self.oracle.ffprobe)
             calls = [
                 ['-f', 'lavfi', '-i', 'testsrc2=size=32x32:rate=4', '-t', '1', '-an',
                  '-c:v', 'libx264', '-profile:v', 'baseline', '-bf', '0', '-g', '2', 'independent.mp4'],
