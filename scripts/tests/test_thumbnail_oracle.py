@@ -8,6 +8,7 @@ with the same function. No media: ffprobe's listing is given.
 import json
 import pathlib
 import sys
+import tempfile
 import types
 import unittest
 
@@ -74,8 +75,8 @@ class ProbeSelection(unittest.TestCase):
         with mock.patch.object(thumbnail_oracle.test_oracle, 'require', return_value=pair) as qualify, \
                 mock.patch.object(thumbnail_oracle.subprocess, 'run',
                                   return_value=types.SimpleNamespace(stdout=listing)) as execute:
-            thumbnail_oracle.at_time('input.webm', '/raw/ffprobe')
-        self.assertEqual(qualify.call_args_list[0].args, (pathlib.Path('/raw/ffmpeg'), '/raw/ffprobe'))
+            thumbnail_oracle.at_time('input.webm', '/raw/ffmpeg', '/raw/ffprobe')
+        self.assertEqual(qualify.call_args_list[0].args, ('/raw/ffmpeg', '/raw/ffprobe'))
         self.assertEqual([call.args[0][0] for call in execute.call_args_list], [pair.ffprobe, pair.ffprobe])
 
     def test_an_unqualified_probe_is_refused_before_it_runs(self):
@@ -85,8 +86,30 @@ class ProbeSelection(unittest.TestCase):
                 mock.patch.object(thumbnail_oracle.subprocess, 'run') as execute:
             for helper in (thumbnail_oracle.default_video, thumbnail_oracle.at_time):
                 with self.subTest(helper=helper.__name__), self.assertRaises(thumbnail_oracle.test_oracle.QualificationError):
-                    helper('input.webm', '/raw/ffprobe')
+                    helper('input.webm', '/raw/ffmpeg', '/raw/ffprobe')
         execute.assert_not_called()
+
+    def test_a_resolved_returned_pair_is_accepted_without_rebuilding_a_sibling(self):
+        from unittest import mock
+        listing = json.dumps({'streams': [{'index': 0, 'codec_type': 'video', 'width': 2, 'height': 2}]})
+        owner = thumbnail_oracle.test_oracle
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            installed, targets = root / 'installed', root / 'targets'
+            installed.mkdir()
+            targets.mkdir()
+            for name, target in (('ffmpeg', 'decoder'), ('ffprobe', 'probe')):
+                (targets / target).write_text('never executed')
+                (installed / name).symlink_to(targets / target)
+            with mock.patch.object(owner, '_selection', None), mock.patch.object(owner, '_result', None), \
+                    mock.patch.object(owner.sys, 'platform', 'linux'), \
+                    mock.patch.object(owner.oracle_pin, 'verify_bin', return_value=()), \
+                    mock.patch.object(thumbnail_oracle.subprocess, 'run',
+                                      return_value=types.SimpleNamespace(stdout=listing)) as execute:
+                pair = owner.require(installed / 'ffmpeg', installed / 'ffprobe')
+                self.assertEqual(thumbnail_oracle.default_video('input.webm', pair.ffmpeg, pair.ffprobe), 0)
+        self.assertEqual(pair.ffprobe, (targets / 'probe').resolve())
+        self.assertEqual(execute.call_args.args[0][0], pair.ffprobe)
 
 
 if __name__ == '__main__':

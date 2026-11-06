@@ -59,10 +59,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_oracle
 
-def default_video(path, ffprobe):
+def default_video(path, ffmpeg, ffprobe):
     """The index of the video stream FFmpeg (and CoreAV) use by default: the
     highest resolution, the first on a tie; attached pictures left out."""
-    ffprobe = test_oracle.require(Path(ffprobe).with_name('ffmpeg'), ffprobe).ffprobe
+    ffprobe = test_oracle.require(ffmpeg, ffprobe).ffprobe
     r = subprocess.run([ffprobe, '-v', 'error', '-show_entries',
                         'stream=index,codec_type,width,height:stream_disposition=attached_pic', '-of', 'json',
                         str(path)], capture_output=True, text=True, timeout=120, check=False, env=ENV)
@@ -87,14 +87,15 @@ def choose_default_video(streams):
     return best[1] if best else None
 
 
-def at_time(path, ffprobe):
+def at_time(path, ffmpeg, ffprobe):
     """T: 40% of the first video stream's presented duration, rounded down
     to the millisecond: from the file's start time (where `ffmpeg -ss` and
     `coreav thumbnail --at` count from) to the end of its last video packet.
     (`ffprobe`'s duration field is not the length for a file whose start
     time is not 0.)"""
-    ffprobe = test_oracle.require(Path(ffprobe).with_name('ffmpeg'), ffprobe).ffprobe
-    stream = default_video(path, ffprobe)
+    oracle = test_oracle.require(ffmpeg, ffprobe)
+    ffprobe = oracle.ffprobe
+    stream = default_video(path, oracle.ffmpeg, ffprobe)
     if stream is None:
         return None
     r = subprocess.run([ffprobe, '-v', 'error', '-select_streams', str(stream), '-show_entries',
@@ -352,7 +353,7 @@ def frames(decode_oracle, ffmpeg, ffprobe, path, ext, backend='ffmpeg'):
     if 'error' in ours:
         # Bar 1: a stream CoreAV fails to decode disagrees in full, on
         # FFmpeg's first PACKETS frames of it (its default stream).
-        stream_index = default_video(path, ffprobe)
+        stream_index = default_video(path, ffmpeg, ffprobe)
         theirs = [] if stream_index is None else framemd5(ffmpeg, ffprobe, path, ext, stream_index,
                                                            PACKETS, backend)
         return {'status': 'decode_failed', 'error': ours['error'], 'ffmpeg_frames': len(theirs)}
@@ -371,7 +372,7 @@ def frames(decode_oracle, ffmpeg, ffprobe, path, ext, backend='ffmpeg'):
 def check(path, ext, coreav, decode_oracle, ffmpeg, ffprobe, backend='ffmpeg', frames_too=True):
     with tempfile.TemporaryDirectory(dir='/dev/shm' if os.path.isdir('/dev/shm') else None) as d:
         tmp = pathlib.Path(d)
-        t = at_time(path, ffprobe)
+        t = at_time(path, ffmpeg, ffprobe)
         result = {'t': t}
         if t is None:
             result['images'] = {'status': 'no_duration'}
@@ -382,8 +383,8 @@ def check(path, ext, coreav, decode_oracle, ffmpeg, ffprobe, backend='ffmpeg', f
         return result
 
 
-def video_codec(path, ffprobe):
-    stream = default_video(path, ffprobe)
+def video_codec(path, ffmpeg, ffprobe):
+    stream = default_video(path, ffmpeg, ffprobe)
     if stream is None:
         return None
     r = run([ffprobe, '-v', 'error', '-select_streams', str(stream), '-show_entries', 'stream=codec_name',
@@ -398,7 +399,7 @@ def fixtures(args):
         ext = path.suffix.lstrip('.').lower()
         if ext not in MP4_EXTS + ('mkv', 'webm'):
             continue
-        codec = video_codec(path, args.ffprobe)
+        codec = video_codec(path, args.ffmpeg, args.ffprobe)
         if codec not in BACKEND_CODECS.get(args.backend, ALLOWED):
             continue
         result = check(path, ext, args.coreav, args.decode_oracle, args.ffmpeg, args.ffprobe, args.backend)
