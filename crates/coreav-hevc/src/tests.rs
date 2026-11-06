@@ -69,6 +69,57 @@ fn synthetic_sets() -> HeaderParser {
     parser
 }
 
+#[test]
+fn main10_admission_is_not_vetoed_by_an_eight_bit_compatibility_claim() -> Result<()> {
+    for depth in [8, 10] {
+        for (profile, compatibility) in [
+            (2, 0u32),
+            (2, 1 << 30),
+            (2, 1 << 28),
+            (2, (1 << 30) | (1 << 28)),
+            (1, 1 << 29),
+            (3, 1 << 29),
+        ] {
+            let mut fixture = pcm_fixture(depth, depth, false)?;
+            let mut sps = nal::rbsp(&fixture.sets[1], &Limits::default())?;
+            sps[1] = profile;
+            sps[2..6].copy_from_slice(&compatibility.to_be_bytes());
+            fixture.sets[1] = escaped(33, &sps);
+            let mut decoder = PictureDecoder::new(DecodeLimits::default());
+            for nal in fixture.sets.iter().chain([&fixture.nal]) {
+                decoder.read_nal(nal, None, |_| Err(Error::InvalidData("early_output")))?;
+            }
+            let mut emitted = 0;
+            let summary = decoder.finish(|picture| {
+                emitted += 1;
+                assert_eq!(picture.info.bit_depth, depth);
+                for (plane, expected) in picture.planes.into_iter().zip(&fixture.planes) {
+                    assert_eq!(plane.samples, expected);
+                }
+                Ok(())
+            })?;
+            assert_eq!((emitted, summary.headers.output_pictures), (1, 1));
+            assert_eq!(
+                summary.headers.warnings.profile_bit_depth,
+                depth == 10 && compatibility != 0
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn profile_admission_preserves_depth_limits_and_requires_a_main10_claim() {
+    for (depth, profile) in [(9, 2), (12, 2), (16, 2), (10, 1), (10, 3)] {
+        let mut bytes = params::tests::sequence(depth, false, false, false);
+        bytes[1] = profile;
+        assert_eq!(
+            params::sps(&mut Bits::new(&bytes), &Limits::default()).unwrap_err(),
+            Error::Unsupported("HEVC bit depth")
+        );
+    }
+}
+
 fn idr() -> Vec<u8> {
     idr_segment(true)
 }
@@ -300,6 +351,170 @@ fn coded_hash_payload(kind: u8, hex: &str) -> Result<Vec<u8>> {
     }
     bytes.push(0x80);
     Ok(bytes)
+}
+
+#[test]
+fn complete_decoder_defers_output_through_suffix_hashes_and_preserves_timestamps() -> Result<()> {
+    for (depth, crc) in [(8, "59ca77b4cc8d"), (10, "7d4d82ff38f7")] {
+        let fixture = pcm_fixture(depth, depth, false)?;
+        let mut decoder = PictureDecoder::new(DecodeLimits::default());
+        let mut emitted = 0;
+        for nal in &fixture.sets {
+            decoder.read_nal(nal, None, |_| Err(Error::InvalidData("early_output")))?;
+        }
+        decoder.read_nal(&fixture.nal, Some(-9001), |_| {
+            Err(Error::InvalidData("early_output"))
+        })?;
+        decoder.read_nal(&escaped(40, &coded_hash_payload(1, crc)?), None, |_| {
+            Err(Error::InvalidData("early_output"))
+        })?;
+        let summary = decoder.finish(|picture| {
+            emitted += 1;
+            assert_eq!(
+                (picture.index, picture.poc, picture.timestamp),
+                (0, 0, Some(-9001))
+            );
+            assert_eq!(picture.info.bit_depth, depth);
+            for (plane, expected) in picture.planes.into_iter().zip(&fixture.planes) {
+                assert_eq!(plane.samples, expected);
+            }
+            assert_eq!(
+                (
+                    picture.stats.pcm_units,
+                    picture.stats.bins,
+                    picture.stats.picture_hashes
+                ),
+                (1, 3, 1)
+            );
+            assert_eq!(picture.inter, InterStats::default());
+            Ok(())
+        })?;
+        assert_eq!(
+            (
+                emitted,
+                summary.headers.pictures,
+                summary.headers.output_pictures
+            ),
+            (1, 1, 1)
+        );
+        assert_eq!((summary.decoded_pictures, summary.skipped_pictures), (1, 0));
+        assert_eq!(
+            (
+                summary.reconstruction.bins,
+                summary.reconstruction.picture_hashes
+            ),
+            (3, 1)
+        );
+        assert_eq!(
+            decoder.finish(|_| Err(Error::InvalidData("duplicate_output")))?,
+            summary
+        );
+        assert!(decoder.read_nal(&fixture.nal, None, |_| Ok(())).is_err());
+        assert!(decoder.finish(|_| Ok(())).is_err());
+    }
+    Ok(())
+}
+
+#[test]
+fn complete_decoder_never_publishes_a_bad_suffix_or_incomplete_picture() -> Result<()> {
+    for truncate in [false, true] {
+        let mut fixture = pcm_fixture(8, 8, false)?;
+        if truncate {
+            fixture.nal.pop();
+        }
+        let mut decoder = PictureDecoder::new(DecodeLimits::default());
+        for nal in &fixture.sets {
+            decoder.read_nal(nal, None, |_| Err(Error::InvalidData("early_output")))?;
+        }
+        let result = decoder.read_nal(&fixture.nal, Some(7), |_| {
+            Err(Error::InvalidData("early_output"))
+        });
+        if truncate {
+            assert!(result.is_err());
+        } else {
+            result?;
+            let hash = escaped(40, &coded_hash_payload(1, "58ca77b4cc8d")?);
+            assert_eq!(
+                decoder.read_nal(&hash, None, |_| Err(Error::InvalidData("early_output"))),
+                Err(Error::InvalidData("picture_hash_mismatch"))
+            );
+        }
+        assert!(
+            decoder
+                .finish(|_| Err(Error::InvalidData("early_output")))
+                .is_err()
+        );
+        assert!(decoder.read_nal(&fixture.nal, None, |_| Ok(())).is_err());
+    }
+    Ok(())
+}
+
+#[test]
+fn complete_decoder_carries_stream_work_across_individually_admitted_pictures() -> Result<()> {
+    let fixture = pcm_fixture(8, 8, false)?;
+    let mut decoder = PictureDecoder::new(DecodeLimits {
+        max_stream_bins: 5,
+        max_picture_bins: 3,
+        ..DecodeLimits::default()
+    });
+    for nal in fixture.sets.iter().chain([&fixture.nal]) {
+        decoder.read_nal(nal, None, |_| Err(Error::InvalidData("early_output")))?;
+    }
+    let mut emitted = 0;
+    assert_eq!(
+        decoder.read_nal(&fixture.nal, Some(8), |picture| {
+            emitted += 1;
+            assert_eq!(picture.index, 0);
+            Ok(())
+        }),
+        Err(Error::Limit("stream_cabac_bin_budget"))
+    );
+    assert_eq!(emitted, 1);
+    assert!(
+        decoder
+            .finish(|_| Err(Error::InvalidData("late_output")))
+            .is_err()
+    );
+    Ok(())
+}
+
+#[test]
+fn complete_decoder_enforces_live_memory_and_callback_failures() -> Result<()> {
+    let fixture = pcm_fixture(10, 10, false)?;
+    let mut decoder = PictureDecoder::new(DecodeLimits::default());
+    for nal in fixture.sets.iter().chain([&fixture.nal]) {
+        decoder.read_nal(nal, None, |_| Ok(()))?;
+    }
+    let peak = decoder.finish(|_| Ok(()))?.memory_bytes;
+    for max_memory_bytes in [peak - 1, peak] {
+        let mut decoder = PictureDecoder::new(DecodeLimits {
+            max_memory_bytes,
+            ..DecodeLimits::default()
+        });
+        let result = (|| {
+            for nal in fixture.sets.iter().chain([&fixture.nal]) {
+                decoder.read_nal(nal, None, |_| Ok(()))?;
+            }
+            decoder.finish(|_| Ok(()))
+        })();
+        if max_memory_bytes == peak {
+            assert_eq!(result?.memory_bytes, peak);
+        } else {
+            assert!(matches!(result, Err(Error::Limit("reconstruction_memory"))));
+            assert!(decoder.finish(|_| Ok(())).is_err());
+        }
+    }
+    let mut decoder = PictureDecoder::new(DecodeLimits::default());
+    for nal in fixture.sets.iter().chain([&fixture.nal]) {
+        decoder.read_nal(nal, None, |_| Ok(()))?;
+    }
+    assert_eq!(
+        decoder.finish(|_| Err(Error::Limit("fixture_output"))),
+        Err(Error::Limit("fixture_output"))
+    );
+    assert!(decoder.finish(|_| Ok(())).is_err());
+    assert!(decoder.read_nal(&fixture.nal, None, |_| Ok(())).is_err());
+    Ok(())
 }
 
 #[test]

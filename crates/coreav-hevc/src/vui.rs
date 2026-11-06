@@ -4,6 +4,8 @@ use crate::{Error, Result};
 /// Optional VUI declarations, preserving absence separately from signalled values.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Vui {
+    /// Tolerated display declarations; invalid aspect ratios are unspecified.
+    pub warnings: crate::Warnings,
     /// Aspect-ratio code, with reserved codes interpreted as unspecified (zero).
     pub aspect_ratio_idc: Option<u32>,
     /// Explicit sample-aspect-ratio width and height for Extended_SAR.
@@ -107,10 +109,13 @@ pub(crate) fn parse(bits: &mut Bits<'_>, sub_layers: u32, width: u32, height: u3
                     (a, b) = (b, a % b);
                 }
                 if a != 1 {
-                    return Err(Error::InvalidData("VUI sample aspect ratio"));
+                    vui.warnings.invalid_sample_aspect_ratio = true;
+                    vui.aspect_ratio_idc = Some(0);
                 }
             }
-            vui.sar = Some((width, height));
+            if !vui.warnings.invalid_sample_aspect_ratio {
+                vui.sar = Some((width, height));
+            }
         }
     }
     if bits.flag()? {
@@ -297,11 +302,13 @@ mod tests {
         w.u(8, 255);
         w.u(16, 8);
         w.u(16, 6);
+        w.u(9, 0);
         let bytes = w.bytes();
-        assert_eq!(
-            parse(&mut Bits::new(&bytes), 0, 64, 64).unwrap_err(),
-            Error::InvalidData("VUI sample aspect ratio")
-        );
+        let vui = parse(&mut Bits::new(&bytes), 0, 64, 64).unwrap();
+        assert_eq!(vui.sar, None);
+        assert_eq!(vui.aspect_ratio_idc, Some(0));
+        assert!(vui.warnings.invalid_sample_aspect_ratio);
+        assert!(parse(&mut Bits::new(&bytes[..5]), 0, 64, 64).is_err());
         let mut w = Writer::default();
         w.flag(true);
         w.u(8, 255);

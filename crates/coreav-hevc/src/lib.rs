@@ -1,10 +1,11 @@
-//! Opt-in HEVC headers and scalar intra reconstruction from ITU-T H.265 (V11).
+//! Opt-in HEVC headers and scalar picture reconstruction from ITU-T H.265 (V11).
 //!
 //! HEVC may require a patent licence. This unpublished, separately packaged
 //! crate is never part of default artifacts. Enable `native-hevc` explicitly.
 //! `HeaderParser` inspects headers without reconstructing samples.
-//! `IntraPictureDecoder` reconstructs and filters one original Main/Main10 intra
-//! picture; inter prediction and production backend wiring are absent.
+//! `IntraPictureDecoder` reconstructs one selected Main/Main10 intra picture.
+//! `PictureDecoder` reconstructs complete streams with scalar inter prediction
+//! and presentation-order output. Production backend wiring is absent.
 
 #![forbid(unsafe_code)]
 #![cfg(feature = "native-hevc")]
@@ -12,12 +13,14 @@
 mod bits;
 mod cabac;
 mod ctu;
+mod decoder;
 mod dpb;
 mod intra;
 mod nal;
 mod params;
 mod parser;
 mod picture_hash;
+mod reconstruction;
 mod residual;
 mod rps;
 mod scaling;
@@ -26,10 +29,12 @@ mod slice;
 mod substream;
 mod vui;
 
+pub use decoder::{DecodeLimits, DecodeSummary, DecodedPicture, PictureDecoder};
 pub use dpb::{OutputEvent, PictureOrder};
 pub use intra::{IntraLimits, IntraPicture, IntraPictureDecoder, IntraPlane, IntraStats};
 pub use nal::{AnnexB, LengthPrefixed, NalHeader};
 pub use parser::{HeaderParser, NalInfo, PictureInfo, Summary};
+pub use reconstruction::InterStats;
 pub use rps::Rps;
 pub use sei::{PictureHash, SeiInfo};
 pub use slice::{LongTermRef, SliceHeader};
@@ -63,6 +68,17 @@ impl std::error::Error for Error {}
 
 /// Result of parsing untrusted HEVC syntax.
 pub type Result<T> = core::result::Result<T, Error>;
+
+/// Tolerated declarations that do not change full-layer sample reconstruction.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Warnings {
+    /// A Main10 sequence also claimed compatibility with an eight-bit-only profile.
+    pub profile_bit_depth: bool,
+    /// A non-coprime Extended_SAR was interpreted as an unspecified aspect ratio.
+    pub invalid_sample_aspect_ratio: bool,
+    /// A higher temporal layer used a NAL type inconsistent with temporal nesting.
+    pub temporal_nesting_nal_type: bool,
+}
 
 /// Operational budgets, separate from syntax and profile constraints.
 #[derive(Clone, Copy, Debug)]

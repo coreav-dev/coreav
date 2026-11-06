@@ -23,7 +23,8 @@ FULL_WORKFLOWS = {
     'hevc-conformance': {
         'file': 'hevc-conformance.yml',
         'final_head': 'area',
-        'areas': {'hevc': ('hevc-vectors', 'profile-census')},
+        'areas': {'hevc': ('hevc-vectors', 'profile-census (0)', 'profile-census (1)',
+                           'profile-census (2)', 'profile-census (3)')},
     },
 }
 PROOF_STEPS = {
@@ -31,7 +32,8 @@ PROOF_STEPS = {
         'Verify registered synthetic references before native classification',
         'Acquire every registered official archive',
         'Bind archive and extracted-data hashes',
-        'Check complete headers and every selected intra reference'),
+        'Check complete headers and every selected intra reference',
+        'Check complete scalar conformance output'),
     ('hevc-conformance', 'profile-census'): (
         'Inspect all fixed files with isolated metadata subprocesses',),
 }

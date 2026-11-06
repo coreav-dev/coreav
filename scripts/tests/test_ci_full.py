@@ -133,8 +133,8 @@ class FailureReporting(unittest.TestCase):
         self.assertIn('ci-full-run:42:2', api.comments[1][0]['body'])
 
     def test_each_reduced_full_counterpart_reports_its_owning_area(self):
-        for run_id, name, area in [(42, 'hevc-vectors', 'HEVC decoding'),
-                                    (42, 'profile-census', 'HEVC decoding')]:
+        for run_id, name, area in [(42, 'hevc-vectors', 'HEVC decoding')] + [
+                (42, f'profile-census ({index})', 'HEVC decoding') for index in range(4)]:
             with self.subTest(job=name):
                 api = FakeApi()
                 api.fail(name, run_id)
@@ -161,7 +161,7 @@ class FailureReporting(unittest.TestCase):
             api.jobs[42][0]['conclusion'] = result
             self.assertEqual(ci.report(api.event(), api), [1])
         api = FakeApi()
-        api.jobs[42] = [job for job in api.jobs[42] if job['name'] != 'profile-census']
+        api.jobs[42] = [job for job in api.jobs[42] if job['name'] != 'profile-census (0)']
         ci.report(api.event(), api)
         self.assertIn('CI infrastructure', api.issues[0]['body'])
 
@@ -239,6 +239,30 @@ class FailureReporting(unittest.TestCase):
 
 
 class FinalHead(unittest.TestCase):
+    def test_verifier_requires_every_unique_shard_and_complete_scalar_proof(self):
+        for index in range(4):
+            for mutation in ('missing', 'duplicate', 'skipped_proof'):
+                with self.subTest(shard=index, mutation=mutation):
+                    api = FakeApi()
+                    api.manual()
+                    name = f'profile-census ({index})'
+                    job = next(job for job in api.jobs[42] if job['name'] == name)
+                    if mutation == 'missing':
+                        api.jobs[42].remove(job)
+                    elif mutation == 'duplicate':
+                        api.jobs[42].append(copy.deepcopy(job))
+                    else:
+                        job['steps'][0]['conclusion'] = 'skipped'
+                    with self.assertRaisesRegex(ci.Failure, 'final_head_dispatch_not_green'):
+                        ci.verify(26, api, ['hevc-conformance'])
+        api = FakeApi()
+        api.manual()
+        job = next(job for job in api.jobs[42] if job['name'] == 'hevc-vectors')
+        job['steps'] = [step for step in job['steps']
+                        if step['name'] != 'Check complete scalar conformance output']
+        with self.assertRaisesRegex(ci.Failure, 'final_head_dispatch_not_green'):
+            ci.verify(26, api, ['hevc-conformance'])
+
     def test_cli_accepts_repeatable_explicit_suite_selection(self):
         with mock.patch.object(sys, 'argv', ['ci_full.py', 'verify', '--pr', '26',
                                              '--suite', 'hevc-conformance', '--suite', 'hevc-conformance']), \
@@ -340,6 +364,11 @@ class Pagination(unittest.TestCase):
         self.assertEqual(set(ci.AREAS), {'ci', 'hevc'})
         self.assertEqual(set(ci.FULL_WORKFLOWS), {'hevc-conformance'})
         self.assertEqual(ci.FULL_WORKFLOWS['hevc-conformance']['final_head'], 'area')
+        self.assertEqual(ci.FULL_WORKFLOWS['hevc-conformance']['areas']['hevc'],
+                         ('hevc-vectors', 'profile-census (0)', 'profile-census (1)',
+                          'profile-census (2)', 'profile-census (3)'))
+        self.assertIn('Check complete scalar conformance output',
+                      ci.PROOF_STEPS['hevc-conformance', 'hevc-vectors'])
         source = (ROOT / '.github/workflows/hevc-conformance.yml').read_text()
         for (_, job), names in ci.PROOF_STEPS.items():
             body = re.split(r'\n  \S', source.split('  ' + job + ':\n', 1)[1], maxsplit=1)[0]

@@ -5,10 +5,10 @@ name: hevc-conformance
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
+    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
+    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
   schedule:
     - cron: "45 3 * * *"
   workflow_dispatch:
@@ -93,7 +93,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example intra
+      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example intra --example decode
       - name: Install the pinned binary oracle
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Verify registered synthetic references before native classification
@@ -113,6 +113,15 @@ jobs:
             --parser "$PWD/target/release/examples/headers" --oracle-bin "$RUNNER_TEMP/oracle" \
             --native "$PWD/target/release/examples/intra" --synthetic-data "$RUNNER_TEMP/hevc-synthetic" \
             --max-memory-bytes 268435456 --max-bins 268435456 --filters
+      - name: Check complete scalar conformance output
+        run: |
+          python3 -I scripts/hevc_decode.py \
+            --registration "$RUNNER_TEMP/archives.pinned.json" \
+            --census "$RUNNER_TEMP/hevc-intra/g1/census.json" \
+            --data "$RUNNER_TEMP/hevc-data" --out "$RUNNER_TEMP/hevc-decode" \
+            --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/decode" \
+            --oracle-bin "$RUNNER_TEMP/oracle" --max-memory-bytes 1073741824 \
+            --max-stream-bins 1099511627776 --max-picture-bins 268435456
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -122,6 +131,7 @@ jobs:
             ${{ runner.temp }}/hevc-data/acquisition.json
             ${{ runner.temp }}/hevc-data/*/inventory.json
             ${{ runner.temp }}/hevc-intra
+            ${{ runner.temp }}/hevc-decode
             ${{ runner.temp }}/hevc-synthetic/reference.json
           if-no-files-found: error
           retention-days: 30
@@ -129,7 +139,11 @@ jobs:
   profile-census:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -137,7 +151,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example intra
+      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example intra --example packets
       - name: Install the pinned binary oracle
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Inspect all fixed files with isolated metadata subprocesses
@@ -151,7 +165,10 @@ jobs:
           umask 077
           python3 -I scripts/hevc_conformance.py corpus-online --dest "$RUNNER_TEMP/media" \
             --out "$RUNNER_TEMP/private" --oracle-bin "$RUNNER_TEMP/oracle" \
-            --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/intra"
+            --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/intra" \
+            --packet-native "$PWD/target/release/examples/packets" --decode-memory-bytes 1073741824 \
+            --stream-bins 1099511627776 --picture-bins 268435456 \
+            --shard-count 4 --shard-index "${{ matrix.shard }}"
       - name: Retain only aggregate profile counts publicly
         if: always()
         run: |
@@ -161,10 +178,13 @@ jobs:
           source = root / 'private/corpus-census.json'
           if source.exists():
               data = json.loads(source.read_text())
-              summary = {key: data[key] for key in ('roster_sha256', 'complete', 'counts')}
+              summary = {key: data[key] for key in ('roster_sha256', 'complete', 'passed', 'counts')}
+              summary['scope'] = data['scope']
               summary['files'] = len(data['files'])
               if 'development_intra' in data:
                   summary['development_intra'] = data['development_intra']
+              if 'packet_decode' in data:
+                  summary['packet_decode'] = data['packet_decode']
               (root / 'profile-summary.json').write_text(json.dumps(summary, indent=2) + '\n')
           PY
       - name: Seal private census records
@@ -184,14 +204,14 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: hevc-profile-census-sealed
+          name: hevc-profile-census-sealed-${{ matrix.shard }}
           path: ${{ runner.temp }}/sealed
           if-no-files-found: ignore
           retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: hevc-profile-summary
+          name: hevc-profile-summary-${{ matrix.shard }}
           path: ${{ runner.temp }}/profile-summary.json
           if-no-files-found: ignore
           retention-days: 30

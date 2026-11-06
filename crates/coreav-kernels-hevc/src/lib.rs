@@ -1,9 +1,10 @@
-//! Allocation-free scalar kernels for Main and Main10 HEVC intra reconstruction and filters.
+//! Allocation-free scalar kernels for Main and Main10 HEVC reconstruction and filters.
 //!
 //! Enable `native-hevc` explicitly. The caller owns bitstream syntax, effective
 //! QP/scaling-list derivation, neighbour availability and picture storage.
 //! Algorithms and integer tables follow ITU-T H.265 V11 (01/2026), clauses
-//! 8.4.4, 8.6.2–8.6.7 and 8.7. Range-extension tools are not implemented.
+//! 8.4.4, 8.5.3.3.3–8.5.3.3.4, 8.6.2–8.6.7 and 8.7.
+//! Range-extension tools are not implemented.
 
 #![no_std]
 
@@ -11,6 +12,8 @@
 mod domain;
 #[cfg(feature = "native-hevc")]
 mod filter;
+#[cfg(feature = "native-hevc")]
+mod inter;
 #[cfg(feature = "native-hevc")]
 mod intra;
 #[cfg(feature = "native-hevc")]
@@ -20,10 +23,19 @@ mod tables;
 
 #[cfg(feature = "native-hevc")]
 pub use domain::{
-    BitDepth, Block, BlockMut, BlockSize, Component, Error, IntraMode, chroma_qp_index,
+    BitDepth, Block, BlockMut, BlockSize, Component, Error, IntraMode, Rect, RectMut,
+    chroma_qp_index,
 };
 #[cfg(feature = "native-hevc")]
-pub use filter::{SaoClass, deblock_chroma, deblock_luma, sao_sample};
+pub use filter::{
+    BoundaryStrength, SaoClass, deblock_chroma, deblock_luma, deblock_luma_with_strength,
+    sao_sample,
+};
+#[cfg(feature = "native-hevc")]
+pub use inter::{
+    InterPrediction, MotionVector, PredictionWeight, RefPlane, interpolate_inter, predict_bi,
+    predict_uni, weight_bi, weight_uni,
+};
 #[cfg(feature = "native-hevc")]
 pub use intra::{IntraPrediction, predict_intra};
 #[cfg(feature = "native-hevc")]
@@ -39,5 +51,7 @@ pub const SCRATCH_BYTES: usize =
 
 #[cfg(all(test, feature = "native-hevc"))]
 extern crate std;
+#[cfg(all(test, feature = "native-hevc"))]
+mod inter_tests;
 #[cfg(all(test, feature = "native-hevc"))]
 mod tests;
