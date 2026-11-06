@@ -91,6 +91,8 @@ Only a single seekable MP4 input with one explicit mono or stereo AAC-LC audio t
 
 The candidate ranks within this scope are 5, 13, 33, 43, 53, 57, 67, 72, 77, 89, 98, 139, 168 and 174. These are candidates, not observed passes. Ranks 15 and 188 use input pipes, which the existing seekable-input qualification does not cover. Rank 44 writes PCM in MP4, whose complete framing is not qualified. F32 WAV, other containers and unsupported or specification-undecidable presentations remain out. Do not infer qualification from a rank or codec label.
 
+The exact-credit guard follows AAC decoding in the reference mapping, not the output codec. Every non-copy output decoded from AAC needs a successful complete stored-packet diagnostic scan showing no PNS before exact credit. Unknown scans and PNS in unqualified output forms are `different`. This can only lower exact credit; it does not qualify an encoded output or alter its native path. Copied AAC keeps its existing packet and decoded predicates. The scan never reads a judged input before merge.
+
 ### Implementation and verification order
 
 1. Commit this plan first. Implement only measurement tooling, qualification-output export, generated controls and workflow wiring. Do not change native decoding, MP3 or any frozen artifact.
