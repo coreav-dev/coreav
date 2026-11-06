@@ -1313,7 +1313,7 @@ def corpus_record(item, path, directory, oracle_bin, *, intra=None, complete=Non
     try:
         require(path.stat().st_size == item['size'] and digest(path) == item['sha256'],
                 'corpus size or SHA-256 differs')
-        command = [oracle_bin / 'ffprobe', '-v', 'error', '-show_format', '-show_streams', '-of', 'json', path]
+        command = [oracle_bin / 'ffprobe', '-v', 'error', '-show_format', '-show_streams', '-show_data', '-of', 'json', path]
         code, out, err = child(command, directory / item['sha256'], 'metadata')
         require(code == 0 and not err.read_bytes().strip(), 'corpus metadata oracle failed')
         meta = read_json(out)

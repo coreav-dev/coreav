@@ -1036,6 +1036,22 @@ class Conformance(unittest.TestCase):
         self.assertTrue(all('key' not in f for f in receipt['files']))
         pool.close.assert_called_once()
 
+    def test_configuration_diagnostics_stay_out_of_public_census_records(self):
+        source = self.root / 'original.mp4'
+        source.write_bytes(b'abc')
+        out, err = self.root / 'metadata.stdout', self.root / 'metadata.stderr'
+        runner.write_json(out, dict(format=dict(format_name='mp4'), streams=[dict(codec_type='video', codec_name='hevc',
+            profile='Main 10', width=16, height=16, pix_fmt='yuv420p10le', extradata='private configuration canary')]))
+        err.write_text('')
+        item = dict(sha256=runner.digest(source), size=3, partition='held-out-partition')
+        with mock.patch.object(runner, 'child', return_value=(0, out, err)) as child:
+            record = runner.corpus_record(item, source, self.root, self.root)
+        self.assertIn('-show_data', child.call_args.args[0])
+        self.assertEqual(record['status'], 'inspected')
+        self.assertNotIn('canary', json.dumps(record))
+        self.assertNotIn('canary', json.dumps(runner.corpus_result([record])))
+        self.assertIn('canary', out.read_text())
+
     def test_development_pixel_work_never_decodes_the_metadata_only_partition(self):
         source = self.root / 'original.mp4'
         source.write_bytes(b'abc')
