@@ -1,6 +1,6 @@
 # coreav-kernels-hevc
 
-Safe, allocation-free scalar HEVC intra/inter prediction, inverse reconstruction and in-loop filter kernels for Main 8-bit and Main10 8/10-bit 4:2:0 samples.
+Allocation-free HEVC intra/inter prediction, inverse reconstruction and in-loop filter kernels for Main 8-bit and Main10 8/10-bit 4:2:0 samples, with safe scalar implementations and runtime-selected AVX2 interpolation.
 
 This crate is unpublished and has no default features. Enable `native-hevc` explicitly to expose its kernels. HEVC may be covered by patents; this feature is not a patent licence. It must not enter a default consumer dependency graph.
 
@@ -16,9 +16,15 @@ This crate is unpublished and has no default features. Enable `native-hevc` expl
 - `interpolate_inter` borrows a full coded `RefPlane` and a rectangular `RectMut<i32>`, producing a reusable signed internal-precision predictor without final clipping. `InterPrediction` gives the coded destination origin in component samples and a resolved signed `MotionVector` in quarter-luma or eighth-chroma units. For 4:2:0 the two motion vectors have the same numerical components. Every reference tap replicates the coded picture edge. Luma uses eight taps and chroma four taps; two-axis filtering preserves the prescribed first-stage shift before the second stage. The complete clipped filter-support rectangle is depth-checked before output writes; reference padding is ignored.
 - `predict_uni` and `predict_bi` round and clip one or two internal predictors. `weight_uni` and `weight_bi` accept checked `PredictionWeight` values: the effective denominator and weight, and the offset before depth scaling. The caller derives effective luma/chroma weights and offsets from syntax. Two-list denominators must match. The enclosing predictor ranges are −16830..=33150 at eight bits and −16880..=33247 at ten bits, so both depths require `i32`; all active predictor values are checked before writes. Weighted arithmetic uses `i64`.
 
-`Rect` and `RectMut` check rectangular dimensions in 1..=64, independent row strides, address arithmetic and the last active sample. Interpolation further limits chroma to 32x32. No extra row padding is required or modified. `RefPlane` checks the full coded reference geometry independently of block bounds. Inter kernels use no internal numerical scratch arrays; the caller owns and charges each rectangular `i32` predictor buffer.
+`Rect` and `RectMut` check rectangular dimensions in 1..=64, independent row strides, address arithmetic and the last active sample. Interpolation further limits chroma to 32x32. No extra row padding is required or modified. `RefPlane` checks the full coded reference geometry independently of block bounds. Interpolation caches up to eight horizontal rows in fixed stack scratch. The caller owns and charges each rectangular `i32` predictor buffer, as well as the exported `SCRATCH_BYTES` envelope.
 
-The caller derives neighbour availability, resolved chroma modes, QP and depth offsets, scaling-list inheritance/expansion, transform selection, reference lists and motion candidates from syntax. Intra-luma 4x4 uses `IntraLumaDst4`; chroma 4x4 uses `Dct`. PCM is copied by the caller and does not pass through inverse scaling. Range extensions, residual DPCM, cross-component prediction, coefficient rotation and intra-smoothing disable controls are outside this crate's Main/Main10 scope. No bitstream reader, allocation policy, SIMD dispatch or decoder is provided.
+The caller derives neighbour availability, resolved chroma modes, QP and depth offsets, scaling-list inheritance/expansion, transform selection, reference lists and motion candidates from syntax. Intra-luma 4x4 uses `IntraLumaDst4`; chroma 4x4 uses `Dct`. PCM is copied by the caller and does not pass through inverse scaling. Range extensions, residual DPCM, cross-component prediction, coefficient rotation and intra-smoothing disable controls are outside this crate's Main/Main10 scope. No bitstream reader, allocation policy or decoder is provided.
+
+## Dispatch and safety
+
+With `native-hevc`, x86-64 builds select AVX2 interpolation only after cached CPU and OS capability detection. Unsupported CPUs and other architectures use the scalar twin. The `scalar` feature forces scalar kernels and compiles no SIMD unsafe code. The feature-disabled crate remains `no_std`; automatic x86-64 detection uses the standard library only in native-enabled, non-scalar builds.
+
+Hand-written unsafe intrinsics are confined to the private `src/simd.rs` module. All other production modules forbid unsafe code. Vector accesses stay within active borrowed regions, with scalar tails and no padding over-reads. [The SIMD design](../../docs/design/hevc-simd.md) defines the exception, numerical invariants, scalar equality tests and differential fuzz targets. [The unsafe inventory](../../docs/unsafe-sites.md) lists each operation and its preconditions.
 
 `SCRATCH_BYTES` bounds the fixed internal numerical arrays for one call, separately from caller-owned input/output buffers. The decoder charges it to its total reconstruction-memory budget.
 
