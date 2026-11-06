@@ -50,21 +50,45 @@ Add tests for probe and full-evaluation bounds, small-range and outlying seeds, 
 
 Both steps are adopted. The ordinary inter path uses the two cheap layout proposals and one successful full evaluation, with the other layout retained only for admission failure. The prior broad search, incremental-trial helpers, and omitted rectangular layout constructors remain only in test builds for their existing conformance and complete-evaluator checks. The P-picture intra path runs after inter and completes one cheap-selected pair, with the complete original procedure retained for IDR pictures and admission fallback. All 43 encoder tests pass, including the unchanged all-intra byte snapshot.
 
-The following are single-run reference figures from the same two-CPU AMD EPYC machine, pinned to CPU 0, using Rust 1.99.1 optimized release builds with debug information. Both inputs are already lossy. A retains 640x480 geometry. B is resized from 414x900 to 368x800 for the level-3.0 comparison envelope. Each uses the first 60 prepared pictures after conversion to 30 pictures per second. A has 48 distinct prepared pictures and B has five, so B is a lower-motion check, not a second broad motion sample. Prepared hashes, binary hashes, source commits, and complete per-call wall and CPU times are in the [raw reference record](h264-encoder-search-reference.json).
+The following are single-run reference figures from the same two-CPU AMD EPYC machine, pinned to CPU 0, using optimized release builds with debug information. Both inputs are already lossy. A retains 640x480 geometry. B is resized from 414x900 to 368x800 for the level-3.0 comparison envelope. Each uses the first 60 prepared pictures after conversion to 30 pictures per second. A has 48 distinct prepared pictures and B has five. B is a low-motion sanity check only, not evidence for broad-motion performance. Prepared hashes, binary hashes, the compiler identified by the measured executables' ELF notes, source commits, and complete per-call wall and CPU times are in the [raw reference record](h264-encoder-search-reference.json).
 
 | Clip | Arm | Pictures/s | kbit/s | PSNR, dB | SSIM |
 |---|---|---:|---:|---:|---:|
 | A | Main | 1.120 | 346.960 | 45.637606 | 0.998474 |
 | A | Step 1, bounded inter | 10.377 | 361.972 | 44.987874 | 0.998169 |
 | A | Step 2, inter-first bounded intra | 17.479 | 399.544 | 44.976752 | 0.998128 |
-| A | x264 medium | 240.602 | 350.140 | 42.052419 | 0.998240 |
+| A | x264 medium | 313.106 | 353.124 | 47.729296 | 0.998890 |
 | B | Main | 0.748 | 126.776 | 44.152652 | 0.992678 |
 | B | Step 1, bounded inter | 7.893 | 126.776 | 44.152652 | 0.992678 |
 | B | Step 2, inter-first bounded intra | 14.128 | 126.776 | 44.152652 | 0.992678 |
-| B | x264 medium | 268.226 | 118.308 | 40.896873 | 0.990054 |
+| B | x264 medium | 340.392 | 114.048 | 43.909035 | 0.991632 |
 
-Step 1 is 9.267x main on A and 10.548x on B. Its cost on A is 4.327% more rate, 0.649732 dB less PSNR, and 0.000305 less SSIM. B's complete stream is unchanged. Step 2 is another 1.684x on A and 1.790x on B. Compared with main, the final A result is 15.609x throughput at 15.156% more rate, 0.660854 dB less PSNR, and 0.000346 less SSIM. Final B is 18.882x main with unchanged complete output. These tradeoffs favor the requested structural speed reduction, not a matched-quality or rate-distortion claim. x264 remains much faster, and equal numeric QP does not establish equivalent quantization or quality.
+Step 1 is 9.267x main on A and 10.548x on B. Its cost on A is 4.327% more rate, 0.649732 dB less PSNR, and 0.000305 less SSIM. B's complete stream is unchanged. Step 2 is another 1.684x on A and 1.790x on B. Compared with main, the final A result is 15.609x throughput at 15.156% more rate, 0.660854 dB less PSNR, and 0.000346 less SSIM. Final B is 18.882x main with unchanged complete output. These fixed-QP observations alone do not establish the rate-distortion cost. x264 remains much faster, and equal numeric QP does not establish equivalent quantization or quality.
 
-Timing uses the existing `p WIDTH HEIGHT 28 60 INPUT STREAM RECON DECODED true 32` driver under `taskset -c 0`. Native timing includes its CoreAV decoder verification and file IO. The x264 arm times pinned FFmpeg with raw YUV420 input, 30 pictures per second, `-preset medium -tune psnr -profile:v baseline -level:v 3.0 -qp 28 -threads 1 -g 32 -keyint_min 32 -bf 0 -refs 1 -sc_threshold 0 -rc-lookahead 0 -weightp 0`, and `-x264-params ipratio=1:pbratio=1:chroma-qp-offset=0:sync-lookahead=0`. It signals BT.709 limited range and left chroma location. Its timing includes startup and stream IO but not decoder verification. The figures are end-to-end driver references, not isolated encoder-kernel costs, and have no repeatability interval.
+Timing uses the existing `p WIDTH HEIGHT 28 60 INPUT STREAM RECON DECODED true 32` driver under `taskset -c 0`. Native timing includes its CoreAV decoder verification and file IO. The x264 arm times pinned FFmpeg with raw YUV420 input, 30 pictures per second, `-preset medium -tune psnr -profile:v baseline -level:v 3.0 -qp 28 -threads 1 -g 32 -keyint_min 32 -bf 0 -refs 1 -sc_threshold 0 -rc-lookahead 0 -weightp 0`, and `-x264-params ipratio=1:pbratio=1:chroma-qp-offset=0:sync-lookahead=0`. Both input and output options declare `-color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv -chroma_sample_location left`; input options precede `-i`. A raw-output passthrough with those same options must preserve every prepared byte before encoding. Its timing includes startup and stream IO but not decoder verification. The figures are end-to-end driver references, not isolated encoder-kernel costs, and have no repeatability interval.
 
-Pinned FFmpeg 9.0.2 independently decodes every measured native output and matches every encoder reconstruction byte, with exactly 60 pictures and no decoder warnings. Metric work is outside timing. FFmpeg's `psnr` and `ssim` filters compare the complete decoded YUV420 output with the identical prepared source. PSNR is the complete-sequence, sample-weighted average across Y, Cb, and Cr, not the arithmetic mean of frame PSNR values. SSIM is the filter's complete-sequence All result. Each metric retains all 60 per-picture records. Bitrate counts the complete elementary stream, including repeated headers, over two seconds.
+Pinned FFmpeg 9.0.2 independently decodes every measured native output and matches every encoder reconstruction byte, with exactly 60 pictures and no decoder warnings. Metric work is outside timing. FFmpeg's `psnr` and `ssim` filters compare the complete decoded YUV420 output with the identical prepared source. PSNR is the complete-sequence, sample-weighted average across Y, Cb, and Cr, not the arithmetic mean of frame PSNR values. It is independently recomputed as `10 * log10(255² * sample_count / sum_squared_error)` from the raw bytes. SSIM is the filter's complete-sequence All result. Each metric retains all 60 per-picture records. Bitrate counts the complete elementary stream, including repeated headers, over two seconds.
+
+### Corrected x264 input path
+
+The original x264 rows are withdrawn. Output-only colour options caused FFmpeg to insert a colour-matrix conversion through RGB, so x264 did not receive the native arm's prepared samples. For A, passthrough without output colour options has SHA-256 `756fa818691a60fa95f987bc606b00c95776a81142e7500cb39fac263cae9583`; output-only tagging changes it to `3a1e2f9932c42a7f56b3b5b5e2f4b9f4904f5e175a1f082fa774904b775f74f7`. Comparing the old decoded stream against those two references reproduces 42.052419 dB and 47.830702 dB respectively. That is a reference-sample mismatch, not a codec quality change. The corrected rows above re-encode both inputs with input metadata declared before `-i` and digest-matched passthrough. Their stream bytes, bitrate, timing, PSNR, and SSIM replace the original observations. The receipt test checks this command ordering and sample binding, not just the reported score.
+
+### Three-QP rate-distortion reference
+
+The maintainer requested a small QP 22, 28, 34 sweep on A to estimate the compression cost instead of inferring it from one fixed QP. The same main and final executables, prepared input, GOP, filtering, and CPU affinity are used. QP 28 reuses the original native timing observations; the other native cells and all corrected x264 cells are new calls. There is one observation per cell, no timing interval, and no new media. B remains a low-motion sanity check only.
+
+| QP | Arm | Pictures/s | kbit/s | PSNR, dB | SSIM |
+|---|---|---:|---:|---:|---:|
+| 22 | Main | 1.097 | 435.616 | 49.404697 | 0.999310 |
+| 22 | Final | 19.349 | 507.480 | 49.002062 | 0.999193 |
+| 22 | x264 medium | 317.149 | 442.784 | 52.873790 | 0.999524 |
+| 28 | Main | 1.120 | 346.960 | 45.637606 | 0.998474 |
+| 28 | Final | 17.479 | 399.544 | 44.976752 | 0.998128 |
+| 28 | x264 medium | 313.106 | 353.124 | 47.729296 | 0.998890 |
+| 34 | Main | 0.896 | 264.880 | 40.272336 | 0.995438 |
+| 34 | Final | 17.310 | 299.176 | 39.162975 | 0.995469 |
+| 34 | x264 medium | 351.804 | 259.744 | 42.362430 | 0.997307 |
+
+The three-point PSNR BD-rate estimate is **+19.34% final versus main**, over the common 40.272336–49.002062 dB interval, and **+32.28% final versus x264 medium**, over 42.362430–49.002062 dB. Positive values mean that final uses more bits at the same PSNR. These are small-curve interpolation estimates for one lossy input, not representative quality verdicts. They do not establish equal perceptual quality or a matched-quality speed ratio.
+
+The calculation sorts each arm's three `(PSNR, kbit/s)` points, interpolates natural-log bitrate against PSNR with SciPy 1.18.1 `PchipInterpolator(..., extrapolate=False)`, and integrates each interpolant analytically with `.integrate(low, high)` over that pair's common quality interval. BD-rate is `100 * expm1((integral_final - integral_anchor) / (high - low))`; no point is extrapolated. Identical curves return 0%, and multiplying every rate by 1.3 returns +30%. The raw record includes both intervals, all nine calls, independent squared-error scores, and metric frame counts. Every new native reconstruction again matches both CoreAV and pinned FFmpeg exactly.
