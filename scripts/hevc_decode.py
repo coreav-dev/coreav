@@ -629,8 +629,8 @@ def corpus_decode(item, source, directory, oracle, *, native, parser, max_memory
             require(len(times) <= bound and int(progress[-1]['frame']) == len(times), 'packet_oracle_completion')
             require(len(times) < bound or cutoff is not None and times[-1] >= cutoff,
                     'packet_oracle_bound_before_cutoff')
-            oracle = presentation_hashes(out.read_text(), frames, stream['time_base'], cutoff)
-            arm.update(matched_pictures=compare_packet_pictures(selected, oracle, cutoff),
+            hashes = presentation_hashes(out.read_text(), frames, stream['time_base'], cutoff)
+            arm.update(matched_pictures=compare_packet_pictures(selected, hashes, cutoff),
                        oracle_bound=bound, oracle_frames=len(times), geometry_interval=geometry_end(packets, stream['time_base'])
                        if cutoff is not None else None, native_timeout=3600 if limit == 0 else 1800, complete=True)
         require(harness.digest(source) == item['sha256'] and harness.digest(config) == report['configuration_sha256']
