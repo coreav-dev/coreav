@@ -16,8 +16,11 @@ class WorkerWorkflow(unittest.TestCase):
                         args[args.index('--features') + 1] == features and
                         '--test' in args and 'transcode' in args]
             self.assertEqual(len(selected), 1, features)
-            self.assertIn('mp3_worker', selected[0],
-                          'Run --test mp3_worker with the complete transcode fixture target')
+            protocol = [args for args in commands if '--no-run' not in args and '--features' in args and
+                        args[args.index('--features') + 1] == features and '--test' in args and
+                        args[args.index('--test') + 1] == 'mp3_worker']
+            self.assertEqual(len(protocol), 1,
+                             'Run --test mp3_worker beside each complete transcode fixture target')
 
 
 if __name__ == '__main__':
