@@ -1,0 +1,25 @@
+{
+  "machine_type": "c4-standard-8",
+  "provisioning": "on-demand",
+  "threads_per_core": 1,
+  "cpu_platform": "Intel Emerald Rapids",
+  "cpu_model": "INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz",
+  "visible_cpus": 4,
+  "memory_bytes": 31545147392,
+  "os": "Debian 13",
+  "kernel": "6.12.113+deb13-cloud-amd64",
+  "python": "3.13.5",
+  "binaries_sha256": {
+    "coreav": "c678981e410bf4ad41b0ce264a748cc2dfdaaa381d5281812a96b70dfd338800",
+    "ffmpeg_comparator": "2021edb7212c646859fc733b0a25310c99e437f3f85fb3e277318daf58018824",
+    "oracle_ffmpeg": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d"
+  },
+  "svt_av1": {
+    "version": "v4.2.0",
+    "commit": "9292ec8e32bce26f781f277ec8739b53426c4300"
+  },
+  "ffmpeg_comparator_source": {
+    "revision": "2a571b606854520cf89804d8030c8b328e621689",
+    "version": "9.0.2-17-g2a571b6068"
+  }
+}

@@ -1,0 +1,2181 @@
+{
+  "method": "continuous-av1-process-reference-v1",
+  "inputs": [
+    {
+      "label": "input01",
+      "sha256": "b638885d5cebe7d8fc0a151de4ae16ed00d4e2346bb35e3064edf3652a7cfc39",
+      "frames": 751,
+      "geometry": [
+        854,
+        480
+      ],
+      "cadence": "25/1",
+      "duration_seconds": 30.04
+    },
+    {
+      "label": "input02",
+      "sha256": "e42ea5360f45aff139143e65ccb2147a66936086d3ba597951aa7610226df9c2",
+      "frames": 720,
+      "geometry": [
+        1280,
+        720
+      ],
+      "cadence": "24000/1001",
+      "duration_seconds": 30.03
+    },
+    {
+      "label": "input03",
+      "sha256": "98a89d32a92aeb2b088979cfcf13da1a97662570bd5ca5f85bc33f430e80ad44",
+      "frames": 901,
+      "geometry": [
+        1920,
+        1080
+      ],
+      "cadence": "30000/1001",
+      "duration_seconds": 30.063367
+    }
+  ],
+  "calls": [
+    {
+      "input": "input01",
+      "round": 0,
+      "arm": "sandbox",
+      "seconds": 10.063456234999997,
+      "user_seconds": 11.053736,
+      "system_seconds": 0.916478,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2271746
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1,
+              "num": 25
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 6,
+              "primaries": 6,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "sandboxed",
+            "keyint": 125,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 615096,
+            "segment_frames": 6982,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 751,
+          "height": 480,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 854
+        }
+      },
+      "decode": {
+        "seconds": 0.761537895,
+        "packets": 751,
+        "frames": 751
+      },
+      "encoder_observation": {
+        "sessions": 0,
+        "version": null,
+        "gop_frames": null,
+        "parallelism_level": null
+      },
+      "probe": {
+        "width": 854,
+        "height": 480,
+        "pixel_format": "yuv420p",
+        "cadence": "25/1",
+        "duration_seconds": 30.04,
+        "frames": 751,
+        "payload_bytes": 2267770,
+        "packet_hashes_sha256": "97f9b40b0cde6eddbda9d6afb4e32f3650882449657affe5091d7fc40421b86d",
+        "keyframes": [
+          0,
+          126,
+          252,
+          378,
+          504,
+          630
+        ]
+      },
+      "output_sha256": "ac9b99ee1141a96535d05044af7f10bb3e613e4ba614f477afd0e4ae3971ba50",
+      "psnr_db": 45.412493,
+      "metric_frames": 751
+    },
+    {
+      "input": "input01",
+      "round": 0,
+      "arm": "in_process",
+      "seconds": 9.846308397999998,
+      "user_seconds": 11.075173,
+      "system_seconds": 0.609937,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2271746
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1,
+              "num": 25
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 6,
+              "primaries": 6,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "in-process-measurement",
+            "keyint": 125,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 615096,
+            "segment_frames": 6982,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 751,
+          "height": 480,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 854
+        }
+      },
+      "decode": {
+        "seconds": 0.759870444,
+        "packets": 751,
+        "frames": 751
+      },
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 126,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 854,
+        "height": 480,
+        "pixel_format": "yuv420p",
+        "cadence": "25/1",
+        "duration_seconds": 30.04,
+        "frames": 751,
+        "payload_bytes": 2267770,
+        "packet_hashes_sha256": "97f9b40b0cde6eddbda9d6afb4e32f3650882449657affe5091d7fc40421b86d",
+        "keyframes": [
+          0,
+          126,
+          252,
+          378,
+          504,
+          630
+        ]
+      },
+      "output_sha256": "ac9b99ee1141a96535d05044af7f10bb3e613e4ba614f477afd0e4ae3971ba50",
+      "psnr_db": 45.412493,
+      "metric_frames": 751
+    },
+    {
+      "input": "input01",
+      "round": 0,
+      "arm": "ffmpeg",
+      "seconds": 9.587349909000004,
+      "user_seconds": 10.952585999999997,
+      "system_seconds": 0.2803229999999999,
+      "receipt": null,
+      "decode": null,
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 126,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 854,
+        "height": 480,
+        "pixel_format": "yuv420p",
+        "cadence": "25/1",
+        "duration_seconds": 30.04,
+        "frames": 751,
+        "payload_bytes": 2267770,
+        "packet_hashes_sha256": "97f9b40b0cde6eddbda9d6afb4e32f3650882449657affe5091d7fc40421b86d",
+        "keyframes": [
+          0,
+          126,
+          252,
+          378,
+          504,
+          630
+        ]
+      },
+      "output_sha256": "52fb8d95a71b20abb24b302c96f6ce4cf2cbbf2b4c02b0e850158564b90589c3",
+      "psnr_db": 45.412493,
+      "metric_frames": 751
+    },
+    {
+      "input": "input01",
+      "round": 1,
+      "arm": "in_process",
+      "seconds": 9.877062722999995,
+      "user_seconds": 11.090127000000003,
+      "system_seconds": 0.6412799999999996,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2271746
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1,
+              "num": 25
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 6,
+              "primaries": 6,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "in-process-measurement",
+            "keyint": 125,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 615096,
+            "segment_frames": 6982,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 751,
+          "height": 480,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 854
+        }
+      },
+      "decode": {
+        "seconds": 0.799848578,
+        "packets": 751,
+        "frames": 751
+      },
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 126,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 854,
+        "height": 480,
+        "pixel_format": "yuv420p",
+        "cadence": "25/1",
+        "duration_seconds": 30.04,
+        "frames": 751,
+        "payload_bytes": 2267770,
+        "packet_hashes_sha256": "97f9b40b0cde6eddbda9d6afb4e32f3650882449657affe5091d7fc40421b86d",
+        "keyframes": [
+          0,
+          126,
+          252,
+          378,
+          504,
+          630
+        ]
+      },
+      "output_sha256": "ac9b99ee1141a96535d05044af7f10bb3e613e4ba614f477afd0e4ae3971ba50",
+      "psnr_db": 45.412493,
+      "metric_frames": 751
+    },
+    {
+      "input": "input01",
+      "round": 1,
+      "arm": "ffmpeg",
+      "seconds": 9.541997096000003,
+      "user_seconds": 10.816697000000005,
+      "system_seconds": 0.35747799999999996,
+      "receipt": null,
+      "decode": null,
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 126,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 854,
+        "height": 480,
+        "pixel_format": "yuv420p",
+        "cadence": "25/1",
+        "duration_seconds": 30.04,
+        "frames": 751,
+        "payload_bytes": 2267770,
+        "packet_hashes_sha256": "97f9b40b0cde6eddbda9d6afb4e32f3650882449657affe5091d7fc40421b86d",
+        "keyframes": [
+          0,
+          126,
+          252,
+          378,
+          504,
+          630
+        ]
+      },
+      "output_sha256": "52fb8d95a71b20abb24b302c96f6ce4cf2cbbf2b4c02b0e850158564b90589c3",
+      "psnr_db": 45.412493,
+      "metric_frames": 751
+    },
+    {
+      "input": "input01",
+      "round": 1,
+      "arm": "sandbox",
+      "seconds": 10.050772933999994,
+      "user_seconds": 11.113768000000007,
+      "system_seconds": 0.9118850000000003,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2271746
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1,
+              "num": 25
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 6,
+              "primaries": 6,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "sandboxed",
+            "keyint": 125,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 615096,
+            "segment_frames": 6982,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 751,
+          "height": 480,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 854
+        }
+      },
+      "decode": {
+        "seconds": 0.737936918,
+        "packets": 751,
+        "frames": 751
+      },
+      "encoder_observation": {
+        "sessions": 0,
+        "version": null,
+        "gop_frames": null,
+        "parallelism_level": null
+      },
+      "probe": {
+        "width": 854,
+        "height": 480,
+        "pixel_format": "yuv420p",
+        "cadence": "25/1",
+        "duration_seconds": 30.04,
+        "frames": 751,
+        "payload_bytes": 2267770,
+        "packet_hashes_sha256": "97f9b40b0cde6eddbda9d6afb4e32f3650882449657affe5091d7fc40421b86d",
+        "keyframes": [
+          0,
+          126,
+          252,
+          378,
+          504,
+          630
+        ]
+      },
+      "output_sha256": "ac9b99ee1141a96535d05044af7f10bb3e613e4ba614f477afd0e4ae3971ba50",
+      "psnr_db": 45.412493,
+      "metric_frames": 751
+    },
+    {
+      "input": "input01",
+      "round": 2,
+      "arm": "ffmpeg",
+      "seconds": 9.515259508,
+      "user_seconds": 10.854264,
+      "system_seconds": 0.28891199999999984,
+      "receipt": null,
+      "decode": null,
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 126,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 854,
+        "height": 480,
+        "pixel_format": "yuv420p",
+        "cadence": "25/1",
+        "duration_seconds": 30.04,
+        "frames": 751,
+        "payload_bytes": 2267770,
+        "packet_hashes_sha256": "97f9b40b0cde6eddbda9d6afb4e32f3650882449657affe5091d7fc40421b86d",
+        "keyframes": [
+          0,
+          126,
+          252,
+          378,
+          504,
+          630
+        ]
+      },
+      "output_sha256": "52fb8d95a71b20abb24b302c96f6ce4cf2cbbf2b4c02b0e850158564b90589c3",
+      "psnr_db": 45.412493,
+      "metric_frames": 751
+    },
+    {
+      "input": "input01",
+      "round": 2,
+      "arm": "sandbox",
+      "seconds": 10.106187113000004,
+      "user_seconds": 11.125792999999987,
+      "system_seconds": 0.9046259999999995,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2271746
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1,
+              "num": 25
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 6,
+              "primaries": 6,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "sandboxed",
+            "keyint": 125,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 615096,
+            "segment_frames": 6982,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 751,
+          "height": 480,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 854
+        }
+      },
+      "decode": {
+        "seconds": 0.685243183,
+        "packets": 751,
+        "frames": 751
+      },
+      "encoder_observation": {
+        "sessions": 0,
+        "version": null,
+        "gop_frames": null,
+        "parallelism_level": null
+      },
+      "probe": {
+        "width": 854,
+        "height": 480,
+        "pixel_format": "yuv420p",
+        "cadence": "25/1",
+        "duration_seconds": 30.04,
+        "frames": 751,
+        "payload_bytes": 2267770,
+        "packet_hashes_sha256": "97f9b40b0cde6eddbda9d6afb4e32f3650882449657affe5091d7fc40421b86d",
+        "keyframes": [
+          0,
+          126,
+          252,
+          378,
+          504,
+          630
+        ]
+      },
+      "output_sha256": "ac9b99ee1141a96535d05044af7f10bb3e613e4ba614f477afd0e4ae3971ba50",
+      "psnr_db": 45.412493,
+      "metric_frames": 751
+    },
+    {
+      "input": "input01",
+      "round": 2,
+      "arm": "in_process",
+      "seconds": 9.906513021999999,
+      "user_seconds": 11.110064000000008,
+      "system_seconds": 0.6136610000000005,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2271746
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1,
+              "num": 25
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 6,
+              "primaries": 6,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "in-process-measurement",
+            "keyint": 125,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 615096,
+            "segment_frames": 6982,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 751,
+          "height": 480,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 854
+        }
+      },
+      "decode": {
+        "seconds": 0.774403861,
+        "packets": 751,
+        "frames": 751
+      },
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 126,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 854,
+        "height": 480,
+        "pixel_format": "yuv420p",
+        "cadence": "25/1",
+        "duration_seconds": 30.04,
+        "frames": 751,
+        "payload_bytes": 2267770,
+        "packet_hashes_sha256": "97f9b40b0cde6eddbda9d6afb4e32f3650882449657affe5091d7fc40421b86d",
+        "keyframes": [
+          0,
+          126,
+          252,
+          378,
+          504,
+          630
+        ]
+      },
+      "output_sha256": "ac9b99ee1141a96535d05044af7f10bb3e613e4ba614f477afd0e4ae3971ba50",
+      "psnr_db": 45.412493,
+      "metric_frames": 751
+    },
+    {
+      "input": "input02",
+      "round": 0,
+      "arm": "sandbox",
+      "seconds": 13.03251497299999,
+      "user_seconds": 13.82369700000001,
+      "system_seconds": 1.956975,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2793372
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 24000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "sandboxed",
+            "keyint": 119,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 1382616,
+            "segment_frames": 3106,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 720,
+          "height": 720,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1280
+        }
+      },
+      "decode": {
+        "seconds": 0.819454405,
+        "packets": 720,
+        "frames": 720
+      },
+      "encoder_observation": {
+        "sessions": 0,
+        "version": null,
+        "gop_frames": null,
+        "parallelism_level": null
+      },
+      "probe": {
+        "width": 1280,
+        "height": 720,
+        "pixel_format": "yuv420p",
+        "cadence": "24000/1001",
+        "duration_seconds": 30.03,
+        "frames": 720,
+        "payload_bytes": 2789584,
+        "packet_hashes_sha256": "c96f75e049b356082dad0ffa47c8bd9a8d71d54fb3ad0b8da734f7273cb275bf",
+        "keyframes": [
+          0,
+          120,
+          240,
+          360,
+          480,
+          600
+        ]
+      },
+      "output_sha256": "d7366905a8c5011e87f12422464ec1303dda498d3a82b42292d3a89d0963f03c",
+      "psnr_db": 45.277094,
+      "metric_frames": 720
+    },
+    {
+      "input": "input02",
+      "round": 0,
+      "arm": "in_process",
+      "seconds": 12.489008340999987,
+      "user_seconds": 13.725262999999984,
+      "system_seconds": 1.451288,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2793372
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 24000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "in-process-measurement",
+            "keyint": 119,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 1382616,
+            "segment_frames": 3106,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 720,
+          "height": 720,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1280
+        }
+      },
+      "decode": {
+        "seconds": 1.21721281,
+        "packets": 720,
+        "frames": 720
+      },
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 120,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1280,
+        "height": 720,
+        "pixel_format": "yuv420p",
+        "cadence": "24000/1001",
+        "duration_seconds": 30.03,
+        "frames": 720,
+        "payload_bytes": 2789584,
+        "packet_hashes_sha256": "c96f75e049b356082dad0ffa47c8bd9a8d71d54fb3ad0b8da734f7273cb275bf",
+        "keyframes": [
+          0,
+          120,
+          240,
+          360,
+          480,
+          600
+        ]
+      },
+      "output_sha256": "d7366905a8c5011e87f12422464ec1303dda498d3a82b42292d3a89d0963f03c",
+      "psnr_db": 45.277094,
+      "metric_frames": 720
+    },
+    {
+      "input": "input02",
+      "round": 0,
+      "arm": "ffmpeg",
+      "seconds": 11.87026405100002,
+      "user_seconds": 13.28242899999998,
+      "system_seconds": 0.5685559999999992,
+      "receipt": null,
+      "decode": null,
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 120,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1280,
+        "height": 720,
+        "pixel_format": "yuv420p",
+        "cadence": "24000/1001",
+        "duration_seconds": 30.03,
+        "frames": 720,
+        "payload_bytes": 2789584,
+        "packet_hashes_sha256": "c96f75e049b356082dad0ffa47c8bd9a8d71d54fb3ad0b8da734f7273cb275bf",
+        "keyframes": [
+          0,
+          120,
+          240,
+          360,
+          480,
+          600
+        ]
+      },
+      "output_sha256": "9506152bd628232bc1d2d2b5d7ccf14ef6e549b15ee2d7dd17eb45ba175bfd57",
+      "psnr_db": 45.277094,
+      "metric_frames": 720
+    },
+    {
+      "input": "input02",
+      "round": 1,
+      "arm": "in_process",
+      "seconds": 12.399711981000024,
+      "user_seconds": 13.73557199999999,
+      "system_seconds": 1.375978,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2793372
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 24000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "in-process-measurement",
+            "keyint": 119,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 1382616,
+            "segment_frames": 3106,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 720,
+          "height": 720,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1280
+        }
+      },
+      "decode": {
+        "seconds": 1.164037538,
+        "packets": 720,
+        "frames": 720
+      },
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 120,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1280,
+        "height": 720,
+        "pixel_format": "yuv420p",
+        "cadence": "24000/1001",
+        "duration_seconds": 30.03,
+        "frames": 720,
+        "payload_bytes": 2789584,
+        "packet_hashes_sha256": "c96f75e049b356082dad0ffa47c8bd9a8d71d54fb3ad0b8da734f7273cb275bf",
+        "keyframes": [
+          0,
+          120,
+          240,
+          360,
+          480,
+          600
+        ]
+      },
+      "output_sha256": "d7366905a8c5011e87f12422464ec1303dda498d3a82b42292d3a89d0963f03c",
+      "psnr_db": 45.277094,
+      "metric_frames": 720
+    },
+    {
+      "input": "input02",
+      "round": 1,
+      "arm": "ffmpeg",
+      "seconds": 11.902543608000002,
+      "user_seconds": 13.274905999999987,
+      "system_seconds": 0.6167809999999996,
+      "receipt": null,
+      "decode": null,
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 120,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1280,
+        "height": 720,
+        "pixel_format": "yuv420p",
+        "cadence": "24000/1001",
+        "duration_seconds": 30.03,
+        "frames": 720,
+        "payload_bytes": 2789584,
+        "packet_hashes_sha256": "c96f75e049b356082dad0ffa47c8bd9a8d71d54fb3ad0b8da734f7273cb275bf",
+        "keyframes": [
+          0,
+          120,
+          240,
+          360,
+          480,
+          600
+        ]
+      },
+      "output_sha256": "9506152bd628232bc1d2d2b5d7ccf14ef6e549b15ee2d7dd17eb45ba175bfd57",
+      "psnr_db": 45.277094,
+      "metric_frames": 720
+    },
+    {
+      "input": "input02",
+      "round": 1,
+      "arm": "sandbox",
+      "seconds": 12.917966156999995,
+      "user_seconds": 13.895290000000017,
+      "system_seconds": 1.8246660000000006,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2793372
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 24000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "sandboxed",
+            "keyint": 119,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 1382616,
+            "segment_frames": 3106,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 720,
+          "height": 720,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1280
+        }
+      },
+      "decode": {
+        "seconds": 0.885655226,
+        "packets": 720,
+        "frames": 720
+      },
+      "encoder_observation": {
+        "sessions": 0,
+        "version": null,
+        "gop_frames": null,
+        "parallelism_level": null
+      },
+      "probe": {
+        "width": 1280,
+        "height": 720,
+        "pixel_format": "yuv420p",
+        "cadence": "24000/1001",
+        "duration_seconds": 30.03,
+        "frames": 720,
+        "payload_bytes": 2789584,
+        "packet_hashes_sha256": "c96f75e049b356082dad0ffa47c8bd9a8d71d54fb3ad0b8da734f7273cb275bf",
+        "keyframes": [
+          0,
+          120,
+          240,
+          360,
+          480,
+          600
+        ]
+      },
+      "output_sha256": "d7366905a8c5011e87f12422464ec1303dda498d3a82b42292d3a89d0963f03c",
+      "psnr_db": 45.277094,
+      "metric_frames": 720
+    },
+    {
+      "input": "input02",
+      "round": 2,
+      "arm": "ffmpeg",
+      "seconds": 11.830922098999991,
+      "user_seconds": 13.198241999999993,
+      "system_seconds": 0.6252219999999991,
+      "receipt": null,
+      "decode": null,
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 120,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1280,
+        "height": 720,
+        "pixel_format": "yuv420p",
+        "cadence": "24000/1001",
+        "duration_seconds": 30.03,
+        "frames": 720,
+        "payload_bytes": 2789584,
+        "packet_hashes_sha256": "c96f75e049b356082dad0ffa47c8bd9a8d71d54fb3ad0b8da734f7273cb275bf",
+        "keyframes": [
+          0,
+          120,
+          240,
+          360,
+          480,
+          600
+        ]
+      },
+      "output_sha256": "9506152bd628232bc1d2d2b5d7ccf14ef6e549b15ee2d7dd17eb45ba175bfd57",
+      "psnr_db": 45.277094,
+      "metric_frames": 720
+    },
+    {
+      "input": "input02",
+      "round": 2,
+      "arm": "sandbox",
+      "seconds": 12.994164837,
+      "user_seconds": 13.87493299999997,
+      "system_seconds": 1.8935899999999997,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2793372
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 24000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "sandboxed",
+            "keyint": 119,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 1382616,
+            "segment_frames": 3106,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 720,
+          "height": 720,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1280
+        }
+      },
+      "decode": {
+        "seconds": 0.866955673,
+        "packets": 720,
+        "frames": 720
+      },
+      "encoder_observation": {
+        "sessions": 0,
+        "version": null,
+        "gop_frames": null,
+        "parallelism_level": null
+      },
+      "probe": {
+        "width": 1280,
+        "height": 720,
+        "pixel_format": "yuv420p",
+        "cadence": "24000/1001",
+        "duration_seconds": 30.03,
+        "frames": 720,
+        "payload_bytes": 2789584,
+        "packet_hashes_sha256": "c96f75e049b356082dad0ffa47c8bd9a8d71d54fb3ad0b8da734f7273cb275bf",
+        "keyframes": [
+          0,
+          120,
+          240,
+          360,
+          480,
+          600
+        ]
+      },
+      "output_sha256": "d7366905a8c5011e87f12422464ec1303dda498d3a82b42292d3a89d0963f03c",
+      "psnr_db": 45.277094,
+      "metric_frames": 720
+    },
+    {
+      "input": "input02",
+      "round": 2,
+      "arm": "in_process",
+      "seconds": 12.466376846999992,
+      "user_seconds": 13.775072000000023,
+      "system_seconds": 1.403572999999998,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 2793372
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 24000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "in-process-measurement",
+            "keyint": 119,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 1382616,
+            "segment_frames": 3106,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 720,
+          "height": 720,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1280
+        }
+      },
+      "decode": {
+        "seconds": 1.191367029,
+        "packets": 720,
+        "frames": 720
+      },
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 120,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1280,
+        "height": 720,
+        "pixel_format": "yuv420p",
+        "cadence": "24000/1001",
+        "duration_seconds": 30.03,
+        "frames": 720,
+        "payload_bytes": 2789584,
+        "packet_hashes_sha256": "c96f75e049b356082dad0ffa47c8bd9a8d71d54fb3ad0b8da734f7273cb275bf",
+        "keyframes": [
+          0,
+          120,
+          240,
+          360,
+          480,
+          600
+        ]
+      },
+      "output_sha256": "d7366905a8c5011e87f12422464ec1303dda498d3a82b42292d3a89d0963f03c",
+      "psnr_db": 45.277094,
+      "metric_frames": 720
+    },
+    {
+      "input": "input03",
+      "round": 0,
+      "arm": "sandbox",
+      "seconds": 66.97009217800002,
+      "user_seconds": 68.50636300000002,
+      "system_seconds": 4.818365,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 43805703
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 30000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "sandboxed",
+            "keyint": 149,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 3110616,
+            "segment_frames": 1380,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 901,
+          "height": 1080,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1920
+        }
+      },
+      "decode": {
+        "seconds": 2.18149954,
+        "packets": 901,
+        "frames": 901
+      },
+      "encoder_observation": {
+        "sessions": 0,
+        "version": null,
+        "gop_frames": null,
+        "parallelism_level": null
+      },
+      "probe": {
+        "width": 1920,
+        "height": 1080,
+        "pixel_format": "yuv420p",
+        "cadence": "30000/1001",
+        "duration_seconds": 30.063367,
+        "frames": 901,
+        "payload_bytes": 43800695,
+        "packet_hashes_sha256": "a1cc0aedd95455668c82fcc7ccecd047eb58b7dcd4994b32d4f3b7f8b381594f",
+        "keyframes": [
+          0,
+          150,
+          300,
+          450,
+          600,
+          750,
+          900
+        ]
+      },
+      "output_sha256": "f3dc05a662899786414f616badbe4d469733136a7b9340d884f1418687c2d557",
+      "psnr_db": 39.588034,
+      "metric_frames": 901
+    },
+    {
+      "input": "input03",
+      "round": 0,
+      "arm": "in_process",
+      "seconds": 65.95323692200003,
+      "user_seconds": 68.31294300000002,
+      "system_seconds": 3.477473,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 43805703
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 30000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "in-process-measurement",
+            "keyint": 149,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 3110616,
+            "segment_frames": 1380,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 901,
+          "height": 1080,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1920
+        }
+      },
+      "decode": {
+        "seconds": 2.618751471,
+        "packets": 901,
+        "frames": 901
+      },
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 150,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1920,
+        "height": 1080,
+        "pixel_format": "yuv420p",
+        "cadence": "30000/1001",
+        "duration_seconds": 30.063367,
+        "frames": 901,
+        "payload_bytes": 43800695,
+        "packet_hashes_sha256": "a1cc0aedd95455668c82fcc7ccecd047eb58b7dcd4994b32d4f3b7f8b381594f",
+        "keyframes": [
+          0,
+          150,
+          300,
+          450,
+          600,
+          750,
+          900
+        ]
+      },
+      "output_sha256": "f3dc05a662899786414f616badbe4d469733136a7b9340d884f1418687c2d557",
+      "psnr_db": 39.588034,
+      "metric_frames": 901
+    },
+    {
+      "input": "input03",
+      "round": 0,
+      "arm": "ffmpeg",
+      "seconds": 64.13844468100001,
+      "user_seconds": 67.48592700000006,
+      "system_seconds": 1.299194,
+      "receipt": null,
+      "decode": null,
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 150,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1920,
+        "height": 1080,
+        "pixel_format": "yuv420p",
+        "cadence": "30000/1001",
+        "duration_seconds": 30.063367,
+        "frames": 901,
+        "payload_bytes": 43800695,
+        "packet_hashes_sha256": "a1cc0aedd95455668c82fcc7ccecd047eb58b7dcd4994b32d4f3b7f8b381594f",
+        "keyframes": [
+          0,
+          150,
+          300,
+          450,
+          600,
+          750,
+          900
+        ]
+      },
+      "output_sha256": "3d0a585015a92abae9fc5d0a5c87ac0b86f58f8218c82f1d710b2c31df5bf385",
+      "psnr_db": 39.588034,
+      "metric_frames": 901
+    },
+    {
+      "input": "input03",
+      "round": 1,
+      "arm": "in_process",
+      "seconds": 65.71696832499998,
+      "user_seconds": 68.16905800000006,
+      "system_seconds": 3.409853000000002,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 43805703
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 30000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "in-process-measurement",
+            "keyint": 149,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 3110616,
+            "segment_frames": 1380,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 901,
+          "height": 1080,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1920
+        }
+      },
+      "decode": {
+        "seconds": 2.626212789,
+        "packets": 901,
+        "frames": 901
+      },
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 150,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1920,
+        "height": 1080,
+        "pixel_format": "yuv420p",
+        "cadence": "30000/1001",
+        "duration_seconds": 30.063367,
+        "frames": 901,
+        "payload_bytes": 43800695,
+        "packet_hashes_sha256": "a1cc0aedd95455668c82fcc7ccecd047eb58b7dcd4994b32d4f3b7f8b381594f",
+        "keyframes": [
+          0,
+          150,
+          300,
+          450,
+          600,
+          750,
+          900
+        ]
+      },
+      "output_sha256": "f3dc05a662899786414f616badbe4d469733136a7b9340d884f1418687c2d557",
+      "psnr_db": 39.588034,
+      "metric_frames": 901
+    },
+    {
+      "input": "input03",
+      "round": 1,
+      "arm": "ffmpeg",
+      "seconds": 64.27858330699996,
+      "user_seconds": 67.56452100000001,
+      "system_seconds": 1.4358360000000019,
+      "receipt": null,
+      "decode": null,
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 150,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1920,
+        "height": 1080,
+        "pixel_format": "yuv420p",
+        "cadence": "30000/1001",
+        "duration_seconds": 30.063367,
+        "frames": 901,
+        "payload_bytes": 43800695,
+        "packet_hashes_sha256": "a1cc0aedd95455668c82fcc7ccecd047eb58b7dcd4994b32d4f3b7f8b381594f",
+        "keyframes": [
+          0,
+          150,
+          300,
+          450,
+          600,
+          750,
+          900
+        ]
+      },
+      "output_sha256": "3d0a585015a92abae9fc5d0a5c87ac0b86f58f8218c82f1d710b2c31df5bf385",
+      "psnr_db": 39.588034,
+      "metric_frames": 901
+    },
+    {
+      "input": "input03",
+      "round": 1,
+      "arm": "sandbox",
+      "seconds": 66.8583948889999,
+      "user_seconds": 68.42070000000001,
+      "system_seconds": 4.8210069999999945,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 43805703
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 30000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "sandboxed",
+            "keyint": 149,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 3110616,
+            "segment_frames": 1380,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 901,
+          "height": 1080,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1920
+        }
+      },
+      "decode": {
+        "seconds": 2.219448311,
+        "packets": 901,
+        "frames": 901
+      },
+      "encoder_observation": {
+        "sessions": 0,
+        "version": null,
+        "gop_frames": null,
+        "parallelism_level": null
+      },
+      "probe": {
+        "width": 1920,
+        "height": 1080,
+        "pixel_format": "yuv420p",
+        "cadence": "30000/1001",
+        "duration_seconds": 30.063367,
+        "frames": 901,
+        "payload_bytes": 43800695,
+        "packet_hashes_sha256": "a1cc0aedd95455668c82fcc7ccecd047eb58b7dcd4994b32d4f3b7f8b381594f",
+        "keyframes": [
+          0,
+          150,
+          300,
+          450,
+          600,
+          750,
+          900
+        ]
+      },
+      "output_sha256": "f3dc05a662899786414f616badbe4d469733136a7b9340d884f1418687c2d557",
+      "psnr_db": 39.588034,
+      "metric_frames": 901
+    },
+    {
+      "input": "input03",
+      "round": 2,
+      "arm": "ffmpeg",
+      "seconds": 64.280169215,
+      "user_seconds": 67.40981499999998,
+      "system_seconds": 1.5060280000000006,
+      "receipt": null,
+      "decode": null,
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 150,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1920,
+        "height": 1080,
+        "pixel_format": "yuv420p",
+        "cadence": "30000/1001",
+        "duration_seconds": 30.063367,
+        "frames": 901,
+        "payload_bytes": 43800695,
+        "packet_hashes_sha256": "a1cc0aedd95455668c82fcc7ccecd047eb58b7dcd4994b32d4f3b7f8b381594f",
+        "keyframes": [
+          0,
+          150,
+          300,
+          450,
+          600,
+          750,
+          900
+        ]
+      },
+      "output_sha256": "3d0a585015a92abae9fc5d0a5c87ac0b86f58f8218c82f1d710b2c31df5bf385",
+      "psnr_db": 39.588034,
+      "metric_frames": 901
+    },
+    {
+      "input": "input03",
+      "round": 2,
+      "arm": "sandbox",
+      "seconds": 66.79108368100003,
+      "user_seconds": 68.47964000000002,
+      "system_seconds": 4.714915999999995,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 43805703
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 30000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "sandboxed",
+            "keyint": 149,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 3110616,
+            "segment_frames": 1380,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 901,
+          "height": 1080,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1920
+        }
+      },
+      "decode": {
+        "seconds": 2.229249387,
+        "packets": 901,
+        "frames": 901
+      },
+      "encoder_observation": {
+        "sessions": 0,
+        "version": null,
+        "gop_frames": null,
+        "parallelism_level": null
+      },
+      "probe": {
+        "width": 1920,
+        "height": 1080,
+        "pixel_format": "yuv420p",
+        "cadence": "30000/1001",
+        "duration_seconds": 30.063367,
+        "frames": 901,
+        "payload_bytes": 43800695,
+        "packet_hashes_sha256": "a1cc0aedd95455668c82fcc7ccecd047eb58b7dcd4994b32d4f3b7f8b381594f",
+        "keyframes": [
+          0,
+          150,
+          300,
+          450,
+          600,
+          750,
+          900
+        ]
+      },
+      "output_sha256": "f3dc05a662899786414f616badbe4d469733136a7b9340d884f1418687c2d557",
+      "psnr_db": 39.588034,
+      "metric_frames": 901
+    },
+    {
+      "input": "input03",
+      "round": 2,
+      "arm": "in_process",
+      "seconds": 65.92359575599994,
+      "user_seconds": 68.35025299999995,
+      "system_seconds": 3.432898999999999,
+      "receipt": {
+        "audio": [],
+        "dropped": [],
+        "encoded_audio": null,
+        "other": [],
+        "output": {
+          "bytes": 43805703
+        },
+        "schema": "coreav.transcode/2",
+        "video": {
+          "backend": "native",
+          "codec": "h264",
+          "encoding": {
+            "address_space": 8589934592,
+            "backend": "svt-av1",
+            "bit_depth": 8,
+            "cadence": {
+              "den": 1001,
+              "num": 30000
+            },
+            "chroma": "4:2:0",
+            "codec": "av1",
+            "color": {
+              "chroma_location": "left",
+              "full_range": false,
+              "matrix": 1,
+              "primaries": 1,
+              "transfer": 1
+            },
+            "crf": 32,
+            "fixed_retained_bytes": 336,
+            "isolation": "in-process-measurement",
+            "keyint": 149,
+            "kind": "software",
+            "parallelism_level": 1,
+            "preset": 8,
+            "retained_budget": 4294967296,
+            "retained_picture_bytes": 3110616,
+            "segment_frames": 1380,
+            "segments": 1,
+            "thread_limit": null,
+            "version": "v4.2.0"
+          },
+          "frames": 901,
+          "height": 1080,
+          "not_presented": 0,
+          "sample_aspect": null,
+          "stream_index": 0,
+          "width": 1920
+        }
+      },
+      "decode": {
+        "seconds": 2.5905554090000003,
+        "packets": 901,
+        "frames": 901
+      },
+      "encoder_observation": {
+        "sessions": 1,
+        "version": "v4.2.0",
+        "gop_frames": 150,
+        "parallelism_level": 1
+      },
+      "probe": {
+        "width": 1920,
+        "height": 1080,
+        "pixel_format": "yuv420p",
+        "cadence": "30000/1001",
+        "duration_seconds": 30.063367,
+        "frames": 901,
+        "payload_bytes": 43800695,
+        "packet_hashes_sha256": "a1cc0aedd95455668c82fcc7ccecd047eb58b7dcd4994b32d4f3b7f8b381594f",
+        "keyframes": [
+          0,
+          150,
+          300,
+          450,
+          600,
+          750,
+          900
+        ]
+      },
+      "output_sha256": "f3dc05a662899786414f616badbe4d469733136a7b9340d884f1418687c2d557",
+      "psnr_db": 39.588034,
+      "metric_frames": 901
+    }
+  ],
+  "decoder_workers_requested": 4,
+  "binaries": {
+    "coreav": "c678981e410bf4ad41b0ce264a748cc2dfdaaa381d5281812a96b70dfd338800",
+    "ffmpeg": "2021edb7212c646859fc733b0a25310c99e437f3f85fb3e277318daf58018824",
+    "oracle": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d"
+  },
+  "decode_diagnostics": [
+    {
+      "input": "input01",
+      "raw_identity": {
+        "bytes": 461774880,
+        "sha256": "1f25a77f302a8aa8190dc684c0bf8b478b39440b497c629a359e8a028587f5e4"
+      },
+      "calls": [
+        {
+          "arm": "coreav",
+          "round": 0,
+          "seconds": 0.9791517920000388,
+          "user_seconds": 2.166868000000022,
+          "system_seconds": 0.42448000000000263
+        },
+        {
+          "arm": "ffmpeg",
+          "round": 0,
+          "seconds": 0.7114754030000086,
+          "user_seconds": 2.0838350000001356,
+          "system_seconds": 0.20359299999999791
+        },
+        {
+          "arm": "ffmpeg",
+          "round": 1,
+          "seconds": 0.6870592569999872,
+          "user_seconds": 2.007662999999866,
+          "system_seconds": 0.23690399999999556
+        },
+        {
+          "arm": "coreav",
+          "round": 1,
+          "seconds": 0.9664667880000479,
+          "user_seconds": 2.0841870000001563,
+          "system_seconds": 0.4935160000000067
+        },
+        {
+          "arm": "coreav",
+          "round": 2,
+          "seconds": 0.9689175639999803,
+          "user_seconds": 2.156928999999991,
+          "system_seconds": 0.4191769999999977
+        },
+        {
+          "arm": "ffmpeg",
+          "round": 2,
+          "seconds": 0.7052035719999594,
+          "user_seconds": 2.0850189999998747,
+          "system_seconds": 0.19065299999999752
+        }
+      ]
+    },
+    {
+      "input": "input02",
+      "raw_identity": {
+        "bytes": 995328000,
+        "sha256": "63b3f747a6e07304679c4e018886bc4c708aa2209a1b4069e515c7c72cd286a1"
+      },
+      "calls": [
+        {
+          "arm": "coreav",
+          "round": 0,
+          "seconds": 1.3821595329999354,
+          "user_seconds": 2.763059999999996,
+          "system_seconds": 0.9196629999999999
+        },
+        {
+          "arm": "ffmpeg",
+          "round": 0,
+          "seconds": 0.9361308640000061,
+          "user_seconds": 2.4721700000000055,
+          "system_seconds": 0.4252299999999991
+        },
+        {
+          "arm": "ffmpeg",
+          "round": 1,
+          "seconds": 0.9237054589999616,
+          "user_seconds": 2.509623000000147,
+          "system_seconds": 0.34389600000000087
+        },
+        {
+          "arm": "coreav",
+          "round": 1,
+          "seconds": 1.3933825020000086,
+          "user_seconds": 2.778767000000016,
+          "system_seconds": 0.9208709999999982
+        },
+        {
+          "arm": "coreav",
+          "round": 2,
+          "seconds": 1.3983285630000637,
+          "user_seconds": 2.8428059999998823,
+          "system_seconds": 0.8342129999999983
+        },
+        {
+          "arm": "ffmpeg",
+          "round": 2,
+          "seconds": 0.9289749799999072,
+          "user_seconds": 2.4539210000000367,
+          "system_seconds": 0.4089870000000033
+        }
+      ]
+    },
+    {
+      "input": "input03",
+      "raw_identity": {
+        "bytes": 2802470400,
+        "sha256": "ec3721f8558988a18c4e93fbacdea3083fb82d70914c8772e439a11cda1f0318"
+      },
+      "calls": [
+        {
+          "arm": "coreav",
+          "round": 0,
+          "seconds": 3.745497697000019,
+          "user_seconds": 5.638072000000193,
+          "system_seconds": 2.4511580000000066
+        },
+        {
+          "arm": "ffmpeg",
+          "round": 0,
+          "seconds": 1.9335630560000254,
+          "user_seconds": 5.356534000000011,
+          "system_seconds": 0.8657029999999963
+        },
+        {
+          "arm": "ffmpeg",
+          "round": 1,
+          "seconds": 1.8514727120000316,
+          "user_seconds": 5.3515319999999065,
+          "system_seconds": 0.7082290000000029
+        },
+        {
+          "arm": "coreav",
+          "round": 1,
+          "seconds": 3.4484224089999316,
+          "user_seconds": 5.622548000000052,
+          "system_seconds": 2.1215639999999922
+        },
+        {
+          "arm": "coreav",
+          "round": 2,
+          "seconds": 3.6670037530000172,
+          "user_seconds": 5.51328999999987,
+          "system_seconds": 2.501999000000012
+        },
+        {
+          "arm": "ffmpeg",
+          "round": 2,
+          "seconds": 1.9091662719999931,
+          "user_seconds": 5.334429,
+          "system_seconds": 0.8242219999999918
+        }
+      ]
+    }
+  ]
+}

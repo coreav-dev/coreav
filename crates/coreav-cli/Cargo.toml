@@ -59,6 +59,7 @@ thumbnail-summary = ["dep:coreav-thumbnail"]
 transcode = ["thumbnail", "dep:coreav-transcode", "coreav-transcode/svt-av1"]
 svt-av1 = ["transcode"]
 svt-av1-native = ["svt-av1", "coreav-transcode/svt-av1-native", "dep:coreav-backend-svt-av1", "coreav-backend-svt-av1/native"]
+av1-measurement = ["svt-av1-native", "native-h264", "coreav-transcode/av1-measurement"]
 input-capture = ["transcode", "coreav-transcode/input-capture", "dep:sha2"]
 # dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
 # the system's libdav1d.

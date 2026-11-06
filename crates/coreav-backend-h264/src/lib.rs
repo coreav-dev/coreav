@@ -34,15 +34,18 @@
 #![forbid(unsafe_code)]
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::time::Instant;
 
 use coreav_decode::{
     Backend, BackendKind, Codec, ConfigKind, Decoder, DecoderInfo, Error, ErrorKind, Isolation,
     Limits, Packet, StreamConfig, StreamTraits, Support,
 };
-use coreav_frame::{Chroma, ColorInfo, Frame, Picture, PixelFormat, Pixels, Plane};
+use coreav_frame::{Chroma, ColorInfo, Frame, Picture, Pixels};
 pub use coreav_h264::OneIdrGeometry;
 use coreav_h264::{Auto, Mode, PlaneRef};
+
+mod pool;
 
 /// A caller's geometry policy, invoked before one-IDR picture allocation.
 /// Receives codec-validated geometry and this request's decode limits.
@@ -250,6 +253,7 @@ struct Mark {
 /// caller no way to carry on after an error, and this decoder does not
 /// invent one.
 struct NativeDecoder {
+    pool: Arc<pool::Pool>,
     decoder: coreav_h264::Decoder<Auto>,
     one_idr: bool,
     one_idr_failed: bool,
@@ -336,6 +340,7 @@ impl NativeDecoder {
             "coreav h264, reference kernels"
         };
         Ok(NativeDecoder {
+            pool: Arc::default(),
             threads: decoder.threads(),
             decoder,
             one_idr,
@@ -454,14 +459,26 @@ impl NativeDecoder {
                 "the frames waiting to be received exceed the decode limits",
             ));
         }
-        let planes = vec![
-            packed(luma, shown_w, shown_h)?,
-            packed(cb, shown_w.div_ceil(2), shown_h.div_ceil(2))?,
-            packed(cr, shown_w.div_ceil(2), shown_h.div_ceil(2))?,
-        ];
-        let picture = Picture::new(width, height, PixelFormat::YUV420P, planes)
-            .map_err(|e| Error::new(ErrorKind::Backend, format!("decoded picture: {e}")))?;
+        let slots = if self.one_idr {
+            0
+        } else {
+            self.decoder.threads().saturating_add(2)
+        };
+        self.pool.configure(
+            width,
+            height,
+            bytes
+                .saturating_mul(slots as u64)
+                .min(self.limits.max_pending_bytes),
+            slots,
+        );
+        self.pool.pending(self.pending_bytes);
+        let mut picture = self.pool.take(width, height)?;
+        for (plane, rows) in [luma, cb, cr].into_iter().enumerate() {
+            packed(&mut picture, plane, rows)?;
+        }
         self.pending_bytes = self.pending_bytes.saturating_add(bytes);
+        self.pool.pending(self.pending_bytes);
         self.ready.push_back((
             Frame {
                 pts,
@@ -622,6 +639,7 @@ impl Decoder for NativeDecoder {
             return Ok(None);
         };
         self.pending_bytes = self.pending_bytes.saturating_sub(bytes);
+        self.pool.pending(self.pending_bytes);
         Ok(Some(frame))
     }
 
@@ -663,14 +681,18 @@ fn deadline(_limits: &Limits) -> Option<Instant> {
 
 /// One plane's first `height` rows, `width` samples each, packed without
 /// padding.
-fn packed(rows: PlaneRef<'_>, width: usize, height: usize) -> Result<Plane, Error> {
-    let mut data = Vec::new();
-    data.try_reserve_exact(width.saturating_mul(height))
-        .map_err(|_| Error::new(ErrorKind::Limit, "out of memory for a decoded frame"))?;
-    for row in rows.rows().take(height) {
-        data.extend_from_slice(row.get(..width).unwrap_or(row));
+fn packed(picture: &mut Picture, plane: usize, rows: PlaneRef<'_>) -> Result<(), Error> {
+    let invalid = || Error::new(ErrorKind::Backend, "decoded plane geometry changed");
+    let (height, width) = picture.plane_rows(plane).ok_or_else(invalid)?;
+    let mut rows = rows.rows();
+    for y in 0..height {
+        let row = rows.next().ok_or_else(invalid)?;
+        picture
+            .row_mut(plane, y)
+            .ok_or_else(invalid)?
+            .copy_from_slice(row.get(..width).ok_or_else(invalid)?);
     }
-    Ok(Plane::new(data, width))
+    Ok(())
 }
 
 /// How much of a decoded picture a frame shows, given what the container
@@ -798,6 +820,22 @@ fn parse_avcc(data: &[u8]) -> Result<Avcc<'_>, Error> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn packed_output_refuses_a_short_source_plane() {
+        let source = coreav_h264::Picture::black(1, 1, &Default::default()).unwrap();
+        let mut picture =
+            coreav_frame::Picture::zeroed(16, 32, coreav_frame::PixelFormat::YUV420P).unwrap();
+        assert_eq!(
+            super::packed(&mut picture, 0, source.luma())
+                .unwrap_err()
+                .kind,
+            coreav_decode::ErrorKind::Backend
+        );
+        let mut picture =
+            coreav_frame::Picture::zeroed(16, 16, coreav_frame::PixelFormat::YUV420P).unwrap();
+        assert!(super::packed(&mut picture, 0, source.luma()).is_ok());
+    }
+
     use super::*;
 
     /// Version 1, profile 66, level 10, a length size of four, one

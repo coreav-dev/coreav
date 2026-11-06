@@ -97,10 +97,13 @@ fn predict(
         .map_err(|_| Error::Internal)?
     } else {
         for j in 0..height + extra {
-            for i in 0..width + extra {
-                *window.get_mut(j * 21 + i).ok_or(Error::Internal)? =
-                    reference.sample(ix + i as i32, iy + j as i32)?;
-            }
+            reference.row(
+                ix,
+                iy + j as i32,
+                window
+                    .get_mut(j * 21..j * 21 + width + extra)
+                    .ok_or(Error::Internal)?,
+            )?;
         }
         Block::new(&window, 0, 21, width + extra, height + extra).map_err(|_| Error::Internal)?
     };
@@ -270,9 +273,10 @@ impl Search<'_> {
                         .ok_or(Error::Internal)?;
                     sad += crate::kernels::sad(original, predicted)?;
                 } else {
-                    for (x, &a) in original.iter().enumerate() {
-                        sad += u64::from(a.abs_diff(reference.sample(ix + x as i32, iy)?));
-                    }
+                    let mut row = [0; 16];
+                    let row = row.get_mut(..part.width).ok_or(Error::Internal)?;
+                    reference.row(ix, iy, row)?;
+                    sad += crate::kernels::sad(original, row)?;
                 }
                 if cutoff.is_some_and(|limit| sad + motion_cost > limit) {
                     return Ok(None);
@@ -791,11 +795,39 @@ impl Search<'_> {
         Ok(Some((bits, inter)))
     }
 
+    fn quiet(&self, skip: &Candidate) -> Result<bool> {
+        let qp = self.decision.qp;
+        for k in 0..16 {
+            let (x, y) = xy(k);
+            let residual = skip.luma.tile.residual(self.decision.source, x, y)?;
+            if !t::quantizes_to_zero(&t::forward(&residual)?, qp, false)? {
+                return Ok(false);
+            }
+        }
+        let qp = t::chroma_qp(qp);
+        for (tile, source) in skip.chroma.tiles.iter().zip(self.decision.csources) {
+            let mut sums = [0; 4];
+            for (k, sum) in sums.iter_mut().enumerate() {
+                let block = t::forward(&tile.residual(source, k % 2 * 4, k / 2 * 4)?)?;
+                *sum = *block.first().ok_or(Error::Internal)?;
+                if !t::quantizes_to_zero(&block, qp, true)? {
+                    return Ok(false);
+                }
+            }
+            if !t::chroma_dc_quantizes_to_zero(sums, qp)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(super) fn candidates(
         &self,
         best: &mut Option<Candidate>,
         refusal: &mut Error,
-    ) -> Result<()> {
+    ) -> Result<IntraScope> {
+        let mut settled = false;
+        let mut coded = None;
         if motion::admitted(self.previous, 1) {
             let mv = self.border.skip()?;
             if mv.valid() {
@@ -804,10 +836,23 @@ impl Search<'_> {
                 skip.parts.first_mut().ok_or(Error::Internal)?.mv = mv;
                 match self.evaluate(skip) {
                     Ok(c) => {
-                        let exact = c.key.cost == self.decision.cost(0, c.key.bits)?;
+                        let quiet = self.quiet(&c)?;
+                        let cost = c.key.cost;
                         consider(best, c);
-                        if exact {
-                            return Ok(());
+                        if quiet {
+                            return Ok(IntraScope::None);
+                        }
+                        let mut inter = Inter::new(Layout::Whole)?;
+                        inter.parts.first_mut().ok_or(Error::Internal)?.mv = mv;
+                        coded = Some(mv);
+                        match self.evaluate(inter) {
+                            Ok(c) => {
+                                settled = c.key.cost >= cost;
+                                consider(best, c);
+                            }
+                            Err(Error::Coefficient | Error::Syntax) => {}
+                            Err(Error::MacroblockLimit) => *refusal = Error::MacroblockLimit,
+                            Err(e) => return Err(e),
                         }
                     }
                     Err(Error::Coefficient | Error::Syntax) => {}
@@ -831,6 +876,11 @@ impl Search<'_> {
             *second = None;
         }
         for (bits, inter) in plans.into_iter().flatten() {
+            if inter.layout == Layout::Whole
+                && coded.is_some_and(|mv| inter.parts.first().is_some_and(|part| part.mv == mv))
+            {
+                continue;
+            }
             let floor = self.syntax_floor(bits)?;
             if best
                 .as_ref()
@@ -847,7 +897,11 @@ impl Search<'_> {
                 Err(e) => return Err(e),
             }
         }
-        Ok(())
+        Ok(if settled {
+            IntraScope::Sixteen
+        } else {
+            IntraScope::Quick
+        })
     }
 }
 
@@ -1022,7 +1076,7 @@ mod tests {
             plane.data.fill(128);
         }
         let csources = [Tile::empty(), Tile::empty()];
-        for (pixels, value, evaluations) in [(1, 129, 1), (3, 136, 2)] {
+        for (pixels, value, evaluations) in [(1, 129, 1), (1, 168, 2)] {
             let mut source = Tile::empty();
             for x in 0..pixels {
                 source.0[Tile::at(x, 0)] = value;
@@ -1050,15 +1104,22 @@ mod tests {
             SEARCHES.with(|count| count.set(0));
             PROBES.with(|count| count.set(0));
             let mut best = None;
-            search
+            let scope = search
                 .candidates(&mut best, &mut Error::Coefficient)
                 .unwrap();
             assert!(best.unwrap().inter.unwrap().skip);
-            assert_eq!(SEARCHES.with(|count| count.get()), 2);
             assert_eq!(EVALUATIONS.with(|count| count.get()), evaluations);
+            let expected = if evaluations == 1 {
+                IntraScope::None
+            } else {
+                IntraScope::Sixteen
+            };
+            assert_eq!(scope, expected);
             if evaluations == 1 {
+                assert_eq!(SEARCHES.with(|count| count.get()), 0);
                 assert_eq!(PROBES.with(|count| count.get()), 0);
             } else {
+                assert_eq!(SEARCHES.with(|count| count.get()), 2);
                 assert!(PROBES.with(|count| count.get()) > 0);
             }
             let floor = search.syntax_floor(3).unwrap();
@@ -1132,7 +1193,7 @@ mod tests {
                 consider(
                     &mut expected,
                     decision
-                        .quick_intra(&base, &csources, intra_availability(search.border))
+                        .quick_intra(&base, &csources, intra_availability(search.border), true)
                         .unwrap(),
                 );
                 let mut best = Some(search.evaluate(skip).unwrap());
@@ -1142,7 +1203,7 @@ mod tests {
                         &base,
                         &csources,
                         intra_availability(search.border),
-                        false,
+                        IntraScope::Quick,
                         &mut best,
                         &mut Error::Coefficient,
                     )
@@ -1232,20 +1293,30 @@ mod tests {
     }
 
     #[test]
-    fn exact_skip_avoids_search_only_when_every_component_matches() {
+    fn quiet_skip_avoids_search_only_when_every_component_quantizes_to_zero() {
         let reference = [
             FramePlane::new(16, 16).unwrap(),
             FramePlane::new(8, 8).unwrap(),
             FramePlane::new(8, 8).unwrap(),
         ];
         for qp in [10, 16, 28, 40, 51] {
-            for changed in 0..4 {
+            for changed in 0..7 {
                 let mut source = Tile([0; STRIDE * 18]);
                 let mut csources = [Tile([0; STRIDE * 18]), Tile([0; STRIDE * 18])];
-                if changed == 1 {
-                    source.0[Tile::at(7, 7)] = 1;
-                } else if changed > 1 {
-                    csources[changed - 2].0[Tile::at(3, 3)] = 1;
+                let (plane, value, size) = if changed < 4 {
+                    (changed, 1, 1)
+                } else {
+                    (changed - 3, 255, 4)
+                };
+                for y in 0..size {
+                    for x in 0..size {
+                        let at = Tile::at(3 + x, 3 + y);
+                        match plane {
+                            0 => {}
+                            1 => source.0[at] = value,
+                            _ => csources[plane - 2].0[at] = value,
+                        }
+                    }
                 }
                 let decision = Decision {
                     source: &source,
@@ -1268,14 +1339,17 @@ mod tests {
                 };
                 let mut best = None;
                 SEARCHES.with(|count| count.set(0));
-                search
+                let scope = search
                     .candidates(&mut best, &mut Error::Coefficient)
                     .unwrap();
                 let count = SEARCHES.with(|count| count.get());
-                assert_eq!(count == 0, changed == 0);
+                assert_eq!(count == 0, changed < 4, "{qp} {changed}");
+                assert_eq!(scope == IntraScope::None, changed < 4);
+                if changed < 4 {
+                    assert!(best.as_ref().unwrap().inter.as_ref().unwrap().skip);
+                }
                 if changed == 0 {
                     let best = best.unwrap();
-                    assert!(best.inter.unwrap().skip);
                     assert_eq!(best.luma.tile.error(&source, 0, 0, 16).unwrap(), 0);
                     for (actual, expected) in best.chroma.tiles.iter().zip(&csources) {
                         assert_eq!(actual.error(expected, 0, 0, 8).unwrap(), 0);

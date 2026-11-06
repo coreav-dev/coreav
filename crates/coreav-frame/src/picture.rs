@@ -1,6 +1,7 @@
 //! Pictures in CPU memory.
 
 use crate::{FrameError, PixelFormat};
+use std::sync::Weak;
 
 /// One plane: rows of samples, `stride` bytes apart.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -30,12 +31,56 @@ impl Plane {
 /// A picture in CPU memory whose planes have been checked against its
 /// format and size: every row of every plane lies inside the plane, so the
 /// accessors and operations never read outside it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Picture {
     width: u32,
     height: u32,
     format: PixelFormat,
     planes: Vec<Plane>,
+    recycler: Option<Weak<dyn PictureRecycler>>,
+}
+
+/// Receives exclusively owned picture storage after its consumer drops it.
+pub trait PictureRecycler: std::fmt::Debug + Send + Sync {
+    /// Takes the picture without a recycler attached.
+    fn recycle(&self, picture: Picture);
+}
+
+impl Clone for Picture {
+    fn clone(&self) -> Self {
+        Self {
+            width: self.width,
+            height: self.height,
+            format: self.format,
+            planes: self.planes.clone(),
+            recycler: None,
+        }
+    }
+}
+
+impl PartialEq for Picture {
+    fn eq(&self, other: &Self) -> bool {
+        self.width == other.width
+            && self.height == other.height
+            && self.format == other.format
+            && self.planes == other.planes
+    }
+}
+
+impl Eq for Picture {}
+
+impl Drop for Picture {
+    fn drop(&mut self) {
+        if let Some(recycler) = self.recycler.take().and_then(|owner| owner.upgrade()) {
+            recycler.recycle(Self {
+                width: self.width,
+                height: self.height,
+                format: self.format,
+                planes: std::mem::take(&mut self.planes),
+                recycler: None,
+            });
+        }
+    }
 }
 
 impl Picture {
@@ -73,6 +118,21 @@ impl Picture {
             height,
             format,
             planes,
+            recycler: None,
+        })
+    }
+
+    /// Returns this picture's storage to a live owner when dropped. Clones
+    /// remain independent and are not returned to this owner.
+    pub fn with_recycler(mut self, recycler: Weak<dyn PictureRecycler>) -> Self {
+        self.recycler = Some(recycler);
+        self
+    }
+
+    /// Allocated pixel capacity, including padding and unused vector capacity.
+    pub fn capacity_bytes(&self) -> usize {
+        self.planes.iter().fold(0usize, |bytes, plane| {
+            bytes.saturating_add(plane.data.capacity())
         })
     }
 

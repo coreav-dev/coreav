@@ -209,10 +209,50 @@ impl Retention {
         slot_bytes: usize,
         owner_bytes: usize,
     ) -> Result<Self, Error> {
+        Self::bounded(
+            settings,
+            budget,
+            native_input_bytes,
+            slot_bytes,
+            owner_bytes,
+            RETAINED_BYTES,
+            u64::from(settings.keyint()),
+        )
+    }
+
+    #[cfg(feature = "measurement")]
+    #[doc(hidden)]
+    pub fn measurement(
+        settings: Settings,
+        budget: u64,
+        native_input_bytes: usize,
+        slot_bytes: usize,
+        owner_bytes: usize,
+    ) -> Result<Self, Error> {
+        Self::bounded(
+            settings,
+            budget,
+            native_input_bytes,
+            slot_bytes,
+            owner_bytes,
+            4 << 30,
+            u64::from(u32::MAX),
+        )
+    }
+
+    fn bounded(
+        settings: Settings,
+        budget: u64,
+        native_input_bytes: usize,
+        slot_bytes: usize,
+        owner_bytes: usize,
+        ceiling: u64,
+        frame_cap: u64,
+    ) -> Result<Self, Error> {
         if native_input_bytes == 0 || slot_bytes == 0 {
             return Err(Error::Invalid("invalid native input footprint"));
         }
-        let budget = budget.min(RETAINED_BYTES);
+        let budget = budget.min(ceiling);
         let fixed = native_input_bytes
             .checked_add(owner_bytes)
             .and_then(|value| u64::try_from(value).ok())
@@ -226,7 +266,7 @@ impl Retention {
         let slot = u64::try_from(slot_bytes)
             .map_err(|_| Error::Limit("AV1 retained slot size overflows"))?;
         let capacity = budget.saturating_sub(fixed) / picture;
-        let pictures = u32::try_from(capacity.min(u64::from(settings.keyint())))
+        let pictures = u32::try_from(capacity.min(frame_cap))
             .map_err(|_| Error::Limit("AV1 retained count overflows"))?;
         if pictures == 0 {
             return Err(Error::Limit(
