@@ -630,6 +630,22 @@ failed.
 - Not a required check (`# workflow-check: not required`): requiring it would change the branch ruleset. Its failure still shows on the pull request, and a pull request is merged with every check green.
 - Rejected: putting it in `deny.yml`, which does not run when only the title or body is edited.
 
+## HEVC tiers
+
+`hevc-conformance.yml` keeps its path-filtered main push and pull-request triggers and its manual dispatch. Header tests remain unchanged. Every selected run also compares the four registered synthetic recipes on Linux: exactly eight Main10 64×64 unfiltered pictures. `hevc_smoke.py` reuses the existing inspection, target selection, metadata validation and pixel comparison. It refuses other platforms before launching a child and retains only a safe JSON result, including incomplete failures. This smoke check does not fetch official archives or private files and does not replace full conformance evidence.
+
+The unchanged `hevc-vectors` and `profile-census` jobs run only for explicit main pushes, daily scheduled runs at 03:45 UTC, and manual dispatches. They retain the full headers, intra, filter and 54-file metadata census scope and their existing sealed artifacts. Pull requests run the smoke tier instead. This non-required workflow has no merge-group trigger, and only pull-request runs can cancel each other.
+
+To verify full HEVC evidence at an open pull request's exact head, dispatch `hevc-conformance.yml` on that branch, wait for completion, then run:
+
+```sh
+GH_TOKEN="$READ_ONLY_TOKEN" python3 -I scripts/ci_full.py verify --pr N --suite hevc-conformance
+```
+
+`--suite` is repeatable. The default selects only registry entries whose `final_head` is `always`; HEVC is `area`, so it requires explicit selection. Empty and unknown selections fail closed. Verification requires both full jobs and all registered preparation and comparison proof steps, rejects incomplete or duplicate evidence, rechecks newer dispatches and attempts, and confirms the head did not change.
+
+After main push or scheduled completion, `ci-full-failure.yml` checks out its trusted workflow SHA and reads only Actions metadata. It never downloads artifacts or logs or executes the triggering branch. Its token has contents and Actions read access and issues write access. Failures open or update a deduplicated HEVC decoding issue; missing full work is classified as CI infrastructure. Later success does not close the issue automatically. Manual dispatches, pull requests and merge groups cannot publish issues.
+
 ## Before opening a pull request
 
 Two checks run on the agent's machine, not in CI: this repository holds no
