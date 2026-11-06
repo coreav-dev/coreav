@@ -1296,6 +1296,9 @@ def fetch_corpus(args, inspect=False):
                         complete = dict(native=args.packet_native, parser=args.parser,
                                         max_memory_bytes=args.decode_memory_bytes,
                                         max_stream_bins=args.stream_bins, max_picture_bins=args.picture_bins) if getattr(args, 'packet_native', None) else None
+                        if getattr(args, 'boundary_native', None):
+                            require(complete is not None and args.boundary_native.is_file(), 'boundary_requires_packet_native')
+                            complete['boundary'] = args.boundary_native
                         records[index] = corpus_record(item, path, args.out, args.oracle_bin, intra=options, complete=complete)
                         write_json(args.out / 'corpus-census.json', corpus_result(records, expected, scope))
                     finally:
@@ -1334,6 +1337,8 @@ def corpus_record(item, path, directory, oracle_bin, *, intra=None, complete=Non
             record['admission'] = 'first independent IRAP validated; full decode not established'
         if complete:
             import hevc_decode
+            if complete.get('boundary') is not None:
+                complete = dict(complete, refusal_stream_index=stream['index'])
             scope_refusal = (record['profile'] not in ('Main', 'Main 10') or record['bit_depth'] not in (8, 10)
                              or record['field_order'] not in (None, 'unknown', 'progressive'))
             record['decode'] = hevc_decode.corpus_decode(item, path, directory / item['sha256'], oracle_bin,
@@ -1394,6 +1399,14 @@ def corpus_result(records, expected=None, scope=None):
         follow_ups = [r for r in selected if r['status'] == 'follow_up'
                       and r['decode'].get('follow_up') in PACKET_TOOLING_REFUSALS]
         result['packet_decode']['follow_ups'] = dict(collections.Counter(r['decode']['follow_up'] for r in follow_ups))
+        bound = [r['decode'] for r in selected if r['decode'].get('boundary_required')]
+        if bound:
+            arms = [arm['boundary'] for decode in bound for arm in decode.get('results', [])
+                    if (arm.get('boundary') or {}).get('complete') is True]
+            result['packet_decode']['boundary'] = dict(
+                files=len(bound), arms=len(arms),
+                refusals=sum((decode.get('boundary_refusal') or {}).get('complete') is True for decode in bound),
+                **{'c5_' + key: sum(arm['c5'][key] for arm in arms) for key in ('candidates', 'matched', 'unsafe_refusals')})
         result['passed'] &= len(selected) == target and result['packet_decode']['completed'] + len(follow_ups) == target
         result['complete'] &= len(selected) == target and result['packet_decode']['completed'] == target
         for record in selected:
@@ -1402,6 +1415,12 @@ def corpus_result(records, expected=None, scope=None):
             required = set() if 'expected_refusal' in decode else {120, 0} if 'b5' in record['sets'] else {120}
             complete = (len(arms) == len(required) and {arm['packet_limit'] for arm in arms} == required
                         and all(arm.get('complete') is True for arm in arms))
+            if decode.get('boundary_required'):
+                if 'expected_refusal' in decode:
+                    complete &= (decode.get('boundary_refusal') or {}).get('complete') is True
+                else:
+                    complete &= all((arm.get('boundary') or {}).get('complete') is True
+                        and arm['boundary'].get('oracle_matched_pictures') == arm.get('matched_pictures') for arm in arms)
             result['complete'] &= complete
             result['passed'] &= complete or record in follow_ups
         result['packet_decode']['passed'] = result['passed']
@@ -1451,6 +1470,7 @@ def main():
     online_parser.add_argument('--max-memory-bytes', type=int, default=256 << 20)
     online_parser.add_argument('--max-bins', type=int, default=1 << 28)
     online_parser.add_argument('--packet-native', type=pathlib.Path)
+    online_parser.add_argument('--boundary-native', type=pathlib.Path)
     online_parser.add_argument('--decode-memory-bytes', type=int, default=1 << 30)
     online_parser.add_argument('--stream-bins', type=int, default=1 << 40)
     online_parser.add_argument('--picture-bins', type=int, default=1 << 28)

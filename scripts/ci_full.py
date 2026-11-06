@@ -33,7 +33,8 @@ PROOF_STEPS = {
         'Acquire every registered official archive',
         'Bind archive and extracted-data hashes',
         'Check complete headers and every selected intra reference',
-        'Check complete scalar conformance output'),
+        'Check complete scalar conformance output',
+        'Check complete conformance output and random access through the decode boundary'),
     ('hevc-conformance', 'profile-census'): (
         'Inspect all fixed files with isolated metadata subprocesses',),
 }

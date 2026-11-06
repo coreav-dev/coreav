@@ -1,6 +1,6 @@
 # HEVC decoding
 
-Status: Milestones 1, 2 and 3 are merged. `coreav-hevc` provides opt-in header inspection and selected-picture scalar intra reconstruction with deblocking and SAO; G3 checked all 456 targets, 371 defined picture hashes and 26 development first-IRAP comparisons. The milestone structure remains; the [milestone-2 design](hevc-intra.md), [in-loop filters](hevc-inloop.md) and [milestone-4 inter plan](hevc-inter.md) retain the evidence rules and explicit C1 exclusions below. No production decode backend or default consumer selects it. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
+Status: Milestones 1, 2 and 3 are merged. `coreav-hevc` provides opt-in header inspection and selected-picture scalar intra reconstruction with deblocking and SAO; G3 checked all 456 targets, 371 defined picture hashes and 26 development first-IRAP comparisons. The milestone structure remains; the [milestone-2 design](hevc-intra.md), [in-loop filters](hevc-inloop.md) and [milestone-4 inter plan](hevc-inter.md) retain the evidence rules and explicit C1 exclusions below. Milestone B adds the opt-in [`coreav-backend-hevc`](hevc-backend.md) decode-boundary backend, registered by the CLI only under its `native-hevc` feature; no default or release build links it. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
 
 ## What this is
 
@@ -30,9 +30,9 @@ Until a milestone implements a tool, that tool is refused, never decoded approxi
 
 ## Packaging: opt-in, separately packaged
 
-HEVC decoding can require a patent licence depending on jurisdiction and use. The packaging is the native H.264 decoder's: the `native-hevc` Cargo feature is opt-in and absent from every default build. CLI, Python, WebAssembly and npm consumers must not acquire it through transitive default features. The current facades expose no API without that feature; a future backend must refuse an explicit native HEVC request without it using `unsupported_feature`.
+HEVC decoding can require a patent licence depending on jurisdiction and use. The packaging is the native H.264 decoder's: the `native-hevc` Cargo feature is opt-in and absent from every default build. CLI, Python, WebAssembly and npm consumers must not acquire it through transitive default features. The facades and `coreav-backend-hevc` expose no API without that feature; the backend must refuse an explicit native HEVC request without it using `unsupported_feature`.
 
-The decoder has three crate boundaries. The parser and scalar kernel crates are workspace members for CI, not default artifact dependencies; the backend follows in a later milestone:
+The decoder has three crate boundaries. The parser, scalar kernel and backend crates are workspace members for CI, not default artifact dependencies:
 
 | Crate | Responsibility | Safety |
 |---|---|---|

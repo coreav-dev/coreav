@@ -511,13 +511,15 @@ def compare_packet_pictures(pictures, oracle, cutoff):
 
 
 def corpus_decode(item, source, directory, oracle_bin, *, native, parser, max_memory_bytes,
-                  max_stream_bins, max_picture_bins, scope_refusal=False):
+                  max_stream_bins, max_picture_bins, scope_refusal=False, boundary=None, refusal_stream_index=None):
     require(source.stat().st_size == item['size'] and harness.digest(source) == item['sha256'],
             'packet_source_identity')
     report = dict(complete=False, source_sha256=item['sha256'], source_bytes=item['size'],
                   native_sha256=harness.digest(native), parser_sha256=harness.digest(parser),
                   oracle={name: harness.digest(oracle_bin / name) for name in ('ffmpeg', 'ffprobe')},
                   stage='configuration', results=[])
+    if boundary is not None:
+        report.update(boundary_required=True, boundary_sha256=harness.digest(boundary))
     directory.mkdir(parents=True, exist_ok=True)
     config = directory / 'configuration-prefix.hevc'
     budgets = dict(max_memory_bytes=max_memory_bytes, max_stream_bins=max_stream_bins,
@@ -541,7 +543,19 @@ def corpus_decode(item, source, directory, oracle_bin, *, native, parser, max_me
                     and harness.digest(parser) == report['parser_sha256']
                     and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),
                     'packet_refusal_identity_changed')
-            report.update(complete=True, stage='profile_refusal', expected_refusal=refusal)
+            report.update(stage='profile_refusal', expected_refusal=refusal)
+            if boundary is not None:
+                require(harness.integer(refusal_stream_index), 'boundary_refusal_stream')
+                code, boundary_out, _ = harness.child([boundary, 'refusal', source,
+                    str(max_memory_bytes), str(refusal_stream_index)], directory, 'boundary-refusal')
+                report['boundary_refusal'] = harness.read_json(boundary_out)
+                require(code == 0 and report['boundary_refusal'].get('complete') is True
+                        and report['boundary_refusal'].get('expected_refusal') is True
+                        and report['boundary_refusal'].get('boundary') is True
+                        and report['boundary_refusal'].get('backend') == 'native', 'boundary_profile_refusal')
+                require(harness.digest(boundary) == report['boundary_sha256']
+                        and harness.digest(source) == item['sha256'], 'boundary_refusal_identity_changed')
+            report['complete'] = True
             return report
         require(code == 0, 'packet_header_admission')
         report['stage'] = 'oracle_packets'
@@ -572,6 +586,7 @@ def corpus_decode(item, source, directory, oracle_bin, *, native, parser, max_me
                     break
             require(code == 0, 'packet_native_decode')
             packet_stream, summary, pictures, selected = packet_records(out, packets, stream, limit)
+            native_receipt = out
             arm.update(stream=packet_stream, summary=summary, pictures=pictures)
             require(all(summary.get(key) == value for key, value in budgets.items())
                     and harness.integer(summary.get('memory_bytes'), 1)
@@ -630,11 +645,28 @@ def corpus_decode(item, source, directory, oracle_bin, *, native, parser, max_me
             arm.update(matched_pictures=compare_packet_pictures(selected, oracle, cutoff),
                        oracle_bound=bound, oracle_frames=len(times), geometry_interval=geometry_end(packets, stream['time_base'])
                        if cutoff is not None else None, native_timeout=3600 if limit == 0 else 1800, complete=True)
+            if boundary is not None:
+                import hevc_boundary
+                report['stage'] = 'boundary_packets'
+                code, boundary_out, _ = harness.child([boundary, 'packets', source,
+                    str(max_memory_bytes), native_receipt], directory, f'boundary-native-{limit}',
+                    timeout=3600 if limit == 0 else 1800)
+                require(code == 0, 'boundary_packet_decode')
+                arm['boundary'] = hevc_boundary.compare(boundary_out, pictures, summary)
+                payload_bytes = sum(row['bytes'] for row in
+                    (json.loads(line) for line in native_receipt.read_text().splitlines())
+                    if row.get('type') == 'payload')
+                require(arm['boundary']['input_bytes'] == payload_bytes
+                        and arm['boundary']['sent_packets'] == packet_stream['sent_packets'],
+                        'boundary_packet_input_identity')
+                arm['boundary']['oracle_matched_pictures'] = arm['matched_pictures']
         require(harness.digest(source) == item['sha256'] and harness.digest(config) == report['configuration_sha256']
                 and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
                 and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),
                 'packet_run_identity_changed')
         if 'follow_up' not in report:
+            require(boundary is None or harness.digest(boundary) == report['boundary_sha256'],
+                    'boundary_binary_changed')
             report.update(complete=True, stage='complete')
         return report
     except ValueError as error:
