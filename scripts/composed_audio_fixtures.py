@@ -10,6 +10,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import composed_audio as composed
+import test_oracle
 
 
 def build_comparator(directory, env):
@@ -82,11 +83,10 @@ def main():
     env = {key: value for key, value in os.environ.items()
            if key != 'CAPY_API_KEY' and not key.startswith(('R2_', 'AWS_', 'COREAV_GCP_', 'CORPUS_R2'))}
     composed.check_policy()
-    composed.bounded([sys.executable, '-I', Path(__file__).with_name('oracle_pin.py'),
-                      '--verify-bin', args.ffmpeg.parent], env, messages=True)
+    pair = test_oracle.require(args.ffmpeg)
     args.out.mkdir()
     build_comparator(args.out / 'tools', env)
-    generate(args.ffmpeg, args.out, env)
+    generate(pair.ffmpeg, args.out, env)
 
 
 if __name__ == '__main__':
