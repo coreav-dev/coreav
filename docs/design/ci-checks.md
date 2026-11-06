@@ -50,6 +50,15 @@ Prerequisite: all workflow files must be registered on the default branch. Befor
 
 Stop on any API or verification failure. Repeat after any head change, newer dispatch, or rerun. The verifier re-lists all selected dispatch indexes before its final PR-head check. Successful jobs carried over from an earlier attempt of the same exact-head manual run remain valid; a new attempt must finish successfully before evidence is accepted. HEVC changes additionally dispatch `hevc-conformance.yml` and verify with `--suite hevc-conformance`; repeat `--suite` to verify it together with the three default suites. Relevant audio manual full checks remain additional owning-area obligations.
 
+For a final HEVC SIMD head, [HEVC CI tiers](hevc-ci-tiers.md) requires both scalar and automatic dispatches. Start scalar mode first and automatic mode second, retaining both run IDs:
+
+```bash
+gh workflow run hevc-conformance.yml --repo "$REPO" --ref "$BRANCH" -f scalar=true
+gh workflow run hevc-conformance.yml --repo "$REPO" --ref "$BRANCH" -f scalar=false
+```
+
+Independently check each run's latest attempt at `$SHA` and `$BRANCH`, including every registered HEVC C1/C2 job and proof step. In the automatic run, also require both `kernel-differential` matrix jobs and their preparation and differential steps to succeed. Recheck both attempts and the PR head immediately before enqueueing. The verifier checks only the newest HEVC dispatch; it does not prove the two-mode requirement, and a scalar run supplies no C3 evidence.
+
 ## The problem
 
 Branch protection matches a required status check by **name**, and the name
