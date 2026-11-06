@@ -30,9 +30,9 @@ Bind the classifier and discovery implementation, qualification owners, pins and
 
 ## Protected sources
 
-Keep all 71 protected source files, their registered rosters and the 4,882 historical records unchanged. The sole diagnostic-record rebinding covers `crates/coreav-cli/tests/ffmpeg.rs`: its old diagnostic digest is `14c7db0ca9a7fdd8d349dc807c2293ee6a84198519b1615a537f544ef59f9d5c`; the merged baseline digest is `623f8beac57dbc7afd5ced2bc5be2fceaff691b4bcfbee816c63cfd28cb74e97`. Main changed those bytes through coreav-dev/coreav#435 and coreav-dev/coreav#436.
+Keep all 71 protected source files, their registered rosters and historical evidence byte-identical to merged main. The initial diagnostic-record rebinding covers `crates/coreav-cli/tests/ffmpeg.rs`: its old diagnostic digest is `14c7db0ca9a7fdd8d349dc807c2293ee6a84198519b1615a537f544ef59f9d5c`; the initial merged baseline digest is `623f8beac57dbc7afd5ced2bc5be2fceaff691b4bcfbee816c63cfd28cb74e97`. Main changed those bytes through coreav-dev/coreav#435 and coreav-dev/coreav#436. The later merged-main diagnostic update is recorded below; it changes no protected source or historical evidence.
 
-Re-derive all 190 current Rust rows against their exact source text and position. A moved or changed site remains unknown until classified again; path membership never carries its old verdict forward. Update only this classifier's diagnostic record, not the source, `FROZEN`, judging registrations or any other registered roster. Check that the old digest occurs only in that diagnostic record. Future changes continue to fail exact-digest and exact-site checks. Name the old and new digests and their reason in the pull request body.
+Re-derive the initial 190 Rust rows against their exact source text and position. A moved or changed site remains unknown until classified again; path membership never carries its old verdict forward. Update only the classifier's diagnostic records, not the source, `FROZEN`, judging registrations or any other registered roster. Check that the old digest occurs only in the diagnostic record. Future changes continue to fail exact-digest and exact-site checks. Name the old and new digests and their reason in the pull request body.
 
 ## Verification and delivery
 
@@ -44,7 +44,7 @@ Re-derive all 190 current Rust rows against their exact source text and position
 
 The complete change requires affected tests, final-head CI, exact-head similarity evidence and independent review. Source and generated regression checks are sufficient; do not start media-corpus, performance, remote-infrastructure or additional fuzz campaigns for this migration.
 
-## Report-only migration receipt
+## Pre-rebase report-only migration receipt
 
 The representation-only commit preserves every previously trusted per-file verdict count: 43 bypass locations and 50 rows, 36 qualified locations and 69 rows, and 1,127 excluded locations and 1,320 rows. It does not classify unknowns. Its 5,774 discovered rows exceed the merged baseline's 5,722 by two classifier boundaries and 50 new classifier-regression boundaries. The closed inventory contributes another 290 unresolved file boundaries.
 
@@ -56,4 +56,38 @@ The missing-index-file, gitlink, root-normalization and complete workflow-trigge
 
 The Bash 3.2 shell regression adds three discovered rows, all unknown. The probe harness's four qualified rows are re-derived against the guarded array expressions and read loop without changing the 119 qualified rows. Release and AVI trigger coverage now follows all shared qualification inputs; AVI also covers its fixture generators. The final report maps all 6,092 rows: 5,802 discovered and 290 closure rows.
 
-The current catalogue has 79 qualified locations and 119 rows, no confirmed bypass rows, and 4,215 unknown locations in 662 files containing 4,653 rows. Zero confirmed bypasses does not establish that no bypass remains among those unknowns. The original unresolved rows, their moved or changed sites, the new regression boundaries and the unscanned-file boundaries all remain obligations of the dependent follow-up. The classifier exits unsuccessfully for those unknowns; this change does not make it required in CI.
+The pre-rebase catalogue has 79 qualified locations and 119 rows, no confirmed bypass rows, and 4,215 unknown locations in 662 files containing 4,653 rows. Zero confirmed bypasses does not establish that no bypass remains among those unknowns. The original unresolved rows, their moved or changed sites, the new regression boundaries and the unscanned-file boundaries all remain obligations of the dependent follow-up. The classifier exits unsuccessfully for those unknowns; this change does not make it required in CI.
+
+## Merged-main diagnostic update
+
+The diagnostic records now describe merged main `1cfe2a526262e0e78b3af91ec9f76455e91a08bf`. The consumer migration and checker code are unchanged by this update. Every changed source has a merged-main cause; no source, judging registration, historical document or evidence file is edited here.
+
+The historical snapshot changes exactly seven entries: coreav-dev/coreav#445 changed the existing compatibility README and judging registration, while coreav-dev/coreav#432 changed the frame-handoff measurement document and added its four `phase-b-*` evidence files. The snapshot grows from 4,882 to 4,886 files. Its complete digest is `744203702fb44827d16bd4bcdba64e6f031b2e722c8c5c9edec4b6c853ecf358`. No historical media or measurement is rerun or rejudged.
+
+Fifteen discovered-source paths change against the pre-rebase receipt:
+
+| Source | Previous rows | Current rows | Merged cause |
+|---|---:|---:|---|
+| `.github/workflows/ci.yml` | 20 | 20 | coreav-dev/coreav#441, coreav-dev/coreav#444 |
+| `.github/workflows/deny.yml` | 4 | 4 | coreav-dev/coreav#445 |
+| `crates/coreav-cli/tests/ffmpeg.rs` | 190 | 178 | coreav-dev/coreav#437 |
+| `crates/coreav-cli/tests/ffmpeg_concat_primed.rs` | 0 | 8 | coreav-dev/coreav#437 |
+| `crates/coreav-cli/tests/ffmpeg_pcm_mp4.rs` | 0 | 34 | coreav-dev/coreav#439 |
+| `crates/coreav-cli/tests/legacy_encoders.rs` | 2 | 3 | coreav-dev/coreav#441 |
+| `crates/coreav-cli/tests/support/concat_presentation.rs` | 0 | 2 | coreav-dev/coreav#437 |
+| `crates/coreav-cli/tests/transcode.rs` | 115 | 129 | coreav-dev/coreav#441, coreav-dev/coreav#444 |
+| `scripts/compat_sources.py` | 26 | 35 | coreav-dev/coreav#445 |
+| `scripts/tests/test_compat_sources.py` | 48 | 74 | coreav-dev/coreav#445 |
+| `scripts/tests/test_compat_workflow.py` | 4 | 4 | coreav-dev/coreav#445 |
+| `scripts/tests/test_main_ci_plan.py` | 4 | 6 | coreav-dev/coreav#441, coreav-dev/coreav#444 |
+| `tools/compat-corpus/decoded_output.py` | 7 | 11 | coreav-dev/coreav#433 |
+| `tools/compat-corpus/github_shapes.py` | 27 | 29 | coreav-dev/coreav#433 |
+| `tools/compat-corpus/tests/test_github_shapes.py` | 56 | 103 | coreav-dev/coreav#433 |
+
+The closed inventory adds sixteen merged-main files, including the three new discovered Rust paths above. Its other executable sources are `crates/coreav-cli/src/ffmpeg/raw_audio/mp4.rs` from coreav-dev/coreav#439, `crates/coreav-cli/src/ffprobe/avc_summary_tests.rs` from coreav-dev/coreav#442, `crates/coreav-cli/tests/support/sar_delta.rs` from coreav-dev/coreav#441 and `scripts/tests/test_h264_g1_search_reference.py` from coreav-dev/coreav#446. Each contributes zero discovered rows. The nine new design documents and data files add no invocation rows.
+
+The diagnostic protected-source map changes only the digests of `ffmpeg.rs`, `compat_sources.py` and `judging.json`, recording their merged-main bytes. The obsolete 190-row and 26-row exclusion proofs are removed rather than carried forward. All 178 current `ffmpeg.rs` rows and all 35 current `compat_sources.py` rows remain unknown. The source roster still has 71 files.
+
+The existing qualified call at `legacy_encoders.rs:72` is re-derived as the identical `Command::new(test_oracle::require().ffmpeg())`, after coreav-dev/coreav#441 inserted seven bytes in an earlier derive attribute. Its exact program span moves from `2386:2417` to `2393:2424`. The enclosing fixture command, qualification predicate and owner bytes are unchanged; the dependency context now includes `support/sar_delta.rs`. The helper's new `ffmpeg` invocation remains unknown.
+
+The new report has valid evidence and exact reconciliation of 6,229 rows: 5,939 discovered and 290 closure rows. Qualified evidence is unchanged at 79 locations in 25 files and 119 rows. Exclusions decrease to 993 locations in 161 files and 1,104 rows; unknowns increase to 4,470 locations in 667 files and 5,006 rows. The 137 additional discovered rows and withdrawal of 216 stale exclusion rows explain the 353-row increase in unknowns. This is baseline drift, not classification progress. Confirmed bypasses remain zero, and the checker still exits unsuccessfully for unresolved rows.
