@@ -560,11 +560,12 @@ def corpus_decode(item, source, directory, oracle, *, native, parser, max_memory
         require(0 < len(packets) <= 1_000_000, 'presentation_packet_count')
         for limit in ([120, 0] if 'b5' in item['sets'] else [120]):
             arm = dict(packet_limit=limit, complete=False)
+            timeout = 3600 if limit == 0 else 1800
             report['results'].append(arm)
             report['stage'] = 'native_packets'
             code, out, err = harness.child([native, source, config, str(stream['index']), str(limit),
                 str(max_memory_bytes), str(max_stream_bins), str(max_picture_bins)], directory, f'packet-native-{limit}',
-                timeout=3600 if limit == 0 else 1800)
+                timeout=timeout)
             arm['native_exit_code'] = code
             if code != 0 and err.stat().st_size < harness.TEXT_CAP:
                 arm['native_refusal'] = harness.read_json(err)
@@ -617,7 +618,7 @@ def corpus_decode(item, source, directory, oracle, *, native, parser, max_memory
                 '-enc_time_base', 'demux', '-noautoscale', '-c:v', 'rawvideo',
                 '-pix_fmt', '+' + compared_frames[0]['pix_fmt'], '-frames:v', str(bound),
                 '-progress', 'pipe:2', '-f', 'framemd5', '-']
-            code, out, err = harness.child(command, directory, f'packet-oracle-{limit}')
+            code, out, err = harness.child(command, directory, f'packet-oracle-{limit}', timeout=timeout)
             require(code == 0, 'packet_oracle_decode')
             collected = [harness.stderr_line(raw, item['sha256'], 'packet-frames', exit_code=code)
                          for raw in harness.stderr_lines(err)]
@@ -632,7 +633,7 @@ def corpus_decode(item, source, directory, oracle, *, native, parser, max_memory
             hashes = presentation_hashes(out.read_text(), frames, stream['time_base'], cutoff)
             arm.update(matched_pictures=compare_packet_pictures(selected, hashes, cutoff),
                        oracle_bound=bound, oracle_frames=len(times), geometry_interval=geometry_end(packets, stream['time_base'])
-                       if cutoff is not None else None, native_timeout=3600 if limit == 0 else 1800, complete=True)
+                       if cutoff is not None else None, native_timeout=timeout, complete=True)
         require(harness.digest(source) == item['sha256'] and harness.digest(config) == report['configuration_sha256']
                 and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
                 and all(harness.digest(getattr(oracle, name)) == sha for name, sha in report['oracle'].items()),
