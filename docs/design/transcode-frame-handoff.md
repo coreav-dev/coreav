@@ -76,3 +76,23 @@ All 240 full-cohort calls succeed and all 96 main/candidate complete-file pairs 
 Run targeted ownership, hostile-process and complete-file identity tests, including the pinned FFmpeg and x264 programs. Add unsafe-site inventory rows for any new unsafe. Run the similarity guard against its main allowlist and the normal required CI checks.
 
 Repeat the phase A method on all six AV1 and ten VP9 inputs, using three rotated calls per file and arm. Compare main and candidate with both encoder programs against FFmpeg's single-process transcode with explicit libdav1d or libvpx-vp9 input decoding. Warm source bytes, put outputs on tmpfs, and keep probing and hashing outside timing. Retain every failure, per-call time, encoder receipt and complete-file hash. Summarize medians of per-file three-call-median ratios, disclose call variation and remaining misses, and make no attribution from those ratios alone.
+
+## Final pipe round
+
+Evaluate one bounded round without changing the encoder executable, decoder isolation, publication credits or default build. The same sixteen inputs, two encoder programs and three rotated calls supply reference figures, not new acceptance bars. Keep complete-file identity with main. If neither target gives a measurable gain, remove the runtime candidate and retain the negative result in this document and the measurement page. Do not retry the rejected helper, page loans or a larger pipe.
+
+### Writer batching
+
+The existing writer already copies directly from decoder-owned shared frames into the pipe. `Lent` joins adjacent row ranges, and `ParentMemory::write_ranges` gathers up to 1,024 ranges per synchronous `writev`. There is no intermediate pixel buffer to remove on this path. The remaining narrow candidate batches the owned framing prefix with the first pixel ranges instead of writing and flushing that prefix separately. It retains the frame until every pixel has been copied into the kernel. A short write must advance through both the prefix and pixel ranges without duplication. No decoder-writable page is lent to the encoder.
+
+Compare this against leaving framing writes separate. The batched design changes the current copy boundary least and needs no new descriptor, helper or mapping. It can remove a framing write and its early reader wakeup, but it cannot remove the kernel's pixel copies or all the pipe's capacity wakeups. Measure that limited opportunity rather than assigning the entire remaining gap to it.
+
+Cap each direct submission at 64 KiB while reusing the vector allocation across submissions. This tests bounded submissions instead of letting a large blocking call traverse most of a frame through the pipe. It affects both encoders, including x264's headerless input. More submissions can add syscall cost, so fewer wakeups are a hypothesis, not a consequence of this cap. Reject a parent-owned packing slab because it restores a pixel copy removed in phase A. Evaluate the capped submissions and prefix batching together once, without tuning the batch size after seeing the result.
+
+### Ten-bit input
+
+The current FFmpeg encoder process already receives native planar `yuv420p10le`, and the current x264 command already selects matching input and output depths. The earlier [input-conversion diagnosis](../measurements/transcode-x264-10bit.md) found that the x264 CLI still converts these samples, including with 16-bit raw input. Before changing pixel transport, use the pinned binary as a black box to test whether a native-format selector or explicit depth filter bypasses that work. Compare a lossless left-shifted 16-bit input with 10-bit input and inspect function-only instruction counts. Do not call moving conversion into the parent a native bypass. Reject an unavailable interface without changing encoder choice, reducing precision or introducing an unmeasured quality cost.
+
+### Verification
+
+Check complete framing bytes, partial writes, invalid ranges before publication, fallback memory, retained frame ownership, encoder failure and cancellation. Run targeted worker and transcode tests, pinned encoder identity fixtures, the unsafe inventory and the main-allowlist similarity guard. The full comparison uses independent main and candidate build directories with the phase A decoder source revisions. Record every elapsed call and complete output hash, plus first-round decoded frame hashes, outside the timed region. Report call variation and remaining distance from FFmpeg even if a partial gain is retained.
