@@ -12,17 +12,17 @@
     "docs/known-divergences.json": "25b7b962df7e72e47a35146418ff232726ed4c1f3cb781ae9d54c747a793203c",
     "scripts/clip_check.py": "f448dcf2a98a88546fa988a4b24dbccf95fc3baa517bbbe34021e3df2bb588c4",
     "scripts/compat_check.py": "6d5c1322a578632bcf9cb9fe6cd87519e427127589c39b8ba52ba70b51a250cc",
-    "scripts/compat_sources.py": "6df31864dd84ac9518a4140bcc32a86e8149b9b39377f51882eadcb7606824e5",
+    "scripts/compat_sources.py": "bade557a34eebde4369435653ca54fb2668948a639b9d376906db48016931d0a",
     "scripts/extract_check.py": "d0ca1b1975d08acdb6fad7b9f185badfc1709d1444359037a0d94bb59aa834e7",
     "scripts/hls_check.py": "629a7bea8045fbc04d115d784dd6ec033163b045e7fe75c5b1c0bc38351f10d5",
     "scripts/join_check.py": "2af2682134b3bfb08b0be371032fb604ad8579008ecd8b76a354a68b78ae84e2",
     "scripts/mkv_remux_check.py": "cf81d3d0b7395219374208f2ae24099c4f155b582190f9988224f77a9066ab9a",
-    "scripts/oracle_audio.py": "3173e64ae15100a0bb4de8e5a19a86c0c563174384c3eb9fd11b797a89ad3c14",
+    "scripts/oracle_audio.py": "cc4a68c084aab8f22201a517fb35efbc427f85590b5007e3dfc852e6dc5a98f4",
     "scripts/oracle_kd.py": "255f193b6bc6e2f67f32f7fe40bd5f91179ce13c91ce462a6514ecd4b0f50d52",
     "scripts/oracle_kd_mkv.py": "f03b407674c5faa955381f2439bac16f412591041f31326bab241b2f81526b27",
     "scripts/oracle_kd_ts.py": "a837051ee8900c860973e0e91bacfed14eb21be99b07260938cf1d409d322d31",
     "scripts/oracle_pin.py": "b221378b054a6e6bae92051ae4e4e4fa1add451213f28e888825fa6e43f2f909",
-    "scripts/policy_ref.py": "a51301adb074c3d0e70ccb5e020776d2f6b76ee34e89fd220c6c3a6841ad04a0",
+    "scripts/policy_ref.py": "782e327baef9626f4cd9631bb93e45476fdebd3234ca4b605ce4e9960317d1d1",
     "scripts/registered_candidate.py": "93d5733c6e3645c9adc29b9eefcc5bb89e54cf6e96ef8de0d17976032b5f5604",
     "scripts/remux_check.py": "8cccb3551736f918660c304d434b3fc3cc9501e98e8ade011ae75d0787c14670",
     "scripts/split_check.py": "1cd37d7d66608a3d74230a247369d733deb0a13cb51ab1b9ce32a024107f3c61",
@@ -30,12 +30,19 @@
     "scripts/writer_boxes.py": "2aaa08ab4e82c78c240b9b594a4ace6639eaf478bef2dde99a50dd6b22acfbb9",
     "tools/compat-corpus/copy_check.py": "e73b39820ded04968f9c5cae7ac7a9157e1207a5b9e7351c24a6e6b007f20a75",
     "tools/compat-corpus/ffmpeg9.json": "12204af1619cf806ede5e009dee43edc51edc361b5c9a93c96f0838ef9d0028d",
-    "tools/compat-corpus/r3.py": "0ac03161434cef8178bb05d1a8e48a5b7c7f8451669eda3a370738d45b8f6374",
+    "tools/compat-corpus/r3.py": "0549a6b9f429e0cadd61d6d10498c971f17b901a7e89143d5d3043fa3b58d913",
     "tools/compat-corpus/release_round.py": "b5c959bbfb004b8f4cffc65d25bdaf442d5f8e2920b968b844618c0fdfb6a2fa",
     "tools/compat-corpus/run.py": "c39fa06827c17e57ba501fa7dde6c4b2fc2f319fc3e7616d62238d070ec056d7",
     "tools/oracle/writer_corpus.py": "c4bb64463375c6b0fb10c6efe1ed582f6cb075bbbd3fd15666399230aebd830d",
     "tools/stage3-report/corpus.py": "86741f53e0ff67df381fef5a875b905ee2037ae6742bcc6eec0e7ea8f4c685f0",
     "tools/stage3-report/r2pool.py": "b0990e04927f66434dad4041af92ae41377277c6e26695b559ae5997024030ac"
   },
-  "schema": "compat-0.1.0-judging/1"
+  "observer": {
+    "commit": "4062842fc42babef9e6661a37bbb18f7e375a80c",
+    "sources": {
+      "crates/coreav-cli/tests/ffmpeg.rs": "9aaf23198708bdd9c961205c903de1006a84bc7d",
+      "crates/coreav-isobmff/tests/common": "0b37966be86a5e719d131ef1433eb7710406214a"
+    }
+  },
+  "schema": "compat-0.1.0-judging/2"
 }

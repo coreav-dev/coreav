@@ -1,5 +1,7 @@
 """Synthetic controls only. No registered command or judged fixture is executed."""
 import json
+import copy
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -188,7 +190,7 @@ class AcquisitionAndReplay(unittest.TestCase):
     def test_replay_checks_inventory_and_recomputes_instead_of_trusting_labels(self):
         opts = types.SimpleNamespace(bundle=self.bundle, scratch=self.root / 'scratch',
                                      summary=self.root / 'summary.json', **{
-                                         k: str(self.fake) for k in ('coreav', 'ffmpeg', 'ffprobe', 'x264')})
+                                         k: str(self.fake) for k in ('coreav', 'ffmpeg', 'ffprobe', 'x264', 'pns_diagnostic')})
         identity = {'coreav': {'sha256': run.digest(self.fake)}}
         build = {'commit': 'a' * 40, 'command': run.BUILD, 'coreav_sha256': run.digest(self.fake),
                  'lock_sha256': run.digest(run.ROOT / 'Cargo.lock')}
@@ -209,6 +211,22 @@ class AcquisitionAndReplay(unittest.TestCase):
             self.assertEqual(run.replay(opts), 0)
             summary = json.loads(opts.summary.read_text())
             self.assertEqual(summary['counted'], 1)
+            self.record['outcome'] = run.COMPATIBLE
+            run.write(self.bundle / 'records.json', records)
+            manifest['inventory'] = run.inventory(self.bundle)
+            run.write(self.bundle / 'manifest.json', manifest)
+            opts.scratch = self.root / 'replay-again'
+            self.assertEqual(run.replay(opts), 0)
+            summary = json.loads(opts.summary.read_text())
+            self.assertEqual((summary['counted'], summary[run.COMPATIBLE]), (1, 0))
+            self.record['outcome'] = run.aac.COMPATIBLE
+            run.write(self.bundle / 'records.json', records)
+            manifest['inventory'] = run.inventory(self.bundle)
+            run.write(self.bundle / 'manifest.json', manifest)
+            opts.scratch = self.root / 'replay-aac-label'
+            self.assertEqual(run.replay(opts), 0)
+            summary = json.loads(opts.summary.read_text())
+            self.assertEqual((summary['counted'], summary[run.aac.COMPATIBLE]), (1, 0))
             self.fake.write_text('changed executable')
             with mock.patch.object(run, 'verify_programs', return_value={'changed': {}}), \
                  self.assertRaisesRegex(ValueError, 'program_identity'):
@@ -271,6 +289,7 @@ class ExactPredicate(unittest.TestCase):
             programs = {'$FFMPEG': 'ffmpeg', '$FFPROBE': 'ffprobe'}
             with mock.patch.object(decoded_output, 'probe', return_value=description), \
                  mock.patch.object(decoded_output, 'compare', return_value=('verified', 'exact')), \
+                 mock.patch.object(decoded_output, 'invoke', return_value=(1, b'', b'no packet evidence')), \
                  mock.patch.object(run, 'packet_rows', side_effect=[[(0, 'one')], [(0, 'two')]]):
                 self.assertEqual(run.compare_outputs(command, base, programs, {}, base), 'different')
 
@@ -283,6 +302,259 @@ class ExactPredicate(unittest.TestCase):
             folder = Path(tmp)
             (folder / 'command.stderr').write_text('Stream #0:7 -> #1:0 (copy)\nStream #0:1 -> #0:2 (copy)\n')
             self.assertEqual(run.jobs(folder), {(1, 0): 'copy', (0, 2): 'copy'})
+
+
+class Avc1Carriage(unittest.TestCase):
+    SPS, PPS = b'\x67\x42\x00\x0a', b'\x68\x12'
+    SLICE, SEI = b'\x65\x01\x02', b'\x06\x03'
+
+    @staticmethod
+    def dump(data):
+        return '\n' + '\n'.join(f'{at:08x}: ' + ' '.join(
+            data[i:i + 2].hex() for i in range(at, min(at + 16, len(data)), 2)).ljust(39) + '  text'
+            for at in range(0, len(data), 16)) + '\n'
+
+    @staticmethod
+    def sample(*units, length=4):
+        return b''.join(len(unit).to_bytes(length, 'big') + unit for unit in units)
+
+    def packet(self, data, index=0, pts=0):
+        return {'stream_index': index, 'pts': pts, 'dts': pts, 'duration': 1, 'size': str(len(data)),
+                'data': self.dump(data), 'data_hash': 'SHA256:' + hashlib.sha256(data).hexdigest()}
+
+    def configuration(self, data, document):
+        stream = document['streams'][0]
+        stream.update(extradata=self.dump(data), extradata_size=len(data),
+                      extradata_hash='SHA256:' + hashlib.sha256(data).hexdigest())
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.folder = Path(self.tmp.name)
+        video = {'index': 0, 'codec_type': 'video', 'codec_name': 'h264', 'codec_tag_string': 'avc1',
+                 'width': 2, 'height': 2, 'pix_fmt': 'yuv420p', 'time_base': '1/10',
+                 'start_pts': 0, 'duration_ts': 1}
+        audio = {'index': 1, 'codec_type': 'audio', 'codec_name': 'aac', 'sample_fmt': 'dbl',
+                 'sample_rate': '10', 'channels': 1, 'time_base': '1/10', 'start_pts': 0, 'duration_ts': 1}
+        self.actual = {'streams': [video, audio], 'packets': [self.packet(self.sample(self.SEI, self.SLICE)),
+                                                            self.packet(b'audio', 1)]}
+        self.config = b'\x01\x42\x00\x0a\xff\xe1' + len(self.SPS).to_bytes(2, 'big') + self.SPS + (
+            b'\x01' + len(self.PPS).to_bytes(2, 'big') + self.PPS)
+        self.configuration(self.config, self.actual)
+        self.reference = copy.deepcopy(self.actual)
+        self.reference['packets'][0] = self.packet(self.sample(self.SEI, self.SPS, self.PPS, self.SLICE))
+        self.frames = [{'stream_index': 0, 'width': 2, 'height': 2, 'pix_fmt': 'yuv420p',
+                        'best_effort_timestamp': 0, 'duration': 1},
+                       {'stream_index': 1, 'best_effort_timestamp': 0, 'duration': 1, 'nb_samples': 1}]
+        self.audio_shift, self.changed_pixels, self.changed_audio = False, False, False
+
+    def invoke(self, argv, env, output=None):
+        candidate = argv[argv.index('-i') + 1] == 'candidate'
+        document = copy.deepcopy(self.actual if candidate else self.reference)
+        if '-show_packets' in argv:
+            self.assertIn('-show_data', argv)
+            return 0, json.dumps(document).encode(), b''
+        if '-show_frames' in argv:
+            document['frames'] = copy.deepcopy(self.frames)
+            if candidate and self.audio_shift:
+                document['frames'][1]['best_effort_timestamp'] += 1
+            return 0, json.dumps(document).encode(), b''
+        audio = '-c:a' in argv
+        changed = candidate and (self.changed_audio if audio else self.changed_pixels)
+        Path(output).write_bytes((b'\0' * 7 + bytes([changed])) if audio else b'pixel' + bytes([changed]))
+        return 0, b'', b''
+
+    def compatible(self, copied=(0, 1)):
+        with mock.patch.object(decoded_output, 'invoke', side_effect=self.invoke):
+            return decoded_output.avc1_carriage('candidate', 'reference', 'ffmpeg', 'ffprobe', {}, self.folder,
+                                                copied, registered_codecs=run.EXACT_CODECS)
+
+    def test_only_identical_configuration_parameter_sets_are_removed(self):
+        self.assertTrue(self.compatible())
+        for length in (1, 2, 4):
+            config = self.config[:4] + bytes([0xFC | (length - 1)]) + self.config[5:]
+            for document in (self.actual, self.reference):
+                self.configuration(config, document)
+            self.actual['packets'][0] = self.packet(self.sample(self.SEI, self.SLICE, length=length))
+            self.reference['packets'][0] = self.packet(self.sample(self.SEI, self.SPS, self.PPS,
+                                                                  self.SPS, self.SLICE, length=length))
+            self.assertTrue(self.compatible())
+
+    def test_parameter_set_changes_candidate_sets_and_other_nal_changes_fail(self):
+        for units in ((self.SEI, self.SPS + b'changed', self.PPS, self.SLICE),
+                      (self.SEI, self.SPS, self.PPS + b'changed', self.SLICE),
+                      (self.SPS, self.PPS, self.SLICE),
+                      (self.SEI, self.SPS, self.PPS, self.SLICE + b'changed'),
+                      (self.SEI, self.SPS, self.PPS, self.SLICE, b'\x09\x10')):
+            with self.subTest(units=units):
+                self.reference['packets'][0] = self.packet(self.sample(*units))
+                self.assertFalse(self.compatible())
+        self.reference['packets'][0] = self.packet(self.sample(self.SPS, self.PPS, self.SEI, self.SLICE))
+        for unit in (self.SPS, self.PPS):
+            self.actual['packets'][0] = self.packet(self.sample(unit, self.SEI, self.SLICE))
+            self.assertFalse(self.compatible())
+
+    def test_avc3_and_differing_or_malformed_configuration_fail(self):
+        for document in (self.actual, self.reference):
+            document['streams'][0]['codec_tag_string'] = 'avc3'
+            self.assertFalse(self.compatible())
+            document['streams'][0]['codec_tag_string'] = 'avc1'
+        for data in (self.config[:-1], self.config + b'junk', b'\x02' + self.config[1:],
+                     self.config[:4] + b'\xfe' + self.config[5:],
+                     self.config[:5] + b'\xe0' + self.config[6:],
+                     self.config[:4] + b'\x03' + self.config[5:]):
+            with self.subTest(config=data):
+                for document in (self.actual, self.reference):
+                    self.configuration(data, document)
+                self.assertFalse(self.compatible())
+        self.configuration(self.config, self.actual)
+        self.configuration(self.config.replace(self.SPS, self.SPS[:-1] + b'\x0b'), self.reference)
+        self.assertFalse(self.compatible())
+
+    def test_malformed_packet_lengths_or_hashes_fail(self):
+        for document in (self.actual, self.reference):
+            original = document['packets'][0]
+            for data in (b'', b'\0', b'\0\0\0\0', b'\0\0\0\x08\x65', self.sample(self.SLICE) + b'\0'):
+                document['packets'][0] = self.packet(data)
+                self.assertFalse(self.compatible())
+            document['packets'][0] = copy.deepcopy(original)
+            document['packets'][0]['data_hash'] = 'SHA256:' + '0' * 64
+            self.assertFalse(self.compatible())
+            document['packets'][0] = copy.deepcopy(original)
+            document['packets'][0]['size'] = '1'
+            self.assertFalse(self.compatible())
+            document['packets'][0] = original
+
+    def test_timing_packet_order_counts_and_copied_audio_bytes_stay_exact(self):
+        original = copy.deepcopy(self.actual['packets'])
+        for key in ('pts', 'dts', 'duration'):
+            self.actual['packets'][0][key] += 1
+            self.assertFalse(self.compatible())
+            self.actual['packets'] = copy.deepcopy(original)
+        for packets in (list(reversed(original)), original + original[:1], original[:1],
+                        [original[0], self.packet(b'changed audio', 1)]):
+            self.actual['packets'] = packets
+            self.assertFalse(self.compatible())
+        self.actual['packets'] = original
+        self.actual['streams'][0]['time_base'] = '1/20'
+        self.actual['packets'][0]['duration'] = 2
+        self.actual['streams'][0]['duration_ts'] = 2
+        self.assertFalse(self.compatible())
+
+    def test_decoded_pixels_samples_and_all_audio_frame_timelines_stay_exact(self):
+        for attribute in ('audio_shift', 'changed_pixels', 'changed_audio'):
+            setattr(self, attribute, True)
+            for copied in ((0,), (0, 1)):
+                self.assertFalse(self.compatible(copied))
+            setattr(self, attribute, False)
+        self.assertTrue(self.compatible((0,)))
+
+    def test_compatible_requires_known_positive_video_frame_timing_without_changing_exact_defaults(self):
+        for key in ('best_effort_timestamp', 'duration'):
+            original = self.frames[0][key]
+            for unavailable in (None, 'N/A'):
+                self.frames[0][key] = unavailable
+                self.assertFalse(self.compatible())
+                with mock.patch.object(decoded_output, 'invoke', side_effect=self.invoke):
+                    self.assertEqual(decoded_output.compare('candidate', 'reference', 'ffmpeg', 'ffprobe', {},
+                        self.folder, registered_codecs=run.EXACT_CODECS)[0], 'verified')
+            self.frames[0][key] = original
+        for duration in (0, -1):
+            self.frames[0]['duration'] = duration
+            self.assertFalse(self.compatible())
+
+    def test_no_removals_noncopy_and_malformed_evidence_fail(self):
+        self.assertFalse(self.compatible((1,)))
+        original = self.reference['packets'][0]
+        self.reference['packets'][0] = self.actual['packets'][0]
+        self.assertFalse(self.compatible())
+        self.reference['packets'][0] = original
+        for document in (None, {}, {'streams': None}, {'streams': [], 'packets': []}):
+            with mock.patch.object(decoded_output, 'packet_data', return_value=document):
+                self.assertFalse(decoded_output.avc1_carriage('a', 'b', 'ffmpeg', 'ffprobe', {}, self.folder, (0,)))
+        for text in ('00000001: 1234', '00000000: zz', '00000000: 12\n00000010: 34'):
+            with self.assertRaises(ValueError):
+                decoded_output.hexdump(text)
+
+    def test_extractor_failures_and_configuration_hash_mismatch_fail(self):
+        for code, data, err in ((1, b'{}', b''), (0, b'{}', b'error'), (0, b'not json', b''),
+                                (0, b'[]', b''), (0, b'{"streams":{},"packets":[]}', b'')):
+            with mock.patch.object(decoded_output, 'invoke', return_value=(code, data, err)):
+                self.assertIsNone(decoded_output.packet_data('file', 'probe', {}))
+        self.actual['streams'][0]['extradata_hash'] = 'SHA256:' + '0' * 64
+        self.assertFalse(self.compatible())
+
+    def test_high_profile_extensions_parse_completely_and_never_leave_parameter_sets_in_samples(self):
+        config = self.config[:1] + b'\x64' + self.config[2:]
+        extension = b'\x6d\x01'
+        extended = config + b'\xfd\xf8\xf8\x01' + len(extension).to_bytes(2, 'big') + extension
+        for document in (self.actual, self.reference):
+            self.configuration(extended, document)
+        self.assertTrue(self.compatible())
+        for invalid in (extended[:-1], extended + b'junk', config + b'\x01\xf8\xf8\0'):
+            for document in (self.actual, self.reference):
+                self.configuration(invalid, document)
+            self.assertFalse(self.compatible())
+        for document in (self.actual, self.reference):
+            self.configuration(self.config, document)
+        for unit in (extension, b'\x6f\x01'):
+            self.actual['packets'][0] = self.packet(self.sample(unit, self.SEI, self.SLICE))
+            self.reference['packets'][0] = self.packet(self.sample(unit, self.SPS, self.PPS, self.SEI, self.SLICE))
+            self.assertFalse(self.compatible())
+
+
+class Avc1Outcomes(unittest.TestCase):
+    def check(self, packet_pairs, compatible=True, verdicts=None, copied=True):
+        command = inputs.instantiate(shape('ffmpeg'))
+        command = inputs.Command(command.tool, command.args, command.sources,
+                                 tuple(f'output{i}.mp4' for i in range(len(packet_pairs))),
+                                 tuple(() for _ in packet_pairs))
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            for arm in ('reference', 'candidate'):
+                folder = base / arm
+                folder.mkdir()
+                for name in command.outputs:
+                    (folder / name).write_bytes(b'generated control')
+                (folder / 'command.stderr').write_text(''.join(
+                    f'Stream #0:0 -> #{i}:0 ({"copy" if copied else "h264 (libx264)"})\n'
+                    for i in range(len(packet_pairs))))
+            description = {'streams': [{'codec_name': 'h264'}]}
+            with mock.patch.object(decoded_output, 'probe', return_value=description), \
+                 mock.patch.object(decoded_output, 'compare', side_effect=verdicts or [('verified', 'exact')] * (2 * len(packet_pairs))) as compare, \
+                 mock.patch.object(run, 'packet_rows', side_effect=[p for pair in packet_pairs for p in pair]), \
+                 mock.patch.object(decoded_output, 'avc1_carriage', return_value=compatible) as predicate:
+                result = run.compare_outputs(command, base, {'$FFMPEG': 'ffmpeg', '$FFPROBE': 'ffprobe'}, {}, base)
+                for call in compare.call_args_list[len(packet_pairs):]:
+                    self.assertTrue(call.kwargs['exact_frame_timeline'])
+                return result, predicate.call_count
+
+    def test_strict_first_and_only_compatible_packet_mismatch_changes_class(self):
+        equal = ([(0, 'same')], [(0, 'same')])
+        different = ([(0, 'ours')], [(0, 'theirs')])
+        self.assertEqual(self.check([equal]), ('counted', 0))
+        self.assertEqual(self.check([different]), (run.COMPATIBLE, 1))
+        self.assertEqual(self.check([different], compatible=False), ('different', 1))
+        self.assertEqual(self.check([different], copied=False), ('counted', 0))
+        self.assertEqual(self.check([different], verdicts=[('failed', 'pixels')]), ('different', 0))
+        self.assertEqual(self.check([different], verdicts=[('unverified', 'probe')]), ('no_oracle', 0))
+
+    def test_later_failure_overrides_compatible_without_changing_original_miss_class(self):
+        different = ([(0, 'ours')], [(0, 'theirs')])
+        equal = ([(0, 'same')], [(0, 'same')])
+        self.assertEqual(self.check([different, equal]), (run.COMPATIBLE, 1))
+        self.assertEqual(self.check([equal, different]), (run.COMPATIBLE, 1))
+        for verdict in ('failed', 'unverified'):
+            self.assertEqual(self.check([different, equal], verdicts=[('verified', 'exact'), (verdict, 'later')]),
+                             ('different', 1))
+        self.assertEqual(self.check([different, equal], verdicts=[('unverified', 'first')]), ('no_oracle', 0))
+
+    def test_all_outputs_need_exact_audio_timeline_when_any_is_compatible(self):
+        different = ([(0, 'ours')], [(0, 'theirs')])
+        equal = ([(0, 'same')], [(0, 'same')])
+        for pairs in ([different, equal], [equal, different]):
+            self.assertEqual(self.check(pairs, verdicts=[('verified', 'exact'), ('verified', 'exact'),
+                                                        ('failed', 'audio timeline')]), ('different', 1))
 
 
 class ProbeAvailability(unittest.TestCase):
@@ -476,8 +748,57 @@ class PinnedProbeWriters(unittest.TestCase):
                     (folder / 'reference/eligibility.stdout').write_bytes(witness)
                     self.assertEqual(run.compare_outputs(command, folder, {}, {}, folder), 'counted')
 
+    def test_independent_avc1_carriage_control_uses_complete_real_packet_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            ffmpeg, ffprobe = (str(self.oracle / name) for name in ('ffmpeg', 'ffprobe'))
+            calls = [
+                ['-f', 'lavfi', '-i', 'testsrc2=size=32x32:rate=4', '-t', '1', '-an',
+                 '-c:v', 'libx264', '-profile:v', 'baseline', '-bf', '0', '-g', '2', 'independent.mp4'],
+                ['-f', 'concat', '-safe', '0', '-i', 'independent.txt', '-c', 'copy', 'reference.mp4'],
+                ['-i', 'reference.mp4', '-c', 'copy', '-bsf:v', 'filter_units=remove_types=7|8', 'candidate.mp4'],
+            ]
+            (folder / 'independent.txt').write_text("file 'independent.mp4'\n")
+            for args in calls:
+                subprocess.run([ffmpeg, '-nostdin', '-v', 'error', *args], cwd=folder,
+                               env=run.environment(), capture_output=True, timeout=20, check=True)
+            actual, reference = folder / 'candidate.mp4', folder / 'reference.mp4'
+            args = (actual, reference, ffmpeg, ffprobe, run.environment(), folder)
+            self.assertEqual(decoded_output.compare(*args, registered_codecs=run.EXACT_CODECS)[0], 'verified')
+            self.assertNotEqual(run.packet_rows(actual, ffprobe, run.environment(), ()),
+                                run.packet_rows(reference, ffprobe, run.environment(), ()))
+            self.assertTrue(decoded_output.avc1_carriage(*args, (0,), registered_codecs=run.EXACT_CODECS))
+            self.assertFalse(decoded_output.avc1_carriage(actual, actual, *args[2:], (0,),
+                                                         registered_codecs=run.EXACT_CODECS))
+            base = folder / 'comparison'
+            for arm, source in (('candidate', actual), ('reference', reference)):
+                target = base / arm
+                target.mkdir(parents=True)
+                (target / 'output0.mp4').write_bytes(source.read_bytes())
+                (target / 'command.stderr').write_text('Stream #0:0 -> #0:0 (copy)\n')
+            command = inputs.instantiate(shape('ffmpeg'))
+            self.assertEqual(run.compare_outputs(command, base, {'$FFMPEG': ffmpeg, '$FFPROBE': ffprobe},
+                                                 run.environment(), folder), run.COMPATIBLE)
+
 
 class AccountingAndGate(unittest.TestCase):
+    def test_compatible_counts_are_separate_from_exact_shares(self):
+        rows = [row(i, 1271 if i == 2 else 1) for i in range(1, 201)]
+        outcomes = [{'rank': r['rank'], 'outcome': 'counted' if r['rank'] == 1 else 'different'} for r in rows]
+        original = run.summarize(rows, outcomes)
+        outcomes[1]['outcome'] = run.COMPATIBLE
+        summary = run.summarize(rows, outcomes)
+        for key in ('counted', 'counted_pairs', 'top_200_pair_share', 'whole_sample_presence_lower_bound'):
+            self.assertEqual(summary[key], original[key])
+        self.assertEqual((summary[run.COMPATIBLE], summary[run.COMPATIBLE + '_pairs']), (1, 1271))
+        self.assertEqual(summary['outcomes'][run.COMPATIBLE], 1)
+        self.assertEqual(summary['tools']['ffprobe']['pairs'][run.COMPATIBLE], 1271)
+        self.assertEqual(sum(summary['outcome_pairs'].values()), 1470)
+        self.assertEqual(sum(summary['outcomes'].values()), 200)
+        outcomes[1]['outcome'] = 'unknown'
+        with self.assertRaisesRegex(ValueError, 'result_class'):
+            run.summarize(rows, outcomes)
+
     def test_all_200_stay_and_weighted_share_has_fixed_denominator(self):
         rows = [row(i, 1271 if i == 1 else 1) for i in range(1, 201)]
         outcomes = [{'rank': r['rank'], 'outcome': 'counted' if r['rank'] == 1 else 'no_oracle'} for r in rows]

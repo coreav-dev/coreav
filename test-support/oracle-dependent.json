@@ -73,6 +73,7 @@
   "crates/coreav-cli/tests/ffmpeg_concat.rs": [
     "concat_audio_gaps_are_refused_with_exact_pinned_fallback",
     "lossless_audiovisual_concat_preserves_complete_native_output",
+    "native_video_metadata_compares_complete_records_and_all_packet_bytes",
     "unedited_audiovisual_concat_matches_the_pinned_ffmpeg"
   ],
   "crates/coreav-cli/tests/ffmpeg_concat_primed.rs": [
@@ -141,6 +142,9 @@
   "crates/coreav-cli/tests/ffprobe_stdin.rs": [
     "structured_stdin_and_complete_pinned_replay"
   ],
+  "crates/coreav-cli/tests/frame_handoff.rs": [
+    "shared_and_copied_handoffs_produce_identical_files"
+  ],
   "crates/coreav-cli/tests/legacy_encoders.rs": [
     "legacy_encoder_choices_keep_media_summaries_errors_and_exit_codes"
   ],
@@ -173,6 +177,7 @@
     "ffmpeg_default_codecs_match_the_oracle",
     "ffmpeg_libopus_lines_encode_the_audio",
     "ffmpeg_libx264_commands_run_the_pipeline",
+    "ffmpeg_libx264_crop_matches_the_oracle",
     "ffmpeg_libx264_keeps_a_cover_picture_only_when_it_is_copied",
     "ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply",
     "ffmpeg_libx264_refuses_before_encoding",

@@ -549,7 +549,8 @@ pub(super) fn probe<S: Source>(
                 || first.is_some_and(|first| first > 0))
                 && intervals.all(|interval| interval.is_some() && interval == first);
             if track.description.codec == Codec::H264 {
-                summary_complete &= avc_summary_authority(track, &head, &mut *source, limits);
+                summary_complete =
+                    summary_complete && avc_summary_authority(track, &head, &mut *source, limits);
                 let entry = track
                     .description
                     .width
@@ -4267,8 +4268,16 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 }
 
 #[cfg(test)]
+#[path = "../../../coreav-isobmff/tests/common/text_movie.rs"]
+mod summary_test_movie;
+
+#[cfg(test)]
 #[path = "hevc_summary_tests.rs"]
 mod hevc_summary_tests;
+
+#[cfg(test)]
+#[path = "avc_summary_tests.rs"]
+mod avc_summary_tests;
 
 #[cfg(test)]
 mod tests {

@@ -31,7 +31,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use coreav_decode::{Backend, Codec, DecoderInfo, ErrorKind, Packet, Policy, Skipped};
-use coreav_frame::{ChromaSiting, ColorInfo, Filter, Frame, PixelFormat, Pixels};
+use coreav_frame::{ChromaSiting, ColorInfo, Filter, Frame, PixelFormat, Pixels, Rect};
 use coreav_isobmff::{BufferedSource, FileSource, Rational, Source};
 use coreav_isobmff_write::mux::{Nclx, avc1_sample_entry};
 use coreav_isobmff_write::{
@@ -126,6 +126,8 @@ pub struct TranscodeOptions {
     pub preset: String,
     /// The output size; `None` for the first frame's.
     pub scale: Option<Scale>,
+    /// A literal even crop of fixed-size planar 8-bit 4:2:0 frames, without scaling.
+    pub crop: Option<Rect>,
     /// The pixel format the encoder must be given (`-pix_fmt` of
     /// `coreav ffmpeg`); frames go to the encoder unconverted, so a source
     /// decoded to another format is refused before the encoder starts.
@@ -182,6 +184,7 @@ impl Default for TranscodeOptions {
             rate: RateControl::Crf(23.0),
             preset: "medium".into(),
             scale: None,
+            crop: None,
             pixel_format: None,
             one_size: false,
             audio: AudioMode::Copy,
@@ -457,6 +460,27 @@ fn execute<S: Source, W: Write>(
         deadline,
         video: mode,
     } = job;
+    if let Some(crop) = options.crop {
+        if options.scale.is_some() {
+            return Err(unsupported("a crop beside a scale"));
+        }
+        if !options.one_size {
+            return Err(unsupported("a crop of frames whose size may change"));
+        }
+        if !matches!(mode, VideoMode::H264) {
+            return Err(unsupported("a crop with an AV1 encoder"));
+        }
+        if !(2..=crate::encoder::MAX_SIZE).contains(&crop.width)
+            || !(2..=crate::encoder::MAX_SIZE).contains(&crop.height)
+            || [crop.width, crop.height, crop.x, crop.y]
+                .iter()
+                .any(|v| v % 2 != 0)
+        {
+            return Err(unsupported(
+                "a crop needs positive even dimensions and even offsets",
+            ));
+        }
+    }
     let mut demux = ThumbnailOptions::at(Rational::from_int(0));
     demux.isobmff_limits = options.isobmff_limits;
     demux.matroska_limits = options.matroska_limits;
@@ -1491,7 +1515,14 @@ impl Run<'_> {
         if Instant::now() >= self.deadline {
             return Err(timed_out());
         }
-        let pixels = if size == (settings.width, settings.height) {
+        let pixels = if let Some(crop) = self.options.crop {
+            let picture = decoded.pixels.into_cpu().map_err(frame_error)?;
+            Pixels::Cpu(
+                picture
+                    .crop(crop)
+                    .map_err(|e| unsupported(format!("cropping: {e}")))?,
+            )
+        } else if size == (settings.width, settings.height) {
             decoded.pixels
         } else {
             // FFmpeg's default scale at the same pixel format
@@ -1543,7 +1574,28 @@ impl Run<'_> {
                 })
             })
             .transpose()?;
-        let (out_w, out_h) = scaled_to.unwrap_or((width, height));
+        let (out_w, out_h) = if let Some(crop) = self.options.crop {
+            if frame.format() != PixelFormat::YUV420P {
+                return Err(unsupported("cropping needs planar 8-bit 4:2:0 frames"));
+            }
+            if crop
+                .x
+                .checked_add(crop.width)
+                .is_none_or(|right| right > width)
+                || crop
+                    .y
+                    .checked_add(crop.height)
+                    .is_none_or(|bottom| bottom > height)
+            {
+                return Err(unsupported(format!(
+                    "the crop {}:{}:{}:{} does not fit the {width}x{height} frames",
+                    crop.width, crop.height, crop.x, crop.y
+                )));
+            }
+            (crop.width, crop.height)
+        } else {
+            scaled_to.unwrap_or((width, height))
+        };
         let sample_aspect = sample_aspect(self.video.pixel_aspect, (width, height), scaled_to);
         let color = output_color(self.video.stream.color.or(frame.color));
         let (num, den) = time_base_terms(self.video.time_base)?;
@@ -1838,6 +1890,70 @@ impl Sink for SpoolSink {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn invalid_crop_options_refuse_before_source_access() {
+        struct Unread;
+        impl Source for Unread {
+            fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+                panic!("source accessed")
+            }
+            fn read_exact_at(&mut self, _: u64, _: &mut [u8]) -> Result<(), coreav_isobmff::Error> {
+                panic!("source accessed")
+            }
+        }
+        let crop = Rect {
+            x: 0,
+            y: 0,
+            width: 32,
+            height: 24,
+        };
+        for (options, why) in [
+            (
+                TranscodeOptions {
+                    crop: Some(crop),
+                    one_size: true,
+                    scale: crate::parse_scale("32:24"),
+                    ..Default::default()
+                },
+                "a crop beside a scale",
+            ),
+            (
+                TranscodeOptions {
+                    crop: Some(crop),
+                    ..Default::default()
+                },
+                "a crop of frames whose size may change",
+            ),
+            (
+                TranscodeOptions {
+                    crop: Some(Rect { width: 31, ..crop }),
+                    one_size: true,
+                    ..Default::default()
+                },
+                "a crop needs positive even dimensions and even offsets",
+            ),
+            (
+                TranscodeOptions {
+                    crop: Some(Rect { width: 0, ..crop }),
+                    one_size: true,
+                    ..Default::default()
+                },
+                "a crop needs positive even dimensions and even offsets",
+            ),
+        ] {
+            let result = transcode(
+                Unread,
+                SourceKind::Mp4,
+                &options,
+                &[],
+                None,
+                Path::new("unused"),
+                Vec::new(),
+            );
+            assert!(matches!(result, Err(Error::Unsupported(message)) if message == why));
+        }
+    }
 
     fn rate(num: u128, den: u128) -> (u32, u32) {
         let r = snap(num, den);

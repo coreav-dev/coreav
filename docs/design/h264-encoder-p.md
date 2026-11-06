@@ -2,6 +2,8 @@
 
 Status: Deblocking and one-reference P pictures are implemented. The bounded motion-search amendment below changes mode selection, not normative reconstruction or the fixed-QP API. This extends the opt-in scalar [intra encoder](h264-encoder.md), not its evaluation protocol. There are no quality or speed claims. The existing all-IDR, fixed-QP, CAVLC path keeps deblocking disabled unless the caller explicitly enables it. No command-line product or default-build dependency changes.
 
+Normal P-picture mode selection now follows the [bounded search structure](h264-encoder-search.md). The broader search policies and exact-reuse round below remain historical design and test references.
+
 ## Sources and delivery order
 
 The normative source is Rec. ITU-T H.264, version 15, 08/2024. Clauses 6.4, 7, 8.2, 8.3, 8.4, 8.5, 8.7, and 9.2 define neighbours, syntax, reference pictures, prediction, reconstruction, filtering, and CAVLC. Tables and equations come from the specification. Existing CoreAV scalar kernels supply normative sample arithmetic. No other encoder or decoder implementation source is opened during implementation. The later search-efficiency work also uses the reviewed technique note listed under Prior art. FFmpeg and JM are black-box test executables only.

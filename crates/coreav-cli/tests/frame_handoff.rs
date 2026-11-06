@@ -4,16 +4,12 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 #[test]
 fn shared_and_copied_handoffs_produce_identical_files() -> Result<(), Box<dyn std::error::Error>> {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    if !ffmpeg.is_file() {
-        assert!(std::env::var_os("CI").is_none(), "missing pinned FFmpeg");
-        eprintln!("skipping frame handoff fixture without pinned FFmpeg");
-        return Ok(());
-    }
+    let ffmpeg = test_oracle::require().ffmpeg();
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("frame-handoff-identity");
     std::fs::create_dir_all(&dir)?;
     let x264 = std::env::var_os("COREAV_X264").map(PathBuf::from);
@@ -34,7 +30,7 @@ fn shared_and_copied_handoffs_produce_identical_files() -> Result<(), Box<dyn st
     }
     for (codec, format, size, grain) in cases {
         let input = dir.join(format!("{codec}-{format}.mkv"));
-        let mut generate = Command::new(&ffmpeg);
+        let mut generate = Command::new(ffmpeg);
         generate.args([
             "-v",
             "error",
@@ -80,7 +76,7 @@ fn shared_and_copied_handoffs_produce_identical_files() -> Result<(), Box<dyn st
                     .arg(&input)
                     .arg(&output)
                     .args(["--encoder", encoder, "--ffmpeg"])
-                    .arg(&ffmpeg)
+                    .arg(ffmpeg)
                     .args(["--preset", "medium", "--crf", "23", "--force"]);
                 if let Some(x264) = &x264 {
                     command.arg("--x264").arg(x264);

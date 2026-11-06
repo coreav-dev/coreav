@@ -470,6 +470,14 @@ jobs:
           scripts/install-x264.sh "$RUNNER_TEMP/coreav-test-oracle"
           cargo test --locked -p coreav-cli --features native-h264 --test transcode unscaled_encoding_preserves_declared_sar_without_changing_scale -- --exact --nocapture --color never 2>&1 | tee "$RUNNER_TEMP/declared-sar-macos.log"
           grep -F 'test unscaled_encoding_preserves_declared_sar_without_changing_scale ... ok' "$RUNNER_TEMP/declared-sar-macos.log"
+      - name: Literal crop frames on macOS
+        if: env.COREAV_FFMPEG != '' && env.COREAV_FFPROBE != ''
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_X264: ${{ runner.temp }}/coreav-test-oracle/x264
+        run: |
+          cargo test --locked -p coreav-cli --features native-h264 --test transcode ffmpeg_libx264_crop_matches_the_oracle -- --exact --nocapture --color never 2>&1 | tee "$RUNNER_TEMP/literal-crop-macos.log"
+          grep -F 'test ffmpeg_libx264_crop_matches_the_oracle ... ok' "$RUNNER_TEMP/literal-crop-macos.log"
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site --test transcode_selection
       - run: |
           cargo test --release -p coreav-isobmff --test hostile -- --ignored
