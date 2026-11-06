@@ -24,6 +24,12 @@ Select three to five existing lossy H.264 inputs of at least 30 seconds, spannin
 
 Use one dedicated on-demand c4-standard-8-class x86-64 Linux VM with simultaneous multithreading disabled. Record actual CPU topology, machine configuration, affinity, toolchain, load, memory, and storage. No competing measurement runs. Keep input and output files local. Bound the VM lifetime and all transfers before provisioning. Run a synthetic smoke check before the input comparison.
 
+Keep CoreAV's native decoder host-core default and set FFmpeg's decoder worker request to the same visible CPU count. Both encoders retain parallelism level 1, which is not a one-thread limit. The optimized measurement profile inherits the distribution profile's fat LTO and single code-generation unit. Its debug information does not enable debug assertions.
+
+The test-only musl FFmpeg build requests a 2 MiB default thread stack. A synthetic initialization failed with musl's smaller default and succeeded when only the ELF stack size changed. The final comparator is rebuilt with the linker option, not patched. CoreAV's Rust encoder actor also has a 2 MiB stack. This is a build compatibility requirement, not an encoder setting change.
+
+SVT's textual `keyint` is the GOP length, while CoreAV supplies `intra_period_length` directly. Pass CoreAV's recorded key interval plus one to FFmpeg's SVT parameter parser. A direct synthetic worker reported a GOP length of 126 for CoreAV's field value 125. Match that effective configuration rather than passing identical tokens with different meanings.
+
 ## Correctness and execution
 
 Before timing, require native H.264 backend selection in both CoreAV arms from the actual decode receipt, with no external fallback. Require one completed native encoder session and the expected frame submission count. Retain those observations for every timed call.
@@ -39,5 +45,7 @@ For each input let S, I, and F be the median elapsed seconds for sandboxed CoreA
 Report the geometric mean of per-input time ratios and an aggregate time decomposition using sums of the per-input medians. Do not average percentages to derive the aggregate boundary share.
 
 The residual includes decoder, orchestration, and muxing differences. It is not automatically the native H.264 decoder's isolated cost. Add decode-only calls with both implementations producing the same complete raw sample stream, or a separate function-level profile, if feasible within the run envelope. Keep diagnostic timing separate from the end-to-end calls, state whether decode and encode overlap, and do not add overlapping wall times. Record the actual limiting work from CPU accounting or a profile. If the split cannot be established, report that limitation instead of assigning the residual entirely to decoding.
+
+The measurement build also records elapsed time inside decoder packet, EOF, and receive calls, with packet and frame counts. That sum can include waits for asynchronous decoding and overlaps encoding. The separate decode diagnostic first requires identical complete raw-output hashes and byte counts, then makes three alternating calls per implementation with raw output sent to the same null sink. It includes demuxing and raw-output preparation, so it is a decode-path reference rather than a decoder-kernel microbenchmark.
 
 Publish sanitized per-call data and replayable arithmetic with the results in this change. State what the measured boundary cost would imply for a future isolation-policy proposal, but make no policy decision.

@@ -2567,6 +2567,14 @@ jobs:
           python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-check"
           python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-motion" --moving
           python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-shared-input" --shared-input
+      - name: Check the isolated AV1 measurement build
+        env:
+          SVT_AV1_PREFIX: ${{ runner.temp }}/svt-av1
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+        run: |
+          set -euo pipefail
+          cargo build --locked -p coreav-cli --no-default-features --features cli,av1-measurement --target x86_64-unknown-linux-musl --profile av1-measurement
+          python3 scripts/av1_measurement_smoke.py --coreav target/x86_64-unknown-linux-musl/av1-measurement/coreav --production target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/av1-measurement-smoke"
 
   ci-report:
     # Always runs, including when the filter above skipped every job, so
