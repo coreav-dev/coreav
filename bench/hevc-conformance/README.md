@@ -1,5 +1,7 @@
 # HEVC conformance checks
 
+Pull requests run the unchanged header tests and a Linux-only comparison of all eight pictures from the four registered synthetic recipes. Full vector and fixed-file census jobs run on main pushes, daily at 03:45 UTC, or by manual dispatch. The [HEVC tier procedure](../../docs/design/ci-checks.md#hevc-tiers) explains exact-head full evidence and failure reporting. The smoke result does not replace G1, G2, G3 or fixed-file census evidence.
+
 The G1 driver of [the HEVC design](../../docs/design/hevc.md) acquires published data, checks every admitted stream's headers to EOF, and records the fixed 54-file profile/container census. The intra driver checks original unfiltered pictures for G2; `--filters` includes filtered pictures for G3 and retains G2 regression results. Neither driver reconstructs inter pictures or measures speed. The historical candidate counts below are not new reconstruction results.
 
 The [complete evidence-source table](evidence-sources.md) records the verified census at `028ca00a6831b64faa226614252edd0290ce642d`: 147 archives, 144 distinct official bitstreams, 144 header/reference checks, two named maintainer exclusions and one named unequal-depth refusal. The 126 hash-validated-oracle count rows represent 123 distinct streams; those counts are not labelled published. The separate four synthetic sources supply eight Main10 G2 candidates. Published candidates supply three 8-bit G2, eleven 8-bit G3 and six Main10 G3 pictures. All four depth/gate sets are nonempty; these are candidates, not reconstruction passes.
@@ -51,7 +53,7 @@ python3 -I scripts/hevc_decode.py \
   --max-picture-bins 268435456
 ```
 
-The comparator consumes the complete source-bound census, preserves every archive disposition and requires the published whole-output anchor before comparing individual output pictures. It checks original coded/output identities, geometry, packing, hashes, effective work and budget controls. `--select-test` is diagnostic only and cannot report complete coverage. The `decode` example accepts `INPUT MAX_MEMORY_BYTES MAX_STREAM_BINS MAX_PICTURE_BINS`; `-` reads standard input. Its bounded JSON lines contain each output picture and a final successful-completion summary. Annex B timestamps remain null. This command and its fixture tests are implemented; original-media results and the separate C2 container-packet comparison are still pending.
+The comparator consumes the complete source-bound census, preserves every archive disposition and requires the published whole-output anchor before comparing individual output pictures. It checks original coded/output identities, geometry, packing, hashes, effective work and budget controls. `--select-test` is diagnostic only and cannot report complete coverage. The `decode` example accepts `INPUT MAX_MEMORY_BYTES MAX_STREAM_BINS MAX_PICTURE_BINS`; `-` reads standard input. Its bounded JSON lines contain each output picture and a final successful-completion summary. Annex B timestamps remain null. This command and its fixture tests are implemented. Original-media C1 and C2 comparisons run in the full tier, not the routine smoke.
 
 ### Container packet comparison
 
@@ -63,7 +65,7 @@ The `packets` test tool accepts `INPUT CONFIG_ANNEXB STREAM_INDEX PACKET_LIMIT M
 
 The test adapter reports terminal zero padding while matching Annex B's NAL framing; it does not change stored/passed-packet hashes, complete CABAC zero words or entropy validation. The original NAL size is checked before trimming. Full-layer temporal-nesting NAL-type violations and non-coprime Extended_SAR declarations produce typed warnings rather than refusing otherwise decodable pictures; invalid SAR becomes unspecified. Supported ten-bit samples with a Main10 declaration remain admitted when an additional eight-bit-only compatibility claim is inconsistent; `profile_bit_depth` reports the contradiction. Ten-bit samples without a Main10 claim, unsupported depths, safety, reference and entropy failures remain strict refusals.
 
-Milestone 4 requires complete C1, unchanged G3 and exact equality for every completed C2 comparison. Explicit container/tooling blockers outside the decoder remain follow-ups with no pixel credit, preserving all 54 source identities. Decoder failures and pixel mismatches still block. The summary distinguishes `passed` under this acceptance rule from `complete` coverage of all requested comparisons, and publishes only aggregate follow-up reasons. Final-head C2 results remain pending.
+Milestone 4 requires complete C1, unchanged G3 and exact equality for every completed C2 comparison. Explicit container/tooling blockers outside the decoder remain follow-ups with no pixel credit, preserving all 54 source identities. Decoder failures and pixel mismatches still block. The summary distinguishes `passed` under this acceptance rule from `complete` coverage of all requested comparisons, and publishes only aggregate follow-up reasons. The full-tier verifier requires the current-head dispatch rather than a routine smoke or an earlier revision's success.
 
 ### Selected intra reconstruction
 

@@ -1534,15 +1534,12 @@ FFmpeg).**
   that names a protocol. A list `ffmpeg` fails too (an unsafe file name
   without `-safe 0`, no file, a directive written quoted or escaped) is
   rejected, exit 1.
-- A join that would not be timed as the concat demuxer times it: inputs
-  whose tracks have several edits, which the demuxer reads by its own edit
-  model, an input with a positive AAC media edit offset (including unselected audio), a first input with a nonzero format start, and an input the demuxer would place before the previous input's
-  video ends. An output that needs several audio edits is also refused, including gaps created from unedited inputs; native join's edit-based presentation is not the concat muxer's packet clock. See [audio-gap admission](concat-audio-gaps.md). Also inputs that do not match the first
+- Inputs whose tracks have several edits, a first input with a nonzero format start, and an input the demuxer would place before the previous input's video ends. Positive AAC media edit offsets, including unselected audio, also refuse unless the input has no actual fragments, the video is H.264 and that audio has one unit-rate edit, one configuration-declared AAC-LC description without SBR or PS, and an exactly representable skipped prefix of at least its configured frame length. Several output audio edits remain refused except when every selected audio input meets that priming rule. The [primed AAC design](concat-primed-aac.md) preserves each input's own presentation edits, not FFmpeg concat's priming-inclusive clocks. Configuration flags cannot exclude implicit SBR in the payload. Unprimed audio gaps retain [their refusal](concat-audio-gaps.md). Also inputs that do not match the first
   (codec, configuration, size, time base), inputs without a stream of the
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
   `join_mp4` does not copy (MPEG-4 Visual video, PCM or MP3 audio, say). Output is staged and published only for a supported join; a refusal leaves the output as it was.
-  H.264 compatibility concat also refuses because the pinned command inserts parameter sets that the native join does not reproduce exactly. This applies to unedited and video-only inputs too; strict-safe mode exits 4 and normal mode forwards the original command. No sample-entry label exception is registered. Native `coreav join` and ordinary copy remain unchanged; see [the clock investigation and refusal](concat-copy-clock.md).
+  H.264 compatibility concat writes `avc1` with SPS/PPS only in `avcC`. It refuses in-sample parameter sets and malformed AVC framing before publishing staged output. This is compatible output, not exact FFmpeg concat output; see [configuration-only AVC concat](concat-avc1.md). No sample-entry label exception is registered.
 - Cover pictures alone (C03's `-map 0 -map -0:m:language:eng` on a file
   whose tracks are tagged `eng`, or `-map 0:2` naming the picture): the
   pinned `ffmpeg` 9.0.2 writes a movie box with the picture in its item

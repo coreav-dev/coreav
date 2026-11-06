@@ -112,6 +112,13 @@ pub fn join_mp4<S: Source, W: Write>(
     let tv = first.video.timescale;
     let ta = first.audio.as_ref().map(|a| a.track.timescale);
     let compatibility = options.compatibility.as_ref();
+    let primed = compatibility.is_some()
+        && first.video.description.codec == Codec::H264
+        && movies.iter().zip(&picks).all(|(movie, pick)| {
+            pick.audio
+                .as_ref()
+                .is_some_and(|audio| primed_aac(movie, audio.track))
+        });
     if compatibility.is_some() {
         for (input, (movie, pick)) in movies.iter().zip(&picks).enumerate() {
             if movie.tracks.iter().any(|track| {
@@ -120,6 +127,7 @@ pub fn join_mp4<S: Source, W: Write>(
                         .chain(&track.later_descriptions)
                         .any(|description| description.codec == Codec::Aac)
                     && track.edits.iter().any(|edit| edit.media_time > 0)
+                    && !(first.video.description.codec == Codec::H264 && primed_aac(movie, track))
             }) {
                 return Err(at(
                     input,
@@ -253,7 +261,7 @@ pub fn join_mp4<S: Source, W: Write>(
     let video_duration = track_duration(&video_edits);
     if compatibility.is_some() && ta.is_some() {
         video_tables.decode_start =
-            edited_decode_start(&video_edits, tv, tm).map_err(JoinError::Output)?;
+            compatibility_decode_start(&video_edits, tv, tm, primed).map_err(JoinError::Output)?;
     }
     let first_movie = movies.first().ok_or(JoinError::NoInputs)?;
     let source = sources.first().ok_or(JoinError::NoInputs)?;
@@ -324,13 +332,13 @@ pub fn join_mp4<S: Source, W: Write>(
         };
         audio_edit_count = audio_edits.len();
         if compatibility.is_some() {
-            if audio_edit_count > 1 {
+            if audio_edit_count > 1 && !primed {
                 return Err(JoinError::Output(unsupported(
                     "a concat output that needs several audio edits",
                 )));
             }
-            tables.decode_start =
-                edited_decode_start(&audio_edits, ta, tm).map_err(JoinError::Output)?;
+            tables.decode_start = compatibility_decode_start(&audio_edits, ta, tm, primed)
+                .map_err(JoinError::Output)?;
         }
         movie_duration = movie_duration.max(duration);
         tracks.push(TrackBox {
@@ -347,7 +355,8 @@ pub fn join_mp4<S: Source, W: Write>(
             media_duration: media,
             duration,
             edits: audio_edits.into(),
-            stsd: joined_audio_entry(&picks, &spans, tables).map_err(JoinError::Output)?,
+            stsd: joined_audio_entry(&picks, &spans, tables, compatibility.is_some())
+                .map_err(JoinError::Output)?,
             tables,
             extra: Vec::new(),
             stbl_extra: Vec::new(),
@@ -651,10 +660,67 @@ fn encoder_item(value: &str) -> Result<Vec<u8>, Error> {
     Ok(out)
 }
 
+fn primed_aac(movie: &Movie, track: &Track) -> bool {
+    if movie.has_fragments() {
+        return false;
+    }
+    let description = &track.description;
+    let [edit] = track.edits.as_slice() else {
+        return false;
+    };
+    let (Some(rate), Some(frame)) = (
+        description.configured_sample_rate,
+        description.aac_frame_length,
+    ) else {
+        return false;
+    };
+    if description.codec != Codec::Aac
+        || !matches!(
+            &description.profile,
+            Some(coreav_isobmff::Profile::Aac {
+                object_type: 2,
+                sbr: false,
+                ps: false,
+            })
+        )
+        || !track.later_descriptions.is_empty()
+        || edit.media_rate != UNIT_RATE
+        || track.timescale == 0
+        || rate == 0
+        || frame == 0
+    {
+        return false;
+    }
+    let Ok(media) = u64::try_from(edit.media_time) else {
+        return false;
+    };
+    let samples = u128::from(media) * u128::from(rate);
+    let scale = u128::from(track.timescale);
+    samples % scale == 0 && samples / scale >= u128::from(frame)
+}
+
+fn compatibility_decode_start(
+    edits: &[EditEntry],
+    media_timescale: u32,
+    movie_timescale: u32,
+    primed: bool,
+) -> Result<i64, Error> {
+    let multiple = match edits {
+        [] | [_] => false,
+        [empty, media] if empty.media_time == -1 && media.media_time >= 0 => false,
+        _ => true,
+    };
+    if primed && multiple {
+        return Ok(0);
+    }
+    edited_decode_start(edits, media_timescale, movie_timescale)
+}
+
 fn joined_audio_entry(
     picks: &[Pick<'_>],
     spans: &[Spans<'_>],
     tables: &Tables,
+    compatibility: bool,
 ) -> Result<Vec<u8>, Error> {
     let first = picks
         .first()
@@ -701,6 +767,7 @@ fn joined_audio_entry(
                 }
             }
             let rate = description.configured_sample_rate.ok_or_else(overflow)?;
+            let opaque_clock = !compatibility && first.track.timescale != rate;
             for sample in 0..tables.samples() {
                 let size = tables.size(sample).ok_or_else(overflow)?;
                 if let Some(minimum) = bounds.get_mut(2) {
@@ -710,7 +777,11 @@ fn joined_audio_entry(
                     *maximum = (*maximum).max(size);
                 }
             }
+            let mut tail_minimum = if opaque_clock { None } else { Some(u32::MAX) };
             for span in spans.iter().take(spans.len().saturating_sub(1)) {
+                if tail_minimum.is_none() {
+                    break;
+                }
                 let tail = span
                     .audio
                     .as_ref()
@@ -724,13 +795,20 @@ fn joined_audio_entry(
                 let samples = u32::try_from(samples / u64::from(first.track.timescale))
                     .map_err(|_| overflow())?;
                 if samples < 16 {
-                    return Err(unsupported(
-                        "an internal FLAC block smaller than STREAMINFO permits",
-                    ));
+                    if compatibility {
+                        return Err(unsupported(
+                            "an internal FLAC block smaller than STREAMINFO permits",
+                        ));
+                    }
+                    tail_minimum = None;
+                    break;
                 }
-                if let Some(minimum) = bounds.first_mut() {
+                if let Some(minimum) = tail_minimum.as_mut() {
                     *minimum = (*minimum).min(samples);
                 }
+            }
+            if let (Some(minimum), Some(tail)) = (bounds.first_mut(), tail_minimum) {
+                *minimum = (*minimum).min(tail);
             }
             for (index, (start, end)) in [(8, 10), (10, 12), (12, 15), (15, 18)]
                 .into_iter()
@@ -745,12 +823,18 @@ fn joined_audio_entry(
             }
             let total = u128::from(tables.duration) * u128::from(rate);
             let scale = u128::from(first.track.timescale);
-            if total % scale != 0 || total / scale >= 1 << 36 {
-                return Err(unsupported(
-                    "a FLAC total outside STREAMINFO's sample count",
-                ));
-            }
-            let total = u64::try_from(total / scale).map_err(|_| overflow())?;
+            let total = if opaque_clock {
+                0
+            } else if total % scale != 0 || total / scale >= 1 << 36 {
+                if compatibility {
+                    return Err(unsupported(
+                        "a FLAC total outside STREAMINFO's sample count",
+                    ));
+                }
+                0
+            } else {
+                u64::try_from(total / scale).map_err(|_| overflow())?
+            };
             let field = config.get_mut(21..26).ok_or_else(overflow)?;
             let high = field.first().copied().ok_or_else(overflow)? & 0xf0;
             field.copy_from_slice(total.to_be_bytes().get(3..).ok_or_else(overflow)?);

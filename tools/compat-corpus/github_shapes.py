@@ -21,6 +21,7 @@ import encode_breadth as breadth
 import github_shapes_fixtures as fixtures
 import github_shapes_inputs as inputs
 import github_shapes_set as roster
+import github_shapes_aac as aac
 import oracle_pin
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
@@ -29,9 +30,13 @@ BUILD = ['cargo', 'build', '--release', '--locked', '-p', 'coreav-cli', '--featu
 MISSES = ('uninstantiable', 'reference_failed', 'timeout', 'refused', 'failed',
           'unexpected_program', 'no_oracle', 'different')
 EXACT_CODECS = ('h264', 'vp9', 'aac', 'opus')
+COMPATIBLE = 'compatible_avc1'
 MAPPING = re.compile(r'^\s*Stream #\d+:\d+(?:\[[^]]*\])?(?: \([^)]*\))? -> #(\d+):(\d+) \((.*)\)\s*$', re.M)
 METHOD = ('docs/design/github-shapes-200.md', 'scripts/oracle-ffmpeg.env',
-          '.github/workflows/github-shapes.yml', 'Cargo.lock')
+          '.github/workflows/github-shapes.yml', 'Cargo.lock',
+          'docs/design/aac-pcm-eligibility.md', 'docs/design/aac-pns-eligibility.md',
+          'docs/compat/audio-decoder-eligibility.json', 'scripts/aac-pns-requirements.txt',
+          'scripts/oracle-audio-args.txt')
 
 
 class EvidenceError(ValueError):
@@ -290,6 +295,9 @@ def compare_outputs(command, base, programs, env, scratch):
     mapping = jobs(ref)
     if not mapping:
         return 'no_oracle'
+    aac_decoded = aac.decodes_aac(ref)
+    outcome, unavailable = 'counted', 'no_oracle'
+    timeline_checks = []
     controls = {'command.stdout', 'command.stderr', 'stdout', 'fallback.jsonl', 'starts.json'}
     for folder, failure in ((ref, 'no_oracle'), (mine, 'different')):
         declared = {path.name for name in command.outputs for path in inputs.output_files(folder, name)}
@@ -299,35 +307,62 @@ def compare_outputs(command, base, programs, env, scratch):
         try:
             raw = raw_description(command, output_index, source)
         except (ValueError, TypeError):
-            return 'no_oracle'
+            return unavailable
         copied = [stream for (output, stream), kind in mapping.items() if output == output_index and kind == 'copy']
         left, right = inputs.output_files(mine, name), inputs.output_files(ref, name)
         if not right:
-            return 'no_oracle'
+            return unavailable
         if [p.name for p in left] != [p.name for p in right]:
             return 'different'
         for actual, expected in zip(left, right):
+            carriage = False
             description = decoded_output.probe(expected, programs['$FFPROBE'], env, raw)
             if description is None:
-                return 'no_oracle'
+                return unavailable
             if any((output_index, stream) not in mapping for stream in range(len(description['streams']))):
-                return 'no_oracle'
+                return unavailable
             if any(s.get('codec_name') in ('png', 'bmp') for s in description['streams']):
                 if source is None or any(s.get('codec_type') == 'video' and
                     not s.get('pix_fmt', '').startswith(('rgb', 'bgr', 'gbr')) for s in source['streams']):
-                    return 'no_oracle'
-            verdict, _ = decoded_output.compare(actual, expected, programs['$FFMPEG'], programs['$FFPROBE'],
+                    return unavailable
+            verdict, reason = decoded_output.compare(actual, expected, programs['$FFMPEG'], programs['$FFPROBE'],
                                                 env, scratch, inputs=raw, registered_codecs=EXACT_CODECS)
+            aac_pcm = aac_decoded and len(command.sources) == len(command.outputs) == len(left) == 1 and (
+                mapping.get((0, 0)) in aac.PCM and len(mapping) == 1)
+            if aac_pcm and (verdict == 'verified' or (verdict, reason) == ('failed', 'decoded samples')):
+                result = aac.compare(command, base, source, mapping, (verdict, reason), programs, scratch)
+                if result == aac.COMPATIBLE:
+                    checked = decoded_output.compare(actual, expected, programs['$FFMPEG'], programs['$FFPROBE'],
+                        env, scratch, inputs=raw, registered_codecs=EXACT_CODECS, exact_frame_timeline=True)
+                    if checked not in (('failed', 'decoded samples'), ('verified', 'exact decoded output')):
+                        return 'different'
+                return result
+            if aac_decoded and verdict == 'verified' and not aac.exact_without_pns(
+                    command, base, source, programs, scratch):
+                return 'different'
             if verdict != 'verified':
-                return 'no_oracle' if verdict == 'unverified' else 'different'
+                return unavailable if verdict == 'unverified' else 'different'
             if copied:
                 a = packet_rows(actual, programs['$FFPROBE'], env, raw)
                 b = packet_rows(expected, programs['$FFPROBE'], env, raw)
                 if a is None or b is None:
-                    return 'no_oracle'
+                    return unavailable
                 if [p for p in a if p[0] in copied] != [p for p in b if p[0] in copied]:
-                    return 'different'
-    return 'counted' if command.outputs else 'no_oracle'
+                    if not decoded_output.avc1_carriage(actual, expected, programs['$FFMPEG'], programs['$FFPROBE'],
+                            env, scratch, copied, inputs=raw, registered_codecs=EXACT_CODECS):
+                        return 'different'
+                    outcome, unavailable = COMPATIBLE, 'different'
+                    carriage = True
+            if not carriage:
+                timeline_checks.append((actual, expected, raw, copied))
+    if outcome == COMPATIBLE:
+        for actual, expected, raw, copied in timeline_checks:
+            verdict, _ = decoded_output.compare(actual, expected, programs['$FFMPEG'], programs['$FFPROBE'],
+                env, scratch, inputs=raw, copied_streams=copied, registered_codecs=EXACT_CODECS,
+                exact_frame_timeline=True)
+            if verdict != 'verified':
+                return 'different'
+    return outcome if command.outputs else unavailable
 
 
 def judge(row, record, bundle, programs, env, scratch):
@@ -404,7 +439,7 @@ def summarize(rows, outcomes):
     counts, weights, tools = collections.Counter(), collections.Counter(), {}
     for row, outcome in zip(rows, outcomes):
         code = outcome['outcome']
-        if code not in (*MISSES, 'counted'):
+        if code not in (*MISSES, COMPATIBLE, aac.COMPATIBLE, 'counted'):
             raise EvidenceError('result_class')
         counts[code] += 1
         weights[code] += row['repository_count']
@@ -413,10 +448,12 @@ def summarize(rows, outcomes):
         tool['pairs'][code] += row['repository_count']
     return {'set': 'github-shapes-200', 'set_sha256': roster.DIGEST, 'shapes': 200,
             'counted': counts['counted'], 'repository_pairs': 1470, 'counted_pairs': weights['counted'],
+            COMPATIBLE: counts[COMPATIBLE], COMPATIBLE + '_pairs': weights[COMPATIBLE],
+            aac.COMPATIBLE: counts[aac.COMPATIBLE], aac.COMPATIBLE + '_pairs': weights[aac.COMPATIBLE],
             'top_200_pair_share': weights['counted'] / 1470,
             'whole_sample_presence_lower_bound': weights['counted'] / 3338,
-            'outcomes': {key: counts[key] for key in (*MISSES, 'counted')},
-            'outcome_pairs': {key: weights[key] for key in (*MISSES, 'counted')}, 'tools': tools, 'bar': None}
+            'outcomes': {key: counts[key] for key in (*MISSES, COMPATIBLE, aac.COMPATIBLE, 'counted')},
+            'outcome_pairs': {key: weights[key] for key in (*MISSES, COMPATIBLE, aac.COMPATIBLE, 'counted')}, 'tools': tools, 'bar': None}
 
 
 def inventory(bundle):
@@ -430,7 +467,13 @@ def inventory(bundle):
 
 
 def verify_programs(opts):
+    import numpy as np
+    required = (ROOT / 'scripts/aac-pns-requirements.txt').read_text().splitlines()[0].split()[0].removeprefix('numpy==')
+    if np.__version__ != required:
+        raise EvidenceError('pns_dependency_version')
     identities = breadth.oracle_programs(opts)
+    identities['pns_diagnostic'] = {'sha256': digest(Path(opts.pns_diagnostic)), 'command': aac.DIAGNOSTIC_BUILD}
+    identities['numpy'] = {'version': np.__version__}
     pin = oracle_pin.load()
     version = subprocess.run([opts.x264, '--version'], capture_output=True, text=True, timeout=10, check=True).stdout
     if pin['X264_COMMIT'][:7] not in version:
@@ -471,7 +514,8 @@ def replay(opts):
     if [record['rank'] for record in records] != [row['rank'] for row in rows]:
         raise EvidenceError('receipt_roster')
     programs = {'$COREAV': str(Path(opts.coreav).resolve()), '$FFMPEG': str(Path(opts.ffmpeg).resolve()),
-                '$FFPROBE': str(Path(opts.ffprobe).resolve()), '$X264': str(Path(opts.x264).resolve())}
+                '$FFPROBE': str(Path(opts.ffprobe).resolve()), '$X264': str(Path(opts.x264).resolve()),
+                '$AAC_DIAGNOSTIC': str(Path(opts.pns_diagnostic).resolve())}
     opts.scratch.mkdir(parents=True, exist_ok=False)
     outcomes = [{'rank': row['rank'], 'outcome': judge(row, record, bundle, programs, environment(), opts.scratch)}
                 for row, record in zip(rows, records)]
@@ -495,7 +539,8 @@ def run(opts):
                  'lock_sha256': digest(ROOT / 'Cargo.lock')}:
         raise EvidenceError('build_record')
     programs = {'$COREAV': str(Path(opts.coreav).resolve()), '$FFMPEG': str(Path(opts.ffmpeg).resolve()),
-                '$FFPROBE': str(Path(opts.ffprobe).resolve()), '$X264': str(Path(opts.x264).resolve())}
+                '$FFPROBE': str(Path(opts.ffprobe).resolve()), '$X264': str(Path(opts.x264).resolve()),
+                '$AAC_DIAGNOSTIC': str(Path(opts.pns_diagnostic).resolve())}
     bundle = opts.bundle.resolve()
     bundle.mkdir(parents=True, exist_ok=False)
     env = environment()
@@ -526,7 +571,7 @@ def run(opts):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('run', 'replay'))
-    for name in ('coreav', 'ffmpeg', 'ffprobe', 'x264'):
+    for name in ('coreav', 'ffmpeg', 'ffprobe', 'x264', 'pns-diagnostic'):
         parser.add_argument('--' + name, required=True)
     for name in ('bundle', 'scratch', 'summary'):
         parser.add_argument('--' + name, type=Path, required=True)

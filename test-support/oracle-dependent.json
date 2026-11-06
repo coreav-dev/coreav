@@ -59,15 +59,13 @@
     "ordinary_copy_refuses_trimmed_simple_edits",
     "picture_by_picture_selections_agree_with_the_pinned_ffmpeg",
     "plain_extraction_metadata_agrees_with_the_pinned_ffmpeg",
-    "primed_aac_concat_refuses_and_preserves_complete_pinned_fallback",
     "raw_s16_fifo_refuses_and_preserves_exact_pinned_fallback",
     "raw_s16_linked_outputs_refuse_and_fall_back_through_the_target",
     "raw_s16_unwritable_targets_preserve_the_pinned_exit_status",
     "stream_metadata_agrees_with_the_pinned_ffmpeg",
     "stripped_metadata_agrees_with_the_pinned_ffmpeg",
     "the_0_1_0_commands_on_the_fixtures",
-    "unedited_video_copy_normalizes_its_origin_without_losing_frames",
-    "unqualified_primed_aac_concat_preserves_outputs_and_real_fallback"
+    "unedited_video_copy_normalizes_its_origin_without_losing_frames"
   ],
   "crates/coreav-cli/tests/ffmpeg_aac_filter.rs": [
     "aac_filter_is_an_exact_concat_identity_or_preserved_fallback"
@@ -75,7 +73,12 @@
   "crates/coreav-cli/tests/ffmpeg_concat.rs": [
     "concat_audio_gaps_are_refused_with_exact_pinned_fallback",
     "lossless_audiovisual_concat_preserves_complete_native_output",
+    "native_video_metadata_compares_complete_records_and_all_packet_bytes",
     "unedited_audiovisual_concat_matches_the_pinned_ffmpeg"
+  ],
+  "crates/coreav-cli/tests/ffmpeg_concat_primed.rs": [
+    "rate_mixed_later_idr_and_aud_controls_qualify_separately",
+    "twelve_primed_concat_recipes_preserve_continuous_presentation"
   ],
   "crates/coreav-cli/tests/ffmpeg_flac.rs": [
     "complete_raw_bytes_match_the_pin_for_files_stdout_and_stdin",
@@ -139,6 +142,9 @@
   "crates/coreav-cli/tests/ffprobe_stdin.rs": [
     "structured_stdin_and_complete_pinned_replay"
   ],
+  "crates/coreav-cli/tests/frame_handoff.rs": [
+    "shared_and_copied_handoffs_produce_identical_files"
+  ],
   "crates/coreav-cli/tests/legacy_encoders.rs": [
     "legacy_encoder_choices_keep_media_summaries_errors_and_exit_codes"
   ],
@@ -171,6 +177,7 @@
     "ffmpeg_default_codecs_match_the_oracle",
     "ffmpeg_libopus_lines_encode_the_audio",
     "ffmpeg_libx264_commands_run_the_pipeline",
+    "ffmpeg_libx264_crop_matches_the_oracle",
     "ffmpeg_libx264_keeps_a_cover_picture_only_when_it_is_copied",
     "ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply",
     "ffmpeg_libx264_refuses_before_encoding",
@@ -192,6 +199,7 @@
     "the_opus_encode_selects_the_first_decoded_stream_before_flac",
     "the_opus_encode_takes_opus_before_a_flac_stream",
     "times_in_decode_order_keep_every_frame",
+    "unscaled_encoding_preserves_declared_sar_without_changing_scale",
     "unsnapped_h264_times_keep_the_vui_rate",
     "variable_rate_sources_encode_as_ffmpeg_does"
   ],

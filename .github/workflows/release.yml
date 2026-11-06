@@ -36,6 +36,12 @@ on:
       - packages/cli/test/release-smoke.py
       - scripts/install-x264.sh
       - scripts/oracle-ffmpeg.env
+      - scripts/test_oracle.py
+      - scripts/oracle_pin.py
+      - scripts/oracle_pin_macos.py
+      - scripts/oracle_audio.py
+      - scripts/oracle-ffmpeg-macos.env
+      - scripts/oracle-audio-args.txt
       - scripts/install-oracle-ffmpeg.sh
       - crates/**/Cargo.toml
       - Cargo.toml

@@ -6,6 +6,7 @@ import pathlib
 import re
 import shlex
 import subprocess
+import tempfile
 import unittest
 
 
@@ -56,6 +57,79 @@ class MainPlan(unittest.TestCase):
             '--features', 'ffmpeg-fallback,dav1d,libvpx,libopus,aac', '--test', 'transcode',
             '--target-dir', 'target/fallback',
         ], 'Run the complete transcode target with AAC enabled; remove test-name filters')
+
+    def test_macos_runs_the_declared_sar_media_case_with_qualified_tools(self):
+        steps = self.workflows['ci']['jobs']['check-macos']['steps']
+        selected = [step for step in steps if step.get('name') == 'Declared sample aspect ratios on macOS']
+        self.assertEqual(len(selected), 1,
+                         'Add the declared-SAR media step to check-macos; workspace features run zero transcode tests')
+        step = selected[0]
+        self.assertEqual(step.get('if'), "env.COREAV_FFMPEG != '' && env.COREAV_FFPROBE != ''",
+                         'Run the SAR media case when the registered oracle pair was provisioned')
+        self.assertEqual(step['env'], {
+            'COREAV_REQUIRE_FFMPEG': '1',
+            'COREAV_X264': '${{ runner.temp }}/coreav-test-oracle/x264',
+        })
+        self.assertEqual([line.strip() for line in step['run'].splitlines() if line.strip()], [
+            'scripts/install-x264.sh "$RUNNER_TEMP/coreav-test-oracle"',
+            'cargo test --locked -p coreav-cli --features native-h264 --test transcode '
+            'unscaled_encoding_preserves_declared_sar_without_changing_scale '
+            '-- --exact --nocapture --color never 2>&1 | tee "$RUNNER_TEMP/declared-sar-macos.log"',
+            "grep -F 'test unscaled_encoding_preserves_declared_sar_without_changing_scale ... ok' "
+            '"$RUNNER_TEMP/declared-sar-macos.log"',
+        ], 'Install pinned x264 and require the actual SAR test success line; zero tests must fail')
+        provision, = [s for s in steps if s.get('name') == 'Provision the registered macOS oracle or select oracle-free tests']
+        self.assertLess(steps.index(provision), steps.index(step))
+
+    def test_macos_sar_success_witness_rejects_zero_tests(self):
+        steps = self.workflows['ci']['jobs']['check-macos']['steps']
+        step, = [s for s in steps if s.get('name') == 'Declared sample aspect ratios on macOS']
+        witness = step['run'].splitlines()[-1]
+        with tempfile.TemporaryDirectory() as directory:
+            log = pathlib.Path(directory) / 'declared-sar-macos.log'
+            for output, succeeds in [
+                ('running 0 tests\ntest result: ok. 0 passed; 0 failed\n', False),
+                ('test unscaled_encoding_preserves_declared_sar_without_changing_scale ... FAILED\n', False),
+                ('test unscaled_encoding_preserves_declared_sar_without_changing_scale ... ok\n', True),
+            ]:
+                log.write_text(output)
+                done = subprocess.run(['bash', '-c', witness], capture_output=True, text=True,
+                                      env={'RUNNER_TEMP': directory, 'PATH': '/usr/bin:/bin'})
+                self.assertEqual(done.returncode == 0, succeeds,
+                                 'The macOS SAR witness must reject zero or failed tests')
+
+    def test_macos_crop_runs_real_media_with_qualified_tools(self):
+        steps = self.workflows['ci']['jobs']['check-macos']['steps']
+        selected = [s for s in steps if s.get('name') == 'Literal crop frames on macOS']
+        self.assertEqual(len(selected), 1, 'Run the literal-crop media case in check-macos')
+        step = selected[0]
+        self.assertEqual(step.get('if'), "env.COREAV_FFMPEG != '' && env.COREAV_FFPROBE != ''")
+        self.assertEqual(step['env'], {
+            'COREAV_REQUIRE_FFMPEG': '1',
+            'COREAV_X264': '${{ runner.temp }}/coreav-test-oracle/x264',
+        })
+        self.assertEqual(step['run'].splitlines(), [
+            'cargo test --locked -p coreav-cli --features native-h264 --test transcode '
+            'ffmpeg_libx264_crop_matches_the_oracle -- --exact --nocapture --color never '
+            '2>&1 | tee "$RUNNER_TEMP/literal-crop-macos.log"',
+            "grep -F 'test ffmpeg_libx264_crop_matches_the_oracle ... ok' "
+            '"$RUNNER_TEMP/literal-crop-macos.log"',
+        ], 'Run the exact crop test and require its success witness, not a zero-test pass')
+        install, = [s for s in steps if s.get('name') == 'Declared sample aspect ratios on macOS']
+        self.assertIn('scripts/install-x264.sh', install['run'])
+        self.assertLess(steps.index(install), steps.index(step))
+        with tempfile.TemporaryDirectory() as directory:
+            log = pathlib.Path(directory) / 'literal-crop-macos.log'
+            for output, succeeds in [
+                ('running 0 tests\ntest result: ok. 0 passed; 0 failed\n', False),
+                ('test ffmpeg_libx264_crop_matches_the_oracle ... FAILED\n', False),
+                ('test ffmpeg_libx264_crop_matches_the_oracle ... ok\n', True),
+            ]:
+                log.write_text(output)
+                result = subprocess.run(['bash', '-c', step['run'].splitlines()[-1]],
+                                        capture_output=True, text=True,
+                                        env={'RUNNER_TEMP': directory, 'PATH': '/usr/bin:/bin'})
+                self.assertEqual(result.returncode == 0, succeeds)
 
     def test_aac_qualification_report_survives_failure(self):
         workflow = json.loads(subprocess.check_output(

@@ -1162,6 +1162,7 @@ fn run_transcode(
         bitrate: args.bitrate,
         preset: args.preset.clone(),
         scale,
+        crop: None,
         no_audio: args.audio == "none",
         audio_streams: None,
         left_out_covers: Vec::new(),

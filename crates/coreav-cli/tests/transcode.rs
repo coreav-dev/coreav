@@ -680,6 +680,213 @@ fn scale_bitrate_and_no_audio() {
 }
 
 #[test]
+fn unscaled_encoding_preserves_declared_sar_without_changing_scale() {
+    let pair = test_oracle::require();
+    let x264 = x264().expect("the pinned x264 program is required");
+    struct Fixture(PathBuf);
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let owner = Fixture(
+        Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join(format!("transcode-declared-sar-{}", std::process::id())),
+    );
+    std::fs::create_dir(&owner.0).unwrap();
+    let tools = Tools {
+        ffmpeg: pair.ffmpeg().to_path_buf(),
+        ffprobe: pair.ffprobe().to_path_buf(),
+        x264,
+        fixtures: owner.0.clone(),
+    };
+    let capture = |command: &mut Command| {
+        bounded::output(command, None, std::time::Duration::from_secs(90)).unwrap()
+    };
+    let pasp = |path: &Path| {
+        let bytes = std::fs::read(path).unwrap();
+        let movie = coreav_isobmff::probe(
+            coreav_isobmff::SliceSource::new(&bytes),
+            &coreav_isobmff::Limits::default(),
+            &coreav_isobmff::Allowlist::default(),
+        )
+        .unwrap();
+        assert_eq!(movie.tracks.len(), 1);
+        movie.tracks[0].description.pixel_aspect
+    };
+    let exact = |output: &Path, reference: &Path| {
+        let compare = capture(Command::new("python3")
+            .args(["-I", "-c", "import os,pathlib,sys; sys.path.insert(0,sys.argv[1]); import decoded_output; verdict,reason=decoded_output.compare(pathlib.Path(sys.argv[2]),pathlib.Path(sys.argv[3]),sys.argv[4],sys.argv[5],dict(os.environ),pathlib.Path(sys.argv[6]),registered_codecs=('h264',)); print(verdict,reason); assert verdict=='verified',reason"])
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/compat-corpus"))
+            .arg(output)
+            .arg(reference)
+            .arg(&tools.ffmpeg)
+            .arg(&tools.ffprobe)
+            .arg(&owner.0));
+        assert!(
+            compare.status.success(),
+            "{}: {} {}",
+            output.display(),
+            String::from_utf8_lossy(&compare.stdout),
+            String::from_utf8_lossy(&compare.stderr)
+        );
+    };
+    let mut encoded_outputs = 0;
+    let mut strict_refusals = 0;
+    for (name, declaration, ratio) in [
+        ("square", "1", Some((1, 1))),
+        ("nonsquare", "4/3", Some((4, 3))),
+        ("absent", "0", None),
+    ] {
+        let source = owner.0.join(format!("{name}.mp4"));
+        let made = capture(
+            Command::new(&tools.ffmpeg)
+                .args(["-v", "error", "-f", "lavfi", "-i"])
+                .arg(format!("testsrc2=size=96x64:rate=10,setsar={declaration}"))
+                .args([
+                    "-frames:v",
+                    "7",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-an",
+                ])
+                .arg(&source),
+        );
+        assert!(
+            made.status.success(),
+            "{}",
+            String::from_utf8_lossy(&made.stderr)
+        );
+        assert_eq!(pasp(&source), ratio);
+        let reference = owner.0.join(format!("{name}-reference.mp4"));
+        let made = capture(
+            Command::new(&tools.ffmpeg)
+                .args(["-v", "error", "-i"])
+                .arg(&source)
+                .args(["-an", "-c:v", "libx264"])
+                .arg(&reference),
+        );
+        assert!(
+            made.status.success(),
+            "{}",
+            String::from_utf8_lossy(&made.stderr)
+        );
+        for (encoder, encoder_args) in encoders(&tools) {
+            for scale in [None, Some("96:64"), Some("64:32")] {
+                let output = owner.0.join(format!(
+                    "{name}-{encoder}-{}.mp4",
+                    scale.unwrap_or("unscaled").replace(':', "x")
+                ));
+                let mut args = vec![
+                    source.to_str().unwrap().to_owned(),
+                    output.to_str().unwrap().to_owned(),
+                    "--audio".into(),
+                    "none".into(),
+                ];
+                args.extend(encoder_args.clone());
+                if let Some(scale) = scale {
+                    args.extend(["--scale".into(), scale.into()]);
+                }
+                let args: Vec<_> = args.iter().map(String::as_str).collect();
+                let run = transcode(Some(&tools), &args);
+                assert_eq!(run.code, 0, "{name}/{encoder}/{scale:?}: {}", run.stderr);
+                let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+                let expected = match scale {
+                    None => ratio,
+                    Some("96:64") => ratio.filter(|(n, d)| n != d),
+                    Some(_) if ratio == Some((4, 3)) => None,
+                    Some(_) => Some((3, 4)),
+                };
+                let text = expected.map(|(n, d)| format!("{n}:{d}"));
+                assert_eq!(summary["video"]["sample_aspect"], serde_json::json!(text));
+                assert_eq!(summary["video"]["frames"], 7);
+                assert_eq!(pasp(&output), expected);
+                let extracted = capture(
+                    Command::new(&tools.ffmpeg)
+                        .args(["-v", "error", "-i"])
+                        .arg(&output)
+                        .args(["-map", "0:v:0", "-c:v", "copy", "-an", "-f", "h264", "-"]),
+                );
+                assert!(extracted.status.success());
+                let mut annexb = coreav_transcode::annexb::AnnexBReader::new(Default::default());
+                annexb.push(&extracted.stdout).unwrap();
+                annexb.finish().unwrap();
+                assert_eq!(
+                    annexb.config().unwrap().sample_aspect_ratio,
+                    if encoder == "ffmpeg" {
+                        Some((1, 1))
+                    } else {
+                        expected
+                            .map(|(n, d)| (u16::try_from(n).unwrap(), u16::try_from(d).unwrap()))
+                    },
+                    "{name}/{encoder}/{scale:?}"
+                );
+                if scale.is_none() && ratio.is_some() {
+                    exact(&output, &reference);
+                }
+                encoded_outputs += 1;
+            }
+        }
+        for strict in [false, true] {
+            let output = owner.0.join(format!("{name}-compat-{strict}.mp4"));
+            let mut command = Command::new(bin());
+            if strict {
+                command.arg("--strict-safe");
+            }
+            let run = capture(
+                command
+                    .args(["ffmpeg", "-i"])
+                    .arg(&source)
+                    .arg("-an")
+                    .arg(&output)
+                    .env("COREAV_FFMPEG", &tools.ffmpeg)
+                    .env("COREAV_X264", &tools.x264)
+                    .env("COREAV_FALLBACK", NO_FALLBACK),
+            );
+            if strict && !coreav_worker::enforces_memory_limit() {
+                assert_eq!(run.status.code(), Some(4));
+                assert!(run.stdout.is_empty());
+                assert_eq!(run.stderr, b"coreav ffmpeg: strict-safe: no enforceable memory limit for the sandbox on this platform, so it starts no sandboxed decoder or encoder, or run without --strict-safe and COREAV_STRICT_SAFE\n");
+                assert!(!output.exists());
+                strict_refusals += 1;
+                continue;
+            }
+            if strict && !cfg!(feature = "native-h264") {
+                assert_eq!(run.status.code(), Some(4));
+                assert!(!output.exists());
+                strict_refusals += 1;
+                continue;
+            }
+            assert!(
+                run.status.success(),
+                "{}",
+                String::from_utf8_lossy(&run.stderr)
+            );
+            assert!(run.stdout.is_empty());
+            assert_eq!(pasp(&output), ratio);
+            if ratio.is_some() {
+                exact(&output, &reference);
+            }
+            encoded_outputs += 1;
+        }
+    }
+    assert_eq!(encoded_outputs + strict_refusals, 24);
+    assert_eq!(
+        strict_refusals,
+        if cfg!(feature = "native-h264") && coreav_worker::enforces_memory_limit() {
+            0
+        } else {
+            3
+        }
+    );
+    eprintln!(
+        "SAR matrix: {encoded_outputs} encoded outputs, {strict_refusals} strict-safe refusals"
+    );
+}
+
+#[test]
 fn an_edit_list_that_trims_the_start() {
     let Some(tools) = tools() else { return };
     let dir = dir("trimmed");
@@ -1853,6 +2060,313 @@ fn ffmpeg_default_codecs_match_the_oracle() {
         decodes_cleanly(&tools, &output);
     }
     nothing_left(&dir);
+}
+
+#[test]
+fn ffmpeg_libx264_crop_matches_the_oracle() {
+    let pair = test_oracle::require();
+    let x264 = x264().expect("the pinned x264 program is required");
+    let dir = dir("literal-crop");
+    let capture = |command: &mut Command| {
+        bounded::output(command, None, std::time::Duration::from_secs(90)).unwrap()
+    };
+    let successful = |command: &mut Command| {
+        let result = capture(command);
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        result.stdout
+    };
+    let source = dir.join("generated.mp4");
+    successful(
+        Command::new(pair.ffmpeg())
+            .args([
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=64x48:rate=10:duration=2",
+                "-an",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+            ])
+            .arg(&source),
+    );
+    let flags = [
+        "-an",
+        "-c:v",
+        "libx264",
+        "-f",
+        "mp4",
+        "-movflags",
+        "+faststart",
+        "-pix_fmt",
+        "yuv420p",
+    ];
+    for (name, crop) in [
+        ("origin", "crop=32:24:0:0"),
+        ("offset", "crop=32:24:16:8"),
+        ("aspect", "crop=32:16:16:8"),
+        ("identity", "crop=64:48:0:0"),
+    ] {
+        let reference = dir.join(format!("{name}-reference.mp4"));
+        successful(
+            Command::new(pair.ffmpeg())
+                .args(["-v", "error", "-i"])
+                .arg(&source)
+                .args(flags)
+                .args(["-vf", crop])
+                .arg(&reference),
+        );
+        let frames = |path: &Path, format: &str| {
+            successful(
+                Command::new(pair.ffmpeg())
+                    .args(["-v", "error", "-i"])
+                    .arg(path)
+                    .args(["-map", "0:v:0", "-f", format, "-"]),
+            )
+        };
+        let expected_md5 = frames(&reference, "framemd5");
+        assert_eq!(
+            String::from_utf8_lossy(&expected_md5)
+                .lines()
+                .filter(|l| !l.starts_with('#'))
+                .count(),
+            20
+        );
+        let probe = |path: &Path| -> Value {
+            serde_json::from_slice(&successful(Command::new(pair.ffprobe())
+                .args(["-v", "error", "-count_frames", "-show_entries", "stream=codec_name,profile,width,height,pix_fmt,sample_aspect_ratio,nb_read_frames,time_base,avg_frame_rate,duration", "-of", "json"])
+                .arg(path))).unwrap()
+        };
+        let expected_probe = probe(&reference);
+        for strict in [false, true] {
+            if strict && !cfg!(feature = "native-h264") {
+                continue;
+            }
+            let output = dir.join(format!("{name}-{strict}.mp4"));
+            let log = dir.join(format!("{name}-{strict}-fallback.log"));
+            let mut command = Command::new(bin());
+            if strict {
+                command.arg("--strict-safe");
+            }
+            let actual = capture(
+                command
+                    .args(["ffmpeg", "-i"])
+                    .arg(&source)
+                    .args(flags)
+                    .args(["-vf", crop])
+                    .arg(&output)
+                    .env("COREAV_FFMPEG", pair.ffmpeg())
+                    .env("COREAV_X264", &x264)
+                    .env("COREAV_FALLBACK", NO_FALLBACK)
+                    .env("COREAV_FALLBACK_LOG", &log),
+            );
+            if strict && !coreav_worker::enforces_memory_limit() {
+                assert_eq!(actual.status.code(), Some(4));
+                assert_eq!(actual.stderr, b"coreav ffmpeg: strict-safe: no enforceable memory limit for the sandbox on this platform, so it starts no sandboxed decoder or encoder, or run without --strict-safe and COREAV_STRICT_SAFE\n");
+                assert!(actual.stdout.is_empty());
+                assert!(!output.exists());
+                continue;
+            }
+            assert!(
+                actual.status.success(),
+                "{name}/{strict}: {}",
+                String::from_utf8_lossy(&actual.stderr)
+            );
+            assert!(
+                !log.exists() || std::fs::read(&log).unwrap().is_empty(),
+                "fell back"
+            );
+            assert_eq!(probe(&output), expected_probe, "{name}/{strict}");
+            assert_eq!(frames(&output, "framemd5"), expected_md5, "{name}/{strict}");
+            assert_eq!(
+                frames(&output, "rawvideo"),
+                frames(&reference, "rawvideo"),
+                "{name}/{strict}"
+            );
+        }
+    }
+    for (name, crop, why) in [
+        (
+            "outside-width",
+            "crop=66:24:0:0",
+            "does not fit the 64x48 frames",
+        ),
+        (
+            "outside-height",
+            "crop=32:50:0:0",
+            "does not fit the 64x48 frames",
+        ),
+        (
+            "outside-x",
+            "crop=32:24:34:0",
+            "does not fit the 64x48 frames",
+        ),
+        (
+            "outside-y",
+            "crop=32:24:0:26",
+            "does not fit the 64x48 frames",
+        ),
+        (
+            "expression",
+            "crop=iw/2:24:0:0",
+            "only crop=W:H:X:Y in even pixels",
+        ),
+        (
+            "chain",
+            "crop=32:24:0:0,scale=16:16",
+            "only crop=W:H:X:Y in even pixels",
+        ),
+        ("odd", "crop=31:24:0:0", "only crop=W:H:X:Y in even pixels"),
+    ] {
+        let output = dir.join(format!("{name}.mp4"));
+        let log = dir.join(format!("{name}-fallback.log"));
+        for exists in [false, true] {
+            if exists {
+                std::fs::write(&output, b"keep destination").unwrap();
+            }
+            let actual = capture(
+                Command::new(bin())
+                    .args(["ffmpeg", "-y", "-i"])
+                    .arg(&source)
+                    .args(flags)
+                    .args(["-vf", crop])
+                    .arg(&output)
+                    .env("COREAV_FFMPEG", pair.ffmpeg())
+                    .env("COREAV_X264", &x264)
+                    .env("COREAV_FALLBACK", NO_FALLBACK)
+                    .env("COREAV_FALLBACK_LOG", &log),
+            );
+            assert_eq!(
+                actual.status.code(),
+                Some(4),
+                "{name}: {}",
+                String::from_utf8_lossy(&actual.stderr)
+            );
+            assert!(
+                String::from_utf8_lossy(&actual.stderr).contains(why),
+                "{name}: {}",
+                String::from_utf8_lossy(&actual.stderr)
+            );
+            assert!(actual.stdout.is_empty());
+            if exists {
+                assert_eq!(std::fs::read(&output).unwrap(), b"keep destination");
+            } else {
+                assert!(!output.exists());
+            }
+        }
+    }
+    let other_format = dir.join("yuv420p10-source.mp4");
+    successful(
+        Command::new(pair.ffmpeg())
+            .args([
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=64x48:rate=10:duration=0.3",
+                "-an",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p10le",
+            ])
+            .arg(&other_format),
+    );
+    for requested in [None, Some("yuv420p")] {
+        let output = dir.join("format-refused.mp4");
+        let mut command = Command::new(bin());
+        command.args(["ffmpeg", "-i"]).arg(&other_format).args([
+            "-an",
+            "-c:v",
+            "libx264",
+            "-vf",
+            "crop=32:24:0:0",
+        ]);
+        if let Some(format) = requested {
+            command.args(["-pix_fmt", format]);
+        }
+        let result = capture(
+            command
+                .arg(&output)
+                .env("COREAV_FFMPEG", pair.ffmpeg())
+                .env("COREAV_X264", &x264)
+                .env("COREAV_FALLBACK", NO_FALLBACK),
+        );
+        assert_eq!(result.status.code(), Some(4));
+        let why = if cfg!(feature = "native-h264") && !cfg!(feature = "ffmpeg-fallback") {
+            "native: 10-bit H.264 is outside this decoder"
+        } else if requested.is_some() {
+            "the frames decode to another pixel format"
+        } else {
+            "cropping needs planar 8-bit 4:2:0 frames"
+        };
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains(why),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(!output.exists());
+    }
+    for (name, declaration, expected) in [
+        ("square", "1", Some((1, 1))),
+        ("nonsquare", "2", Some((2, 1))),
+        ("absent", "0", None),
+    ] {
+        let source = dir.join(format!("{name}-source.mp4"));
+        let output = dir.join(format!("{name}-cropped.mp4"));
+        successful(
+            Command::new(pair.ffmpeg())
+                .args(["-v", "error", "-f", "lavfi", "-i"])
+                .arg(format!(
+                    "testsrc2=size=64x48:rate=10:duration=0.3,setsar={declaration}"
+                ))
+                .args(["-an", "-c:v", "libx264", "-pix_fmt", "yuv420p"])
+                .arg(&source),
+        );
+        successful(
+            Command::new(bin())
+                .args(["ffmpeg", "-i"])
+                .arg(&source)
+                .args(flags)
+                .args(["-vf", "crop=32:16:16:8"])
+                .arg(&output)
+                .env("COREAV_FFMPEG", pair.ffmpeg())
+                .env("COREAV_X264", &x264)
+                .env("COREAV_FALLBACK", NO_FALLBACK),
+        );
+        for path in [&source, &output] {
+            let bytes = std::fs::read(path).unwrap();
+            let movie = coreav_isobmff::probe(
+                coreav_isobmff::SliceSource::new(&bytes),
+                &Default::default(),
+                &Default::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                movie.tracks[0].description.pixel_aspect,
+                expected,
+                "{name}: {}",
+                path.display()
+            );
+        }
+    }
+    assert!(!std::fs::read_dir(&dir).unwrap().any(|entry| {
+        entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".coreav-")
+    }));
+    eprintln!("literal crop: every decoded frame and timestamp matches the oracle");
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 /// The audio of `path` as `ffmpeg` decodes it: 16-bit samples at 48 kHz,

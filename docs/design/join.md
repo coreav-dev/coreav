@@ -65,8 +65,7 @@ and track header of each output track describe:
 Anything else fails before anything is written, with `JoinError::Mismatch`
 naming the input and the difference, for example `input 2 cannot be joined
 to the first: its video timescale is 25600, the first input's is 12800`.
-Declared bit rates (`btrt`, and the buffer size and bit rates in `esds`) are
-not compared; the output keeps the first input's. Each input is also
+Declared bit rates are not compared. The video keeps the first input's `btrt`; the rebuilt AAC entry carries `esds` without optional `btrt`. Each input is also
 checked on its own as a clip would be (`JoinError::Input` with its
 position), and two more refusals concern inputs after the first:
 
@@ -86,7 +85,7 @@ the same configuration differ in declared bit rates); accepting different
 codec configurations with several sample entries (ISO/IEC 14496-12 allows
 it, but many players read only the first).
 
-FLAC block-size bounds are statistics rather than decoder configuration and may differ between inputs. The joined STREAMINFO combines every input's bounds and formerly terminal internal blocks, counts the complete output samples, and writes an unknown MD5. ALAC combines maximum frame bytes and writes an unknown average bitrate. The [configuration-only AVC concat design](concat-avc1.md) records the explicit differences from FFmpeg 9.0.2, including the shared FLAC packet-header deviation. Clipping and splitting retain their excerpt metadata policy.
+FLAC block-size bounds are statistics rather than decoder configuration and may differ between inputs. When the media timescale equals the configured sample rate, joined STREAMINFO combines every input's bounds and representable formerly terminal internal blocks, counts the complete output samples, and writes an unknown MD5. Native packet copy keeps admission when those statistics cannot be established: a different clock or a total outside 36 bits writes total zero, and an unproved or unrepresentable internal block retains the combined declared block bounds. RFC 9639 section 8.2 Table 3 defines zero as an unknown total or MD5, but provides no unknown block bound. Retained bounds do not prove an internal short block conforms. These outputs retain the [packet-header deviation](concat-avc1.md), not standalone FLAC conformance. ALAC combines maximum frame bytes and writes an unknown average bitrate. Clipping and splitting retain their excerpt metadata policy.
 
 The output keeps input 1's visual compressor name through the existing bounded sample-entry scan. Its media header duration is the sum of stored decode durations, independent of composition delay and edit endpoints. This preserves the presented tail on a join-to-clip round trip without inflating `mdhd`.
 

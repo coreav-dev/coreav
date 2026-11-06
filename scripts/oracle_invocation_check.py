@@ -63,6 +63,8 @@ def frozen_files(root, paths):
     for rel in ('scripts/compat_sources.py', 'tools/compat-corpus/b4_round10.py',
                 'scripts/vp9_pixel_round.py', 'bench/audio-decode/capacity.py',
                 'scripts/h264_pgo_diagnostics.py'):
+        if (root / rel).is_symlink() or not (root / rel).resolve().is_relative_to(root):
+            raise ValueError('registered source roster must not be a symbolic link')
         local = {}
         for node in ast.parse((root / rel).read_text()).body:
             if not isinstance(node, ast.Assign) or len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
@@ -327,6 +329,7 @@ def structural_sites(root, paths, language, pattern, variable, accepted, constru
         qualified = bool(re.search(r'(?:test_oracle|oracle_support)::require\(\)\s*\.\s*ff(?:mpeg|probe)\(\)', program))
         found.append(dict(path=item['file'], line=item['range']['start']['line'] + 1, scope='<structural>',
                           kind=language, program=program, status='qualified' if qualified else 'unproven',
+                          program_span=item['metaVariables']['single'][variable]['range']['byteOffset'],
                           role='oracle' if ROLE.search(program) else 'opaque'))
     return found
 
@@ -436,36 +439,64 @@ def delegated_python_sites(root, paths):
     found = []
     for path, (tree, _, _, _, _) in modules.items():
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and resolve(path, node.func, set()) & relays:
+            reached = resolve(path, node.func, set()) & relays if isinstance(node, ast.Call) else set()
+            if reached:
+                pending = list(reached)
+                closure = set()
+                while pending:
+                    identity = pending.pop()
+                    if identity not in closure:
+                        closure.add(identity)
+                        pending.extend(edges.get(identity, ()))
                 found.append(dict(path=path, line=node.lineno, scope='<delegated>', kind='delegated',
                                   program=ast.unparse(node.func), status='unclassified',
+                                  relay=[list(item) for item in sorted(closure)],
+                                  requires=sorted({item[0] for item in closure}),
                                   role='oracle' if ROLE.search(ast.unparse(node)) else 'opaque'))
     return found
 
 
 def inventory(root):
+    root = Path(root).resolve()
     paths = sorted(set(filter(None, subprocess.check_output(
         ['git', '-C', str(root), 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], text=True).split('\0'))))
     frozen = frozen_files(root, paths)
+    if ((root / HISTORICAL_RECORD).is_symlink() or
+            not (root / HISTORICAL_RECORD).resolve().is_relative_to(root)):
+        raise ValueError('historical source record must not be a symbolic link')
     historical = historical_records(root, json.loads((root / HISTORICAL_RECORD).read_text()))
+    paths = [path for path in paths if (root / path).is_file() and not (root / path).is_symlink()
+             and (root / path).resolve().is_relative_to(root)]
     found = []
+    python_sources = set()
     for path in paths:
         if path in historical:
             continue
         if path == 'scripts/oracle_invocation_check.py' or path == 'scripts/tests/test_oracle_invocation_check.py':
             continue
         file = root / path
+        if file.is_symlink() or not file.resolve().is_relative_to(root):
+            continue
+        with file.open('rb') as source:
+            shebang = source.read(128).split(b'\n', 1)[0]
         if file.suffix == '.py':
+            python_sources.add(path)
             found.extend(PythonSites(file.read_text(), path).collect())
         elif file.suffix in ('.sh', '.bash'):
             found.extend(shell_sites(file.read_text(), path))
         elif file.suffix in ('.yml', '.yaml'):
             found.extend(workflow_sites(file.read_text(), path))
-    python = [path for path in paths if path.endswith('.py') and path not in historical
+        elif shebang.startswith(b'#!') and b'python' in shebang:
+            python_sources.add(path)
+            found.extend(PythonSites(file.read_text(), path).collect())
+        elif shebang.startswith(b'#!') and re.search(rb'\b(?:ba|da|k|z)?sh\b', shebang):
+            found.extend(shell_sites(file.read_text(), path))
+    python = [path for path in sorted(python_sources) if path not in historical
               and path not in BOOTSTRAP and path not in ('scripts/oracle_invocation_check.py',
                                                         'scripts/tests/test_oracle_invocation_check.py')]
     found.extend(delegated_python_sites(root, python))
-    rust = [path for path in paths if path.endswith('.rs') and path not in historical]
+    rust = [path for path in paths if path.endswith('.rs') and not (root / path).is_symlink()
+            and (root / path).resolve().is_relative_to(root) and path not in historical]
     aliases = {'Command'}
     for path in rust:
         aliases.update(re.findall(r'\bCommand\s+as\s+(\w+)', (root / path).read_text()))
@@ -483,13 +514,15 @@ def inventory(root):
                               status='unproven', role='oracle'))
     javascript_aliases = set()
     for path in paths:
-        if path.endswith(('.js', '.mjs', '.cjs', '.ts', '.tsx')) and path not in historical:
+        if (path.endswith(('.js', '.mjs', '.cjs', '.ts', '.tsx')) and not (root / path).is_symlink()
+                and (root / path).resolve().is_relative_to(root) and path not in historical):
             source = (root / path).read_text()
             javascript_aliases.update(re.findall(r'\b(?:spawnSync|spawn|execFileSync|execFile|execSync|exec)\s+as\s+(\w+)', source))
             javascript_aliases.update(re.findall(r'\b(\w+)\s*=\s*(?:\w+\.)?(?:spawnSync|spawn|execFileSync|execFile|execSync|exec)\b', source))
     javascript_functions = r'(?:^|\.)(?:spawn|spawnSync|execFile|execFileSync|execSync|exec|' + '|'.join(re.escape(name) for name in sorted(javascript_aliases)) + r')$'
     for language, suffixes in (('JavaScript', ('.js', '.mjs', '.cjs')), ('TypeScript', ('.ts',)), ('Tsx', ('.tsx',))):
-        selected = [path for path in paths if path.endswith(suffixes) and path not in historical]
+        selected = [path for path in paths if path.endswith(suffixes) and not (root / path).is_symlink()
+                    and (root / path).resolve().is_relative_to(root) and path not in historical]
         found.extend(structural_sites(root, selected, language, '$FUNCTION($PROGRAM, $$$ARGS)', 'PROGRAM',
                      lambda item: bool(re.search(javascript_functions,
                                                 item['metaVariables']['single']['FUNCTION']['text']))))

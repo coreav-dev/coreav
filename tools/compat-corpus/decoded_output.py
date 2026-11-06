@@ -1,5 +1,6 @@
 """Exact decoded-output comparisons for current fixture CI, not frozen rounds."""
 import fractions
+import hashlib
 import json
 import os
 import pathlib
@@ -161,7 +162,7 @@ def video_command(ffmpeg, source, inputs, index, decoded):
 
 
 def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=None, copied_streams=(),
-            registered_codecs=()):
+            registered_codecs=(), exact_frame_timeline=False):
     expected = probe(reference, ffprobe, env, inputs)
     if expected is None:
         return 'unverified', 'reference probe'
@@ -195,7 +196,7 @@ def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=No
             return 'failed', 'stream fields or timing'
         kind = theirs['codec_type']
         if kind == 'audio':
-            if index in copied_streams:
+            if index in copied_streams or exact_frame_timeline:
                 try:
                     timelines = []
                     for document, stream in ((actual, ours), (expected, theirs)):
@@ -233,6 +234,9 @@ def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=No
                         return 'failed', 'video frame format'
                     timelines.append([(time({**f, 'time_base': stream['time_base']}, 'best_effort_timestamp'),
                                        time({**f, 'time_base': stream['time_base']}, 'duration')) for f in frames])
+                    if exact_frame_timeline and any(pts is None or duration is None or duration <= 0
+                                                    for pts, duration in timelines[-1]):
+                        return 'failed', 'invalid video timing'
                 if timelines[0] != timelines[1]:
                     return 'failed', 'video frame timing or count'
             except (KeyError, TypeError, ValueError, ZeroDivisionError):
@@ -255,3 +259,177 @@ def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=No
         if not same_files(*paths):
             return 'failed', 'decoded samples' if kind == 'audio' else 'decoded pixels'
     return 'verified', 'exact decoded output'
+
+
+def hexdump(text):
+    result = bytearray()
+    lines = text.strip('\n').splitlines()
+    for index, line in enumerate(lines):
+        if not re.fullmatch('[0-9a-fA-F]{8}: .*', line) or int(line[:8], 16) != len(result):
+            raise ValueError('packet data offset')
+        words = line[10:49].strip().split(' ')
+        if any(not re.fullmatch('[0-9a-fA-F]{4}', word) for word in words[:-1]) or not re.fullmatch(
+                '[0-9a-fA-F]{2}(?:[0-9a-fA-F]{2})?', words[-1]):
+            raise ValueError('packet data hex')
+        data = bytes.fromhex(''.join(words))
+        if not 0 < len(data) <= 16 or index < len(lines) - 1 and len(data) != 16:
+            raise ValueError('packet data row')
+        result.extend(data)
+    return bytes(result)
+
+
+def avc_configuration(record):
+    if len(record) < 7 or record[0] != 1 or record[4] & 0xFC != 0xFC or record[5] & 0xE0 != 0xE0:
+        raise ValueError('avc configuration header')
+    length = (record[4] & 3) + 1
+    if length == 3:
+        raise ValueError('avc length size')
+    at = 6
+
+    def units(count, kind):
+        nonlocal at
+        found = set()
+        for _ in range(count):
+            if at + 2 > len(record):
+                raise ValueError('avc configuration length')
+            size = int.from_bytes(record[at:at + 2], 'big')
+            at += 2
+            unit = record[at:at + size]
+            if not size or len(unit) != size or unit[0] & 0x80 or unit[0] & 31 != kind:
+                raise ValueError('avc configuration unit')
+            found.add(unit)
+            at += size
+        return frozenset(found)
+
+    sps = units(record[5] & 31, 7)
+    if at >= len(record):
+        raise ValueError('avc missing pps count')
+    count = record[at]
+    at += 1
+    pps = units(count, 8)
+    if not sps or not pps:
+        raise ValueError('avc missing parameter sets')
+    if at < len(record):
+        if record[1] not in (100, 110, 122, 144) or at + 4 > len(record):
+            raise ValueError('avc configuration extension')
+        if record[at] & 0xFC != 0xFC or any(record[at + i] & 0xF8 != 0xF8 for i in (1, 2)):
+            raise ValueError('avc extension header')
+        count = record[at + 3]
+        at += 4
+        units(count, 13)
+    if at != len(record):
+        raise ValueError('avc configuration trailing data')
+    return length, {7: sps, 8: pps}
+
+
+def nal_units(sample, length):
+    at, units = 0, []
+    while at < len(sample):
+        if at + length > len(sample):
+            raise ValueError('avc truncated prefix')
+        size = int.from_bytes(sample[at:at + length], 'big')
+        at += length
+        unit = sample[at:at + size]
+        if not size or len(unit) != size or unit[0] & 0x80 or not unit[0] & 31:
+            raise ValueError('avc sample unit')
+        units.append(unit)
+        at += size
+    if not units:
+        raise ValueError('avc empty sample')
+    return units
+
+
+def packet_data(path, ffprobe, env, inputs=()):
+    code, data, err = invoke([ffprobe, '-v', 'error', *inputs, '-i', str(path),
+        '-show_streams', '-show_packets', '-show_data', '-show_data_hash', 'sha256', '-of', 'json'], env)
+    if code != 0 or err:
+        return None
+    try:
+        document = json.loads(data)
+        if not isinstance(document['streams'], list) or not isinstance(document['packets'], list):
+            return None
+        return document
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
+def avc1_carriage(mine, reference, ffmpeg, ffprobe, env, scratch, copied_streams, inputs=(),
+                  registered_codecs=()):
+    """Prove only the SPS/PPS carriage difference in ISO/IEC 14496-15:2017 5.2 Table 2.
+
+    Seventh-edition FDIS w23225 5.2 Table 1 has the same avc1 prohibition.
+    """
+    try:
+        documents = [packet_data(path, ffprobe, env, inputs) for path in (mine, reference)]
+        if any(document is None for document in documents):
+            return False
+        actual, expected = documents
+        if not actual['streams'] or len(actual['streams']) != len(expected['streams']):
+            return False
+        for document in documents:
+            if [s['index'] for s in document['streams']] != list(range(len(document['streams']))):
+                return False
+        configurations = {}
+        for index in copied_streams:
+            ours, theirs = actual['streams'][index], expected['streams'][index]
+            if ours['codec_name'] != theirs['codec_name'] or ours['codec_type'] != theirs['codec_type']:
+                return False
+            if theirs['codec_name'] != 'h264':
+                continue
+            if any(s['codec_type'] != 'video' or s['codec_tag_string'] != 'avc1' for s in (ours, theirs)):
+                return False
+            configs = [hexdump(s['extradata']) for s in (ours, theirs)]
+            if configs[0] != configs[1] or any(len(config) != int(s['extradata_size']) or
+                    s['extradata_hash'] != 'SHA256:' + hashlib.sha256(config).hexdigest()
+                    for s, config in zip((ours, theirs), configs)):
+                return False
+            configurations[index] = avc_configuration(configs[0])
+        if not configurations:
+            return False
+        rows, removed = [], 0
+        for side, document in enumerate(documents):
+            packets, seen = [], set()
+            for packet in document['packets']:
+                index = packet['stream_index']
+                if type(index) is not int or not 0 <= index < len(document['streams']):
+                    return False
+                if index not in copied_streams:
+                    continue
+                seen.add(index)
+                payload = hexdump(packet['data'])
+                if not payload or len(payload) != int(packet['size']) or packet['data_hash'] != (
+                        'SHA256:' + hashlib.sha256(payload).hexdigest()):
+                    return False
+                if index in configurations:
+                    length, sets = configurations[index]
+                    kept = bytearray()
+                    for unit in nal_units(payload, length):
+                        kind = unit[0] & 31
+                        if kind in (13, 15):
+                            return False
+                        if kind in (7, 8):
+                            if side == 0 or unit not in sets[kind]:
+                                return False
+                            removed += 1
+                        else:
+                            kept.extend(len(unit).to_bytes(length, 'big') + unit)
+                    payload = bytes(kept)
+                stream = document['streams'][index]
+                if fractions.Fraction(stream['time_base']) <= 0:
+                    return False
+                clock = {**packet, 'time_base': stream['time_base']}
+                timing = tuple(time(clock, key) for key in ('pts', 'dts', 'duration'))
+                if any(t is None for t in timing) or timing[2] <= 0:
+                    return False
+                packets.append((index, payload, *timing))
+            if seen != set(copied_streams):
+                return False
+            rows.append(packets)
+        if not removed or rows[0] != rows[1]:
+            return False
+    except (KeyError, IndexError, ValueError, TypeError, AttributeError, ZeroDivisionError, OverflowError):
+        return False
+    verdict, _ = compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=inputs,
+                         copied_streams=copied_streams, registered_codecs=registered_codecs,
+                         exact_frame_timeline=True)
+    return verdict == 'verified'

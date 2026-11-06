@@ -14,6 +14,7 @@ mod inter;
 
 const STRIDE: usize = 40;
 const ORIGIN: usize = STRIDE + 1;
+const P_INTRA_TYPE_BASE: u32 = 5;
 
 #[derive(Clone)]
 struct Tile([u8; STRIDE * 18]);
@@ -65,6 +66,16 @@ impl Tile {
                 let d = i32::from(*source.0.get(at).ok_or(Error::Internal)?)
                     - i32::from(*self.0.get(at).ok_or(Error::Internal)?);
                 sum += (d * d) as u64;
+            }
+        }
+        Ok(sum)
+    }
+
+    fn satd(&self, source: &Self, x: usize, y: usize, n: usize) -> Result<u64> {
+        let mut sum = 0;
+        for j in (y..y + n).step_by(4) {
+            for i in (x..x + n).step_by(4) {
+                sum += t::satd(&self.residual(source, i, j)?)?;
             }
         }
         Ok(sum)
@@ -288,7 +299,7 @@ fn macroblock(
     let intra4 = prediction.is_none() && !intra16;
     let (cbpy, cbpc) = patterns(luma, chroma, prediction.is_some());
     if prediction.is_none() {
-        w.ue(u32::from(p_slice) * 5
+        w.ue(u32::from(p_slice) * P_INTRA_TYPE_BASE
             + luma.mode.map_or(0, |m| {
                 1 + u32::from(m) + 4 * u32::from(cbpc) + if cbpy == 0 { 0 } else { 12 }
             }))?;
@@ -458,7 +469,8 @@ fn intra4(
     qp: u8,
     top: Option<&Neighbour>,
     left: Option<&Neighbour>,
-) -> Result<Luma> {
+    cheap: bool,
+) -> Result<(u64, Luma)> {
     let mut out = Luma {
         mode: None,
         modes: [2; 16],
@@ -468,14 +480,33 @@ fn intra4(
     };
     let mut counts = [0; 16];
     let lambda = 1u64 << (qp / 3);
+    let mut cheap_score = 0;
     for k in 0..16 {
         let (x, y) = xy(k);
         let p = y / 4 * 4 + x / 4;
         let a = availability(k, a);
         let predicted = predicted_mode(&out.modes, top, left, p);
+        let mut proposal = None;
+        if cheap {
+            for mode in 0..9 {
+                if !legal(mode, 4, a) {
+                    continue;
+                }
+                let mut tile = out.tile.clone();
+                tile.prediction(x, y, 4, a, mode)?;
+                let mut bits = Bits::count();
+                mode_bits(&mut bits, mode, predicted)?;
+                let score = tile.satd(source, x, y, 4)? + (1u64 << (qp / 6)) * bits.len as u64;
+                let value = (score, mode);
+                if proposal.is_none_or(|best| value < best) {
+                    proposal = Some(value);
+                }
+            }
+            cheap_score += proposal.ok_or(Error::Internal)?.0;
+        }
         let mut best = None;
         for mode in 0..9 {
-            if !legal(mode, 4, a) {
+            if !legal(mode, 4, a) || proposal.is_some_and(|(_, selected)| mode != selected) {
                 continue;
             }
             let result = (|| {
@@ -510,7 +541,7 @@ fn intra4(
         *out.levels.get_mut(k).ok_or(Error::Internal)? = levels;
         *counts.get_mut(p).ok_or(Error::Internal)? = count;
     }
-    Ok(out)
+    Ok((cheap_score, out))
 }
 
 pub(crate) struct FramePlane {
@@ -620,6 +651,10 @@ impl Decision<'_> {
         inter: Option<inter::Inter>,
         choice: u8,
     ) -> Result<Candidate> {
+        #[cfg(test)]
+        if inter.is_none() {
+            tests::INTRA_PAIRS.with(|count| count.set(count.get() + 1));
+        }
         let mut counter = Bits::count();
         let skip = inter.as_ref().is_some_and(|i| i.skip);
         if self.context.p_slice {
@@ -664,6 +699,142 @@ impl Decision<'_> {
             chroma,
             inter,
         })
+    }
+
+    fn quick_intra(&self, base: &Tile, cbases: &[Tile; 2], a: IntraAvail) -> Result<Candidate> {
+        let mut luma = None;
+        let mut chroma_mode = None;
+        for mode in 0..4 {
+            if legal(mode, 16, a) {
+                let mut tile = base.clone();
+                tile.prediction(0, 0, 16, a, mode)?;
+                let score = (tile.satd(self.source, 0, 0, 16)?, mode);
+                if luma.is_none_or(|best| score < best) {
+                    luma = Some(score);
+                }
+            }
+            if legal(mode, 8, a) {
+                let mut bits = Bits::count();
+                bits.ue(u32::from(mode))?;
+                let mut score = (1u64 << (self.qp / 6)) * bits.len as u64;
+                for (base, source) in cbases.iter().zip(self.csources) {
+                    let mut tile = base.clone();
+                    tile.prediction(0, 0, 8, a, mode)?;
+                    score += tile.satd(source, 0, 0, 8)?;
+                }
+                let score = (score, mode);
+                if chroma_mode.is_none_or(|best| score < best) {
+                    chroma_mode = Some(score);
+                }
+            }
+        }
+        let luma_mode = luma.ok_or(Error::Internal)?.1;
+        let chroma_mode = chroma_mode.ok_or(Error::Internal)?.1;
+        let (score, four) = intra4(
+            base,
+            self.source,
+            a,
+            self.qp,
+            self.context.top,
+            self.context.left,
+            true,
+        )?;
+        let (luma, choice) = if score < luma.ok_or(Error::Internal)?.0 {
+            (four, 4)
+        } else {
+            (
+                intra16(base, self.source, a, luma_mode, self.qp)?,
+                luma_mode,
+            )
+        };
+        self.candidate(
+            luma,
+            chroma(cbases, self.csources, a, chroma_mode, t::chroma_qp(self.qp))?,
+            None,
+            choice,
+        )
+    }
+
+    fn intra(
+        &self,
+        base: &Tile,
+        cbases: &[Tile; 2],
+        a: IntraAvail,
+        exhaustive: bool,
+        best: &mut Option<Candidate>,
+        refusal: &mut Error,
+    ) -> Result<()> {
+        if !exhaustive && self.context.p_slice && best.is_some() {
+            let mut floor = Bits::count();
+            floor.ue(self.pending_skip)?;
+            floor.ue(P_INTRA_TYPE_BASE)?;
+            floor.ue(0)?;
+            let cost = (1u64 << (self.qp / 3)) * floor.len as u64;
+            if best
+                .as_ref()
+                .is_some_and(|candidate| candidate.key.cost < cost)
+            {
+                return Ok(());
+            }
+        }
+        if !exhaustive {
+            match self.quick_intra(base, cbases, a) {
+                Ok(candidate) => {
+                    consider(best, candidate);
+                    return Ok(());
+                }
+                Err(Error::Coefficient | Error::Syntax) => {}
+                Err(Error::MacroblockLimit) => *refusal = Error::MacroblockLimit,
+                Err(err) => return Err(err),
+            }
+        }
+        let mut chromas: [Option<Chroma>; 4] = [None, None, None, None];
+        for mode in 0..4u8 {
+            if !legal(mode, 8, a) {
+                continue;
+            }
+            match chroma(cbases, self.csources, a, mode, t::chroma_qp(self.qp)) {
+                Ok(c) => *chromas.get_mut(usize::from(mode)).ok_or(Error::Internal)? = Some(c),
+                Err(Error::Coefficient) => {}
+                Err(err) => return Err(err),
+            }
+        }
+        for choice in 0..5u8 {
+            let luma = if choice == 4 {
+                intra4(
+                    base,
+                    self.source,
+                    a,
+                    self.qp,
+                    self.context.top,
+                    self.context.left,
+                    false,
+                )
+                .map(|(_, luma)| luma)
+            } else {
+                if !legal(choice, 16, a) {
+                    continue;
+                }
+                intra16(base, self.source, a, choice, self.qp)
+            };
+            let luma = match luma {
+                Ok(y) => y,
+                Err(Error::Coefficient) => continue,
+                Err(err) => return Err(err),
+            };
+            for chroma in chromas.iter().flatten() {
+                match self.candidate(luma.clone(), chroma.clone(), None, choice) {
+                    Ok(candidate) => consider(best, candidate),
+                    Err(Error::Coefficient | Error::Syntax) => continue,
+                    Err(Error::MacroblockLimit) => {
+                        *refusal = Error::MacroblockLimit;
+                        continue;
+                    }
+                    Err(err) => return Err(err),
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -755,45 +926,8 @@ pub(crate) fn picture(
                 qp: e.settings.qp,
                 pending_skip,
             };
-            let mut chromas: [Option<Chroma>; 4] = [None, None, None, None];
-            for mode in 0..4u8 {
-                if !legal(mode, 8, a) {
-                    continue;
-                }
-                match chroma(&cbases, &csources, a, mode, t::chroma_qp(e.settings.qp)) {
-                    Ok(c) => *chromas.get_mut(usize::from(mode)).ok_or(Error::Internal)? = Some(c),
-                    Err(Error::Coefficient) => {}
-                    Err(err) => return Err(err),
-                }
-            }
             let mut best = None;
             let mut refusal = Error::Coefficient;
-            for choice in 0..5u8 {
-                let luma = if choice == 4 {
-                    intra4(&base, &source, a, e.settings.qp, top, left)
-                } else {
-                    if !legal(choice, 16, a) {
-                        continue;
-                    }
-                    intra16(&base, &source, a, choice, e.settings.qp)
-                };
-                let luma = match luma {
-                    Ok(y) => y,
-                    Err(Error::Coefficient) => continue,
-                    Err(err) => return Err(err),
-                };
-                for chroma in chromas.iter().flatten() {
-                    match decision.candidate(luma.clone(), chroma.clone(), None, choice) {
-                        Ok(candidate) => consider(&mut best, candidate),
-                        Err(Error::Coefficient | Error::Syntax) => continue,
-                        Err(Error::MacroblockLimit) => {
-                            refusal = Error::MacroblockLimit;
-                            continue;
-                        }
-                        Err(err) => return Err(err),
-                    }
-                }
-            }
             if !slice.idr {
                 inter::Search {
                     reference: e.reference.as_ref().ok_or(Error::Internal)?,
@@ -804,6 +938,14 @@ pub(crate) fn picture(
                     previous: previous_mv_count,
                 }
                 .candidates(&mut best, &mut refusal)?;
+            }
+            let exact_skip = best.as_ref().is_some_and(|candidate| {
+                candidate.inter.as_ref().is_some_and(|inter| inter.skip)
+                    && candidate.key.cost
+                        == (1u64 << (e.settings.qp / 3)) * candidate.key.bits as u64
+            });
+            if !exact_skip {
+                decision.intra(&base, &cbases, a, slice.idr, &mut best, &mut refusal)?;
             }
             let Candidate {
                 luma,
@@ -902,6 +1044,176 @@ pub(crate) fn picture(
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+
+    std::thread_local! {
+        pub(super) static INTRA_PAIRS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    #[test]
+    fn cheap_intra_four_uses_only_the_chosen_reconstructed_borders() {
+        let base = Tile::empty();
+        let csources = [Tile::empty(), Tile::empty()];
+        let a = intra_availability(Border::default());
+        let mut selected_four = false;
+        for pattern in 0..8 {
+            let mut source = Tile::empty();
+            for y in 0..16 {
+                for x in 0..16 {
+                    source.0[Tile::at(x, y)] =
+                        ((x * (17 + pattern) + y * (7 + pattern * 3)) % 256) as u8;
+                }
+            }
+            let (score, luma) = intra4(&base, &source, a, 28, None, None, true).unwrap();
+            let mut replay = base.clone();
+            let mut modes = [2; 16];
+            let mut expected_score = 0;
+            for k in 0..16 {
+                let (x, y) = xy(k);
+                let p = y / 4 * 4 + x / 4;
+                let available = availability(k, a);
+                let predicted = predicted_mode(&modes, None, None, p);
+                let mut best = None;
+                for mode in 0..9 {
+                    if !legal(mode, 4, available) {
+                        continue;
+                    }
+                    let mut tile = replay.clone();
+                    tile.prediction(x, y, 4, available, mode).unwrap();
+                    let mut bits = Bits::count();
+                    mode_bits(&mut bits, mode, predicted).unwrap();
+                    let key = (
+                        tile.satd(&source, x, y, 4).unwrap() + 16 * bits.len as u64,
+                        mode,
+                    );
+                    if best.is_none_or(|old| key < old) {
+                        best = Some(key);
+                    }
+                }
+                let (cost, mode) = best.unwrap();
+                assert_eq!(luma.modes[p], mode);
+                expected_score += cost;
+                replay.prediction(x, y, 4, available, mode).unwrap();
+                replay
+                    .add(x, y, &t::scaled(&luma.levels[k], 28, None).unwrap())
+                    .unwrap();
+                modes[p] = mode;
+            }
+            assert_eq!(expected_score, score);
+            assert_eq!(replay.0, luma.tile.0);
+            let decision = Decision {
+                source: &source,
+                csources: &csources,
+                context: MbContext {
+                    top: None,
+                    left: None,
+                    p_slice: true,
+                },
+                qp: 28,
+                pending_skip: 0,
+            };
+            INTRA_PAIRS.with(|count| count.set(0));
+            let candidate = decision.quick_intra(&base, &csources, a).unwrap();
+            selected_four |= candidate.luma.mode.is_none();
+            assert_eq!(INTRA_PAIRS.with(|count| count.get()), 1);
+        }
+        assert!(selected_four);
+    }
+
+    #[test]
+    fn cheap_intra_completes_one_legal_pair_for_every_availability_and_qp_boundary() {
+        let base = Tile::empty();
+        let csources = [Tile::empty(), Tile::empty()];
+        for qp in [10, 16, 28, 40, 51] {
+            let decision = Decision {
+                source: &base,
+                csources: &csources,
+                context: MbContext {
+                    top: None,
+                    left: None,
+                    p_slice: true,
+                },
+                qp,
+                pending_skip: 0,
+            };
+            for mask in 0..16 {
+                let a = IntraAvail {
+                    left: mask & 1 != 0,
+                    top: mask & 2 != 0,
+                    top_left: mask & 4 != 0,
+                    top_right: mask & 8 != 0,
+                };
+                INTRA_PAIRS.with(|count| count.set(0));
+                let mut best = None;
+                decision
+                    .intra(
+                        &base,
+                        &csources,
+                        a,
+                        false,
+                        &mut best,
+                        &mut Error::Coefficient,
+                    )
+                    .unwrap();
+                let best = best.unwrap();
+                assert!(legal(best.luma.mode.unwrap(), 16, a));
+                assert!(legal(best.chroma.mode, 8, a));
+                assert_eq!(INTRA_PAIRS.with(|count| count.get()), 1);
+                assert_eq!(best.luma.tile.0, base.0);
+            }
+        }
+    }
+
+    #[test]
+    fn rejected_cheap_intra_runs_the_complete_admission_fallback() {
+        let base = Tile::empty();
+        let mut source = Tile::empty();
+        let mut csources = [Tile::empty(), Tile::empty()];
+        let mut state = 17u32;
+        for (n, tile) in
+            std::iter::once((16, &mut source)).chain(csources.iter_mut().map(|tile| (8, tile)))
+        {
+            for y in 0..n {
+                for x in 0..n {
+                    state ^= state << 13;
+                    state ^= state >> 17;
+                    state ^= state << 5;
+                    *tile.0.get_mut(Tile::at(x, y)).unwrap() = state as u8;
+                }
+            }
+        }
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context: MbContext {
+                top: None,
+                left: None,
+                p_slice: true,
+            },
+            qp: 10,
+            pending_skip: 0,
+        };
+        let a = intra_availability(Border::default());
+        assert!(matches!(
+            decision.quick_intra(&base, &[base.clone(), base.clone()], a),
+            Err(Error::MacroblockLimit)
+        ));
+        INTRA_PAIRS.with(|count| count.set(0));
+        let mut best = None;
+        let mut refusal = Error::Coefficient;
+        decision
+            .intra(
+                &base,
+                &[base.clone(), base.clone()],
+                a,
+                false,
+                &mut best,
+                &mut refusal,
+            )
+            .unwrap();
+        assert!(best.is_none());
+        assert_eq!(refusal, Error::MacroblockLimit);
+        assert!(INTRA_PAIRS.with(|count| count.get()) > 1);
+    }
 
     #[test]
     fn constrained_intra_availability_is_independent_of_residual_neighbours() {

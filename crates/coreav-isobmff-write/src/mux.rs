@@ -181,10 +181,17 @@ struct MuxTrack {
     tables: Tables,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Chunking {
+    Interleaved,
+    Packets,
+    Contiguous,
+}
+
 /// Writes an MP4 file whose samples are copied from elsewhere; see the
 /// [module documentation](self).
 pub struct Muxer {
-    packet_order: bool,
+    chunking: Chunking,
     file_type: FileType,
     movie: MovieHeader,
     tracks: Vec<MuxTrack>,
@@ -202,7 +209,7 @@ impl Muxer {
             return Err(invalid("movie timescale 0"));
         }
         Ok(Self {
-            packet_order: false,
+            chunking: Chunking::Interleaved,
             file_type,
             movie,
             tracks: Vec::new(),
@@ -225,7 +232,24 @@ impl Muxer {
         if !self.tracks.is_empty() {
             return Err(invalid("packet ordering must precede tracks"));
         }
-        self.packet_order = true;
+        if self.chunking == Chunking::Contiguous {
+            return Err(invalid("packet ordering conflicts with contiguous audio"));
+        }
+        self.chunking = Chunking::Packets;
+        Ok(())
+    }
+
+    /// Stores one audio track in one contiguous chunk. Select before adding
+    /// tracks; incompatible modes, video and additional tracks are refused.
+    /// `write_head` refuses an empty track or tables requiring several chunks.
+    pub fn contiguous_audio_chunks(&mut self) -> Result<(), Error> {
+        self.open()?;
+        if !self.tracks.is_empty() || self.chunking != Chunking::Interleaved {
+            return Err(invalid(
+                "contiguous audio must precede tracks and other chunk modes",
+            ));
+        }
+        self.chunking = Chunking::Contiguous;
         Ok(())
     }
 
@@ -248,9 +272,19 @@ impl Muxer {
                 offset: 0,
             });
         }
+        if self.chunking == Chunking::Contiguous
+            && (!self.tracks.is_empty() || !matches!(header.media, TrackMedia::Audio { .. }))
+        {
+            return Err(invalid("contiguous chunks require exactly one audio track"));
+        }
         self.tracks.try_reserve(1).map_err(|_| table_limit())?;
-        let chunk_bytes = if self.packet_order { 0 } else { CHUNK_BYTES };
-        let tables = Tables::with_chunk_bytes(header.timescale, self.table_limit, chunk_bytes);
+        let tables = match self.chunking {
+            Chunking::Interleaved => {
+                Tables::with_chunk_bytes(header.timescale, self.table_limit, CHUNK_BYTES)
+            }
+            Chunking::Packets => Tables::with_chunk_bytes(header.timescale, self.table_limit, 0),
+            Chunking::Contiguous => Tables::contiguous(header.timescale, self.table_limit),
+        };
         self.tracks.push(MuxTrack { header, tables });
         Ok(self.tracks.len().saturating_sub(1))
     }
@@ -414,9 +448,14 @@ impl Muxer {
     /// 4 GiB (`co64`).
     pub fn write_head<W: Write>(&mut self, out: &mut W) -> Result<Head, ExtractError> {
         self.open()?;
+        if self.chunking == Chunking::Contiguous
+            && !matches!(self.tracks.as_slice(), [track] if track.tables.chunk_count() == 1)
+        {
+            return Err(invalid("contiguous audio requires one nonempty chunk").into());
+        }
         self.written = true;
         for track in &mut self.tracks {
-            if self.packet_order {
+            if self.chunking == Chunking::Packets {
                 track.tables.decode_start = crate::moov::edited_decode_start(
                     &track.header.edits,
                     track.header.timescale,
@@ -509,7 +548,7 @@ impl Muxer {
                 extra: copied(&self.movie.boxes),
             },
             boxes,
-            if self.packet_order {
+            if self.chunking == Chunking::Packets {
                 Ties::TrackOrder
             } else {
                 Ties::SmallerFirst
@@ -538,7 +577,7 @@ impl Muxer {
             .try_reserve_exact(self.tracks.len())
             .map_err(|_| E::from(table_limit()))?;
         tables.extend(self.tracks.iter().map(|t| &t.tables));
-        let ties = if self.packet_order {
+        let ties = if self.chunking == Chunking::Packets {
             Ties::TrackOrder
         } else {
             Ties::SmallerFirst
@@ -1176,6 +1215,413 @@ mod tests {
         // The copied box ends the movie box.
         let udta = out.windows(4).position(|w| w == b"udta").unwrap();
         assert_eq!(&out[udta + 4..udta + 8], b"\0\0\0\x0c");
+    }
+
+    fn pcm_muxer(contiguous: bool, limits: &Limits) -> Muxer {
+        let mut muxer = Muxer::new(
+            FileType {
+                major: FourCc(*b"isom"),
+                minor: 512,
+                compatible: vec![FourCc(*b"isom"), FourCc(*b"iso2"), FourCc(*b"mp41")],
+            },
+            MovieHeader {
+                timescale: 48_000,
+                creation_time: 0,
+                boxes: Vec::new(),
+            },
+            limits,
+        )
+        .unwrap();
+        if contiguous {
+            muxer.contiguous_audio_chunks().unwrap();
+        }
+        muxer
+    }
+
+    fn pcm_header() -> TrackHeader {
+        let mut h = header(
+            TrackMedia::Audio { volume: 0x0100 },
+            audio_sample_entry(
+                FourCc(*b"ipcm"),
+                1,
+                16,
+                48_000,
+                &[RawBox {
+                    kind: FourCc(*b"pcmC"),
+                    payload: vec![0, 0, 0, 0, 1, 16],
+                }],
+            )
+            .unwrap(),
+        );
+        h.timescale = 48_000;
+        h
+    }
+
+    #[test]
+    fn contiguous_audio_changes_only_chunk_tables_and_keeps_the_complete_extent() {
+        fn leaves(mut bytes: &[u8], out: &mut Vec<([u8; 4], Vec<u8>)>) {
+            while !bytes.is_empty() {
+                let size = u32::from_be_bytes(bytes[..4].try_into().unwrap()) as usize;
+                let kind: [u8; 4] = bytes[4..8].try_into().unwrap();
+                let end = size.min(bytes.len());
+                match &kind {
+                    b"moov" | b"trak" | b"mdia" | b"minf" | b"stbl" | b"edts" => {
+                        leaves(&bytes[8..end], out);
+                    }
+                    b"stsc" | b"stco" => {}
+                    _ => out.push((kind, bytes[..end].to_vec())),
+                }
+                bytes = &bytes[end..];
+            }
+        }
+        let limits = Limits::default();
+        let mut heads = Vec::new();
+        for contiguous in [false, true] {
+            let mut muxer = pcm_muxer(contiguous, &limits);
+            let track = muxer.add_track(pcm_header()).unwrap();
+            for _ in 0..52_800 {
+                muxer
+                    .push_sample(
+                        track,
+                        Sample {
+                            size: 2,
+                            duration: 1,
+                            sync: true,
+                            composition_offset: 0,
+                        },
+                    )
+                    .unwrap();
+            }
+            let mut bytes = Vec::new();
+            let head = muxer.write_head(&mut bytes).unwrap();
+            assert_eq!(head.data_bytes, 105_600);
+            assert_eq!(head.data_start, bytes.len() as u64);
+            assert_eq!(muxer.duration(track), Some(52_800));
+            let mut chunks = Vec::new();
+            muxer
+                .for_each_chunk(|track, count| -> Result<(), Error> {
+                    chunks.push((track, count));
+                    Ok(())
+                })
+                .unwrap();
+            assert_eq!(
+                chunks,
+                if contiguous {
+                    vec![(0, 52_800)]
+                } else {
+                    vec![(0, 48_000), (0, 4800)]
+                }
+            );
+            if contiguous {
+                let stsc = bytes.windows(4).position(|w| w == b"stsc").unwrap();
+                assert_eq!(
+                    &bytes[stsc + 4..stsc + 24],
+                    &[0u32, 1, 1, 52_800, 1].map(u32::to_be_bytes).concat()
+                );
+                let stco = bytes.windows(4).position(|w| w == b"stco").unwrap();
+                assert_eq!(
+                    &bytes[stco + 4..stco + 16],
+                    &[0u32, 1, head.data_start as u32]
+                        .map(u32::to_be_bytes)
+                        .concat()
+                );
+            }
+            let mut unchanged = Vec::new();
+            leaves(&bytes, &mut unchanged);
+            heads.push(unchanged);
+            bytes.resize(head.total() as usize, 0x31);
+            let movie = probe(SliceSource::new(&bytes), &limits, &Allowlist::default()).unwrap();
+            assert_eq!(movie.timescale, 48_000);
+            assert_eq!(movie.tracks[0].timescale, 48_000);
+            let mut budget = Budget::new(&limits);
+            let mut count = 0;
+            let mut end = head.data_start;
+            for packet in movie
+                .packets(
+                    movie.tracks[0].index,
+                    SliceSource::new(&bytes),
+                    &limits,
+                    &mut budget,
+                )
+                .unwrap()
+            {
+                let packet = packet.unwrap();
+                assert_eq!(packet.offset, end);
+                assert_eq!(packet.duration, 1);
+                assert_eq!(packet.size, 2);
+                end += 2;
+                count += 1;
+            }
+            assert_eq!(count, 52_800);
+            assert_eq!(end, head.total());
+        }
+        assert_eq!(heads[0], heads[1]);
+    }
+
+    #[test]
+    fn contiguous_audio_refuses_incompatible_state_before_writing() {
+        let limits = Limits::default();
+        let mut muxer = pcm_muxer(false, &limits);
+        muxer.add_track(pcm_header()).unwrap();
+        assert!(muxer.contiguous_audio_chunks().is_err());
+        let mut muxer = pcm_muxer(false, &limits);
+        muxer.interleave_packets().unwrap();
+        assert!(muxer.contiguous_audio_chunks().is_err());
+        let mut muxer = pcm_muxer(true, &limits);
+        assert!(muxer.interleave_packets().is_err());
+        assert!(muxer.contiguous_audio_chunks().is_err());
+        let mut bytes = Vec::new();
+        assert!(muxer.write_head(&mut bytes).is_err());
+        assert!(bytes.is_empty());
+        let mut video = pcm_header();
+        video.media = TrackMedia::Video {
+            matrix: crate::moov::UNITY,
+            width: 1,
+            height: 1,
+        };
+        assert!(muxer.add_track(video).is_err());
+        muxer.add_track(pcm_header()).unwrap();
+        assert!(muxer.add_track(pcm_header()).is_err());
+        assert!(muxer.write_head(&mut bytes).is_err());
+        assert!(bytes.is_empty());
+        assert!(muxer.pop_track().is_some());
+        let track = muxer.add_track(pcm_header()).unwrap();
+        muxer
+            .push_sample(
+                track,
+                Sample {
+                    size: 2,
+                    duration: 1,
+                    sync: true,
+                    composition_offset: 0,
+                },
+            )
+            .unwrap();
+        muxer.write_head(&mut bytes).unwrap();
+        assert!(muxer.contiguous_audio_chunks().is_err());
+        assert!(muxer.add_track(pcm_header()).is_err());
+    }
+
+    #[test]
+    fn contiguous_audio_keeps_table_limits() {
+        let limits = Limits {
+            max_table_bytes: 27,
+            ..Limits::default()
+        };
+        let mut muxer = pcm_muxer(true, &limits);
+        let track = muxer.add_track(pcm_header()).unwrap();
+        assert!(matches!(
+            muxer.push_sample(
+                track,
+                Sample {
+                    size: 2,
+                    duration: 1,
+                    sync: true,
+                    composition_offset: 0
+                }
+            ),
+            Err(Error::LimitExceeded {
+                limit: LimitKind::TableBytes,
+                ..
+            })
+        ));
+    }
+
+    fn default_byte_fixture(mode: u8) -> (Vec<u8>, Head, Vec<(usize, u32)>) {
+        let mut muxer = Muxer::new(
+            FileType {
+                major: FourCc(*b"isom"),
+                minor: 512,
+                compatible: vec![FourCc(*b"isom"), FourCc(*b"iso2")],
+            },
+            MovieHeader {
+                timescale: 1000,
+                creation_time: 0,
+                boxes: Vec::new(),
+            },
+            &Limits::default(),
+        )
+        .unwrap();
+        if mode == 1 {
+            muxer.interleave_packets().unwrap();
+        }
+        if mode != 2 {
+            let mut video = header(
+                TrackMedia::Video {
+                    matrix: crate::moov::UNITY,
+                    width: 320 << 16,
+                    height: 240 << 16,
+                },
+                avc1_sample_entry(320, 240, &[1, 0x64, 0, 0x1f, 0xff, 0xe0, 0], None, None)
+                    .unwrap(),
+            );
+            video.edits = vec![Edit {
+                duration: 2400,
+                media_time: 100,
+                rate: Edit::UNIT_RATE,
+            }];
+            let track = muxer.add_track(video).unwrap();
+            for index in 0..5 {
+                muxer
+                    .push_sample(
+                        track,
+                        Sample {
+                            size: (CHUNK_BYTES / 2) as u32 + index,
+                            duration: 500,
+                            sync: index == 0,
+                            composition_offset: if index == 0 { 0 } else { -100 },
+                        },
+                    )
+                    .unwrap();
+            }
+        }
+        let mut audio = header(
+            TrackMedia::Audio { volume: 0x0100 },
+            audio_sample_entry(FourCc(*b"mp4a"), 2, 16, 48_000, &[]).unwrap(),
+        );
+        audio.timescale = 48_000;
+        let track = muxer.add_track(audio).unwrap();
+        for (size, duration) in [(3, 23_000), (2, 16_000), (4, 23_000), (5, 1024)] {
+            muxer
+                .push_sample(
+                    track,
+                    Sample {
+                        size,
+                        duration,
+                        sync: true,
+                        composition_offset: 0,
+                    },
+                )
+                .unwrap();
+        }
+        let mut out = Vec::new();
+        let head = muxer.write_head(&mut out).unwrap();
+        let mut chunks = Vec::new();
+        muxer
+            .for_each_chunk(|track, count| -> Result<(), Error> {
+                chunks.push((track, count));
+                Ok(())
+            })
+            .unwrap();
+        (out, head, chunks)
+    }
+
+    #[test]
+    fn default_headers_and_chunk_order_are_byte_identical() {
+        type ExpectedLayout = (&'static str, Head, &'static [(usize, u32)]);
+        let expected: [ExpectedLayout; 3] = [
+            (
+                concat!(
+                    "000000186674797069736f6d0000020069736f6d69736f320000048b6d6f6f760000006c6d7668640000000000000000",
+                    "00000000000003e800000960000100000100000000000000000000000001000000000000000000000000000000010000",
+                    "000000000000000000000000400000000000000000000000000000000000000000000000000000000000000300000252",
+                    "7472616b0000005c746b6864000000030000000000000000000000010000000000000960000000000000000000000000",
+                    "000000000001000000000000000000000000000000010000000000000000000000000000400000000140000000f00000",
+                    "00000024656474730000001c656c73740000000000000001000009600000006400010000000001ca6d64696100000020",
+                    "6d646864000000000000000000000000000003e8000009c415c700000000002d68646c72000000000000000076696465",
+                    "000000000000000000000000566964656f48616e646c657200000001756d696e6600000014766d686400000001000000",
+                    "00000000000000002464696e660000001c6472656600000000000000010000000c75726c200000000100000135737462",
+                    "6c0000007573747364000000000000000100000065617663310000000000000001000000000000000000000000000000",
+                    "00014000f000480000004800000000000000010000000000000000000000000000000000000000000000000000000000",
+                    "0000000018ffff0000000f617663430164001fffe0000000001873747473000000000000000100000005000001f40000",
+                    "0020637474730100000000000002000000010000000000000004ffffff9c000000287374736300000000000000020000",
+                    "00010000000200000001000000030000000100000001000000287374737a000000000000000000000005000800000008",
+                    "00010008000200080003000800040000001c7374636f0000000000000003000004b4001004b5002004bf000000147374",
+                    "7373000000000000000100000001000001c57472616b0000005c746b6864000000030000000000000000000000020000",
+                    "000000000521000000000000000000000000010000000001000000000000000000000000000000010000000000000000",
+                    "000000000000400000000000000000000000000001616d646961000000206d6468640000000000000000000000000000",
+                    "bb800000f63015c700000000002d68646c720000000000000000736f756e000000000000000000000000536f756e6448",
+                    "616e646c6572000000010c6d696e6600000010736d686400000000000000000000002464696e660000001c6472656600",
+                    "000000000000010000000c75726c2000000001000000d07374626c00000034737473640000000000000001000000246d",
+                    "703461000000000000000100000000000000000002001000000000bb8000000000003073747473000000000000000400",
+                    "000001000059d80000000100003e8000000001000059d800000001000004000000002873747363000000000000000200",
+                    "0000010000000300000001000000020000000100000001000000247374737a0000000000000000000000040000000300",
+                    "0000020000000400000005000000187374636f0000000000000002000004ab002004ba002800206d646174",
+                ),
+                Head {
+                    data_start: 1195,
+                    data_bytes: 2621464,
+                },
+                &[(1, 3), (0, 2), (0, 2), (1, 1), (0, 1)],
+            ),
+            (
+                concat!(
+                    "000000186674797069736f6d0000020069736f6d69736f32000004836d6f6f760000006c6d7668640000000000000000",
+                    "00000000000003e800000960000100000100000000000000000000000001000000000000000000000000000000010000",
+                    "00000000000000000000000040000000000000000000000000000000000000000000000000000000000000030000024e",
+                    "7472616b0000005c746b6864000000030000000000000000000000010000000000000960000000000000000000000000",
+                    "000000000001000000000000000000000000000000010000000000000000000000000000400000000140000000f00000",
+                    "00000024656474730000001c656c73740000000000000001000009600000006400010000000001c66d64696100000020",
+                    "6d646864000000000000000000000000000003e8000009c415c700000000002d68646c72000000000000000076696465",
+                    "000000000000000000000000566964656f48616e646c657200000001716d696e6600000014766d686400000001000000",
+                    "00000000000000002464696e660000001c6472656600000000000000010000000c75726c200000000100000131737462",
+                    "6c0000007573747364000000000000000100000065617663310000000000000001000000000000000000000000000000",
+                    "00014000f000480000004800000000000000010000000000000000000000000000000000000000000000000000000000",
+                    "0000000018ffff0000000f617663430164001fffe0000000001873747473000000000000000100000005000001f40000",
+                    "0020637474730100000000000002000000010000000000000004ffffff9c0000001c7374736300000000000000010000",
+                    "00010000000100000001000000287374737a000000000000000000000005000800000008000100080002000800030008",
+                    "0004000000247374636f0000000000000005000004a3000804a6001004ad001804b4002004b700000014737473730000",
+                    "00000000000100000001000001c17472616b0000005c746b686400000003000000000000000000000002000000000000",
+                    "052100000000000000000000000001000000000100000000000000000000000000000001000000000000000000000000",
+                    "00004000000000000000000000000000015d6d646961000000206d6468640000000000000000000000000000bb800000",
+                    "f63015c700000000002d68646c720000000000000000736f756e000000000000000000000000536f756e6448616e646c",
+                    "657200000001086d696e6600000010736d686400000000000000000000002464696e660000001c647265660000000000",
+                    "0000010000000c75726c2000000001000000cc7374626c00000034737473640000000000000001000000246d70346100",
+                    "0000000000000100000000000000000002001000000000bb800000000000307374747300000000000000040000000100",
+                    "0059d80000000100003e8000000001000059d800000001000004000000001c7374736300000000000000010000000100",
+                    "00000100000001000000247374737a000000000000000000000004000000030000000200000004000000050000002073",
+                    "74636f0000000000000004000804a3001004a7001004a9001804af002800206d646174",
+                ),
+                Head {
+                    data_start: 1187,
+                    data_bytes: 2621464,
+                },
+                &[
+                    (0, 1),
+                    (1, 1),
+                    (0, 1),
+                    (1, 1),
+                    (1, 1),
+                    (0, 1),
+                    (1, 1),
+                    (0, 1),
+                    (0, 1),
+                ],
+            ),
+            (
+                concat!(
+                    "000000186674797069736f6d0000020069736f6d69736f32000002396d6f6f760000006c6d7668640000000000000000",
+                    "00000000000003e800000521000100000100000000000000000000000001000000000000000000000000000000010000",
+                    "0000000000000000000000004000000000000000000000000000000000000000000000000000000000000002000001c5",
+                    "7472616b0000005c746b6864000000030000000000000000000000010000000000000521000000000000000000000000",
+                    "010000000001000000000000000000000000000000010000000000000000000000000000400000000000000000000000",
+                    "000001616d646961000000206d6468640000000000000000000000000000bb800000f63015c700000000002d68646c72",
+                    "0000000000000000736f756e000000000000000000000000536f756e6448616e646c6572000000010c6d696e66000000",
+                    "10736d686400000000000000000000002464696e660000001c6472656600000000000000010000000c75726c20000000",
+                    "01000000d07374626c00000034737473640000000000000001000000246d703461000000000000000100000000000000",
+                    "000002001000000000bb8000000000003073747473000000000000000400000001000059d80000000100003e80000000",
+                    "01000059d800000001000004000000002873747363000000000000000200000001000000030000000100000002000000",
+                    "0100000001000000247374737a0000000000000000000000040000000300000002000000040000000500000018737463",
+                    "6f00000000000000020000025900000262000000166d646174",
+                ),
+                Head {
+                    data_start: 601,
+                    data_bytes: 14,
+                },
+                &[(0, 3), (0, 1)],
+            ),
+        ];
+        for (mode, (hex, head, chunks)) in expected.into_iter().enumerate() {
+            let expected: Vec<u8> = hex
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect();
+            let (actual, actual_head, actual_chunks) = default_byte_fixture(mode as u8);
+            assert_eq!(actual, expected, "mode {mode}");
+            assert_eq!(actual_head, head, "mode {mode}");
+            assert_eq!(actual_chunks, chunks, "mode {mode}");
+        }
     }
 
     #[test]

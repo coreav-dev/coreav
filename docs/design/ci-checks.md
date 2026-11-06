@@ -568,6 +568,8 @@ The compatibility workflow separates the Rust artifacts from the tools that judg
 
 That helper also owns the closed judging-file roster. `docs/measurements/compat-0.1.0/judging.json` registers their SHA-256 values, including the workflow's verdict expressions, Python checkers and their local code and divergence-data dependencies. Planning hashes committed blobs, not working files, and names any drift before emitting a candidate or starting a build. Artifact consumers recompute the same registration and hashes. The helper's `register` command generates the JSON after a reviewed code commit; the JSON is committed separately so neither it nor any hashed file contains its own hash. Tests, the round README and R4 tools are outside this R2/R3 roster. Mutation tests change every roster member, and the dispatch shell regression proves changed judges cannot reach measurement.
 
+The [forward-only registration amendment](compat-registration-amendment.md) binds the observer's driver and path-module sources to the candidate that builds it, rather than unused development copies. Frozen inputs consumed by tooling still require candidate/tooling identity. The complete frozen roster remains mandatory in artifact verification. The existing unfiltered `deny-checks` job also runs the helper's media-free real-registration digest check, so changed judging bytes cannot wait unnoticed for a later measurement dispatch. The check never refreshes the registration or starts a corpus run.
+
 ## Labels
 
 The repository's labels are kept as code in `.github/labels.yml`: area labels (`area:h264`, `area:compat` and so on), kind labels (`bug`, `perf`, `feature`, `docs`, `tracking`) and resolution labels (`duplicate`, `wontfix`). `labels.yml` in `.github/workflows` runs `scripts/label_sync.py` on a push to main that changes the file, the script or the workflow, and by hand: it creates or updates every label in the file and deletes the ones listed under `retired` (GitHub's default labels this set replaces). `deny.yml` runs `label_sync.py --check` on every pull request, so a file the script would refuse, or an issue form that sets a label the file does not define (GitHub drops such a label silently), fails before it merges, not after.
@@ -627,6 +629,22 @@ failed.
 - Not checked, because they need judgment: one outcome per pull request; hard-wrapped body lines, since a line break inside a paragraph and a line break between a tool's inline HTML are the same text to a parser, so prose the check should reject cannot be told from markup it should keep; a body that is long, repetitive, or retells the diff.
 - Not a required check (`# workflow-check: not required`): requiring it would change the branch ruleset. Its failure still shows on the pull request, and a pull request is merged with every check green.
 - Rejected: putting it in `deny.yml`, which does not run when only the title or body is edited.
+
+## HEVC tiers
+
+`hevc-conformance.yml` keeps its path-filtered main push and pull-request triggers and its manual dispatch. Header tests remain unchanged. Every selected run also compares the four registered synthetic recipes on Linux: exactly eight Main10 64×64 unfiltered pictures. `hevc_smoke.py` reuses the existing inspection, target selection, metadata validation and pixel comparison. It refuses other platforms before launching a child and retains only a safe JSON result, including incomplete failures. This smoke check does not fetch official archives or private files and does not replace full conformance evidence.
+
+The `hevc-vectors` and `profile-census` jobs run only for explicit main pushes, daily scheduled runs at 03:45 UTC, and manual dispatches. The vector job retains full headers, intra and filter coverage and complete C1 scalar reconstruction. The fixed-file census retains all 54 identities and complete C2 packet comparisons in four fixed shards, with distinct sealed artifacts and every original EOF obligation. Pull requests run the smoke tier instead. This non-required workflow has no merge-group trigger, and only pull-request runs can cancel each other.
+
+To verify full HEVC evidence at an open pull request's exact head, dispatch `hevc-conformance.yml` on that branch, wait for completion, then run:
+
+```sh
+GH_TOKEN="$READ_ONLY_TOKEN" python3 -I scripts/ci_full.py verify --pr N --suite hevc-conformance
+```
+
+`--suite` is repeatable. The default selects only registry entries whose `final_head` is `always`; HEVC is `area`, so it requires explicit selection. Empty and unknown selections fail closed. HEVC verification requires `hevc-vectors` and `profile-census (0)` through `profile-census (3)`, including complete scalar conformance output and the packet comparison proof step in every shard. It rejects incomplete, skipped or duplicate evidence, rechecks newer dispatches and attempts, and confirms the head did not change.
+
+After main push or scheduled completion, `ci-full-failure.yml` checks out its trusted workflow SHA and reads only Actions metadata. It never downloads artifacts or logs or executes the triggering branch. Its token has contents and Actions read access and issues write access. Failures open or update a deduplicated HEVC decoding issue; missing full work is classified as CI infrastructure. Later success does not close the issue automatically. Manual dispatches, pull requests and merge groups cannot publish issues.
 
 ## Before opening a pull request
 

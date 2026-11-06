@@ -1229,14 +1229,19 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "it is an audio encoder option, and coreav ffmpeg encodes audio with libopus, aac or libmp3lame",
         ));
     }
+    let pcm_mp4 = command.muxer == Muxer::Mp4
+        && command.no_video
+        && command
+            .codecs
+            .iter()
+            .any(|(_, codec)| *codec == Codec::AviAudio(AviAudio::PcmS16));
     if !matches!(
         command.muxer,
         Muxer::Avi | Muxer::Wav | Muxer::S16le | Muxer::F32le | Muxer::Flac
-    ) && command
-        .codecs
-        .iter()
-        .any(|(_, codec)| matches!(codec, Codec::AviAudio(_) | Codec::PcmF32))
-    {
+    ) && command.codecs.iter().any(|(_, codec)| {
+        matches!(codec, Codec::AviAudio(_) | Codec::PcmF32)
+            && !(pcm_mp4 && *codec == Codec::AviAudio(AviAudio::PcmS16))
+    }) {
         return Err(Refusal::not_native(
             "PCM encoding to an unsupported container",
         ));
@@ -1244,7 +1249,8 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     if matches!(
         command.muxer,
         Muxer::Wav | Muxer::S16le | Muxer::F32le | Muxer::Flac
-    ) {
+    ) || pcm_mp4
+    {
         if movflags {
             return Err(not_native(
                 "-movflags",
@@ -1970,6 +1976,54 @@ mod tests {
             let line = format!("-i in.mkv -c:v libx264 -c:a aac {extra} out.mp4");
             assert_eq!(option(&line), named(name, value), "{line}");
         }
+    }
+
+    #[test]
+    fn pcm_mp4_exception_requires_explicit_video_disable_and_s16() {
+        for line in [
+            "-i in.mp4 -ac 1 -ar 48000 -c:a pcm_s16le -vn out.mp4",
+            "-i in.mp4 -c:a pcm_s16le -vn -f mp4 out.bin",
+        ] {
+            let command = parse(&args(line)).unwrap();
+            assert_eq!(command.muxer, Muxer::Mp4);
+            assert!(command.no_video);
+        }
+        for line in [
+            "-i in.mp4 -ac 1 -ar 48000 -c:a pcm_s16le out.mp4",
+            "-i in.mp4 -c:a pcm_s16le -f mp4 out.bin",
+            "-i in.mp4 -c:a pcm_f32le -vn out.mp4",
+            "-i in.mp4 -c:a pcm_s16le -vn out.mkv",
+            "-i in.mp4 -c:a pcm_s16le -vn out.m4a",
+        ] {
+            assert_eq!(
+                refused(line),
+                Reason::Property("PCM encoding to an unsupported container"),
+                "{line}"
+            );
+        }
+        for format in ["avi", "wav", "s16le", "f32le", "flac"] {
+            let line = format!("-i in.mp4 -c:a pcm_s16le -f {format} out.bin");
+            assert!(parse(&args(&line)).is_ok(), "{line}");
+        }
+        assert_eq!(
+            refused("-i in.mp4 -c:a pcm_s16le -vn out.ts"),
+            Reason::Option("-vn".to_owned(), None)
+        );
+        for (option, value) in [("-ar", "48000"), ("-ac", "1")] {
+            for codec in ["copy", "aac"] {
+                let line = format!("-i in.mp4 -c:a {codec} -vn {option} {value} out.mp4");
+                assert_eq!(
+                    refused(&line),
+                    Reason::Option(option.to_owned(), None),
+                    "{line}"
+                );
+            }
+        }
+        assert!(parse(&args("-i in.mp4 -c copy -movflags +faststart out.mp4")).is_ok());
+        assert_eq!(
+            refused("-i in.mp4 -c:a pcm_s16le -vn -movflags +faststart out.mp4"),
+            Reason::Option("-movflags".to_owned(), None)
+        );
     }
 
     #[test]
