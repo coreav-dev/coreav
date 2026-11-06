@@ -10,6 +10,38 @@ import unittest
 
 
 class HevcWorkflow(unittest.TestCase):
+    def test_full_work_runs_only_on_explicit_full_events(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        self.assertIn('cron: "45 3 * * *"', workflow)
+        self.assertIn('  workflow_dispatch:', workflow)
+        self.assertNotIn('merge_group:', workflow)
+        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", workflow)
+        gate = "if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'"
+        for job in ('hevc-vectors', 'profile-census'):
+            self.assertEqual(workflow.split('  ' + job + ':\n', 1)[1].splitlines()[0].strip(), gate)
+        for line in workflow.splitlines():
+            if line.strip().startswith('paths:'):
+                paths = json.loads(line.split(':', 1)[1])
+                for required in ('scripts/hevc_smoke.py', 'scripts/test_oracle.py'):
+                    self.assertIn(required, paths)
+
+    def test_smoke_has_only_synthetic_work_and_safe_always_reports(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        job = workflow.split('  hevc-smoke:\n', 1)[1].split('  hevc-vectors:', 1)[0]
+        for required in ('runs-on: ubuntu-24.04', 'timeout-minutes: 30',
+                         '--example headers --example intra', 'scripts/install-oracle-ffmpeg.sh',
+                         'scripts/hevc_fixture.py verify', 'scripts/hevc_smoke.py', 'if: always()'):
+            self.assertIn(required, job)
+        for forbidden in ('secrets.', 'R2_', ' acquire ', 'corpus-online', 'hevc_decode.py'):
+            self.assertNotIn(forbidden, job)
+        self.assertLess(job.index('scripts/hevc_fixture.py verify'), job.index('scripts/hevc_smoke.py'))
+        artifacts = job.split('          path: |\n', 1)[1].split('          if-no-files-found:', 1)[0]
+        self.assertEqual([line.strip() for line in artifacts.splitlines()],
+                         ['${{ runner.temp }}/hevc-smoke/result.json',
+                          '${{ runner.temp }}/hevc-synthetic/reference.json'])
+
     def test_census_uses_its_own_public_recipient_without_changing_shared_corpus_sealing(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
