@@ -402,7 +402,7 @@ impl Run<'_> {
         self.input_shape = Some(input_shape);
         frame.color =
             coreav_thumbnail::frame_color(self.stream.codec, frame.color, self.stream.color);
-        let mut picture = frame.to_cpu().map_err(frame_error)?.into_owned();
+        let mut picture = frame.pixels.into_cpu().map_err(frame_error)?;
         let turns = if self.command.noautorotate {
             0
         } else {
@@ -497,14 +497,14 @@ impl Run<'_> {
             capture.picture(&picture, pts, time, pixel_name(input_shape.2), &frame.color)?;
         }
         let bytes = match self.encoder {
-            VideoEncoder::Png => coreav_thumbnail::encode_png_with_aspect(&picture, self.aspect())
-                .map_err(image_error)?,
-            VideoEncoder::Bmp => coreav_thumbnail::encode_bmp(&picture).map_err(image_error)?,
-            VideoEncoder::Rawvideo => {
-                let mut bytes = Vec::new();
-                picture.write_packed(&mut bytes).map_err(frame_error)?;
-                bytes
+            VideoEncoder::Png => Encoded::Bytes(
+                coreav_thumbnail::encode_png_with_aspect(&picture, self.aspect())
+                    .map_err(image_error)?,
+            ),
+            VideoEncoder::Bmp => {
+                Encoded::Bytes(coreav_thumbnail::encode_bmp(&picture).map_err(image_error)?)
             }
+            VideoEncoder::Rawvideo => Encoded::Raw(&picture),
         };
         if self.command.muxer == Muxer::Image2 {
             let path = if self.command.frames.update {
@@ -533,7 +533,7 @@ impl Run<'_> {
                 check_output(self.command, &path)?
             };
             output::to_file(&path, force, |out| {
-                out.write_all(&bytes).map_err(|e| WriteFailure::output(&e))
+                bytes.write(|chunk| out.write_all(chunk).map_err(|e| WriteFailure::output(&e)))
             })?;
             #[cfg(feature = "input-capture")]
             if let Some(capture) = &mut self.capture {
@@ -550,7 +550,7 @@ impl Run<'_> {
                 if self.command.muxer == Muxer::Yuv4mpeg {
                     output.write(b"FRAME\n")?;
                 }
-                output.write(&bytes)?;
+                bytes.write(|chunk| output.write(chunk))?;
             }
         }
         self.count += 1;
@@ -639,6 +639,35 @@ fn pixel_name(format: PixelFormat) -> String {
         PixelFormat::Gbr { depth } => format!("gbrp{depth}le"),
         PixelFormat::SemiPlanar { depth: 8 } => "nv12".into(),
         PixelFormat::SemiPlanar { depth } => format!("p0{depth}le"),
+    }
+}
+
+enum Encoded<'a> {
+    Bytes(Vec<u8>),
+    Raw(&'a Picture),
+}
+
+impl Encoded<'_> {
+    fn write<E>(&self, mut write: impl FnMut(&[u8]) -> Result<(), E>) -> Result<(), E> {
+        match self {
+            Self::Bytes(bytes) => write(bytes),
+            Self::Raw(picture) => {
+                for (index, plane) in picture.planes().iter().enumerate() {
+                    if let Some((rows, bytes)) = picture.plane_rows(index) {
+                        if plane.stride() == bytes {
+                            if let Some(packed) = plane.data().get(..rows.saturating_mul(bytes)) {
+                                write(packed)?;
+                                continue;
+                            }
+                        }
+                        for row in picture.rows(index) {
+                            write(row)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
+        }
     }
 }
 
@@ -755,6 +784,46 @@ impl Drop for Continuous {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn raw_writes_packed_planes_without_padding_or_staging() {
+        for stride in [6, 8] {
+            let mut pixels = vec![255; stride + 6];
+            pixels
+                .get_mut(..6)
+                .unwrap()
+                .copy_from_slice(&[1, 2, 3, 4, 5, 6]);
+            pixels
+                .get_mut(stride..)
+                .unwrap()
+                .copy_from_slice(&[7, 8, 9, 10, 11, 12]);
+            let picture = Picture::new(
+                2,
+                2,
+                PixelFormat::Rgb24,
+                vec![coreav_frame::Plane::new(pixels, stride)],
+            )
+            .unwrap();
+            let mut actual = Vec::new();
+            Encoded::Raw(&picture)
+                .write(|chunk| {
+                    assert!(picture.planes().iter().any(|plane| {
+                        let start = plane.data().as_ptr() as usize;
+                        let address = chunk.as_ptr() as usize;
+                        address >= start && address + chunk.len() <= start + plane.data().len()
+                    }));
+                    actual.extend_from_slice(chunk);
+                    Ok::<_, ()>(())
+                })
+                .unwrap();
+            assert_eq!(actual, (1..=12).collect::<Vec<_>>());
+            assert_eq!(
+                Encoded::Raw(&picture).write(|_| Err("closed pipe")),
+                Err("closed pipe")
+            );
+        }
+    }
 
     #[test]
     #[allow(clippy::unwrap_used)]

@@ -8,7 +8,7 @@ Keep one bounded packed-picture pool per native H.264 decoder. A picture owns it
 
 The pool reuses only matching geometry and format. Every visible row is overwritten before publication. Retained frames never block decoding; when all managed storage is in use, allocation falls back to the existing fallible path without adding an admission rule.
 
-Use the existing decoder output-copy allowance, not another memory budget. Bound managed pixel capacities and slot count, including live leases. Cached storage plus pending frames must fit both that allowance and the pending-byte limit. Evict idle storage on geometry changes and budget reductions. Keep cumulative decoded-byte and pending-frame charges unchanged. One-IDR decoding does not retain a cache.
+Use the existing decoder output-copy allowance, not another memory budget. The pool retains at most `threads + 2` pictures, no more than the codec's `dpb_size + 1 + threads` output-copy reserve because `dpb_size` is at least one. Bound managed pixel capacities and slot count, including live leases. Cached storage plus pending frames must fit both that allowance and the pending-byte limit. Evict idle storage on geometry changes and budget reductions. Keep cumulative decoded-byte and pending-frame charges unchanged. One-IDR decoding does not retain a cache.
 
 The CLI consumes CPU pixels rather than cloning them and writes raw picture rows directly through the existing file and pipe writers. PNG and BMP encoding remain unchanged. Shared-memory reads, sandboxing, encoder queues, decoder kernels, release allocators and build defaults stay unchanged.
 
