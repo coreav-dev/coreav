@@ -18,7 +18,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "tools/decode-oracle/**", "scripts/fuzz_run.sh", "scripts/vp9_pixel*", "scripts/tests/test_vp9_pixel*", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "docs/measurements/vp9-pixel-round/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-conformance.yml"]
   schedule:
-    - cron: '41 6 * * 3'
+    - cron: '41 17 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -162,7 +162,8 @@ jobs:
       - name: Compare automatic and scalar interpolation for C3
         env:
           ASAN_OPTIONS: quarantine_size_mb=64
-        run: scripts/fuzz_run.sh run "$RUNNER_TEMP/interpolation-plan.txt" 600 "$RUNNER_TEMP/interpolation-fuzz"
+          FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && '30' || '600' }}
+        run: scripts/fuzz_run.sh run "$RUNNER_TEMP/interpolation-plan.txt" "$FUZZ_SECONDS" "$RUNNER_TEMP/interpolation-fuzz"
 
   adapter-contract:
     if: inputs.mode != 'ceiling' && inputs.mode != 'build-round'

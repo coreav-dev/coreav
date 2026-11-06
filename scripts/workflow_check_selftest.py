@@ -198,8 +198,13 @@ class Repository(unittest.TestCase):
         self.assertTrue(any(p.startswith('ci.yml: give `check` exactly') for p in found), found)
 
     def test_matrix_legs_sharing_a_group_are_reported(self):
-        found = self.ci('-transcode-compat-shard-${{ strategy.job-index }}-', '-transcode-compat-shard-')
-        self.assertTrue(any(p.startswith('ci.yml: give `transcode-compat-shard` exactly') for p in found), found)
+        path = self.root / '.github/workflows/ci-full.yml'
+        text = path.read_text()
+        original = '-transcode-compat-shard-${{ strategy.job-index }}-'
+        self.assertIn(original, text)
+        path.write_text(text.replace(original, '-transcode-compat-shard-'))
+        found = check.check(self.root)
+        self.assertTrue(any(p.startswith('ci-full.yml: give `transcode-compat-shard` exactly') for p in found), found)
 
     def test_a_report_job_with_a_group_is_reported(self):
         found = self.ci('  ci-report:\n', '  ci-report:\n    concurrency:\n      group: x\n')

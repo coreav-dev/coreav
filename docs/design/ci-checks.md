@@ -4,9 +4,41 @@ How the workflows under `.github/workflows` are shaped so that a branch
 ruleset can require them. The exact list of names it requires is the table
 under "Required status checks" below.
 
-## Planned validation tiers
+## Validation tiers
 
-[Shorter PR validation](ci-tiers.md) records the measured required and heavy-codec paths, the proposed fixture/npm changes, the full-suite tiers and their forecast. It is a plan, not the active merge contract. The required-check table and executable rules below stay in effect until the implementation changes the workflows, checker, scheduling tests and agent rules together.
+[Shorter PR validation](ci-tiers.md) records this branch's implemented fixture and npm changes, routine smoke checks, independent full suites, and exact-final-head verification procedure. Its forecasts remain assumptions, not measured improvements. Required context names are unchanged. Full H.264, arm64 conformance, and the three composed-transcode shards and merger belong to `ci-full.yml`, outside `ci-report`. HEVC tiering is deferred while coreav-dev/coreav#429 remains open and draft; `hevc-conformance.yml` is unchanged.
+
+## Verify a correctness PR's final head
+
+Prerequisite: all workflow files must be registered on the default branch. Before first use, register the new `ci-full.yml` in a dispatch-only change, then dispatch this branch's full implementation. Registration itself is not full-suite evidence.
+
+1. Read the current branch and exact head from the pull API. Replace `N` with the PR number.
+
+   ```bash
+   N=448
+   REPO=coreav-dev/coreav
+   BRANCH="$(gh api "repos/$REPO/pulls/$N" --jq '.head.ref')"
+   SHA="$(gh api "repos/$REPO/pulls/$N" --jq '.head.sha')"
+   test "$(gh api "repos/$REPO/pulls/$N" --jq '.head.repo.full_name')" = "$REPO"
+   ```
+
+2. Dispatch all three workflows on that branch.
+
+   ```bash
+   gh workflow run ci-full.yml --repo "$REPO" --ref "$BRANCH"
+   gh workflow run vp9-corpus.yml --repo "$REPO" --ref "$BRANCH"
+   gh workflow run vp9-conformance.yml --repo "$REPO" --ref "$BRANCH" -f mode=conformance
+   ```
+
+3. Find the newest dispatch for each workflow at `$SHA` and `$BRANCH`. Use `gh api --paginate "repos/$REPO/actions/workflows/WORKFLOW/runs?event=workflow_dispatch&head_sha=$SHA&per_page=100"` with each workflow filename. Check the run's branch, SHA, creation time, and latest `run_attempt`. Wait for those exact runs with `gh run watch RUN --repo "$REPO" --exit-status`. Check each exact run with `gh run view RUN --repo "$REPO"`; do not substitute an older success or a similarly named required check.
+4. Run the verifier after all three complete, immediately before enqueueing.
+
+   ```bash
+   test "$(gh api "repos/$REPO/pulls/$N" --jq '.head.sha')" = "$SHA"
+   GH_TOKEN="$(gh auth token)" python3 -I scripts/ci_full.py verify --pr "$N"
+   ```
+
+Stop on any API or verification failure. Repeat after any head change, newer dispatch, or rerun. The verifier re-lists all three dispatch indexes before its final PR-head check. Successful jobs carried over from an earlier attempt of the same exact-head manual run remain valid; a new attempt must finish successfully before evidence is accepted. Existing HEVC and relevant audio manual full checks are additional owning-area obligations, outside this three-suite verifier.
 
 ## The problem
 
@@ -319,11 +351,12 @@ The sole historical-extraction exception is `training-identity`: `docs/measureme
 
 `isobmff-fixtures` ran every check of the ISO base media fixtures in one job: a median of 34.9 minutes over the successful jobs of the last 60 completed pull request runs, against 15.2 for `fuzz`, 11.6 for `bench-guard` and under 9 for every other job, so it alone set how long a pull request waited. Its checks now run in separate jobs, with the same commands, bars and thresholds:
 
-- `isobmff-fixtures`: fixture generation, the oracle self-checks, the stream and packet oracles against `ffprobe` and their known-divergence audit, `coreav probe` and `coreav ffprobe`, the output schemas, the hostile suite through the `coreav` binary, `coreav check`, audio extraction, subtitles and chapters, and the text known-divergence audit. It generates its own fixtures on every run, as before, so every run exercises generation. Its artifact is `oracle-output`.
-- `ci-changes` publishes `isobmff-fixture-set`, the one fixture artifact that the three jobs below check, before starting the fan-out. The local `ci-fixtures` action restores the exact generated-fixture cache or generates once on a miss. Generation is not byte for byte reproducible (a WebM fixture generated twice with the same FFmpeg differs), so independent generation in consumers would check different bytes, and B9's `--merge` refuses shards whose fixtures differ. The artifact, not a mutable cache lookup in each consumer, binds the bytes for the run. Moving this short preparation into the existing gate removes a separate producer's runner queue and its additional scheduling level. A cold miss delays all gate-dependent jobs while generating, rather than just the consumers; the gate has a 15-minute limit for that path. `isobmff-fixtures` still generates independently on every full run.
+- `isobmff-fixtures`: oracle self-checks, stream and packet comparison and known-divergence checks, probe commands, schemas, hostile inputs, policy checking, audio and text extraction, and the text known-divergence audit. Its artifact is `oracle-output`.
+- `isobmff-command-compat`: command coverage, frame listing, and informational R1, with unchanged comparators, baselines, build variants, and verdict handling. It is covered by `ci-report` and retains `isobmff-command-results`.
+- `ci-changes` publishes `isobmff-fixture-set` before the fan-out. The local `ci-fixtures` action generates once on every non-reused run, even on a cache hit. Reused main maintenance retains cache restoration. Consumers download the same run-bound artifact and never independently regenerate it. Generation is not byte for byte reproducible, so the artifact binds the bytes rather than separate cache lookups. The gate has a 15-minute limit. `ci-full.yml` has its own fresh producer, `full-fixtures`, which also publishes the composed-audio set.
 - `isobmff-writers`: clip, remux, video replacement, split, sanitize, HLS, join and the 0.1.0 `ffmpeg` commands. Their reports are the `writer-output` artifact.
 - `isobmff-decode`: the build with the FFmpeg fallback, dav1d and libvpx, then decoding, thumbnails and `coreav transcode` against the pinned FFmpeg, and the hostile suite through `coreav thumbnail` and `coreav transcode`.
-- `transcode-compat-shard`, three legs, and `transcode-compat`: the explicitly selected `composed-opus-aac-v2` registration. The legacy B9 reader and frozen records keep their original exact semantics.
+- In `ci-full.yml`, `transcode-compat-shard`, three legs, and `transcode-compat`: the explicitly selected `composed-opus-aac-v2` registration, with unchanged shard and merger predicates. The legacy B9 reader and frozen records keep their original exact semantics.
 
 The CLI transcode test helpers bound each `coreav transcode` call to 90 seconds, each stand-in script writer to 30 seconds, and the hostile-encoder test's single-picture FFmpeg generation to 60 seconds. Input writes and both output reads run concurrently. On a stall, Linux records process and thread states, wait channels, file descriptors and owners of the tracked pipe inodes, including reparented owners, before cleanup. Family threads also report syscall numbers and timer slack. On Linux x86-64, timed futex waits in the root executable and its workers include a 16-byte timespec sample and the matching clock when the syscall agrees before and after the read, so an expired wait can be distinguished from a future deadline. Arguments, environment values, general memory dumps and core dumps are not collected. One owned collector has a two-second caller budget and is never joined; the existing process/file/thread caps and 32 KiB text cap remain. `COREAV_TEST_DIAGNOSTICS` selects the test-only artifact directory; timeout paths write a snapshot on a best-effort basis, and a write failure does not replace the timeout. The transcode fixture step uploads that directory on failure. Other platforms keep the child and pending-I/O report without the Linux snapshot. These are diagnostic limits, not a fix for the original unexplained stall, and no production deadline or CI job timeout changes.
 
@@ -397,7 +430,7 @@ Missing evidence, a mismatching tree, an API error, unavailable commit metadata,
 On a proven tree, `python-report` and `npm-report` retain their changes and report jobs, but skip the repeated wheel/package tests. `deny-checks` logs its evidence instead of repeating the licence, advisory and repository checks. Their required names still report conclusions. `ci-report` retains:
 
 - `ci-changes` and the report itself, so the evidence and all maintenance outcomes remain visible.
-- `bench-guard` against the committed baseline, and `conformance-arm64` when its paths changed. The queue checks neither of these main-only comparisons.
+- `bench-guard` against the committed baseline. Arm64 conformance belongs to the independent full tier, not reused-main maintenance.
 - Fixture preparation inside `ci-changes`, which updates main's generated-fixture cache, and a build-only `main-cache` job using `isobmff-fixtures`' shared Rust-cache key. The latter warms the oracle/CLI dependencies and fallback builds without rerunning tests. When evidence is missing, the ordinary fixture jobs run and warm those caches instead.
 
 The other job-specific caches are refreshed by full fallback/manual runs rather than by every merge. A reused main push records no second copy of the queue's oracle results; its summary names the run holding them. Main-only maintenance and fallback checks continue in their original run, even when later pushes arrive or older gates finish late.
@@ -562,7 +595,7 @@ None of them adds a required check name, so the table below is unchanged.
 
 ## The 0.1.0 compatibility round
 
-`compat-0.1.0.yml` runs R2 and R3 of the 0.1.0 round (`docs/measurements/compat-0.1.0/README.md`) by hand, at a commit given as input, on spent files (`rehearsal`) or on draw 6 (`draw6`, which also needs `open_draw`), split over four runners. The R2 and R3 shards receive the corpus credentials only in their fetch steps. The R4 rehearsal and scan steps combine fetching with tool execution and retain those read-only credentials in their environment. It publishes counts only, in its job summary and the `compat-0.1.0-summary` artifact; the per-file records are sealed to `tools/compat-corpus/evidence-public.pem` before they leave a runner, because an artifact of a public repository is readable by anyone. A pull request that changes the workflow runs the rehearsal, which also runs the R4 host's job on a runner (`scripts/compat_r4_gcp.py --local`) and scans which R4 pairs of the gate's and the rehearsal's files write to the fallback log (`tools/compat-corpus/r4_scan.py`): any such line voids R4, so the scan names, before the round, the commands and files that would void it. It is not required (`# workflow-check: not required`): it is a measurement, not a gate. R1 runs as a step of the three fixture jobs in `ci.yml` (`isobmff-fixtures`, `mkv-fixtures`, `ts-fixtures`), `run.py commands --set 0.1.0` with no baseline; its verdict goes to their job summaries and its report to their artifacts, and a miss or a void run does not fail them, so a change of the oracle's output is reported there without blocking unrelated pull requests; a run that measured nothing fails them. The workflow's report step likewise takes a miss or a void run as a result and fails on a run that measured nothing.
+`compat-0.1.0.yml` runs R2 and R3 of the 0.1.0 round (`docs/measurements/compat-0.1.0/README.md`) by hand, at a commit given as input, on spent files (`rehearsal`) or on draw 6 (`draw6`, which also needs `open_draw`), split over four runners. The R2 and R3 shards receive the corpus credentials only in their fetch steps. The R4 rehearsal and scan steps combine fetching with tool execution and retain those read-only credentials in their environment. It publishes counts only, in its job summary and the `compat-0.1.0-summary` artifact; the per-file records are sealed to `tools/compat-corpus/evidence-public.pem` before they leave a runner, because an artifact of a public repository is readable by anyone. A pull request that changes the workflow runs the rehearsal, which also runs the R4 host's job on a runner (`scripts/compat_r4_gcp.py --local`) and scans which R4 pairs of the gate's and the rehearsal's files write to the fallback log (`tools/compat-corpus/r4_scan.py`): any such line voids R4, so the scan names, before the round, the commands and files that would void it. It is not required (`# workflow-check: not required`): it is a measurement, not a gate. R1 runs as a step of the three fixture jobs in `ci.yml` (`isobmff-command-compat`, `mkv-fixtures`, `ts-fixtures`), `run.py commands --set 0.1.0` with no baseline; its verdict goes to their job summaries and its report to their artifacts, and a miss or a void run does not fail them, so a change of the oracle's output is reported there without blocking unrelated pull requests; a run that measured nothing fails them. The workflow's report step likewise takes a miss or a void run as a result and fails on a run that measured nothing.
 
 `codec-coverage.yml` runs V1, V2 and V3 of the 0.1.0 codec coverage bars (`docs/measurements/compat-0.1.0/codec-coverage-plan.md`) by hand, at a commit given as input, on the rehearsal's 40 files of corpus v1 (`rehearsal`) or on every `real` file of corpus v1 (`v1`). It builds the plan's run manifest once (the full build's `coreav`, `decode-oracle` linked against the same static dav1d and libvpx, the `ffmpeg` test executable with `release-full`, and x264), runs V1 over 40 runners for `v1` and 4 for `rehearsal`, and runs V2 and V3 in one job on the fixtures the pinned FFmpeg makes. A V1 shard fetches each file when its turn comes and deletes it after its record, because a shard's files do not fit a runner's disk at once, so the corpus store's read-only credentials stay in that step's environment; `decode_breadth.py` passes none of them to the programs it runs on the files. V1's per-file records are sealed to `tools/compat-corpus/evidence-public.pem` before they leave a runner, and a runner refuses to seal to a key whose fingerprint is not the one the workflow names. A shard stops starting files, and stops the sides still running, at a deadline before the job's limit, so that its records are sealed; those files, and those of a shard that reported nothing, run again on one Compute Engine VM (`scripts/codec_coverage_gcp.py rerun`). The report job puts the manifest together and fails when an item differs from the plan's table. A pull request that changes the workflow or the tools runs V2 and V3 on the fixtures and V1's tests on the decode fixtures they make, and reads no corpus file. It is not required (`# workflow-check: not required`): it is a measurement, not a gate.
 
@@ -616,7 +649,7 @@ failed.
 | Check | Workflow | Note |
 |---|---|---|
 | `deny` | `deny.yml` | The licence, advisory, repository and PR DCO checks, reported by the `deny` job, which fails when they failed, were cancelled or were skipped; on main, a successful same-tree merge-group result may replace repeated checks |
-| `ci-report` | `ci.yml` | Every job of `ci.yml`: `cargo fmt`, `clippy` and the workspace tests on Linux, `clippy` and the workspace tests on macOS arm64 and Windows x86-64, the MSRV build, on a pull request the fuzz run of the targets it can affect, the ISO base media, Matroska and transport stream oracles, H.264 conformance (bar C1 of `docs/design/h264.md`) and the instruction-count guard; on proven main trees, only the baseline guard, arm64 conformance and shared-cache maintenance are repeated |
+| `ci-report` | `ci.yml` | Every job of `ci.yml`: formatting, strict Clippy and workspace tests with existing platform filters, MSRV, affected-target PR fuzzing, ISO base media fixtures including `isobmff-command-compat`, Matroska and transport stream oracles, exact-eight H.264 fast and safe smoke, kernel and identity checks, SVT-AV1 and the instruction-count guard; proven main trees retain the baseline guard and shared-cache maintenance. Full H.264, arm64 conformance and composed-transcode shards and merger run independently in `ci-full.yml`, not under this report |
 | `python-report` | `python.yml` | The abi3 wheel and its tests, or on main their successful same-tree merge-group result |
 | `npm-report` | `npm.yml` | The npm packages, launcher and smoke tests, or on main their successful same-tree merge-group result |
 

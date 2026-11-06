@@ -548,6 +548,7 @@ def read_yaml(text, program):
     return json.loads(run.stdout)
 
 
+@functools.lru_cache(maxsize=512)
 def yaml_entries(text):
     """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
     keys of a file and [{'line': n, 'run': str}] for its `run` keys with a
