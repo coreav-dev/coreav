@@ -59,9 +59,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_oracle
 
-def default_video(path, ffprobe='ffprobe'):
+def default_video(path, ffprobe):
     """The index of the video stream FFmpeg (and CoreAV) use by default: the
     highest resolution, the first on a tie; attached pictures left out."""
+    ffprobe = test_oracle.require(Path(ffprobe).with_name('ffmpeg'), ffprobe).ffprobe
     r = subprocess.run([ffprobe, '-v', 'error', '-show_entries',
                         'stream=index,codec_type,width,height:stream_disposition=attached_pic', '-of', 'json',
                         str(path)], capture_output=True, text=True, timeout=120, check=False, env=ENV)
@@ -86,12 +87,13 @@ def choose_default_video(streams):
     return best[1] if best else None
 
 
-def at_time(path, ffprobe='ffprobe'):
+def at_time(path, ffprobe):
     """T: 40% of the first video stream's presented duration, rounded down
     to the millisecond: from the file's start time (where `ffmpeg -ss` and
     `coreav thumbnail --at` count from) to the end of its last video packet.
     (`ffprobe`'s duration field is not the length for a file whose start
     time is not 0.)"""
+    ffprobe = test_oracle.require(Path(ffprobe).with_name('ffmpeg'), ffprobe).ffprobe
     stream = default_video(path, ffprobe)
     if stream is None:
         return None

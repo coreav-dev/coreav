@@ -65,6 +65,29 @@ class FfmpegTime(unittest.TestCase):
         self.assertEqual(thumbnail_oracle.ffmpeg_time('ffprobe', pathlib.Path('a.webm'), summary(10065, 2012)),
                          '10.065000')
 
+class ProbeSelection(unittest.TestCase):
+    def test_imported_probe_helpers_execute_the_owner_returned_probe(self):
+        from unittest import mock
+        pair = types.SimpleNamespace(ffmpeg=pathlib.Path('/qualified/ffmpeg'), ffprobe=pathlib.Path('/qualified/ffprobe'))
+        listing = json.dumps({'streams': [{'index': 0, 'codec_type': 'video', 'width': 2, 'height': 2}],
+                              'format': {'start_time': '0'}, 'packets': [{'pts_time': '0', 'duration_time': '1'}]})
+        with mock.patch.object(thumbnail_oracle.test_oracle, 'require', return_value=pair) as qualify, \
+                mock.patch.object(thumbnail_oracle.subprocess, 'run',
+                                  return_value=types.SimpleNamespace(stdout=listing)) as execute:
+            thumbnail_oracle.at_time('input.webm', '/raw/ffprobe')
+        self.assertEqual(qualify.call_args_list[0].args, (pathlib.Path('/raw/ffmpeg'), '/raw/ffprobe'))
+        self.assertEqual([call.args[0][0] for call in execute.call_args_list], [pair.ffprobe, pair.ffprobe])
+
+    def test_an_unqualified_probe_is_refused_before_it_runs(self):
+        from unittest import mock
+        failure = thumbnail_oracle.test_oracle.QualificationError('stage=oracle_qualification')
+        with mock.patch.object(thumbnail_oracle.test_oracle, 'require', side_effect=failure), \
+                mock.patch.object(thumbnail_oracle.subprocess, 'run') as execute:
+            for helper in (thumbnail_oracle.default_video, thumbnail_oracle.at_time):
+                with self.subTest(helper=helper.__name__), self.assertRaises(thumbnail_oracle.test_oracle.QualificationError):
+                    helper('input.webm', '/raw/ffprobe')
+        execute.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
