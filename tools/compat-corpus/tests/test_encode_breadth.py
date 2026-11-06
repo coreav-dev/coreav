@@ -985,10 +985,11 @@ class Cli(Stubs):
         other.write_text(f'#!{sys.executable}\nprint("ffmpeg version 0.0.0")\n')
         other.chmod(0o755)
         self.opts.ffmpeg = str(other)
-        with self.assertRaises(ValueError):
-            eb.oracle_programs(self.opts)
-        with mock.patch.object(eb, 'evaluate') as evaluate, contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(eb.cmd_run(self.opts), 2)
+        with mock.patch.object(eb.test_oracle, '_selection', None), mock.patch.object(eb.test_oracle, '_result', None):
+            with self.assertRaises(ValueError):
+                eb.oracle_programs(self.opts)
+            with mock.patch.object(eb, 'evaluate') as evaluate, contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(eb.cmd_run(self.opts), 2)
         evaluate.assert_not_called()
 
     def test_run_writes_a_record_a_command_and_a_summary_with_the_programs_hashes(self):
