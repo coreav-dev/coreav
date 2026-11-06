@@ -1,6 +1,6 @@
 # Bounded H.264 encoder search
 
-Status: implemented after the design-first commit. This replaces the normal P-picture search policy, not H.264 reconstruction, the all-IDR path, or default-build admission. Encoded bytes may change. The goal is a large reduction in search work rather than another exact arithmetic optimization.
+Status: the initial bounded policy and the compression-efficiency amendment below are implemented after their respective design-first commits. They change normal P-picture search, not H.264 reconstruction, the all-IDR path, or default-build admission. Encoded bytes may change.
 
 ## Inputs and constraints
 
@@ -48,7 +48,7 @@ Add tests for probe and full-evaluation bounds, small-range and outlying seeds, 
 
 ## Implementation and reference results
 
-Both steps are adopted. The ordinary inter path uses the two cheap layout proposals and one successful full evaluation, with the other layout retained only for admission failure. The prior broad search, incremental-trial helpers, and omitted rectangular layout constructors remain only in test builds for their existing conformance and complete-evaluator checks. The P-picture intra path runs after inter and completes one cheap-selected pair, with the complete original procedure retained for IDR pictures and admission fallback. All 43 encoder tests pass, including the unchanged all-intra byte snapshot.
+This section records the initial implementation in coreav-dev/coreav#446; the recovery amendment below supersedes its normal search policy. That round adopted both steps: two cheap inter-layout proposals and one successful full evaluation, with the other layout retained only for admission failure. Broad search and incremental-trial helpers remained test-only. The P-picture intra path completed one cheap-selected pair, with the complete original procedure retained for IDR pictures and admission fallback. Its 43 encoder tests passed, including the unchanged all-intra byte snapshot.
 
 The following are single-run reference figures from the same two-CPU AMD EPYC machine, pinned to CPU 0, using optimized release builds with debug information. Both inputs are already lossy. A retains 640x480 geometry. B is resized from 414x900 to 368x800 for the level-3.0 comparison envelope. Each uses the first 60 prepared pictures after conversion to 30 pictures per second. A has 48 distinct prepared pictures and B has five. B is a low-motion sanity check only, not evidence for broad-motion performance. Prepared hashes, binary hashes, the compiler identified by the measured executables' ELF notes, source commits, and complete per-call wall and CPU times are in the [raw reference record](h264-encoder-search-reference.json).
 
@@ -97,7 +97,7 @@ The calculation sorts each arm's three `(PSNR, kbit/s)` points, interpolates nat
 
 This amendment is committed before its implementation. The maintainer chose compression-efficiency recovery before SIMD after the bounded-search result in coreav-dev/coreav#446. The target is a single-digit PSNR BD-rate increase against the pre-change main, ideally below +5%, while retaining at least 80% of the bounded encoder's throughput. On A, the concrete reference target is at least 14 pictures per second. Report the remaining BD-rate against x264 as well. These are local reference targets, not a representative-cohort claim.
 
-The normative objective, quantization, entropy coding, reference state, deblocking, IDR analysis, legal motion vectors, and admission remain unchanged. Only proposal quality and the allocation of cheap search work change. The specification and the two reviewed notes above are the only implementation inputs. No new source study is required by this design; an unanswered implementation question would stop work for a separate study rather than invite source reading here. No SIMD, unsafe code, external encoder dependency, or default-build change belongs to this amendment.
+The complete candidate objective, quantization, entropy coding, reference state, deblocking, IDR analysis, legal motion vectors, and admission remain unchanged. Only proposal quality and the allocation of cheap search work change. The specification and the two reviewed notes above are the only implementation inputs. No new source study is required by this design; an unanswered implementation question would stop work for a separate study rather than invite source reading here. No SIMD, unsafe code, external encoder dependency, or default-build change belongs to this amendment.
 
 ### Hypotheses and experiment order
 
@@ -137,3 +137,62 @@ Add one real-motion input from media already stored in R2, separate from A and f
 If the second input's native and x264 three-point curves have no common PSNR interval, report that result as undefined rather than extrapolating. One additional x264 QP-40 anchor may provide a separately labelled four-point diagnostic comparison while retaining the required QP 22, 28, 34 cells. This adds quality coverage, not a substituted native sweep or a new acceptance rule.
 
 Verify exact pinned-FFmpeg reconstruction for every newly encoded native cell, including complete picture counts. Prove raw x264 input passthrough before encoding and independently recompute PSNR from the identical reference samples. Keep metric work outside timing and retain the native driver's verification-and-IO timing qualification. Check SATD against a direct matrix definition on zero, constant, impulse, signed-extreme and deterministic residuals. Check legal intra modes, reconstructed I4 border dependencies, deterministic ties, proposal budgets, fallback, admission, and transactional retry. Keep the unchanged all-intra snapshot, existing forced syntax fixtures, three-decoder conformance, signed-off commits, and exact-head main-allowlist similarity guard.
+
+## Recovery implementation and reference results
+
+The final policy keeps the bounded I4 proposal, exact intra and inter syntax floors, complete comparison of the two eligible inter proposals, equal-vector region coalescing, and retained-vector SATD ranking. Normal search performs at most 115 SAD probe calls and fifteen retained-vector SATD comparisons, followed by at most two regular complete inter evaluations and the independent skip evaluation. Intra either loses the syntax-floor comparison without construction or completes one cheap-selected luma/chroma pair. IDR and admission fallback retain the complete original intra procedure. Coalescing can emit already-supported rectangular forms without searching new vectors. Equivalent complete representations are deduplicated.
+
+The final inter proposals are ordered by exact syntax length. Once both are eligible for complete comparison, extra layout prediction and SATD ranking changed only evaluation order; removing that work preserved all six measured streams. Universal pre-probe bounds also preserved those streams. The separate intra-floor step preserved all six of its parent's streams. Strict equality still evaluates candidates, and tests cover skip-run code-length discontinuities. The committed implementation has 49 passing Rust tests, including the unchanged all-intra snapshot, prediction and coefficient equality after coalescing, reconstructed I4 borders, and the probe and evaluation bounds.
+
+### Measured frontier
+
+Each development entry below is one QP-28 timing call and a QP 22, 28, 34 PSNR BD-rate curve. Timings include native decoder verification and IO, have no interval, and are not the final paired timing comparison. The [raw recovery record](h264-encoder-efficiency-reference.json) contains every cell's bitrate, PSNR, SSIM, wall and CPU time, input and executable digests, complete metric counts, and common quality intervals.
+
+| Policy | A pictures/s | A BD-rate versus old main | C pictures/s | C BD-rate versus old main |
+|---|---:|---:|---:|---:|
+| Initial bounded search | 22.375 | +19.34% | 27.545 | +14.61% |
+| Bounded I4 with transform-domain intra ranking | 17.696 | +9.45% | 28.784 | +16.13% |
+| Transform-domain layout ranking | 19.107 | +7.58% | 31.931 | +14.95% |
+| Exact intra floor | 22.188 | +7.58% | 33.908 | +14.95% |
+| Complete inter comparison with syntax floors | 25.072 | +7.42% | 33.589 | +15.58% |
+| Equal-vector coalescing | 20.453 | +7.46% | 30.704 | +14.86% |
+| Universal pre-probe floor | 38.393 | +7.46% | 34.017 | +14.86% |
+| Syntax-only proposal ordering | 43.765 | +7.46% | 34.043 | +14.86% |
+| Retained-vector SATD ranking | 40.295 | +7.27% | 33.136 | +14.41% |
+
+Transform-domain intra ranking alone barely improved A's BD-rate, to +19.05%, so it was not retained as a standalone answer. Replacing the split's zero seed with the whole-block vector gave +9.46% on A and +15.63% on C after I4, and was rejected. Coalescing traded about 0.04 BD-rate points on A for about 0.72 points on C before the later bounds removed much of its cost; its complete motion map and per-proposal reconstruction are unchanged. The final retained-vector comparison improves both curves at a small timing cost. These are measured tradeoffs across both inputs, not a claim that every isolated stage improves every cell.
+
+A local build overlapped the first universal-floor timing series. Those times were discarded and the same binary was rerun without a concurrent build; the table uses that clean series. Its streams and quality metrics were identical. No rerun was made to rescue a quality result.
+
+### Final paired timing and rate-distortion estimates
+
+Five alternating QP-28 pairs compare the bounded and final executables on CPU 0, after builds finished. Every repeat preserves its curve cell's complete stream and reconstruction. Median pictures/s and observed minimum–maximum are:
+
+| Input | Initial bounded search | Final | Throughput change |
+|---|---:|---:|---:|
+| A | 24.654 [22.865–25.555] | 44.432 [42.183–49.017] | +80.22% |
+| C | 35.830 [34.827–38.239] | 33.513 [31.122–34.094] | −6.47% |
+
+These are local reference figures from the same shared two-CPU AMD EPYC host and optimized release build with debug information. They are not isolated encoder-kernel timings or statistical performance claims. Both inputs remain within the allowed 20% throughput loss, and A exceeds the 14-pictures/s reference floor. Main's A cells are reused from the prior reference; C's old-main cells are new calls. Final curve validation uses the committed implementation and is byte-identical to the last development candidate.
+
+| Input | Initial bounded BD-rate versus old main | Final BD-rate versus old main | Final BD-rate versus x264 medium |
+|---|---:|---:|---:|
+| A | +19.34% | +7.27% | +18.77% |
+| C | +14.61% | +14.41% | Undefined for the primary three-point anchor; +271.23% with the extra anchor |
+
+A reaches the single-digit target, but not the below-5% aspiration. C shows little compression recovery, so the A improvement must not be generalized to it. C's bounded and final curves do not overlap x264's primary QP 22, 28, 34 quality range. Its separately labelled comparison adds x264 QP 40, giving the final curve a common 35.465954–38.715978 dB interval. A uses the primary three-point anchor over 42.362430–49.013435 dB. Final versus old main uses 40.272336–49.013435 dB on A and 33.419766–38.715978 dB on C. Pair-specific intervals differ; these percentages are not transitive. No extrapolation or matched-quality speed claim is made.
+
+The final operating points are:
+
+| Input | QP | kbit/s | PSNR, dB | SSIM |
+|---|---:|---:|---:|---:|
+| A | 22 | 458.888 | 49.013435 | 0.999254 |
+| A | 28 | 365.804 | 45.371226 | 0.998398 |
+| A | 34 | 273.932 | 39.285981 | 0.995533 |
+| C | 22 | 340.768 | 38.715978 | 0.974656 |
+| C | 28 | 162.852 | 35.683142 | 0.966172 |
+| C | 34 | 77.512 | 32.791933 | 0.953264 |
+
+All inputs are already lossy. A's preparation is unchanged. C is resized from 960x812 to 480x406, padded at the bottom to 480x416, and converted from 1440/49 to 30 pictures per second. Its sixty prepared pictures contain 59 distinct images; mean adjacent luma absolute difference is 0.724 and the maximum is 4.530. The prepared digest and exact conversion dimensions are in the raw record. B remains a low-motion sanity check only: at QP 28, final preserves the bounded encoder's complete stream, 126.776 kbit/s, 44.152652 dB PSNR and 0.992678 SSIM. Its single-call timing is not part of the paired comparison.
+
+Every newly encoded native curve and sanity cell matches pinned FFmpeg reconstruction exactly across all sixty pictures, and the repeated timing outputs match their verified cells. x264 uses the corrected input-before-output colour declaration, with digest-matched raw passthrough. Independent raw squared error confirms every PSNR; both metrics retain sixty per-picture records. The raw record names the implementation commit and executable digests; x264 has no encoder-side reconstruction check, so its `oracle_exact` field is null rather than a failed comparison. No new source study, SIMD, unsafe code, or default-build dependency was introduced.
