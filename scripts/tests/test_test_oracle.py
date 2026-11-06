@@ -259,25 +259,32 @@ class Qualification(unittest.TestCase):
                    '        else: raise AssertionError("selection boundary was not reached")\n')
 
     def test_remux_checker_runs_only_the_retained_pair(self):
+        (self.root / 'ffmpeg').write_text('#!/bin/sh\n' +
+            f'echo "ffmpeg $1" >> "{self.log}"\n' +
+            f'echo "ffmpeg version {self.build}"\n')
         (self.root / 'ffprobe').write_text('#!/bin/sh\n' +
-            f'echo ffprobe >> "{self.log}"\n' +
+            f'echo "ffprobe $1" >> "{self.log}"\n' +
             f'if [ "$1" = "-version" ]; then echo "ffprobe version {self.build}"; exit; fi\n' +
             'echo \'{"format":{"format_name":"mp4"},"streams":[]}\'\n')
         shadow = self.root / 'shadow'
         shadow.mkdir()
-        (shadow / 'ffprobe').write_text('#!/bin/sh\nexit 99\n')
-        (shadow / 'ffprobe').chmod(0o700)
+        for name in ('ffmpeg', 'ffprobe'):
+            (shadow / name).write_text('#!/bin/sh\nexit 99\n')
+            (shadow / name).chmod(0o700)
         self.child('from pathlib import Path\nimport os\n'
                    'root = Path(sys.argv[2])\n'
                    'sys.path.insert(0, str(Path(sys.argv[1]).parent / "tools/mkv-adapter"))\n'
                    'import remux_corpus as driver\n'
                    'os.environ["PATH"] = str(root / "shadow") + os.pathsep + os.environ["PATH"]\n'
                    'pair = owner.require()\n'
+                   'os.environ["COREAV_FFMPEG"] = str(root / "shadow" / "ffmpeg")\n'
+                   'os.environ["COREAV_FFPROBE"] = str(root / "shadow" / "ffprobe")\n'
                    'output = root / "output.mp4"\n'
                    'output.write_bytes(b"".join((8).to_bytes(4, "big") + kind for kind in (b"ftyp", b"moov", b"mdat")))\n'
                    'result = driver.check_with_oracle(output, output, {"streams": []}, None, pair)\n'
                    'assert result["ok"], result\n')
-        self.assertCountEqual(self.log.read_text().splitlines(), ['ffmpeg', 'ffprobe', 'ffprobe', 'ffprobe'])
+        self.assertCountEqual(self.log.read_text().splitlines(),
+                              ['ffmpeg -version', 'ffprobe -version'] * 2 + ['ffprobe -v'] * 2)
 
     def test_omitted_cli_selectors_honor_the_configured_pair_over_path(self):
         shadow = self.root / 'shadow'
