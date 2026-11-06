@@ -541,7 +541,7 @@ def main():
     parser.add_argument("--mediainfo")
     parser.add_argument("--report")
     args = parser.parse_args()
-    test_oracle.require('ffmpeg', 'ffprobe')
+    oracle = test_oracle.require('ffmpeg', 'ffprobe')
     work = Path(tempfile.mkdtemp(prefix="writer-kd-audit-cli-"))
     atexit.register(shutil.rmtree, work, True)
     wrapper = work / "coreav"
@@ -552,8 +552,10 @@ def main():
     if args.mediainfo:
         argv += ["--mediainfo", args.mediainfo]
     os.environ["COREAV_SCRIPTS"] = str(ROOT / "scripts")
+    if args.oracle == "text":
+        argv += ["--ffmpeg", str(oracle.ffmpeg), "--ffprobe", str(oracle.ffprobe)]
     if args.oracle == "policy":
-        argv = ["--coreav", str(wrapper), "--media", args.media, "--ffprobe", "ffprobe", "--oracle-frames"]
+        argv = ["--coreav", str(wrapper), "--media", args.media, "--ffprobe", str(oracle.ffprobe), "--oracle-frames"]
         for policy in args.policy:
             argv += ["--policy", policy]
     run_text_or_hls = {"text": run_text, "hls": run_hls, "policy": run_policy}[args.oracle]
