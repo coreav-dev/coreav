@@ -731,6 +731,8 @@ fn unscaled_encoding_preserves_declared_sar_without_changing_scale() {
             String::from_utf8_lossy(&compare.stderr)
         );
     };
+    let mut encoded_outputs = 0;
+    let mut strict_refusals = 0;
     for (name, declaration, ratio) in [
         ("square", "1", Some((1, 1))),
         ("nonsquare", "4/3", Some((4, 3))),
@@ -824,6 +826,7 @@ fn unscaled_encoding_preserves_declared_sar_without_changing_scale() {
                 if scale.is_none() && ratio.is_some() {
                     exact(&output, &reference);
                 }
+                encoded_outputs += 1;
             }
         }
         for strict in [false, true] {
@@ -842,9 +845,18 @@ fn unscaled_encoding_preserves_declared_sar_without_changing_scale() {
                     .env("COREAV_X264", &tools.x264)
                     .env("COREAV_FALLBACK", NO_FALLBACK),
             );
+            if strict && !coreav_worker::enforces_memory_limit() {
+                assert_eq!(run.status.code(), Some(4));
+                assert!(run.stdout.is_empty());
+                assert_eq!(run.stderr, b"coreav ffmpeg: strict-safe: no enforceable memory limit for the sandbox on this platform, so it starts no sandboxed decoder or encoder, or run without --strict-safe and COREAV_STRICT_SAFE\n");
+                assert!(!output.exists());
+                strict_refusals += 1;
+                continue;
+            }
             if strict && !cfg!(feature = "native-h264") {
                 assert_eq!(run.status.code(), Some(4));
                 assert!(!output.exists());
+                strict_refusals += 1;
                 continue;
             }
             assert!(
@@ -857,8 +869,21 @@ fn unscaled_encoding_preserves_declared_sar_without_changing_scale() {
             if ratio.is_some() {
                 exact(&output, &reference);
             }
+            encoded_outputs += 1;
         }
     }
+    assert_eq!(encoded_outputs + strict_refusals, 24);
+    assert_eq!(
+        strict_refusals,
+        if cfg!(feature = "native-h264") && coreav_worker::enforces_memory_limit() {
+            0
+        } else {
+            3
+        }
+    );
+    eprintln!(
+        "SAR matrix: {encoded_outputs} encoded outputs, {strict_refusals} strict-safe refusals"
+    );
 }
 
 #[test]

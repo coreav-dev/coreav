@@ -407,9 +407,7 @@ jobs:
     # where the sandbox's limits, process control and frame transfer differ
     # from Linux (docs/design/decode.md, "Memory"). Left out: `cargo fmt`
     # and the Python checks, which do not depend on the platform, and
-    # `coreav-audio`'s pool test, which reads /proc. The pinned FFmpeg and
-    # x264 are Linux x86-64 programs, so the tests run with `CI` unset and
-    # those that need them skip, as on a developer's Mac.
+    # `coreav-audio`'s pool test, which reads /proc.
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true' && needs.ci-changes.outputs.platforms == 'true'
     concurrency:
@@ -463,6 +461,15 @@ jobs:
       - run: |
           env -u CI python3 -I scripts/oracle_free.py cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
           env -u CI python3 -I scripts/oracle_free.py cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
+      - name: Declared sample aspect ratios on macOS
+        if: env.COREAV_FFMPEG != '' && env.COREAV_FFPROBE != ''
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_X264: ${{ runner.temp }}/coreav-test-oracle/x264
+        run: |
+          scripts/install-x264.sh "$RUNNER_TEMP/coreav-test-oracle"
+          cargo test --locked -p coreav-cli --features native-h264 --test transcode unscaled_encoding_preserves_declared_sar_without_changing_scale -- --exact --nocapture --color never 2>&1 | tee "$RUNNER_TEMP/declared-sar-macos.log"
+          grep -F 'test unscaled_encoding_preserves_declared_sar_without_changing_scale ... ok' "$RUNNER_TEMP/declared-sar-macos.log"
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site --test transcode_selection
       - run: |
           cargo test --release -p coreav-isobmff --test hostile -- --ignored

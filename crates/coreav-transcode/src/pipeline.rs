@@ -229,7 +229,7 @@ pub struct VideoSummary {
     pub width: u32,
     /// The output's height.
     pub height: u32,
-    /// The output's sample aspect ratio, when it is not 1:1.
+    /// The output's sample aspect ratio, including declared unscaled 1:1.
     pub sample_aspect: Option<(u32, u32)>,
     /// The presented frames' average rate, snapped to a common rate, for
     /// information: the encoder is given every frame's own time.
