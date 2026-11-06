@@ -567,7 +567,11 @@ fn execute<S: Source, W: Write>(
     );
     let opened = coreav_decode::open(&video.stream, &options.policy, &limits, backends)
         .map_err(Error::Decode)?;
+    #[cfg(not(feature = "av1-measurement"))]
     let mut decoder = opened.decoder;
+    #[cfg(feature = "av1-measurement")]
+    let mut decoder: Box<dyn coreav_decode::Decoder> =
+        Box::new(crate::av1::measurement::Decoder::new(opened.decoder));
     let spool = Arc::new(Spool::create(output, "spool")?);
     // x264 reads the frames' times from a file, written before it starts:
     // the presented frames' times, which are the frames sent unless the

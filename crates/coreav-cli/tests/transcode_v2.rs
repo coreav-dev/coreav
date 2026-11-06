@@ -52,6 +52,8 @@ fn summary() -> Av1Summary {
                 segment_frames: 6,
                 segments: 1,
                 address_space: 1 << 30,
+                #[cfg(feature = "av1-measurement")]
+                in_process: false,
             },
         },
         audio: None,

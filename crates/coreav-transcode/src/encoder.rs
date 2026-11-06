@@ -1698,7 +1698,7 @@ impl Chunk {
     /// Writes the chunk, a frame's planes in order with their rows packed:
     /// straight from a picture whose rows are, else gathered through
     /// `buffer` (a picture in shared memory is read only by copying out).
-    fn write_to(
+    pub(crate) fn write_to(
         &self,
         out: &mut impl Write,
         buffer: &mut Vec<u8>,

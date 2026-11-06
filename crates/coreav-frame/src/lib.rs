@@ -42,5 +42,5 @@ pub use frame::{
     CudaPicture, DeviceMemory, DevicePlane, Frame, Pixels, SharedMemory, SharedPicture,
 };
 pub use ops::{ChromaSiting, ChromaUpsampling, Rect};
-pub use picture::{Picture, Plane};
+pub use picture::{Picture, PictureRecycler, Plane};
 pub use resample::Filter;
