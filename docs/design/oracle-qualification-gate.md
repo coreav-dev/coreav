@@ -186,13 +186,13 @@ Use the pinned `@ast-grep/cli@0.50.0`, Python and Ruby discovery tools. Source a
 
 ## Merged-main classification update
 
-Classification merges main twice: `5d4bc7f13` integrates `73e073d1df8eebd4eb50d64589d7a96249fb7a7e` and `f8aaccf29` integrates `51a6e5891a1dae2c00eea20b197ff3ab07431452`. Each merge re-derives every row whose source or cited dependency moved. A verdict is carried only when a check shows that every line it cites is byte-identical, as for rows that cite this note above an appended section. The historical snapshot rebinds five entries changed or added by coreav-dev/coreav#440 and coreav-dev/coreav#443 and grows to 4,889 files. No historical media or measurement is rerun or rejudged.
+Classification merges main three times, integrating `73e073d1df8eebd4eb50d64589d7a96249fb7a7e`, `51a6e5891a1dae2c00eea20b197ff3ab07431452` and `7c1f23473321a2dfd330870a874562e8b6479fbe`. Each merge re-derives every row whose source or cited dependency moved. A verdict is carried only when a check shows that every line it cites is byte-identical, as for rows that cite this note above an appended section. The historical snapshot rebinds five entries changed or added by coreav-dev/coreav#440 and coreav-dev/coreav#443 and grows to 4,889 files. No historical media or measurement is rerun or rejudged.
 
-The final catalogue reconciles all 6,531 rows exactly: 6,241 discovered and 290 closure rows. It has 2,064 qualified rows at 1,626 locations, 4,450 excluded rows at 4,179 locations, no confirmed bypass and 17 unknown rows, all `unavailable-input`. Those 17 rows still fail the classifier, so the required classifier step stays unwired.
+The final catalogue reconciles all 6,569 rows exactly: 6,279 discovered and 290 closure rows. It has 2,082 qualified rows at 1,640 locations, 4,470 excluded rows at 4,199 locations, no confirmed bypass and 17 unknown rows, all `unavailable-input`. Those 17 rows still fail the classifier, so the required classifier step stays unwired.
 
-The row-lineage receipt from the fresh merged base `1d8c26380` accounts for its 6,230 rows: 5,007 unknown, 119 qualified and 1,104 excluded. On the final tree, 4,228 rows keep their exact site, 528 move, 1,474 are rewritten or removed and 1,775 are new. Every rewritten, removed or new row has a cause: a commit since the base that changed its file, or, for the provisional `ci-full.yml` boundary, its admission to the reviewed inventory. Of the 5,007 base unknown rows, 1,337 are now qualified, 2,317 excluded and 3 remain unavailable-input unknowns; the other 1,350 were rewritten or removed. The remaining 14 unknown rows are new rows of the same reviewed kind. Running the base discovery code and the current discovery code on the final tree yields the same 6,241 row identities, so the census did not shrink.
+The row-lineage receipt from the fresh merged base `1d8c26380` accounts for its 6,230 rows: 5,007 unknown, 119 qualified and 1,104 excluded. On the final tree, 4,228 rows keep their exact site, 528 move, 1,474 are rewritten or removed and 1,813 are new. Every rewritten, removed or new row has a cause: a commit since the base that changed its file, or, for the provisional `ci-full.yml` boundary, its admission to the reviewed inventory. Of the 5,007 base unknown rows, 1,337 are now qualified, 2,317 excluded and 3 remain unavailable-input unknowns; the other 1,350 were rewritten or removed. The remaining 14 unknown rows are new rows of the same reviewed kind. Running the base discovery code and the current discovery code on the final tree yields the same 6,279 row identities, so the census did not shrink.
 
-Against the pre-merge catalogue's 6,377 rows, these paths changed rows:
+Against the pre-merge catalogue's 6,377 rows, these paths have new, rewritten or removed rows. Rows in `.github/workflows/ci.yml`, `.github/workflows/h264-encoder.yml`, `crates/coreav-transcode/src/audio.rs` and `scripts/tests/test_hevc_workflow.py` only move.
 
 | Source | Pre-merge rows | Final rows | Cause |
 |---|---:|---:|---|
@@ -209,11 +209,13 @@ Against the pre-merge catalogue's 6,377 rows, these paths changed rows:
 | `scripts/h264_g1_simd_identity.py` | 0 | 2 | coreav-dev/coreav#454 |
 | `scripts/hevc_conformance.py` | 21 | 22 | coreav-dev/coreav#429 |
 | `scripts/hevc_decode.py` | 0 | 16 | coreav-dev/coreav#429; HEVC owner pair |
+| `scripts/hevc_reference.py` | 0 | 22 | coreav-dev/coreav#447; HEVC reference pair |
 | `scripts/hevc_smoke.py` | 0 | 5 | coreav-dev/coreav#453; HEVC owner pair |
 | `scripts/mp3_worker_check.py` | 0 | 8 | coreav-dev/coreav#451 |
 | `scripts/tests/test_av1_measurement.py` | 0 | 3 | coreav-dev/coreav#457; AV1 reference pair |
 | `scripts/tests/test_bench_guard.py` | 12 | 13 | coreav-dev/coreav#440 |
 | `scripts/tests/test_hevc_decode.py` | 0 | 2 | coreav-dev/coreav#429; HEVC owner pair |
+| `scripts/tests/test_reference_hevc.py` | 0 | 16 | coreav-dev/coreav#447; HEVC reference pair |
 | `scripts/tests/test_shell_oracle_qualification.py` | 12 | 12 | composed fixture cache key |
 | `tools/compat-corpus/copy_check.py` | 28 | 39 | coreav-dev/coreav#440 |
 | `tools/compat-corpus/github_shapes.py` | 29 | 32 | coreav-dev/coreav#450 |
