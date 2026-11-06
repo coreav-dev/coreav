@@ -1,9 +1,9 @@
 use crate::tables::{DCT_BASIS, DST_BASIS};
 use crate::{BitDepth, Block, BlockMut, Error};
 
-pub(crate) struct Scratch {
-    scaled: [i64; 1024],
-    intermediate: [i64; 1024],
+pub(crate) struct Scratch<const N: usize> {
+    scaled: [[i32; N]; N],
+    intermediate: [[i32; N]; N],
 }
 
 /// The already-derived inverse transform path for a transform unit.
@@ -30,21 +30,41 @@ pub struct Reconstruction {
     pub qp: u8,
 }
 
-fn weight(
-    kind: InverseTransform,
-    n: usize,
-    position: usize,
-    frequency: usize,
-) -> Result<i64, Error> {
-    let value = if kind == InverseTransform::IntraLumaDst4 {
-        DST_BASIS.get(frequency).and_then(|row| row.get(position))
-    } else {
-        DCT_BASIS
-            .get(frequency * (32 / n))
-            .and_then(|row| row.get(position))
-    };
-    value.copied().map(i64::from).ok_or(Error::Buffer)
+#[expect(clippy::indexing_slicing, reason = "compile-time table construction")]
+const fn dct<const N: usize>() -> [[i32; N]; N] {
+    let mut matrix = [[0; N]; N];
+    let mut frequency = 0;
+    while frequency < N {
+        let mut position = 0;
+        while position < N {
+            matrix[frequency][position] = DCT_BASIS[frequency * (32 / N)][position] as i32;
+            position += 1;
+        }
+        frequency += 1;
+    }
+    matrix
 }
+
+#[expect(clippy::indexing_slicing, reason = "compile-time table construction")]
+const fn dst() -> [[i32; 4]; 4] {
+    let mut matrix = [[0; 4]; 4];
+    let mut frequency = 0;
+    while frequency < 4 {
+        let mut position = 0;
+        while position < 4 {
+            matrix[frequency][position] = DST_BASIS[frequency][position] as i32;
+            position += 1;
+        }
+        frequency += 1;
+    }
+    matrix
+}
+
+const DST_4: [[i32; 4]; 4] = dst();
+const DCT_4: [[i32; 4]; 4] = dct();
+const DCT_8: [[i32; 8]; 8] = dct();
+const DCT_16: [[i32; 16]; 16] = dct();
+const DCT_32: [[i32; 32]; 32] = dct();
 
 /// Converts quantized coefficient levels into residual samples (H.265 8.6.2–8.6.4).
 ///
@@ -88,9 +108,27 @@ pub fn inverse_residual(
     if scaling.contains(&0) {
         return Err(Error::Scaling);
     }
-    let mut scratch = Scratch {
-        scaled: [0; 1024],
-        intermediate: [0; 1024],
+    match (n, config.transform) {
+        (4, InverseTransform::IntraLumaDst4) => {
+            transform(config, &DST_4, coefficients, scaling, output)
+        }
+        (4, _) => transform(config, &DCT_4, coefficients, scaling, output),
+        (8, _) => transform(config, &DCT_8, coefficients, scaling, output),
+        (16, _) => transform(config, &DCT_16, coefficients, scaling, output),
+        _ => transform(config, &DCT_32, coefficients, scaling, output),
+    }
+}
+
+fn transform<const N: usize>(
+    config: Reconstruction,
+    matrix: &[[i32; N]; N],
+    coefficients: Block<'_, i16>,
+    scaling: &[u8],
+    output: BlockMut<'_, i32>,
+) -> Result<(), Error> {
+    let mut scratch = Scratch::<N> {
+        scaled: [[0; N]; N],
+        intermediate: [[0; N]; N],
     };
     let scale_shift = u32::from(config.depth.bits()) + coefficients.size.log2() - 5;
     let level_scale = match config.qp % 6 {
@@ -101,56 +139,73 @@ pub fn inverse_residual(
         4 => 64,
         _ => 72,
     };
-    for y in 0..n {
-        for x in 0..n {
-            let index = y * n + x;
-            let factor = i64::from(*scaling.get(index).ok_or(Error::Buffer)?);
-            let value =
-                (i64::from(coefficients.at(x, y)?) * factor * level_scale) << (config.qp / 6);
-            *scratch.scaled.get_mut(index).ok_or(Error::Buffer)? =
-                ((value + (1 << (scale_shift - 1))) >> scale_shift).clamp(-32768, 32767);
+    let mut rows = 0;
+    let mut columns = 0;
+    for (y, (scaled, factors)) in scratch
+        .scaled
+        .iter_mut()
+        .zip(scaling.chunks_exact(N))
+        .enumerate()
+    {
+        let levels = coefficients
+            .data
+            .get(y * coefficients.stride..)
+            .and_then(<[i16]>::first_chunk::<N>)
+            .ok_or(Error::Buffer)?;
+        for (x, ((value, &level), &factor)) in
+            scaled.iter_mut().zip(levels).zip(factors).enumerate()
+        {
+            let product = (i64::from(level) * i64::from(factor) * level_scale) << (config.qp / 6);
+            *value =
+                ((product + (1 << (scale_shift - 1))) >> scale_shift).clamp(-32768, 32767) as i32;
+            if *value != 0 {
+                rows = y + 1;
+                columns = columns.max(x + 1);
+            }
         }
     }
-    let shift = 20 - config.depth.bits();
+    let shift = 20 - u32::from(config.depth.bits());
+    let round = 1 << (shift - 1);
     if config.transform == InverseTransform::Skip {
         let ts_shift = 5 + coefficients.size.log2();
-        for y in 0..n {
-            for x in 0..n {
-                let value = *scratch.scaled.get(y * n + x).ok_or(Error::Buffer)? << ts_shift;
-                output.put(x, y, ((value + (1 << (shift - 1))) >> shift) as i32)?;
+        for (y, scaled) in scratch.scaled.iter().enumerate() {
+            let residuals = output
+                .data
+                .get_mut(y * output.stride..)
+                .and_then(<[i32]>::first_chunk_mut::<N>)
+                .ok_or(Error::Buffer)?;
+            for (residual, &value) in residuals.iter_mut().zip(scaled) {
+                *residual = ((value << ts_shift) + round) >> shift;
             }
         }
         return Ok(());
     }
-    for x in 0..n {
-        for y in 0..n {
-            let mut sum = 0_i64;
-            for j in 0..n {
-                sum += weight(config.transform, n, y, j)?
-                    * scratch
-                        .scaled
-                        .get(j * n + x)
-                        .copied()
-                        .ok_or(Error::Buffer)?;
+    for (scaled, weights) in scratch.scaled.iter().zip(matrix).take(rows) {
+        for (sums, &weight) in scratch.intermediate.iter_mut().zip(weights) {
+            for (sum, &value) in sums.iter_mut().zip(scaled).take(columns) {
+                *sum += weight * value;
             }
-            *scratch
-                .intermediate
-                .get_mut(y * n + x)
-                .ok_or(Error::Buffer)? = ((sum + 64) >> 7).clamp(-32768, 32767);
         }
     }
-    for y in 0..n {
-        for x in 0..n {
-            let mut sum = 0_i64;
-            for j in 0..n {
-                sum += weight(config.transform, n, x, j)?
-                    * scratch
-                        .intermediate
-                        .get(y * n + j)
-                        .copied()
-                        .ok_or(Error::Buffer)?;
+    for sums in &mut scratch.intermediate {
+        for sum in sums.iter_mut().take(columns) {
+            *sum = ((*sum + 64) >> 7).clamp(-32768, 32767);
+        }
+    }
+    for (y, intermediate) in scratch.intermediate.iter().enumerate() {
+        let mut sums = [0; N];
+        for (&value, weights) in intermediate.iter().zip(matrix).take(columns) {
+            for (sum, &weight) in sums.iter_mut().zip(weights) {
+                *sum += value * weight;
             }
-            output.put(x, y, ((sum + (1 << (shift - 1))) >> shift) as i32)?;
+        }
+        let residuals = output
+            .data
+            .get_mut(y * output.stride..)
+            .and_then(<[i32]>::first_chunk_mut::<N>)
+            .ok_or(Error::Buffer)?;
+        for (residual, sum) in residuals.iter_mut().zip(sums) {
+            *residual = (sum + round) >> shift;
         }
     }
     Ok(())

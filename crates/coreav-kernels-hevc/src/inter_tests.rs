@@ -67,8 +67,8 @@ fn automatic_and_scalar_match_all_widths_phases_and_tails() {
 
 #[test]
 fn inter_scratch_fits_existing_reconstruction_envelope() {
-    assert!(core::mem::size_of::<inter::InterScratch>() <= 17_416);
-    assert_eq!(SCRATCH_BYTES, 17_416);
+    assert!(core::mem::size_of::<inter::InterScratch>() <= SCRATCH_BYTES);
+    assert_eq!(SCRATCH_BYTES, 9_224);
 }
 
 #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
