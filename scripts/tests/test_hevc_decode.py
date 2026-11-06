@@ -4,7 +4,9 @@ import json
 import pathlib
 import sys
 import tempfile
+import types
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import hevc_decode as runner
@@ -344,6 +346,34 @@ class PacketDecode(unittest.TestCase):
                     changed[position]['decode']['results'].pop()
                     self.assertFalse(runner.harness.corpus_result(changed, expected, scope)['passed'])
 
+
+    def test_oracle_runs_only_the_owner_returned_pair(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            args = types.SimpleNamespace(max_memory_bytes=1 << 20, max_picture_bins=1, max_stream_bins=2,
+                                         oracle_bin=root / 'bin', out=root / 'out')
+            error = runner.harness.test_oracle.QualificationError('changed')
+            with mock.patch.object(runner.sys, 'platform', 'linux'), \
+                 mock.patch.object(runner.harness.test_oracle, 'require', side_effect=error) as owner:
+                with self.assertRaisesRegex(ValueError, '^pinned_oracle_required$'):
+                    runner.run(args)
+            owner.assert_called_once_with(root / 'bin' / 'ffmpeg', root / 'bin' / 'ffprobe')
+            self.assertFalse(args.out.exists())
+            source, native, parser = root / 'source.mp4', root / 'native', root / 'parser'
+            for path in (source, native, parser):
+                path.write_bytes(path.name.encode())
+            oracle = types.SimpleNamespace(ffmpeg=root / 'qualified-ffmpeg', ffprobe=root / 'qualified-ffprobe')
+            for path in (oracle.ffmpeg, oracle.ffprobe):
+                path.write_bytes(path.name.encode())
+            item = dict(sha256=runner.harness.digest(source), size=source.stat().st_size)
+            with mock.patch.object(runner.harness, 'child', return_value=(1, None, None)) as child:
+                with self.assertRaisesRegex(ValueError, '^packet_configuration$'):
+                    runner.corpus_decode(item, source, root / 'decode', oracle, native=native, parser=parser,
+                                         max_memory_bytes=1, max_stream_bins=2, max_picture_bins=1)
+            self.assertEqual(child.call_args.args[0][0], oracle.ffmpeg)
+            report = json.loads((root / 'decode' / 'decode.json').read_text())
+            self.assertEqual(report['oracle'], {name: runner.harness.digest(getattr(oracle, name))
+                                                for name in ('ffmpeg', 'ffprobe')})
 
 if __name__ == '__main__':
     unittest.main()
