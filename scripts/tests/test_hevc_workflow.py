@@ -126,7 +126,7 @@ class HevcWorkflow(unittest.TestCase):
     def test_full_jobs_prove_c1_c2_and_c5_through_the_decode_boundary(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
-        build = '- run: cargo build --locked --release -p coreav-backend-hevc --features native-hevc --example boundary\n'
+        build = "- run: cargo build --locked --release -p coreav-backend-hevc --features native-hevc${{ inputs.scalar && ',coreav-hevc/scalar' || '' }} --example boundary\n"
         vectors = workflow.split('  hevc-vectors:\n', 1)[1].split('  profile-census:\n', 1)[0]
         census = workflow.split('  profile-census:\n', 1)[1]
         for job in (vectors, census):
