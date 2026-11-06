@@ -76,3 +76,16 @@ class OracleSelection(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'captured'):
                 driver.step_corpus(Path(temporary), types.SimpleNamespace(oracle=pair, workers=1, recheck=None))
         self.assertEqual(execute.call_args.kwargs['FFPROBE'], str(pair.ffprobe))
+        self.assertEqual(execute.call_args.kwargs['FFMPEG'], str(pair.ffmpeg))
+
+    def test_fixture_captures_override_an_inherited_pair(self):
+        pair = driver.test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified/ffprobe'))
+        with tempfile.TemporaryDirectory() as temporary, \
+                mock.patch.dict(driver.os.environ, {'FFMPEG': '/inherited/ffmpeg', 'FFPROBE': '/inherited/ffprobe'}), \
+                mock.patch.object(driver.subprocess, 'run', return_value=types.SimpleNamespace(
+                    returncode=1, stdout='', stderr='stop')) as execute:
+            result = driver.probe_oracle(Path(temporary), Path(temporary), 'isobmff-adapter', 'oracle_kd.py',
+                                         'oracle-isobmff', pair)
+        self.assertFalse(result['passed'])
+        environment = execute.call_args.kwargs['env']
+        self.assertEqual((environment['FFMPEG'], environment['FFPROBE']), (str(pair.ffmpeg), str(pair.ffprobe)))

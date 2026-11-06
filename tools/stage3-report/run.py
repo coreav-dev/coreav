@@ -188,12 +188,13 @@ def count_mkv_remux(stdout, report):
     return list(r['files']), f"{r['files'][0]}/{r['files'][1]} files, packets {r['packets'][0]}/{r['packets'][1]}"
 
 
-def probe_oracle(work, media, adapter, kd_script, name, extra_kd=()):
+def probe_oracle(work, media, adapter, kd_script, name, oracle, extra_kd=()):
     out = work / name
     shutil.rmtree(out, ignore_errors=True)
     for side, extra in (('reference', []), ('candidate', ['--adapter', RELEASE / adapter])):
         status, _, err = run([ROOT / 'scripts' / 'oracle-capture.sh', '--media', media, '--out', out / side,
-                              '--levels', 'streams,packets', *extra])
+                              '--levels', 'streams,packets', *extra],
+                             FFMPEG=str(oracle.ffmpeg), FFPROBE=str(oracle.ffprobe))
         if status:
             return {'passed': False, 'error': f'{side} capture failed: {err[-300:]}'}
     run([RELEASE / 'coreav-oracle', 'compare', '--reference', out / 'reference', '--candidate', out / 'candidate',
@@ -251,10 +252,10 @@ def step_fixtures(work, args):
                  for k, d in (('isobmff', fx), ('matroska', fxm))}
     result = {'generated': generated, 'probe': {}, 'checks': [], 'mediainfo': {}}
     result['probe']['isobmff'] = probe_oracle(work, fx, 'isobmff-adapter', 'oracle_kd.py', 'oracle-isobmff',
-                                              ['--media', fx])
+                                              args.oracle, ['--media', fx])
     # KD-MKV-DECLARED-SIZE reads the files' track headers, as in the mkv-fixtures job.
     result['probe']['matroska'] = probe_oracle(work, fxm, 'mkv-adapter', 'oracle_kd_mkv.py', 'oracle-matroska',
-                                               ['--media', fxm])
+                                               args.oracle, ['--media', fxm])
     kd = work / 'oracle-isobmff' / 'known-divergences.json'
     coreav = RELEASE / 'coreav'
     py = [sys.executable, '-I']
@@ -335,7 +336,8 @@ def step_corpus(work, args):
         status, _, err = run([sys.executable, '-I', HERE / 'corpus.py', 'run', '--family', family, '--out', out,
                               '--work', work / f'work-{family}', '--workers', str(args.workers),
                               *(['--recheck', args.recheck] if args.recheck else [])],
-                             timeout=6 * 3600, FFPROBE=str(args.oracle.ffprobe), **corpus_credentials())
+                             timeout=6 * 3600, FFMPEG=str(args.oracle.ffmpeg), FFPROBE=str(args.oracle.ffprobe),
+                             **corpus_credentials())
         if status:
             sys.exit(f'corpus run failed ({family}):\n{err[-2000:]}')
         result['families'][family] = corpus.summarize(out, family)
