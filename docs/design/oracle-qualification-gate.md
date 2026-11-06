@@ -128,7 +128,15 @@ Add a separate, non-registered `compat_frozen_check.py` to the existing unfilter
 
 The two observer paths stay bound to the registered candidate. Changes to their unused tooling copies do not become frozen-input drift, while a substituted candidate object, changed role, missing source or incomplete roster still fails. No candidate, source roster, artifact role, command set or source-manifest schema change is needed.
 
-Do not edit `compat_sources.py`, any other registered judging source, `judging.json` or its historical-snapshot digest. No registration refresh is authorized by this change. The separate entry point reuses the registered owner rather than copying its comparison logic. This supersedes the initial plan to change that owner and regenerate its registration. No prior result or historical evidence is edited or rejudged; CI never regenerates registration automatically.
+The six-input guard does not edit `compat_sources.py`, any other registered judging source, `judging.json` or its historical-snapshot digest. The separate entry point reuses the registered owner rather than copying its comparison logic. This supersedes the initial plan to change that owner and regenerate its registration. The nested-probe repair below is the sole registered-source amendment in this follow-up. No prior result or historical evidence is edited or rejudged; CI never regenerates registration automatically.
+
+### Registered nested probe qualification
+
+`tools/oracle/kd_audit.py` calls the registered ISO overlay directly. Its `declared_size` predicate reaches `_first_frame_size` in `scripts/oracle_kd.py`, which launches a bare `ffprobe` independently of the caller's selected programs. A media-free reproduction compiles that actual Python function from its AST, without rewriting it: with `CI=1`, a PATH stand-in reporting version `0.0.0` returns dimensions `(12, 34)`, and the helper accepts them. The shared owner rejects the same pair for a macOS binary SHA-256 mismatch. The reproduced source has SHA-256 `255f193b6bc6e2f67f32f7fe40bd5f91179ce13c91ce462a6514ecd4b0f50d52`, identical to its current registration. No media is opened or decoded.
+
+Change only this helper's oracle qualification and the required import. Retain the shared owner's complete pair and launch its returned `ffprobe` path. Use the existing platform identity checks, not another verifier. Preserve every probe argument, JSON field, decoded-dimension predicate and valid-oracle return value. An oracle-qualification failure must propagate rather than becoming `None` or a covered divergence. A fresh-process regression requires rejection of the fake version-`0.0.0` pair before its frame JSON can enter the predicate.
+
+Commit the registered code change first. Generate registration explicitly from that immutable code commit in its own following commit, using the existing procedure. Exactly the `scripts/oracle_kd.py` hash may change in `judging.json`; the other 35 hashes and the complete observer registration stay identical. Rebind only that registration file's diagnostic historical-snapshot digest, not any historical result. Keep the candidate, observer objects, frozen rosters, pins, all comparison judgments and published numbers unchanged. Do not rerun or rejudge past inputs.
 
 ### Implementation order and verification
 
