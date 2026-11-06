@@ -52,8 +52,20 @@ runs:
       if: steps.composed.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        python3 -I scripts/composed_audio_fixtures.py \
-          --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --out "$RUNNER_TEMP/coreav-composed-fixtures"
+        url=$(python3 -I -c 'import json; print(json.load(open("docs/design/composed-opus-aac-v2.json"))["opus_compare"]["url"])')
+        for attempt in 1 2 3; do
+          rm -rf "$RUNNER_TEMP/coreav-composed-fixtures"
+          if python3 -I scripts/composed_audio_fixtures.py \
+              --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --out "$RUNNER_TEMP/coreav-composed-fixtures"; then
+            exit 0
+          fi
+          status=0
+          probe=$(curl --silent --show-error --location --proto =https --proto-redir =https --connect-timeout 15 \
+            --max-time 60 --range 0-1023 --output /dev/null --write-out '%{http_code} %{url_effective}' "$url" 2>&1) || status=$?
+          echo "::warning::composed fixtures attempt $attempt failed; comparator archive probe: curl exit $status, $probe"
+          if [ "$attempt" -lt 3 ]; then sleep $((attempt * 60)); fi
+        done
+        exit 1
     - name: Publish the registered composed-audio fixtures
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
