@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import hevc_smoke as smoke
+from test_oracle import Oracle
 from evidence import Invalid, bind, write
 
 
@@ -133,7 +134,7 @@ class HevcSmoke(unittest.TestCase):
             self.assertEqual(set(record["files"]), set(smoke.FILES))
             self.assertEqual(smoke.artifacts(output, True)["codec"], "hevc")
 
-    def verify_synthetic(self, mutation=None):
+    def verify_synthetic(self, mutation=None, distinctive=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             capture, oracle = root / "capture", root / "oracle"
@@ -145,6 +146,12 @@ class HevcSmoke(unittest.TestCase):
                 "runner_image": "synthetic", "machine": "arm64", "files": bind(capture, smoke.FILES, smoke.LIMIT)})
             for name in ("ffmpeg", "ffprobe"):
                 (oracle / name).write_bytes(b"synthetic oracle")
+            owner_dir = root / "owner"
+            owner_dir.mkdir()
+            for name in ("ffmpeg", "ffprobe"):
+                (owner_dir / name).write_bytes(b"synthetic oracle")
+            selected = Oracle(owner_dir / "ffmpeg", owner_dir / "ffprobe") if distinctive else \
+                Oracle(oracle / "ffmpeg", oracle / "ffprobe")
             commands = []
 
             def run(command, directory, timeout, stdout="stdout", stderr="stderr"):
@@ -166,16 +173,22 @@ class HevcSmoke(unittest.TestCase):
                     mutation(command, directory, stdout, stderr)
 
             with patch.object(smoke.sys, "platform", "linux"), patch.object(smoke.platform, "machine", return_value="x86_64"), \
+                    patch("test_oracle.require", return_value=selected) as owner, \
                     patch.object(smoke, "run", side_effect=run):
                 result = smoke.verify_capture(capture, oracle)
+            owner.assert_called_once_with(oracle.resolve() / "ffmpeg", oracle.resolve() / "ffprobe")
             self.assertEqual(result["status"], "verified")
             self.assertEqual(result["scope"], "synthetic-elementary-and-hvc1-mp4")
             self.assertEqual(sum("rawvideo" in c for c in commands), 2)
             self.assertEqual(sum(Path(c[0]).name == "ffprobe" for c in commands), 2)
-            self.assertTrue(any("oracle_pin.py" in arg for c in commands for arg in c))
+            self.assertEqual([c[0] for c in commands], [str(selected.ffmpeg), str(selected.ffmpeg),
+                             str(selected.ffprobe), str(selected.ffmpeg), str(selected.ffprobe)])
 
     def test_verification_decodes_both_elementary_and_copied_hvc1_container(self):
         self.verify_synthetic()
+
+    def test_verification_executes_the_distinctive_returned_owner_pair(self):
+        self.verify_synthetic(distinctive=True)
 
     def test_container_decode_is_not_skipped_or_allowed_to_change_pixels(self):
         def mutate(command, directory, stdout, stderr):

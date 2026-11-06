@@ -11,6 +11,9 @@ import unittest
 from unittest import mock
 
 SCRIPTS = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(SCRIPTS))
+import test_oracle
+
 NAMES = ['a084bd45168c', '70eec00bc7d2', '584a16b906bb', 'bb5d39d47357']
 FAKE = '''#!/usr/bin/env python3
 import json, os, sys
@@ -30,6 +33,19 @@ print(json.dumps(dict(decoder=os.environ.get('FAKE_DECODER', 'libvpx 1.14.1'), f
 
 
 class AttributionTests(unittest.TestCase):
+    def test_capture_gate_executes_the_owner_returned_program(self):
+        runner = self.runner
+        pair = test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
+        with mock.patch.object(sys, 'argv', ['vp9_release_attribution.py']), \
+                mock.patch.object(pathlib.Path, 'cwd', return_value=self.root), \
+                mock.patch.object(runner, 'verify'), \
+                mock.patch.object(test_oracle, 'require', return_value=pair) as owner, \
+                mock.patch.object(runner.measurement, 'measured', side_effect=RuntimeError('stop before media')) as executed:
+            with self.assertRaisesRegex(RuntimeError, 'stop before media'):
+                runner.main()
+        owner.assert_called_once_with(self.root / 'bin/ffmpeg', self.root / 'bin/ffprobe')
+        self.assertEqual(executed.call_args.args[0][0], pair.ffmpeg)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

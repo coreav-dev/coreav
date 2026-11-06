@@ -15,6 +15,36 @@ import hevc_intra as runner
 
 
 class Packing(unittest.TestCase):
+    def test_development_extraction_executes_the_owner_returned_program(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'original').mkdir()
+            for name in ('ffmpeg', 'ffprobe'):
+                (root / 'original' / name).write_bytes(name.encode())
+            for name in ('source', 'native', 'parser', 'qualified-ffmpeg', 'qualified-ffprobe'):
+                (root / name).write_bytes(name.encode())
+            (root / 'registration.json').write_text('{}')
+            (root / 'acquisition.json').write_text('{}')
+            source = root / 'source'
+            item = dict(partition='development', size=source.stat().st_size,
+                        sha256=runner.harness.digest(source))
+            pair = runner.test_oracle.Oracle(root / 'qualified-ffmpeg', root / 'qualified-ffprobe')
+            args = argparse.Namespace(oracle_bin=root / 'original', out=root / 'out', data=root,
+                registration=root / 'registration.json', native=root / 'native', parser=root / 'parser',
+                max_memory_bytes=256 << 20, max_bins=1 << 28, filters=False)
+            def census(options, qualified):
+                self.assertIs(qualified, pair)
+                runner.development_picture(item, source, options.out, qualified,
+                    native=args.native, parser=args.parser, max_memory_bytes=args.max_memory_bytes,
+                    max_bins=args.max_bins)
+            with mock.patch.object(runner.test_oracle, 'require', return_value=pair), \
+                    mock.patch.object(runner.sys, 'platform', 'linux'), \
+                    mock.patch.object(runner.harness, 'run', side_effect=census), \
+                    mock.patch.object(runner.harness, 'child', side_effect=RuntimeError('stop before media')) as child:
+                with self.assertRaisesRegex(RuntimeError, 'stop before media'):
+                    runner.run(args)
+            self.assertEqual(child.call_args.args[0][0], pair.ffmpeg)
+
     def test_development_comparison_failure_retains_private_diagnostics_and_removes_raw_files(self):
         for changed in (False, True):
             with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
@@ -57,13 +87,15 @@ class Packing(unittest.TestCase):
                                    max_memory_bytes=256 << 20, max_bins=1 << 28)
                     if changed:
                         with self.assertRaisesRegex(ValueError, 'native_reference_mismatch'):
-                            runner.development_picture(item, source, destination, root, **options)
+                            runner.development_picture(item, source, destination,
+                                runner.test_oracle.Oracle(root / 'ffmpeg', root / 'ffprobe'), **options)
                         diagnostic.assert_called_once()
                         stream = diagnostic.call_args.args[3]
                         self.assertEqual(stream['record']['reference_frames'], [oracle])
                         self.assertEqual(stream['record']['reference_packing']['md5'], oracle['md5'])
                     else:
-                        self.assertTrue(runner.development_picture(item, source, destination, root,
+                        self.assertTrue(runner.development_picture(item, source, destination,
+                            runner.test_oracle.Oracle(root / 'ffmpeg', root / 'ffprobe'),
                                                                   **options)['complete'])
                         diagnostic.assert_not_called()
                 report = json.loads((destination / 'intra.json').read_text())

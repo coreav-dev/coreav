@@ -7,16 +7,17 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import hevc_fixture as fixture
+import test_oracle
 
 
-def inspect(data_dir, out_dir, parser, oracle_bin, harness):
+def inspect(data_dir, out_dir, parser, qualified, harness):
     registered = harness.read_json(fixture.REGISTRATION)
     harness.require(registered == harness.read_json(data_dir / 'reference.json'),
                     'synthetic preparation differs from committed registration')
     harness.require(registered['recipes'] == fixture.recipes()
                     and registered['decode_command'] == fixture.decode_command(),
                     'synthetic registered commands differ')
-    harness.require(fixture.binary_identity(oracle_bin / 'ffmpeg', oracle_bin / 'ffprobe')
+    harness.require(fixture.binary_identity(qualified.ffmpeg, qualified.ffprobe)
                     == registered['oracle'], 'synthetic oracle identity differs')
     harness.require([r['id'] for r in registered['fixtures']]
                     == [r['id'] for r in fixture.recipes()], 'synthetic fixture membership differs')
@@ -46,8 +47,8 @@ def inspect(data_dir, out_dir, parser, oracle_bin, harness):
                         and p['all_intra'] and p['filters_disabled']
                         and p['nal_type'] in (19, 20) for p in pictures),
                         'synthetic native Main10 unfiltered intra proof differs')
-        packets = harness.probe(oracle_bin / 'ffprobe', path, directory)
-        frames = harness.probe(oracle_bin / 'ffprobe', path, directory, frames=True)['frames']
+        packets = harness.probe(qualified.ffprobe, path, directory)
+        frames = harness.probe(qualified.ffprobe, path, directory, frames=True)['frames']
         checks = harness.compare_headers(summary, pictures, outputs, packets, frames)
         harness.require(checks['output_order_checked_by_packet_positions'],
                         'synthetic independent output order is unproved')
@@ -70,7 +71,7 @@ def inspect(data_dir, out_dir, parser, oracle_bin, harness):
                             tools=summary['tools'], **checks))
     result = dict(complete=True, source_kind='synthetic',
                   registration_sha256=registration_sha, parser_sha256=harness.digest(parser),
-                  oracle={name: harness.digest(oracle_bin / name) for name in ('ffmpeg', 'ffprobe')},
+                  oracle={name: harness.digest(getattr(qualified, name)) for name in ('ffmpeg', 'ffprobe')},
                   streams=records, reconstruction_gate_passed=False)
     harness.write_json(out_dir / 'census.json', result)
     return result
@@ -84,7 +85,8 @@ def main():
     parser.add_argument('--oracle-bin', required=True, type=pathlib.Path)
     args = parser.parse_args()
     import hevc_conformance as harness
-    inspect(args.data, args.out, args.parser, args.oracle_bin, harness)
+    qualified = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+    inspect(args.data, args.out, args.parser, qualified, harness)
     print('four synthetic Main10 header candidates checked; no reconstruction verdict')
     return 0
 

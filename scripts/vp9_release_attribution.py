@@ -137,8 +137,8 @@ def verify():
         record(dict(kind='artifact', name=name, sha256=digest))
 
 
-def hashes(file, expected):
-    ffmpeg = [ROOT / 'bin/ffmpeg', '-nostdin', '-noautorotate', '-flags', '+unaligned',
+def hashes(file, expected, oracle):
+    ffmpeg = [oracle.ffmpeg, '-nostdin', '-noautorotate', '-flags', '+unaligned',
               '-i', source(file), '-map', '0:' + str(file['maps']['video']),
               '-fps_mode', 'passthrough', '-f', 'framemd5', '-']
     measurement.measured(ffmpeg, dict(kind='hash', variant='ffmpeg', file=file['sha256'][:12]))
@@ -301,8 +301,9 @@ def main():
     OUT.mkdir(exist_ok=True)
     try:
         verify()
+        oracle = measurement.test_oracle.require(ROOT / 'bin/ffmpeg', ROOT / 'bin/ffprobe')
         record(dict(kind='method', seed=518, cells=CELLS, rounds=5, unit_wall_seconds=1))
-        before = measurement.gate('before')
+        before = measurement.gate('before', oracle)
         rng = random.Random(518)
         units, counts = {}, {}
         for file in FILES:
@@ -322,11 +323,11 @@ def main():
                         decode(cell, file, 'timed', expected=counts[name], round=round,
                                position=position, repetition=repetition, unit=units[name])
             print(name + ' timing complete', flush=True)
-        after = measurement.gate('after')
+        after = measurement.gate('after', oracle)
         (OUT / 'gate.json').write_text(json.dumps(dict(before=before, after=after, ratio=after / before)))
         for file in FILES:
             name = file['sha256'][:12]
-            hashes(file, counts[name])
+            hashes(file, counts[name], oracle)
             for cell in CELLS:
                 decode(cell, file, 'counter', expected=counts[name], counter=True)
         profiles(counts)

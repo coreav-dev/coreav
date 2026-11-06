@@ -392,9 +392,9 @@ def main():
         expected = json.loads(args.registration.read_text())
         require(expected['recipes'] == recipes() and expected['decode_command'] == decode_command(),
                 'registered commands differ')
-        require(binary_identity(args.ffmpeg.resolve(), args.ffprobe.resolve()) == expected['oracle'],
+        require(binary_identity(args.ffmpeg, args.ffprobe) == expected['oracle'],
                 'registered oracle identity differs')
-    observed = prepare(args.ffmpeg.resolve(), args.ffprobe.resolve(), args.output.resolve())
+    observed = prepare(args.ffmpeg, args.ffprobe, args.output.resolve())
     if expected is not None:
         require(observed == expected, 'registered fixture content or expected hashes differ')
     (args.output / 'reference.json').write_text(json.dumps(observed, indent=2) + '\n')

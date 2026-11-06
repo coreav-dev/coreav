@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import importlib.util
 import json
 import pathlib
@@ -420,6 +421,24 @@ class OracleDiagnostics(unittest.TestCase):
 
 
 class Conformance(unittest.TestCase):
+    def test_corpus_metadata_executes_the_owner_returned_program(self):
+        content = b'synthetic metadata identity'
+        sha = hashlib.sha256(content).hexdigest()
+        item = dict(sha256=sha, size=len(content), ext='mp4', partition='development', sets=[])
+        (self.root / (sha + '.mp4')).write_bytes(content)
+        out, err = self.root / 'metadata.json', self.root / 'metadata.stderr'
+        runner.write_json(out, dict(format=dict(format_name='mp4'), streams=[dict(codec_type='video',
+            codec_name='hevc', profile='Main', width=16, height=16, pix_fmt='yuv420p', field_order='progressive')]))
+        err.write_text('')
+        pair = runner.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
+        args = SimpleNamespace(data=self.root, out=self.root / 'out', oracle_bin=self.root / 'original')
+        with mock.patch.object(runner.test_oracle, 'require', return_value=pair) as owner, \
+                mock.patch.object(runner, 'roster', return_value=[item]), \
+                mock.patch.object(runner, 'child', return_value=(0, out, err)) as child:
+            runner.corpus(args)
+        owner.assert_called_once_with(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+        self.assertEqual(child.call_args.args[0][0], pair.ffprobe)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -775,18 +794,21 @@ class Conformance(unittest.TestCase):
         fixture = self.fixture()
         args = SimpleNamespace(registration=self.root / 'registration.json', data=self.root / 'data',
                                oracle_bin=self.root, parser=self.root / 'parser', out=self.root / 'out')
+        qualified = runner.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
         with mock.patch.object(runner, 'registration', return_value=data), \
                 mock.patch.object(runner, 'read_json', side_effect=[acquisition, inventory]), \
                 mock.patch.object(runner, 'digest', return_value='f' * 64), \
-                mock.patch.object(runner.test_oracle, 'verify_bin', return_value=[]), \
+                mock.patch.object(runner.test_oracle, 'require', return_value=qualified), \
                 mock.patch.object(runner, 'child', return_value=(0, self.root / 'native', None)), \
                 mock.patch.object(runner, 'native_rows', return_value=fixture[2:5]), \
-                mock.patch.object(runner, 'probe', side_effect=[fixture[5], dict(frames=fixture[6])]), \
-                mock.patch.object(runner, 'confirm_reference', side_effect=ValueError('published output MD5 differs')), \
+                mock.patch.object(runner, 'probe', side_effect=[fixture[5], dict(frames=fixture[6])]) as probe, \
+                mock.patch.object(runner, 'confirm_reference', side_effect=ValueError('published output MD5 differs')) as confirm, \
                 mock.patch.object(runner, 'compare') as compare:
             with self.assertRaisesRegex(ValueError, 'G1 blocked'):
                 runner.run(args)
             compare.assert_not_called()
+            self.assertEqual([call.args[0] for call in probe.call_args_list], [qualified.ffprobe] * 2)
+            self.assertEqual(confirm.call_args.args[0], qualified.ffmpeg)
         result = runner.read_json(args.out / 'census.json')
         self.assertFalse(result['complete'])
         self.assertEqual(result['archives'][0]['status'], 'blocked')
@@ -928,7 +950,7 @@ class Conformance(unittest.TestCase):
             path.write_bytes(b'abc')
             return path
 
-        def inspect(item, path, out, oracle_bin, *, intra=None):
+        def inspect(item, path, out, oracle, *, intra=None):
             self.assertIsNone(intra)
             self.assertEqual(path.read_bytes(), b'abc')
             return dict(item, status='inspected')
@@ -939,7 +961,8 @@ class Conformance(unittest.TestCase):
                                manifests=manifests)
         with mock.patch.dict(sys.modules, {'round_files': round_files, 'r2pool': limits}), \
                 mock.patch.object(runner, 'roster', return_value=files), \
-                mock.patch.object(runner.test_oracle, 'verify_bin', return_value=[]), \
+                mock.patch.object(runner.test_oracle, 'require', return_value=runner.test_oracle.Oracle(
+                    self.root / 'ffmpeg', self.root / 'ffprobe')), \
                 mock.patch.object(runner, 'corpus_record', side_effect=inspect):
             runner.fetch_corpus(args, inspect=True)
         self.assertEqual(list(dest.iterdir()), [keep])
@@ -957,15 +980,16 @@ class Conformance(unittest.TestCase):
             profile='Main', width=16, height=16, pix_fmt='yuv420p', field_order='progressive')]))
         err.write_text('')
         options = dict(native=self.root / 'native', parser=self.root / 'headers', max_memory_bytes=1024, max_bins=100)
+        oracle = runner.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe')
         for partition in ('held-out-partition', 'development'):
             item = dict(sha256=runner.digest(source), size=3, partition=partition)
             with mock.patch.object(runner, 'child', return_value=(0,out,err)), \
                     mock.patch('hevc_intra.development_picture', return_value=dict(complete=True)) as decode:
-                record = runner.corpus_record(item, source, self.root, self.root, intra=options)
+                record = runner.corpus_record(item, source, self.root, oracle, intra=options)
                 self.assertEqual(record['status'], 'inspected')
                 if partition == 'development':
                     self.assertTrue(record['intra']['complete'])
-                    decode.assert_called_once_with(item,source,self.root / item['sha256'],self.root,**options)
+                    decode.assert_called_once_with(item,source,self.root / item['sha256'],oracle,**options)
                 else:
                     self.assertNotIn('intra', record)
                     decode.assert_not_called()

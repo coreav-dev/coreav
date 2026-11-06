@@ -19,6 +19,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import hevc_conformance as harness
 import hevc_fixture as fixture
+import test_oracle
 
 COUNTERS = ('ctus', 'coding_units', 'transform_units', 'nonzero_transform_units',
             'transform_skips', 'transquant_bypass_units', 'pcm_units', 'dependent_segments',
@@ -460,16 +461,17 @@ def diagnose_picture(binary, source, directory, stream, candidate, native, metad
 def run(args):
     require(sys.platform == 'linux', 'linux_actions_required')
     require(0 < args.max_memory_bytes <= 4 << 30 and 0 < args.max_bins < 1 << 64, 'driver_budgets')
+    qualified = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
     args.out.mkdir(parents=True, exist_ok=False)
     identities = dict(registration=harness.digest(args.registration), parser=harness.digest(args.parser),
                       native=harness.digest(args.native), synthetic_registration=harness.digest(fixture.REGISTRATION),
                       acquisition=harness.digest(args.data / 'acquisition.json'))
-    oracle_identity = {name: harness.digest(args.oracle_bin / name) for name in ('ffmpeg', 'ffprobe')}
+    oracle_identity = {name: harness.digest(getattr(qualified, name)) for name in ('ffmpeg', 'ffprobe')}
     result = dict(complete=False, gate='G3' if args.filters else 'G2', stage='g1', identities=identities, results=[])
     try:
         options = argparse.Namespace(**vars(args))
         options.out = args.out / 'g1'
-        harness.run(options)
+        harness.run(options, qualified)
         census = harness.read_json(options.out / 'census.json')
         require(census['registration_sha256'] == identities['registration']
                 and census['parser_sha256'] == identities['parser']
@@ -491,7 +493,7 @@ def run(args):
                             if case['test'] == stream['test'])
                 directory.mkdir(parents=True, exist_ok=True)
                 oracle_source, _ = harness.hevc_oracle_input.prepare(case, source, directory, harness)
-            oracle = oracle_frames(args.oracle_bin / 'ffmpeg', oracle_source, directory, stream)
+            oracle = oracle_frames(qualified.ffmpeg, oracle_source, directory, stream)
             diagnosed = False
             for target in stream['targets']:
                 candidate = target['candidate']
@@ -519,7 +521,7 @@ def run(args):
                     if entry['stage'] == 'comparison' and not diagnosed:
                         diagnosed = True
                         try:
-                            entry['diagnostic'] = diagnose_picture(args.oracle_bin / 'ffmpeg', oracle_source,
+                            entry['diagnostic'] = diagnose_picture(qualified.ffmpeg, oracle_source,
                                 directory, stream, candidate, output, metadata)
                         except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as diagnostic_error:
                             entry['diagnostic'] = dict(available=False, error_type=type(diagnostic_error).__name__)
@@ -533,7 +535,7 @@ def run(args):
                 and harness.digest(args.native) == identities['native']
                 and harness.digest(fixture.REGISTRATION) == identities['synthetic_registration']
                 and harness.digest(args.data / 'acquisition.json') == identities['acquisition']
-                and all(harness.digest(args.oracle_bin / name) == value for name, value in oracle_identity.items()),
+                and all(harness.digest(getattr(qualified, name)) == value for name, value in oracle_identity.items()),
                 'run_identity_changed')
         result['stage'] = 'aggregate'
         result['negative_controls'] = [dict(test=stream['test'], source_sha256=stream['record']['sha256'],
@@ -550,7 +552,7 @@ def run(args):
     return result
 
 
-def development_picture(item, source, directory, oracle_bin, *, native, parser, max_memory_bytes, max_bins):
+def development_picture(item, source, directory, qualified, *, native, parser, max_memory_bytes, max_bins):
     require(item['partition'] == 'development' and source.stat().st_size == item['size']
             and harness.digest(source) == item['sha256'], 'development_source_identity')
     require(parser and 0 < max_memory_bytes <= 4 << 30 and 0 < max_bins < 1 << 64, 'development_options')
@@ -558,9 +560,9 @@ def development_picture(item, source, directory, oracle_bin, *, native, parser, 
     prefix, output = directory / 'first-irap.hevc', directory / 'first-irap.u16le'
     report = dict(complete=False, stage='extract_first_picture', source_sha256=item['sha256'],
                   source_bytes=item['size'], native_sha256=harness.digest(native), parser_sha256=harness.digest(parser),
-                  oracle={name: harness.digest(oracle_bin / name) for name in ('ffmpeg', 'ffprobe')})
+                  oracle={name: harness.digest(getattr(qualified, name)) for name in ('ffmpeg', 'ffprobe')})
     try:
-        code, _, _ = harness.child([oracle_bin / 'ffmpeg', '-nostdin', '-v', 'error', '-i', source,
+        code, _, _ = harness.child([qualified.ffmpeg, '-nostdin', '-v', 'error', '-i', source,
             '-map', '0:v:0', '-c:v', 'copy', '-bsf:v', 'hevc_mp4toannexb', '-frames:v', '1',
             '-f', 'hevc', '-y', prefix], directory, 'extract-first-picture')
         require(code == 0 and 0 < prefix.stat().st_size <= harness.BITSTREAM_CAP, 'development_prefix_failed')
@@ -574,10 +576,10 @@ def development_picture(item, source, directory, oracle_bin, *, native, parser, 
         rows = [json.loads(line, object_pairs_hook=harness.unique_object) for line in stdout.read_text().splitlines()]
         hashes = selected_hashes(rows, 0)
         report['stage'] = 'oracle'
-        frames = harness.probe(oracle_bin / 'ffprobe', prefix, directory, frames=True)['frames']
+        frames = harness.probe(qualified.ffprobe, prefix, directory, frames=True)['frames']
         require(len(frames) == 1 and frames[0]['pict_type'] == 'I' and frames[0]['key_frame'] == 1,
                 'development_oracle_irap')
-        oracle = harness.oracle_frames(oracle_bin / 'ffmpeg', prefix, directory, frames, item['sha256'])
+        oracle = harness.oracle_frames(qualified.ffmpeg, prefix, directory, frames, item['sha256'])
         candidate = dict(picture_index=0, gate='G3', source_kind='development_first_independent_irap',
                          stream_sha256=report['prefix_sha256'], source_sha256=item['sha256'],
                          bit_depth=picture['bit_depth'], tiles=picture['tiles'], wpp=picture['wpp'],
@@ -599,17 +601,17 @@ def development_picture(item, source, directory, oracle_bin, *, native, parser, 
         except ValueError:
             diagnostic_stream = dict(test='development_first_irap', frames=frames,
                                      record=dict(reference_frames=oracle, reference_packing=oracle[0]))
-            report['diagnostic'] = diagnose_picture(oracle_bin / 'ffmpeg', prefix, directory,
+            report['diagnostic'] = diagnose_picture(qualified.ffmpeg, prefix, directory,
                                                      diagnostic_stream, candidate, output, metadata)
             report['native_packing'] = packed_picture(output, metadata)
             report['source_first_frame'] = harness.oracle_frames(
-                oracle_bin / 'ffmpeg', source, directory,
+                qualified.ffmpeg, source, directory,
                 [dict(frames[0], width=metadata['width'], height=metadata['height'])],
                 item['sha256'], first_picture=True)[0]
             raise
         require(harness.digest(prefix) == report['prefix_sha256'] and harness.digest(source) == item['sha256']
                 and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
-                and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),
+                and all(harness.digest(getattr(qualified, name)) == sha for name, sha in report['oracle'].items()),
                 'development_identity_changed')
         report.update(complete=True, stage='complete')
         return report
@@ -630,7 +632,7 @@ def main():
     args = parser.parse_args()
     try:
         result = run(args)
-    except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError):
+    except (test_oracle.QualificationError, ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError):
         print('hevc_intra: incomplete', file=sys.stderr)
         return 1
     print(json.dumps({key: result[key] for key in ('complete', 'candidate_count', 'coverage_gaps')}))

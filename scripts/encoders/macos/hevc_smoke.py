@@ -13,6 +13,9 @@ from observations import encoder_identifier
 from process import run
 from smoke import LIMIT, ROOT, pixels, probe_sections, source
 
+sys.path.insert(0, str(ROOT / "scripts"))
+import test_oracle
+
 FILES = ("manifest.json", "video.hevc", "source.yuv")
 
 
@@ -133,24 +136,26 @@ def verify_capture(directory, oracle):
     verify(directory, record["files"], FILES, LIMIT)
     with tempfile.TemporaryDirectory() as temporary:
         temporary = Path(temporary)
-        run([sys.executable, "-I", str(ROOT / "scripts/oracle_pin.py"), "--verify-bin", str(oracle)],
-            temporary, 120, stdout="pin-out", stderr="pin-error")
-        hashes = {name: file_hash(oracle / name) for name in ("ffmpeg", "ffprobe")}
+        try:
+            oracle = test_oracle.require(oracle / "ffmpeg", oracle / "ffprobe")
+        except test_oracle.QualificationError:
+            raise Invalid("child_failure") from None
+        hashes = {name: file_hash(getattr(oracle, name)) for name in ("ffmpeg", "ffprobe")}
         elementary = temporary / "video.hevc"
         elementary.write_bytes(read(directory, "video.hevc", LIMIT))
         mp4 = temporary / "video.mp4"
-        run([str(oracle / "ffmpeg"), "-nostdin", "-v", "error", "-xerror", "-f", "hevc",
+        run([str(oracle.ffmpeg), "-nostdin", "-v", "error", "-xerror", "-f", "hevc",
              "-r", "30", "-i", str(elementary), "-map", "0:v:0", "-an", "-c:v", "copy",
              "-tag:v", "hvc1", str(mp4)], temporary, 60, stdout="mux-out", stderr="mux-error")
         require(not read(temporary, "mux-error", 32768), "mux_error")
         decoded = []
         for name, path, format_args in (("elementary", elementary, ["-f", "hevc"]), ("mp4", mp4, [])):
-            run([str(oracle / "ffmpeg"), "-nostdin", "-v", "error", "-xerror", "-err_detect", "explode",
+            run([str(oracle.ffmpeg), "-nostdin", "-v", "error", "-xerror", "-err_detect", "explode",
                  "-max_alloc", "67108864", "-max_pixels", "4096", "-threads", "1", "-c:v", "hevc",
                  *format_args, "-i", str(path), "-map", "0:v:0", "-an", "-frames:v", "5",
                  "-fps_mode", "passthrough", "-pix_fmt", "yuv420p", "-f", "rawvideo",
                  str(temporary / f"{name}.yuv")], temporary, 60, stdout=f"{name}-out", stderr=f"{name}-error")
-            run([str(oracle / "ffprobe"), "-v", "error", "-max_alloc", "67108864", "-max_pixels", "4096",
+            run([str(oracle.ffprobe), "-v", "error", "-max_alloc", "67108864", "-max_pixels", "4096",
                  "-threads", "1", *format_args, "-select_streams", "v:0", "-show_entries",
                  "stream=codec_name,codec_tag_string,width,height,pix_fmt,color_range,color_space,color_transfer,color_primaries:"
                  "frame=media_type,key_frame,width,height,pix_fmt", "-of", "json", str(path)],
@@ -165,7 +170,7 @@ def verify_capture(directory, oracle):
             probe(load(temporary / f"{name}.json", LIMIT), native, name == "mp4")
             decoded.append(raw)
         require(decoded[0] == decoded[1], "container_pixels")
-        require(hashes == {name: file_hash(oracle / name) for name in hashes}, "tool_changed")
+        require(hashes == {name: file_hash(getattr(oracle, name)) for name in hashes}, "tool_changed")
     verify(directory, record["files"], FILES, LIMIT)
     return {"schema": "coreav.videotoolbox-hevc-verification/1", "status": "verified",
             "codec": "hevc", "hardware": "hardware", "frames": 4, "width": 64, "height": 64,

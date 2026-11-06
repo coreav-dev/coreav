@@ -140,6 +140,47 @@ def report(mode='measure'):
 
 
 class Judgment(unittest.TestCase):
+    def test_capture_executes_the_owner_returned_program(self):
+        pair = coverage.corpus.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
+        commands = []
+        def child(argv, directory, label, timeout):
+            commands.append(argv)
+            if argv[0] != 'git':
+                raise RuntimeError('stop before media')
+            out, err = directory / (label + '.stdout'), directory / (label + '.stderr')
+            out.write_bytes(b'a' * 40 if 'rev-parse' in argv else b'')
+            err.write_bytes(b'')
+            return out, err
+        with tempfile.TemporaryDirectory() as directory:
+            args = SimpleNamespace(mode='smoke', out=pathlib.Path(directory) / 'report.json',
+                                   native='/native', ffmpeg='/original/ffmpeg', ffprobe='/original/ffprobe')
+            with mock.patch.object(coverage.sys, 'platform', 'linux'), \
+                    mock.patch.object(coverage.os, 'uname', return_value=SimpleNamespace(machine='x86_64')), \
+                    mock.patch.object(coverage.corpus.test_oracle, 'require', return_value=pair) as owner, \
+                    mock.patch.object(coverage.corpus, 'digest', return_value='b' * 64), \
+                    mock.patch.object(coverage.corpus, 'child', side_effect=child):
+                with self.assertRaisesRegex(RuntimeError, 'stop before media'):
+                    coverage.capture(args)
+            owner.assert_called_once_with('/original/ffmpeg', '/original/ffprobe')
+            self.assertEqual(commands[-1][0], str(pair.ffmpeg))
+            self.assertEqual(args.ffprobe, str(pair.ffprobe))
+
+    def test_qualification_failure_keeps_the_tool_failure_label(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = SimpleNamespace(mode='smoke', out=pathlib.Path(directory) / 'report.json',
+                                   ffmpeg='/original/ffmpeg', ffprobe='/original/ffprobe')
+            with mock.patch.object(coverage.sys, 'platform', 'linux'), \
+                    mock.patch.object(coverage.os, 'uname', return_value=SimpleNamespace(machine='x86_64')), \
+                    mock.patch.object(coverage.corpus.test_oracle, 'require',
+                        side_effect=coverage.corpus.test_oracle.QualificationError('not qualified')), \
+                    mock.patch.object(coverage.corpus, 'child') as child:
+                with self.assertRaisesRegex(ValueError, '^command-1 failed$'):
+                    coverage.capture(args)
+            child.assert_not_called()
+            value = json.loads(args.out.read_text())
+            self.assertEqual(value['error'], 'ValueError')
+            self.assertEqual(value['command'], 1)
+
     def test_complete_roster_pixel_contrasts_and_negative_controls(self):
         value = coverage.validate(report())
         self.assertEqual(value['streams'], 54)
@@ -224,10 +265,10 @@ class Judgment(unittest.TestCase):
     def test_capture_failure_retains_only_a_closed_error_and_partial_work(self):
         with tempfile.TemporaryDirectory() as temporary:
             out = pathlib.Path(temporary) / 'report.json'
-            args = SimpleNamespace(mode='smoke', out=out, ffmpeg='synthetic-ffmpeg')
+            args = SimpleNamespace(mode='smoke', out=out, ffmpeg='synthetic-ffmpeg', ffprobe='synthetic-ffprobe')
             with mock.patch.object(coverage.sys, 'platform', 'linux'), \
                     mock.patch.object(coverage.os, 'uname', return_value=SimpleNamespace(machine='x86_64')), \
-                    mock.patch.object(coverage.corpus, 'child', side_effect=RuntimeError('credential-marker')):
+                    mock.patch.object(coverage.corpus.test_oracle, 'require', side_effect=RuntimeError('credential-marker')):
                 with self.assertRaises(RuntimeError):
                     coverage.capture(args)
             value = json.loads(out.read_text())
@@ -244,9 +285,11 @@ class Judgment(unittest.TestCase):
             raise ValueError('credential-marker')
         with tempfile.TemporaryDirectory() as temporary:
             out = pathlib.Path(temporary) / 'report.json'
-            args = SimpleNamespace(mode='smoke', out=out, ffmpeg='synthetic-ffmpeg')
+            args = SimpleNamespace(mode='smoke', out=out, ffmpeg='synthetic-ffmpeg', ffprobe='synthetic-ffprobe')
             with mock.patch.object(coverage.sys, 'platform', 'linux'), \
                     mock.patch.object(coverage.os, 'uname', return_value=SimpleNamespace(machine='x86_64')), \
+                    mock.patch.object(coverage.corpus.test_oracle, 'require', return_value=coverage.corpus.test_oracle.Oracle(
+                        pathlib.Path('synthetic-ffmpeg'), pathlib.Path('synthetic-ffprobe'))), \
                     mock.patch.object(coverage.corpus, 'child', side_effect=fail):
                 with self.assertRaises(ValueError):
                     coverage.capture(args)

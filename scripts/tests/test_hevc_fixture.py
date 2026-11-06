@@ -47,6 +47,27 @@ def stream(raw):
 
 
 class HashContract(unittest.TestCase):
+    def test_cli_executes_the_exact_owner_returned_paths(self):
+        pair = runner.test_oracle.Oracle(pathlib.Path('/qualified/original/../ffmpeg'),
+                                         pathlib.Path('/qualified/original/../ffprobe'))
+        commands = []
+        def capture(command, **_):
+            commands.append(command)
+            if '-version' not in command:
+                raise RuntimeError('stop before fixture generation')
+            name = pathlib.Path(command[0]).name
+            return f'{name} version {runner.oracle_pin.load()["BUILD"]}\n'.encode(), ''
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(sys, 'argv', ['hevc_fixture.py', 'prepare', '--ffmpeg', '/original/ffmpeg',
+                    '--ffprobe', '/original/ffprobe', '--output', directory]), \
+                mock.patch.object(runner.test_oracle, 'require', return_value=pair), \
+                mock.patch.object(runner, 'file_sha256', return_value='a' * 64), \
+                mock.patch.object(runner, 'capture', side_effect=capture):
+            with self.assertRaisesRegex(RuntimeError, 'stop before fixture'):
+                runner.main()
+        self.assertEqual([command[0] for command in commands],
+                         [str(pair.ffmpeg), str(pair.ffprobe), str(pair.ffmpeg)])
+
     def test_positive_component_hashes_use_low_byte_first_and_do_not_hash_the_whole_frame(self):
         raw = pictures()
         metadata = runner.raw_metadata(raw)

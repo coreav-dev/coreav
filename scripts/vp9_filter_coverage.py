@@ -183,7 +183,13 @@ def capture(args):
                                 break
                     raise
                 return out.read_bytes()
-            command([sys.executable, ROOT / 'scripts/oracle_pin.py', '--verify-bin', pathlib.Path(args.ffmpeg).parent])
+            sequence += 1
+            report['command'] = sequence
+            try:
+                qualified = corpus.test_oracle.require(args.ffmpeg, args.ffprobe)
+            except corpus.test_oracle.QualificationError:
+                raise ValueError(f'command-{sequence} failed') from None
+            args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
             report['commit'] = command(['git', '-C', ROOT, 'rev-parse', 'HEAD']).decode().strip()
             corpus.require(not command(['git', '-C', ROOT, 'status', '--porcelain', '--untracked-files=no']),
                            'measurement source checkout is dirty')

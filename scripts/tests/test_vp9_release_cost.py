@@ -10,11 +10,24 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import vp9_release_cost as runner
+import test_oracle
 
 EVIDENCE = pathlib.Path(__file__).resolve().parents[2] / 'docs/measurements/vp9-release-cost'
 
 
 class ReleaseCostTests(unittest.TestCase):
+    def test_capture_gate_executes_the_owner_returned_program(self):
+        pair = test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
+        with mock.patch.object(sys, 'argv', ['vp9_release_cost.py']), \
+                mock.patch.object(runner, 'roster', return_value=self.files), \
+                mock.patch.object(runner, 'verify_artifacts'), \
+                mock.patch.object(test_oracle, 'require', return_value=pair) as owner, \
+                mock.patch.object(runner, 'measured', side_effect=RuntimeError('stop before media')) as executed:
+            with self.assertRaisesRegex(RuntimeError, 'stop before media'):
+                runner.main()
+        owner.assert_called_once_with(self.root / 'bin/ffmpeg', self.root / 'bin/ffprobe')
+        self.assertEqual(executed.call_args.args[0][0], pair.ffmpeg)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -177,7 +190,8 @@ class ReleaseCostTests(unittest.TestCase):
             (self.root / 'last.stdout').write_text(text)
 
         with mock.patch.object(runner, 'measured', side_effect=measured):
-            self.assertEqual(runner.hashes(file), 1)
+            self.assertEqual(runner.hashes(file, runner.test_oracle.Oracle(
+                pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))), 1)
         oracle = commands[-1]
         self.assertEqual(oracle[oracle.index('-map') + 1], '0:7')
         self.assertEqual(oracle.count('-map'), 1)
@@ -224,7 +238,7 @@ class ReleaseCostTests(unittest.TestCase):
         for text in ['invalid', '{"frames": []}', '{"frames": [{}]}']:
             with mock.patch.object(runner, 'command', return_value=[sys.executable, '-c', 'print(' + repr(text) + ')']):
                 with self.assertRaises((ValueError, RuntimeError)):
-                    runner.decode_call('rel', self.files[0], dict(kind='bad-output'), expected=3)
+                    runner.decode_call('rel', self.files[0], dict(kind='bad-output'), None, expected=3)
             last = json.loads((self.root / 'calls.jsonl').read_text().splitlines()[-1])
             self.assertIn('error', last)
             self.assertEqual((self.root / 'last.stdout').read_text().strip(), text)

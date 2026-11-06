@@ -7,7 +7,11 @@ import os
 import pathlib
 import random
 import statistics
+import sys
 import time
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import test_oracle
 
 ROOT = pathlib.Path.cwd()
 OUT = ROOT / 'out'
@@ -74,14 +78,14 @@ def measured(cmd, label, read_output=None):
 def source(file):
     return ROOT / 'files' / (file['sha256'] + '.' + file['ext'])
 
-def command(arm, file):
+def command(arm, file, oracle):
     if arm.startswith('ff'):
-        return [ROOT / 'bin/ffmpeg', '-nostdin', '-noautorotate', '-flags', '+unaligned', '-i', source(file),
+        return [oracle.ffmpeg, '-nostdin', '-noautorotate', '-flags', '+unaligned', '-i', source(file),
                 '-map', '0:' + str(file['maps']['video']), '-fps_mode', 'passthrough', '-f', 'null', '-']
     return [ROOT / ('bin/do-' + arm), source(file), '--packets', '100000000', '--backend', 'libvpx',
             '--max-memory-gib', '16', '--in-process']
 
-def decode_call(arm, file, label, expected=None):
+def decode_call(arm, file, label, oracle, expected=None):
     def read_output():
         if arm.startswith('ff'):
             import re
@@ -92,17 +96,17 @@ def decode_call(arm, file, label, expected=None):
         if not frames or (expected is not None and frames != expected):
             raise RuntimeError('missing or inconsistent frame count: ' + str(frames))
         return dict(frames=frames)
-    return measured(command(arm, file), dict(label, file=file['sha256'][:12], arm=arm), read_output)
+    return measured(command(arm, file, oracle), dict(label, file=file['sha256'][:12], arm=arm), read_output)
 
-def gate(which):
-    cmd = [ROOT / 'bin/ffmpeg', '-nostdin', '-noautorotate', '-flags', '+unaligned', '-i', ROOT / 'gate.mp4',
+def gate(which, oracle):
+    cmd = [oracle.ffmpeg, '-nostdin', '-noautorotate', '-flags', '+unaligned', '-i', ROOT / 'gate.mp4',
            '-map', '0:v:0', '-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-an',
            '-fps_mode', 'passthrough', '-y', '/dev/shm/vp9-gate.mp4']
     measured(cmd, dict(kind='gate-warm', which=which))
     rows = [measured(cmd, dict(kind='gate', which=which, round=r)) for r in range(3)]
     return statistics.median(row['wall'] for row in rows)
 
-def hashes(file):
+def hashes(file, oracle):
     results = {}
     for arm in ['rel-hash', 'alloc-hash']:
         cmd = [ROOT / ('bin/do-' + arm), source(file), '--packets', '100000000', '--backend', 'libvpx',
@@ -117,7 +121,7 @@ def hashes(file):
         record(dict(kind='hash-result', arm=arm, file=file['sha256'][:12], frames=len(frames)))
     if results['rel-hash'] != results['alloc-hash']:
         raise RuntimeError('candidate pixel or metadata mismatch')
-    ff = [ROOT / 'bin/ffmpeg', '-nostdin', '-noautorotate', '-flags', '+unaligned', '-i', source(file),
+    ff = [oracle.ffmpeg, '-nostdin', '-noautorotate', '-flags', '+unaligned', '-i', source(file),
           '-map', '0:' + str(file['maps']['video']), '-fps_mode', 'passthrough', '-f', 'framemd5', '-']
     measured(ff, dict(kind='hash', arm='ff', file=file['sha256'][:12]))
     text = (OUT / 'last.stdout').read_text()
@@ -129,7 +133,7 @@ def hashes(file):
     record(dict(kind='pixel-identity', file=file['sha256'][:12], frames=len(digests), matches=True))
     return len(digests)
 
-def transcode(file):
+def transcode(file, oracle):
     hashes = []
     for arm in ['stock', 'alloc']:
         output = ROOT / 'video.mp4'
@@ -137,7 +141,7 @@ def transcode(file):
                '--ffmpeg', ROOT / 'bin/ffmpeg', '--preset', 'medium', '--crf', '23', '--audio', 'none', '--force']
         measured(cmd, dict(kind='transcode', arm=arm, file=file['sha256'][:12]))
         video = ROOT / 'video.h264'
-        measured([ROOT / 'bin/ffmpeg', '-v', 'error', '-nostdin', '-i', output, '-map', '0:v:0',
+        measured([oracle.ffmpeg, '-v', 'error', '-nostdin', '-i', output, '-map', '0:v:0',
                   '-c', 'copy', '-f', 'h264', '-y', video], dict(kind='demux', arm=arm, file=file['sha256'][:12]))
         digest = hashlib.sha256(video.read_bytes()).hexdigest()
         hashes.append(digest)
@@ -167,12 +171,12 @@ def verify_artifacts():
             digest = hashlib.file_digest(stream, 'sha256').hexdigest()
         record(dict(kind='artifact', name=name, sha256=digest))
 
-def profiles():
+def profiles(oracle):
     for file in FILES:
         if file['sha256'].startswith(('584a16', 'ea6847')):
             label = dict(kind='profile', arm='alloc', file=file['sha256'][:12])
             measured(['/usr/bin/perf', 'record', '-F', '199', '-e', 'cycles', '-g', '-o', OUT / 'perf.data', '--']
-                     + command('alloc', file), label)
+                     + command('alloc', file, oracle), label)
             measured(['/usr/bin/perf', 'report', '--stdio', '--no-children', '--call-graph', 'none',
                       '--sort', 'comm,dso,symbol', '--percent-limit', '0.1', '-i', OUT / 'perf.data'],
                      dict(kind='profile-report', file=file['sha256'][:12]))
@@ -273,13 +277,14 @@ def main():
     OUT.mkdir(exist_ok=True)
     try:
         verify_artifacts()
-        before = gate('before')
+        oracle = test_oracle.require(ROOT / 'bin/ffmpeg', ROOT / 'bin/ffprobe')
+        before = gate('before', oracle)
         timed_counts = {}
         for index, file in enumerate(FILES):
             with source(file).open('rb') as stream:
                 while stream.read(1 << 24):
                     pass
-            warm = decode_call('ff', file, dict(kind='warm'))
+            warm = decode_call('ff', file, dict(kind='warm'), oracle)
             unit = max(1, math.ceil(2.0 / warm['wall']))
             counts = set()
             for round in range(5):
@@ -289,24 +294,24 @@ def main():
                     order.reverse()
                 for arm in order:
                     for repetition in range(unit):
-                        row = decode_call(arm, file, dict(kind='timed', round=round, repetition=repetition, unit=unit), warm['frames'])
+                        row = decode_call(arm, file, dict(kind='timed', round=round, repetition=repetition, unit=unit), oracle, warm['frames'])
                         counts.add(row['frames'])
             if counts == {None} or len(counts) != 1 or not next(iter(counts)):
                 raise RuntimeError('frame count mismatch')
             timed_counts[file['sha256'][:12]] = next(iter(counts))
             print(file['sha256'][:12] + ' timing complete', flush=True)
-        after = gate('after')
+        after = gate('after', oracle)
         (OUT / 'gate.json').write_text(json.dumps(dict(before=before, after=after, ratio=after / before)))
         for file in FILES:
-            count = hashes(file)
+            count = hashes(file, oracle)
             if count != timed_counts[file['sha256'][:12]]:
                 raise RuntimeError('timed and hashed frame counts differ')
             print(file['sha256'][:12] + ' hashes agree ' + str(count), flush=True)
         for file in FILES:
             if file['sha256'][:12] in LARGE:
-                transcode(file)
+                transcode(file, oracle)
                 print(file['sha256'][:12] + ' transcode bytes agree', flush=True)
-        profiles()
+        profiles(oracle)
         (OUT / 'completed.json').write_text(json.dumps(dict(files=len(FILES), arms=ARMS, rounds=5)))
         report()
     except SystemExit:

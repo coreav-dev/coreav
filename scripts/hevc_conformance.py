@@ -1071,15 +1071,19 @@ def census_result(records, registration_sha256, parser_sha256, oracle, synthetic
                 later_effective_tool_coverage='header flags identify candidates, not demonstrated pixel effects')
 
 
-def run(args):
+def run(args, oracle=None):
     data = registration(args.registration)
     exclusions = known_exclusions() if any(c['test'] in EXCLUSION_IDENTITIES for c in data['archives']) else {}
     exclusions_sha = digest(ROOT / 'bench/hevc-conformance/known-exclusions.json') if exclusions else None
     require(all('archive_sha256' in c and 'extracted' in c for c in data['archives']),
             'run requires the SHA-bound manifest produced by the manifest command')
-    require(not list(test_oracle.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
-    oracle = {name: digest(args.oracle_bin / name) for name in ('ffmpeg', 'ffprobe')}
-    oracle['pin_sha256'] = digest(ROOT / oracle_pin.PIN)
+    if oracle is None:
+        try:
+            oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+        except test_oracle.QualificationError:
+            raise ValueError('pinned oracle binaries are required') from None
+    oracle_identity = {name: digest(getattr(oracle, name)) for name in ('ffmpeg', 'ffprobe')}
+    oracle_identity['pin_sha256'] = digest(ROOT / oracle_pin.PIN)
     acquisition = read_json(args.data / 'acquisition.json')
     require(acquisition['registration_identity_sha256'] == registration_identity(data)
             and acquisition['complete'], 'complete SHA-bound acquisition is required')
@@ -1089,7 +1093,7 @@ def run(args):
     if getattr(args, 'synthetic_data', None) is not None:
         import hevc_synthetic
         synthetic = hevc_synthetic.inspect(args.synthetic_data, args.out / 'synthetic', args.parser,
-                                           args.oracle_bin, sys.modules[__name__])
+                                           oracle, sys.modules[__name__])
     records = []
     for case in data['archives']:
         result = dict(archive=case['archive'], test=case['test'], streams=[])
@@ -1137,12 +1141,12 @@ def run(args):
                                                                          sys.modules[__name__])
                     record['oracle_preparation'] = preparation
                 diagnostics = record['oracle_stderr'] = []
-                packets = probe(args.oracle_bin / 'ffprobe', oracle_path, output,
+                packets = probe(oracle.ffprobe, oracle_path, output,
                                 diagnostics=diagnostics, stream=case['test'], preparation=preparation)
-                frames = probe(args.oracle_bin / 'ffprobe', oracle_path, output, frames=True,
+                frames = probe(oracle.ffprobe, oracle_path, output, frames=True,
                                diagnostics=diagnostics, stream=case['test'], preparation=preparation)['frames']
                 attempts = record['reference_attempts'] = []
-                confirmation = confirm_reference(args.oracle_bin / 'ffmpeg', oracle_path, output, frames,
+                confirmation = confirm_reference(oracle.ffmpeg, oracle_path, output, frames,
                     [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file'],
                     diagnostics=diagnostics, stream=case['test'], attempts=attempts,
                     preparation=preparation)
@@ -1158,7 +1162,7 @@ def run(args):
                 if not record['reference_frames'] and any(
                         picture['all_intra'] for picture in pictures):
                     record['reference_frames'] = anchored_reference_frames(
-                        args.oracle_bin / 'ffmpeg', oracle_path, output, frames, outputs,
+                        oracle.ffmpeg, oracle_path, output, frames, outputs,
                         confirmation, inventory, case['test'], member['sha256'])
                 record['intra_candidates'] = coverage(pictures, outputs, record['reference_frames'])
                 record['status'] = 'headers_checked'
@@ -1168,7 +1172,7 @@ def run(args):
         except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
             result.update(status='blocked', reason=str(error))
         records.append(result)
-        result = census_result(records, digest(args.registration), digest(args.parser), oracle, synthetic)
+        result = census_result(records, digest(args.registration), digest(args.parser), oracle_identity, synthetic)
         result['known_exclusions_sha256'] = exclusions_sha
         write_json(args.out / 'census.json', result)
     require(result['complete'], 'G1 blocked; inspect census.json')
@@ -1196,7 +1200,10 @@ def fetch_corpus(args, inspect=False):
     import round_files
     files = roster()
     if inspect:
-        require(not list(test_oracle.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
+        try:
+            oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+        except test_oracle.QualificationError:
+            raise ValueError('pinned oracle binaries are required') from None
     pool = round_files.pool()
     from r2pool import Limits
     pool.limits = Limits(requests=4000, bytes_=32 << 30)
@@ -1245,7 +1252,7 @@ def fetch_corpus(args, inspect=False):
                     try:
                         options = dict(native=args.native, parser=args.parser,
                                        max_memory_bytes=args.max_memory_bytes, max_bins=args.max_bins) if getattr(args, 'native', None) else None
-                        records[index] = corpus_record(item, path, args.out, args.oracle_bin, intra=options)
+                        records[index] = corpus_record(item, path, args.out, oracle, intra=options)
                         write_json(args.out / 'corpus-census.json', corpus_result(records))
                     finally:
                         path.unlink(missing_ok=True)
@@ -1255,12 +1262,12 @@ def fetch_corpus(args, inspect=False):
         pool.close()
 
 
-def corpus_record(item, path, directory, oracle_bin, *, intra=None):
+def corpus_record(item, path, directory, oracle, *, intra=None):
     record = dict(item)
     try:
         require(path.stat().st_size == item['size'] and digest(path) == item['sha256'],
                 'corpus size or SHA-256 differs')
-        command = [oracle_bin / 'ffprobe', '-v', 'error', '-show_format', '-show_streams', '-of', 'json', path]
+        command = [oracle.ffprobe, '-v', 'error', '-show_format', '-show_streams', '-of', 'json', path]
         code, out, err = child(command, directory / item['sha256'], 'metadata')
         require(code == 0 and not err.read_bytes().strip(), 'corpus metadata oracle failed')
         meta = read_json(out)
@@ -1277,7 +1284,7 @@ def corpus_record(item, path, directory, oracle_bin, *, intra=None):
         record['admission'] = 'requires native parameter-set validation'
         if intra and item['partition'] == 'development':
             import hevc_intra
-            record['intra'] = hevc_intra.development_picture(item, path, directory / item['sha256'], oracle_bin, **intra)
+            record['intra'] = hevc_intra.development_picture(item, path, directory / item['sha256'], oracle, **intra)
             record['admission'] = 'first independent IRAP validated; full decode not established'
     except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
         record.update(status='blocked', reason=type(error).__name__)
@@ -1311,12 +1318,15 @@ def corpus_result(records):
 
 
 def corpus(args):
-    require(not list(test_oracle.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
+    try:
+        oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+    except test_oracle.QualificationError:
+        raise ValueError('pinned oracle binaries are required') from None
     files = roster()
     records = [dict(item, status='not_run') for item in files]
     for index, item in enumerate(files):
         path = args.data / f"{item['sha256']}.{item['ext']}"
-        records[index] = corpus_record(item, path, args.out, args.oracle_bin)
+        records[index] = corpus_record(item, path, args.out, oracle)
         write_json(args.out / 'corpus-census.json', corpus_result(records))
     require(all(r['status'] == 'inspected' for r in records), 'corpus metadata census blocked')
 
