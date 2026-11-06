@@ -50,3 +50,17 @@ After this change, A and B remained 6% and 9% below the build before the rate-we
 The profile's largest encoder entry is the bit writer, at about 5% of samples on A and B. Almost all of it is the counting mode used during mode decisions: each counted syntax element pays a function call and the write path's setup, because one non-inlined function serves both counting and writing. The round keeps the counting path inline and moves byte writing into its own function, without changing any syntax check, limit or written bit. Other entries are each below that threshold: copies are spread over several callers at about 1% each, the 16x16 tile fill in fractional motion scoring is about 1.6%, and deblocking as a whole is about 5.5%.
 
 Verification is the same as for the first byte-identical commit: every case of both identity sets must match the merged encoder's stream and reconstruction in dispatched and scalar builds. Timing again uses one GitHub Actions job with the merged encoder and the candidate, plus the build before the rate-weight change for reference. That reference build also predates later decoder changes in the driver's verification path, so its ratio is context, not a pure encoder comparison.
+
+### Second round outcome
+
+The [second-round record](h264-encoder-speed-round2-reference.json) keeps the identity summaries and every timed call. The change reproduces the merged encoder's stream and reconstruction in every case of both identity sets, in dispatched and scalar builds; pinned FFmpeg 9.0.2 decodes every stream of the first set to the encoder reconstruction. Locally, QP28 instruction counts fall about 4% on A and B.
+
+One GitHub-hosted ubuntu-24.04 job on an AMD EPYC 7763 built three arms with rustc 1.99.1 and timed them as before: the build before the rate-weight change, the merged encoder and this change. Ratios are paired within each of seven rotated repeats.
+
+| Input | Before fps, median (range) | Merged fps | This change fps | This change / merged | This change / before |
+|---|---:|---:|---:|---:|---:|
+| A | 48.745 (47.195–49.520) | 46.317 (45.583–46.611) | 48.596 (48.367–48.689) | 1.049 (1.038–1.067) | 0.999 (0.977–1.029) |
+| B | 44.743 (44.232–45.009) | 41.163 (40.972–41.303) | 43.080 (42.224–43.339) | 1.045 (1.022–1.053) | 0.958 (0.947–0.976) |
+| C | 41.099 (39.986–41.263) | 41.273 (41.036–41.429) | 43.498 (43.239–43.772) | 1.056 (1.045–1.066) | 1.060 (1.050–1.087) |
+
+A is now level with the build before the rate-weight change, B remains about 4% below it, and C is about 6% faster. The before arm also predates later changes outside the encoder, so its column is context rather than a pure encoder comparison.
