@@ -541,7 +541,10 @@ def main():
     parser.add_argument("--mediainfo")
     parser.add_argument("--report")
     args = parser.parse_args()
-    oracle = test_oracle.require('ffmpeg', 'ffprobe')
+    try:
+        oracle = test_oracle.require()
+    except test_oracle.QualificationError as error:
+        raise SystemExit(f"writer_kd_audit_cli: {error}") from None
     work = Path(tempfile.mkdtemp(prefix="writer-kd-audit-cli-"))
     atexit.register(shutil.rmtree, work, True)
     wrapper = work / "coreav"

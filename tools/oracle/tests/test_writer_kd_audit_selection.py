@@ -74,7 +74,7 @@ class CliAudit(unittest.TestCase):
         calls = []
         runner = 'run_text' if oracle == 'text' else 'run_policy'
         argv = ['writer_kd_audit_cli.py', '--oracle', oracle, '--coreav', 'coreav', '--media', 'media']
-        with patch.object(sys, 'argv', argv), patch.object(cli.test_oracle, 'require', return_value=PAIR), \
+        with patch.object(sys, 'argv', argv), patch.object(cli.test_oracle, 'require', return_value=PAIR) as owner, \
                 patch.object(cli, runner, side_effect=lambda value, kds: calls.append(value) or {}), \
                 patch.object(cli, 'TEXT_MUTATIONS', []), patch.object(cli, 'POLICY_MUTATIONS', []), \
                 patch.dict(cli.os.environ), contextlib.redirect_stdout(io.StringIO()), \
@@ -83,6 +83,7 @@ class CliAudit(unittest.TestCase):
                 cli.main()
             except SystemExit:
                 pass
+        owner.assert_called_once_with()
         return calls[0]
 
     def test_text_oracle_receives_the_owner_returned_pair(self):
