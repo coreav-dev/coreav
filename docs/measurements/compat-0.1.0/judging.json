@@ -28,7 +28,7 @@
     "scripts/split_check.py": "1cd37d7d66608a3d74230a247369d733deb0a13cb51ab1b9ce32a024107f3c61",
     "scripts/track_boxes.py": "97965c1b8f23758c75fedc0eb1d0815fa01f51469ad50c7ae6b5d02fe007a967",
     "scripts/writer_boxes.py": "2aaa08ab4e82c78c240b9b594a4ace6639eaf478bef2dde99a50dd6b22acfbb9",
-    "tools/compat-corpus/copy_check.py": "e73b39820ded04968f9c5cae7ac7a9157e1207a5b9e7351c24a6e6b007f20a75",
+    "tools/compat-corpus/copy_check.py": "0c3c573f428b4ec47eb7569807f5c76256c92f4f3b211a2b5f49e212c609df99",
     "tools/compat-corpus/ffmpeg9.json": "12204af1619cf806ede5e009dee43edc51edc361b5c9a93c96f0838ef9d0028d",
     "tools/compat-corpus/r3.py": "0549a6b9f429e0cadd61d6d10498c971f17b901a7e89143d5d3043fa3b58d913",
     "tools/compat-corpus/release_round.py": "b5c959bbfb004b8f4cffc65d25bdaf442d5f8e2920b968b844618c0fdfb6a2fa",
