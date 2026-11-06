@@ -29,10 +29,10 @@ mod slice;
 mod substream;
 mod vui;
 
-pub use decoder::{DecodeLimits, DecodeSummary, DecodedPicture, PictureDecoder};
+pub use decoder::{DecodeLimits, DecodeSummary, DecodedPicture, OutputMemory, PictureDecoder};
 pub use dpb::{OutputEvent, PictureOrder};
 pub use intra::{IntraLimits, IntraPicture, IntraPictureDecoder, IntraPlane, IntraStats};
-pub use nal::{AnnexB, LengthPrefixed, NalHeader};
+pub use nal::{AnnexB, LengthPrefixed, NalHeader, packet_nal};
 pub use parser::{HeaderParser, NalInfo, PictureInfo, Summary};
 pub use reconstruction::InterStats;
 pub use rps::Rps;
@@ -89,6 +89,10 @@ pub struct Limits {
     pub max_width: u32,
     /// Maximum coded height in luma samples.
     pub max_height: u32,
+    /// Maximum coded luma width times height, before conformance cropping.
+    pub max_pixels: u64,
+    /// Maximum admitted DPB capacity, including the current reference picture.
+    pub max_reference_frames: u32,
     /// Maximum CTUs in one coded picture and entry points in a header.
     pub max_ctus: u32,
     /// Maximum coded pictures over the entire parser session, including CVS changes.
@@ -101,6 +105,8 @@ impl Default for Limits {
             max_nal_bytes: 16 * 1024 * 1024,
             max_width: 16384,
             max_height: 16384,
+            max_pixels: 1 << 28,
+            max_reference_frames: 16,
             max_ctus: 1_048_576,
             max_pictures: 1_000_000,
         }

@@ -177,6 +177,7 @@ fn allocation_bytes<T>(values: &Vec<T>) -> Result<usize> {
 }
 
 pub(crate) struct Frame {
+    pub(crate) deadline: Option<std::time::Instant>,
     index: u64,
     info: PictureInfo,
     depth: BitDepth,
@@ -202,6 +203,7 @@ pub(crate) struct RetainedPicture {
     planes: [Vec<u16>; 3],
     cells: Vec<Cell>,
     timestamp: Option<i64>,
+    origin: Option<u64>,
     stats: IntraStats,
     inter_stats: InterStats,
     reference: Option<ReferenceState>,
@@ -239,6 +241,7 @@ impl RetainedPicture {
                 width * height / 16
             ],
             timestamp,
+            origin: None,
             stats: IntraStats::default(),
             inter_stats: InterStats::default(),
             reference: None,
@@ -255,6 +258,10 @@ impl RetainedPicture {
 
     pub(crate) fn timestamp(&self) -> Option<i64> {
         self.timestamp
+    }
+
+    pub(crate) fn origin(&self) -> Option<u64> {
+        self.origin
     }
 
     pub(crate) fn inter_stats(&self) -> InterStats {
@@ -327,6 +334,7 @@ impl Frame {
             .checked_mul(height / 4)
             .ok_or(Error::Limit("picture_cells"))?;
         Ok(Self {
+            deadline: None,
             index: input.index,
             info: input.picture,
             depth: BitDepth::new(input.picture.bit_depth as u8)?,
@@ -386,6 +394,16 @@ impl Frame {
         Ok(())
     }
 
+    fn check_deadline(&self) -> Result<()> {
+        if self
+            .deadline
+            .is_some_and(|deadline| std::time::Instant::now() >= deadline)
+        {
+            return Err(Error::Limit("decode_deadline"));
+        }
+        Ok(())
+    }
+
     pub(crate) fn heap_bytes(&self) -> Result<usize> {
         let scratch = self.scratch.heap_bytes()?;
         sample_bytes(&self.planes, self.cells.capacity())?
@@ -434,7 +452,11 @@ impl Frame {
         picture_view(self.index, self.info, self.stats, &self.planes)
     }
 
-    pub(crate) fn retain(self, timestamp: Option<i64>) -> Result<RetainedPicture> {
+    pub(crate) fn retain(
+        self,
+        timestamp: Option<i64>,
+        origin: Option<u64>,
+    ) -> Result<RetainedPicture> {
         if !self.complete() || !self.filtered {
             return Err(Error::InvalidData("unfinalized_reference_picture"));
         }
@@ -444,6 +466,7 @@ impl Frame {
             planes: self.planes,
             cells: self.cells,
             timestamp,
+            origin,
             stats: self.stats,
             inter_stats: self.inter_stats,
             reference: self.reference,

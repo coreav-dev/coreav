@@ -9,7 +9,8 @@ fuzz_target!(|data: &[u8]| {
     if data.len() > 65536 { return; }
     let limits = IntraLimits {
         headers: Limits { max_nal_bytes: 65536, max_width: 256, max_height: 256,
-            max_ctus: 256, max_pictures: 16 },
+            max_ctus: 256, max_pictures: 16, max_pixels: 256 * 256,
+            max_reference_frames: 16 },
         max_memory_bytes: 2 * 1024 * 1024,
         max_bins: 16384,
     };
