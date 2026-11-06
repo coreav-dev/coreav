@@ -914,6 +914,26 @@ impl Lent {
 
 impl SharedMemory for Lent {
     #[cfg(unix)]
+    fn write_prefixed_to_pipe(
+        &self,
+        pipe: std::os::fd::BorrowedFd<'_>,
+        prefix: &[u8],
+    ) -> io::Result<bool> {
+        #[cfg(target_os = "linux")]
+        {
+            self.memory
+                .0
+                .write_prefixed_ranges(pipe, prefix, &self.segments)?;
+            Ok(true)
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (pipe, prefix);
+            Ok(false)
+        }
+    }
+
+    #[cfg(unix)]
     fn write_to_pipe(&self, pipe: std::os::fd::BorrowedFd<'_>) -> io::Result<bool> {
         #[cfg(target_os = "linux")]
         {
