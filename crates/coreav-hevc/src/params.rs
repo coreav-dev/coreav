@@ -35,6 +35,7 @@ pub(crate) struct Sps {
     pub(crate) conformance_window: [u32; 4],
     pub(crate) bit_depth: u32,
     pub(crate) profile_idc: u32,
+    pub(crate) profile_bit_depth_warning: bool,
     pub(crate) ctb_log2: u32,
     pub(crate) ctu_count: u32,
     pub(crate) poc_bits: u32,
@@ -103,7 +104,13 @@ pub(crate) struct Pps {
     pub(crate) row_height: [u32; 43],
 }
 
-fn profile(bits: &mut Bits<'_>) -> Result<(u32, bool)> {
+struct Profile {
+    idc: u32,
+    main10: bool,
+    eight_bit: bool,
+}
+
+fn profile(bits: &mut Bits<'_>) -> Result<Profile> {
     if bits.u(2)? != 0 {
         return Err(Error::Unsupported("HEVC profile space"));
     }
@@ -136,10 +143,14 @@ fn profile(bits: &mut Bits<'_>) -> Result<(u32, bool)> {
     if bits.flag()? {
         return Err(Error::Unsupported("HEVC INBLD capability"));
     }
-    Ok((id, main10 && !main && !still))
+    Ok(Profile {
+        idc: id,
+        main10,
+        eight_bit: main || still,
+    })
 }
 
-fn profile_tier_level(bits: &mut Bits<'_>, sub_layers: u32) -> Result<(u32, bool)> {
+fn profile_tier_level(bits: &mut Bits<'_>, sub_layers: u32) -> Result<Profile> {
     let result = profile(bits)?;
     bits.u(8)?;
     let mut profiles = [false; 7];
@@ -332,7 +343,7 @@ pub(crate) fn vps(bits: &mut Bits<'_>, _limits: &Limits) -> Result<Vps> {
 pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
     let vps_id = bits.u(4)?;
     let (sub_layers, temporal_nesting) = sub_layers(bits)?;
-    let (profile_idc, ten_bit) = profile_tier_level(bits, sub_layers)?;
+    let profile = profile_tier_level(bits, sub_layers)?;
     let id = bits.ue(15)?;
     let chroma = bits.ue(3)?;
     if chroma != 1 {
@@ -368,7 +379,7 @@ pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
     if bit_depth != chroma_depth {
         return Err(Error::Unsupported("unequal component depths"));
     }
-    if !matches!(bit_depth, 8 | 10) || (bit_depth == 10 && !ten_bit) {
+    if !matches!(bit_depth, 8 | 10) || (bit_depth == 10 && !profile.main10) {
         return Err(Error::Unsupported("HEVC bit depth"));
     }
     let poc_bits = bits.ue(12)? + 4;
@@ -467,7 +478,8 @@ pub(crate) fn sps(bits: &mut Bits<'_>, limits: &Limits) -> Result<Sps> {
         visible_height,
         conformance_window,
         bit_depth,
-        profile_idc,
+        profile_idc: profile.idc,
+        profile_bit_depth_warning: bit_depth == 10 && profile.eight_bit,
         ctb_log2,
         ctu_count,
         poc_bits,

@@ -73,7 +73,7 @@ pub enum NalInfo {
 /// Counts of successfully parsed syntax, not reconstructed or output pictures.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Summary {
-    /// Tolerated display and sub-layer-switching declarations.
+    /// Tolerated metadata declarations that do not change reconstructed samples.
     pub warnings: crate::Warnings,
     /// Complete NAL units validated or explicitly ignored.
     pub nals: u64,
@@ -447,6 +447,7 @@ impl StreamCore {
             33 => {
                 let set = params::sps(&mut bits, &self.limits)?;
                 let id = set.id;
+                self.summary.warnings.profile_bit_depth |= set.profile_bit_depth_warning;
                 self.summary.warnings.invalid_sample_aspect_ratio |=
                     set.vui.warnings.invalid_sample_aspect_ratio;
                 *self

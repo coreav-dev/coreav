@@ -1065,6 +1065,7 @@ mod tests {
             conformance_window: [0, 2, 0, 1],
             bit_depth: 8,
             profile_idc: 1,
+            profile_bit_depth_warning: false,
             ctb_log2: 6,
             ctu_count: 1,
             poc_bits: 4,

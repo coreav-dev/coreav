@@ -8,7 +8,7 @@ Decode complete supported Main/Main10 streams with I, P and B slices, not just i
 
 Work only from the pinned ITU-T H.265 V11 January 2026 specification and original H.265.1 conformance data. The PDF SHA-256 is `78b093480e178a2b99d8cb7499934240f359c50c6d09568f8be651bc1151d4d2`. Relevant processes are clauses 7.3.6, 7.3.8.4 through 7.3.8.11, 8.3, 8.5, 8.6, 8.7, 9.3 and Annexes C and D. FFmpeg/ffprobe 9.0.2 are black-box binaries only. Do not read HM, another HEVC implementation, implementation test lists, source-derived notes or web-search results that could contain source.
 
-The `native-hevc` feature remains opt-in. Production backend/consumer wiring, default builds and dependencies, encoder work, SIMD, unsafe code, parallel scheduling and timing are outside this milestone. The existing two source exclusions and named profile/depth refusals are unchanged. No new fixture-generation, benchmark registration, freeze or audit machinery is introduced.
+The `native-hevc` feature remains opt-in. Production backend/consumer wiring, default builds and dependencies, encoder work, SIMD, unsafe code, parallel scheduling and timing are outside this milestone. The existing two source exclusions and named profile/depth refusals are unchanged. Main10 admission uses its direct or compatibility declaration, with a typed `profile_bit_depth` warning when an additional eight-bit-only profile claim contradicts supported ten-bit samples; that narrower claim does not select a different reconstruction path. Unsupported depths and ten-bit samples without a Main10 claim remain refused. No new fixture-generation, benchmark registration, freeze or audit machinery is introduced.
 
 ## Caller and ownership
 

@@ -170,7 +170,8 @@ fn inspect(output: &mut impl Write) -> coreav_hevc::Result<()> {
         "output_flag_pictures":summary.output_flag_pictures,"independent_slices":summary.independent_slices,
         "dependent_slices":summary.dependent_slices,"picture_hashes":summary.picture_hashes,
         "reserved_hashes":summary.reserved_hashes,"tools":tools,
-        "warnings":{"invalid_sample_aspect_ratio":summary.warnings.invalid_sample_aspect_ratio,
+        "warnings":{"profile_bit_depth":summary.warnings.profile_bit_depth,
+            "invalid_sample_aspect_ratio":summary.warnings.invalid_sample_aspect_ratio,
             "temporal_nesting_nal_type":summary.warnings.temporal_nesting_nal_type}}),
     )
 }

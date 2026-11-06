@@ -69,6 +69,57 @@ fn synthetic_sets() -> HeaderParser {
     parser
 }
 
+#[test]
+fn main10_admission_is_not_vetoed_by_an_eight_bit_compatibility_claim() -> Result<()> {
+    for depth in [8, 10] {
+        for (profile, compatibility) in [
+            (2, 0u32),
+            (2, 1 << 30),
+            (2, 1 << 28),
+            (2, (1 << 30) | (1 << 28)),
+            (1, 1 << 29),
+            (3, 1 << 29),
+        ] {
+            let mut fixture = pcm_fixture(depth, depth, false)?;
+            let mut sps = nal::rbsp(&fixture.sets[1], &Limits::default())?;
+            sps[1] = profile;
+            sps[2..6].copy_from_slice(&compatibility.to_be_bytes());
+            fixture.sets[1] = escaped(33, &sps);
+            let mut decoder = PictureDecoder::new(DecodeLimits::default());
+            for nal in fixture.sets.iter().chain([&fixture.nal]) {
+                decoder.read_nal(nal, None, |_| Err(Error::InvalidData("early_output")))?;
+            }
+            let mut emitted = 0;
+            let summary = decoder.finish(|picture| {
+                emitted += 1;
+                assert_eq!(picture.info.bit_depth, depth);
+                for (plane, expected) in picture.planes.into_iter().zip(&fixture.planes) {
+                    assert_eq!(plane.samples, expected);
+                }
+                Ok(())
+            })?;
+            assert_eq!((emitted, summary.headers.output_pictures), (1, 1));
+            assert_eq!(
+                summary.headers.warnings.profile_bit_depth,
+                depth == 10 && compatibility != 0
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn profile_admission_preserves_depth_limits_and_requires_a_main10_claim() {
+    for (depth, profile) in [(9, 2), (12, 2), (16, 2), (10, 1), (10, 3)] {
+        let mut bytes = params::tests::sequence(depth, false, false, false);
+        bytes[1] = profile;
+        assert_eq!(
+            params::sps(&mut Bits::new(&bytes), &Limits::default()).unwrap_err(),
+            Error::Unsupported("HEVC bit depth")
+        );
+    }
+}
+
 fn idr() -> Vec<u8> {
     idr_segment(true)
 }

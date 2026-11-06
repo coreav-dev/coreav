@@ -72,6 +72,8 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// Tolerated declarations that do not change full-layer sample reconstruction.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Warnings {
+    /// A Main10 sequence also claimed compatibility with an eight-bit-only profile.
+    pub profile_bit_depth: bool,
     /// A non-coprime Extended_SAR was interpreted as an unspecified aspect ratio.
     pub invalid_sample_aspect_ratio: bool,
     /// A higher temporal layer used a NAL type inconsistent with temporal nesting.
