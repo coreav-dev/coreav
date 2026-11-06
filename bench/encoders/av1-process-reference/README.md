@@ -10,7 +10,7 @@ The method is in [docs/design/av1-process-reference.md](../../../docs/design/av1
 
 - One on-demand Compute Engine c4-standard-8 VM with simultaneous multithreading off: Intel Xeon Platinum 8581C (Emerald Rapids), 4 visible CPUs, one thread per core, 31.5 GB memory, Debian 13, Linux 6.12. Nothing else ran on it. Details are in [host.json](host.json).
 - CoreAV: the `av1-measurement` profile build of the `cli,av1-measurement` features for `x86_64-unknown-linux-musl`, SHA-256 `c678981e410bf4ad41b0ce264a748cc2dfdaaa381d5281812a96b70dfd338800`.
-- FFmpeg comparator: the oracle revision, built as a static musl binary with the same SVT-AV1 4.2.0 source by `scripts/build_av1_reference_ffmpeg.sh`, SHA-256 `2021edb7212c646859fc733b0a25310c99e437f3f85fb3e277318daf58018824`. Every call reported SVT-AV1 v4.2.0, one session, a GOP of 126 frames and parallelism level 1.
+- FFmpeg comparator: the oracle revision, built as a static musl binary with the same SVT-AV1 4.2.0 source by `scripts/build_av1_reference_ffmpeg.sh`, SHA-256 `2021edb7212c646859fc733b0a25310c99e437f3f85fb3e277318daf58018824`. Every FFmpeg and in-process call reported SVT-AV1 v4.2.0, one session and parallelism level 1. The GOP was CoreAV's key interval plus one: 126, 120 and 150 frames for input01, input02 and input03. Keyframe positions matched across all three arms.
 - Metrics and probes: the pinned oracle FFmpeg 9.0.2 from `scripts/oracle-ffmpeg.env`.
 
 ## End-to-end calls
