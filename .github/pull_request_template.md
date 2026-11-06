@@ -72,4 +72,3 @@ sequenceDiagram
 
 - [ ] Every commit is signed off (`git commit -s`, DCO).
 - [ ] I copied nothing from other implementations.
-- [ ] I did not read git history or the `archive/m1-prototype` tag, except paths named in a port request.
