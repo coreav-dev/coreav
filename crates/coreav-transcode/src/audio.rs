@@ -812,7 +812,7 @@ fn probe_encoder(
             && error.kind == ErrorKind::Backend
             && error
                 .message
-                .starts_with("the MP3 encoder failed (exit status: 1)")
+                .starts_with("the MP3 encoder failed (exit status: ")
             && error.message.contains("Unknown encoder 'libmp3lame'")
         {
             Error::Unsupported("the ffmpeg program has no libmp3lame encoder".into())
@@ -1626,6 +1626,21 @@ mod tests {
                 "mp3-unavailable",
                 "printf \"Unknown encoder 'libmp3lame'\\n\" >&2; exit 1",
                 true,
+            ),
+            (
+                "mp3-unavailable-status-eight",
+                "printf \"Unknown encoder 'libmp3lame'\\n\" >&2; exit 8",
+                true,
+            ),
+            (
+                "mp3-unknown-before-flood",
+                "printf \"Unknown encoder 'libmp3lame'\\n\" >&2; exec yes",
+                false,
+            ),
+            (
+                "mp3-unknown-before-signal",
+                "printf \"Unknown encoder 'libmp3lame'\\n\" >&2; kill -TERM $$",
+                false,
             ),
             ("mp3-invalid", "printf bad", false),
             ("mp3-flood", "exec yes", false),
