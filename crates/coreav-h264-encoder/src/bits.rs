@@ -25,6 +25,7 @@ impl Bits {
         }
     }
 
+    #[inline]
     pub(crate) fn u(&mut self, width: u32, value: u64) -> Result<()> {
         if width > 64 || (width < 64 && value >> width != 0) {
             return Err(Error::Syntax);
@@ -33,6 +34,15 @@ impl Bits {
         if end.div_ceil(8) > self.limit {
             return Err(Error::Limit);
         }
+        if self.bytes.is_none() {
+            self.len = end;
+            return Ok(());
+        }
+        self.write(width, value, end)
+    }
+
+    #[inline(never)]
+    fn write(&mut self, width: u32, value: u64, end: usize) -> Result<()> {
         if let Some(bytes) = &mut self.bytes {
             bytes
                 .try_reserve(end.div_ceil(8).saturating_sub(bytes.len()))
