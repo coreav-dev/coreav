@@ -1,5 +1,6 @@
 from pathlib import Path
 import copy
+import hashlib
 import json
 import subprocess
 import sys
@@ -52,6 +53,28 @@ class Classification(unittest.TestCase):
         report = classifier.classify(self.root, sites, self.record(sites, 'confirmed-bypass'))
         self.assertEqual(report['counts']['confirmed-bypass']['locations'], 1)
         self.assertEqual(report['counts']['qualified-via-owner']['rows'], 0)
+
+    def test_an_observer_tooling_copy_cannot_use_registered_source_evidence(self):
+        sites = self.sites('import subprocess\nsubprocess.run(["ffprobe", "-version"])\n')
+        sites[0]['status'] = 'observer-copy'
+        record = self.record(sites, 'excluded')
+        record['frozen'][self.path] = record['files'][self.path]['sha256']
+        record['files'][self.path]['sites'][0]['class'] = 'registered-source'
+        report = classifier.classify(self.root, sites, record)
+        self.assertEqual(report['counts']['excluded']['rows'], 0)
+        self.assertEqual(report['counts']['unknown']['rows'], 1)
+        self.assertEqual(report['locations'][0]['rule'], 'boundary-class-mismatch')
+
+    def test_a_symlinked_checkout_root_is_normalized_before_source_bindings(self):
+        self.root = self.root.resolve()
+        sites = self.sites('import subprocess\nsubprocess.run(command)\n')
+        record = self.record(sites, 'excluded')
+        with tempfile.TemporaryDirectory() as outside:
+            alias = Path(outside) / 'checkout'
+            alias.symlink_to(self.root, target_is_directory=True)
+            report = classifier.classify(alias, sites, record)
+        self.assertTrue(report['evidence_valid'], report['problems'])
+        self.assertEqual(report['counts']['excluded']['rows'], 1)
 
     def test_missing_index_files_and_gitlinks_remain_unknown(self):
         (self.root / 'deleted.rs').write_text('fn main() {}')
@@ -292,6 +315,94 @@ class Classification(unittest.TestCase):
         self.assertEqual(report['counts']['qualified-via-owner']['rows'], 0)
         self.assertNotIn('external content', json.dumps(report))
 
+    def legal_link_record(self):
+        for relative in classifier.DEPENDENCIES:
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('')
+        target = self.root / 'LICENSE'
+        target.write_text('fixture legal text\n')
+        link = self.root / 'package/LICENSE'
+        link.parent.mkdir()
+        link.symlink_to('../LICENSE')
+        subprocess.run(['git', 'init', '--quiet', str(self.root)], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(self.root), 'add', '.'], check=True, capture_output=True)
+        self.path = link.relative_to(self.root).as_posix()
+        site = dict(path=self.path, line=1, kind='inventory', scope='<inventory>',
+                    program='unscanned-symlink', status='unclassified')
+        record = self.record([site], 'excluded', requires=classifier.DEPENDENCIES)
+        return link, target, record
+
+    def test_inward_legal_link_binds_link_text_and_tracked_regular_target(self):
+        link, target, record = self.legal_link_record()
+        proof = record['files'][self.path]
+        self.assertEqual(proof['sha256'], hashlib.sha256(b'symlink\0../LICENSE').hexdigest())
+        self.assertIn('LICENSE', proof['requires'])
+        self.assertEqual(record['dependencies']['LICENSE'], hashlib.sha256(target.read_bytes()).hexdigest())
+        report = classifier.classify(self.root, [], record)
+        self.assertTrue(report['evidence_valid'], report['problems'])
+        self.assertEqual(report['counts']['excluded']['rows'], 1)
+        self.assertEqual(classifier.file_kind(link, self.root.resolve()), 'unscanned-symlink')
+
+    def test_legal_link_target_edits_and_same_content_retargeting_invalidate_evidence(self):
+        link, target, record = self.legal_link_record()
+        original = target.read_bytes()
+        other = self.root / 'OTHER.txt'
+        other.write_bytes(original)
+        subprocess.run(['git', '-C', str(self.root), 'add', 'OTHER.txt'], check=True, capture_output=True)
+        record['inventory'] = classifier.file_inventory(self.root)
+        self.assertTrue(classifier.classify(self.root, [], record)['evidence_valid'])
+        target.write_text('changed legal text\n')
+        changed = classifier.classify(self.root, [], record)
+        self.assertFalse(changed['evidence_valid'])
+        self.assertEqual(changed['counts']['excluded']['rows'], 0)
+        target.write_bytes(original)
+        link.unlink()
+        link.symlink_to('../OTHER.txt')
+        self.assertNotEqual(classifier.Bindings(self.root).hash(self.path), record['files'][self.path]['sha256'])
+        changed = classifier.classify(self.root, [], record)
+        self.assertFalse(changed['evidence_valid'])
+        self.assertEqual(changed['counts']['excluded']['rows'], 0)
+
+    def test_legal_link_refuses_missing_untracked_outward_and_indirect_targets(self):
+        link, target, record = self.legal_link_record()
+        untracked = link.with_name('untracked-license')
+        untracked.symlink_to('../LICENSE')
+        with self.assertRaises(ValueError):
+            classifier.Bindings(self.root).context(untracked.relative_to(self.root).as_posix())
+        untracked.unlink()
+        original = target.read_bytes()
+        target.unlink()
+        with self.assertRaises((OSError, ValueError)):
+            classifier.Bindings(self.root).context(self.path)
+        target.write_bytes(original)
+        other = self.root / 'UNTRACKED'
+        other.write_bytes(original)
+        link.unlink()
+        link.symlink_to('../UNTRACKED')
+        with self.assertRaises(ValueError):
+            classifier.Bindings(self.root).context(self.path)
+        with tempfile.TemporaryDirectory() as outside:
+            external = Path(outside) / 'LICENSE'
+            external.write_text('outside legal text\n')
+            link.unlink()
+            link.symlink_to(external)
+            real_open = Path.open
+
+            def checked_open(path, *args, **kwargs):
+                self.assertTrue(path.resolve().is_relative_to(self.root.resolve()), 'read left the checkout')
+                return real_open(path, *args, **kwargs)
+
+            with patch.object(Path, 'open', checked_open), self.assertRaises(ValueError):
+                classifier.Bindings(self.root).context(self.path)
+        other.unlink()
+        other.symlink_to('LICENSE')
+        subprocess.run(['git', '-C', str(self.root), 'add', 'UNTRACKED'], check=True, capture_output=True)
+        link.unlink()
+        link.symlink_to('../UNTRACKED')
+        with self.assertRaises(ValueError):
+            classifier.Bindings(self.root).context(self.path)
+
     def test_duplicate_and_regex_entries_are_rejected(self):
         sites = self.sites('import subprocess\nsubprocess.run(command)\n')
         record = self.record(sites, 'qualified-via-owner')
@@ -364,7 +475,7 @@ class Classification(unittest.TestCase):
         sites = self.sites('import subprocess\nsubprocess.run(command)\n')
         (self.root / 'scripts/compat_sources.py').write_text('')
         record = self.record(sites, 'qualified-via-owner')
-        with patch.object(discovery, 'frozen_files', return_value={'scripts/registered.py'}):
+        with patch.object(discovery, 'frozen_files', return_value=({'scripts/registered.py'}, set())):
             report = classifier.classify(self.root, sites, record)
         self.assertFalse(report['evidence_valid'])
         self.assertEqual(report['counts']['qualified-via-owner']['rows'], 0)

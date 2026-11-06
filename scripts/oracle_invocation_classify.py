@@ -4,6 +4,7 @@ import ast
 from collections import Counter, defaultdict
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -71,6 +72,7 @@ def file_kind(path, root=None):
 
 
 def file_inventory(root, paths=None):
+    root = root.resolve()
     return {path: file_kind(root / path, root) for path in (paths or repository_paths(root))
             if path != RECORD and not path.startswith(discovery.HISTORICAL_BOUNDARY + '/')}
 
@@ -81,11 +83,20 @@ def site_key(site):
 
 class Bindings:
     def __init__(self, root):
-        self.root = root
-        self.paths = repository_paths(root)
+        self.root = root.resolve()
+        self.paths = repository_paths(self.root)
         self.path_set = set(self.paths)
         self.hashes = {}
         self.sources = {}
+        self.links = {}
+        self.tracked = {}
+        if (self.root / '.git').exists():
+            entries = subprocess.check_output(['git', '-C', str(self.root), 'ls-files', '--stage', '-z'], text=True)
+            for entry in filter(None, entries.split('\0')):
+                metadata, path = entry.split('\t', 1)
+                mode, _, stage = metadata.split()
+                if stage == '0':
+                    self.tracked[path] = mode
         self.imports = {}
         self.names = defaultdict(set)
         self.startup = set()
@@ -106,10 +117,36 @@ class Bindings:
     def source(self, path):
         if path not in self.sources:
             selected = self.root / path
-            if selected.is_symlink() or not selected.resolve().is_relative_to(self.root):
+            link = self.link(path)
+            if link is not None:
+                self.sources[path] = link[1]
+            elif not selected.resolve().is_relative_to(self.root):
                 raise ValueError('evidence source is a symbolic link')
-            self.sources[path] = selected.read_bytes()
+            else:
+                self.sources[path] = selected.read_bytes()
         return self.sources[path]
+
+    def link(self, path):
+        if path in self.links:
+            return self.links[path]
+        selected = self.root / path
+        if not selected.is_symlink():
+            return None
+        literal = selected.readlink()
+        target = Path(os.path.abspath(selected.parent / literal))
+        if not target.is_relative_to(self.root):
+            raise ValueError('evidence link target leaves the checkout')
+        relative = target.relative_to(self.root).as_posix()
+        try:
+            direct = selected.parent.resolve() == selected.parent and target.parent.resolve() == target.parent
+        except RuntimeError as error:
+            raise ValueError('evidence link target must be a tracked regular file') from error
+        if (not direct or self.tracked.get(path) != '120000' or
+                self.tracked.get(relative) not in ('100644', '100755') or
+                target.is_symlink() or not target.is_file()):
+            raise ValueError('evidence link target must be a tracked regular file')
+        self.links[path] = relative, b'symlink\0' + os.fsencode(literal)
+        return self.links[path]
 
     def stems(self, path):
         if path not in self.imports:
@@ -137,6 +174,9 @@ class Bindings:
             if current not in self.path_set:
                 raise ValueError('missing evidence dependency: ' + current)
             reached.add(current)
+            link = self.link(current)
+            if link is not None:
+                pending.append(link[0])
             for stem in self.stems(current):
                 stems.add(stem)
                 pending.extend(self.names.get(stem, ()))
@@ -232,6 +272,7 @@ def validate_record(record):
 
 
 def classify(root, sites, record=None):
+    root = root.resolve()
     if record is None:
         path = root / RECORD
         record = json.loads(path.read_text()) if path.is_file() else None
@@ -268,7 +309,7 @@ def classify(root, sites, record=None):
                     anchors_valid = False
                     problems.append(dict(path=path, reason='stale-evidence-anchor'))
         if (root / 'scripts/compat_sources.py').is_file():
-            roster = discovery.frozen_files(root, bindings.paths)
+            roster, _ = discovery.frozen_files(root, bindings.paths)
             if set(record['frozen']) != roster:
                 anchors_valid = False
                 problems.append(dict(path=RECORD, reason='frozen-roster-mismatch'))

@@ -99,7 +99,7 @@ class Discovery(unittest.TestCase):
             root = Path(directory)
             historical = 'docs/measurements/past/source.txt'
             files = {
-                'scripts/compat_sources.py': 'FROZEN=()\nJUDGING=()\nJUDGING_REGISTRATION="registration.json"\n',
+                'scripts/compat_sources.py': 'FROZEN=()\nOBSERVER=()\nJUDGING=()\nJUDGING_REGISTRATION="registration.json"\n',
                 'tools/compat-corpus/b4_round10.py': 'TOOL_FILES=()\n',
                 'scripts/vp9_pixel_round.py': 'CAPTURE_SCRIPTS=()\n',
                 'bench/audio-decode/capacity.py': 'SCRIPT_INPUTS=()\n',
@@ -123,6 +123,26 @@ class Discovery(unittest.TestCase):
             return link
         sites = self.whole_inventory({'kept.sh': 'ffmpeg -version\n'}, prepare)
         self.assertTrue(any(site['path'] == 'kept.sh' for site in sites))
+
+    def test_tooling_observer_copies_do_not_inherit_registered_source_status(self):
+        sites = self.whole_inventory({
+            'scripts/compat_sources.py': 'FROZEN=("observer.py", "strict.py")\n'
+                                        'OBSERVER=("observer.py",)\nJUDGING=()\n'
+                                        'JUDGING_REGISTRATION="registration.json"\n',
+            'observer.py': 'import subprocess\nsubprocess.run(["ffprobe", "-version"])\n',
+            'strict.py': 'import subprocess\nsubprocess.run(["ffprobe", "-version"])\n',
+        })
+        statuses = {site['path']: site['status'] for site in sites}
+        self.assertEqual(statuses['observer.py'], 'observer-copy')
+        self.assertEqual(statuses['strict.py'], 'frozen')
+
+    def test_an_observer_copy_with_another_registered_owner_stays_frozen(self):
+        sites = self.whole_inventory({
+            'scripts/compat_sources.py': 'FROZEN=("observer.py",)\nOBSERVER=("observer.py",)\n'
+                                        'JUDGING=("observer.py",)\nJUDGING_REGISTRATION="registration.json"\n',
+            'observer.py': 'import subprocess\nsubprocess.run(["ffprobe", "-version"])\n',
+        })
+        self.assertTrue(any(site['path'] == 'observer.py' and site['status'] == 'frozen' for site in sites))
 
     def test_missing_index_files_and_gitlinks_do_not_crash_discovery(self):
         def prepare(root):
