@@ -1,0 +1,91 @@
+name: hevc-reference
+run-name: HEVC reference ${{ inputs.candidate }}
+# workflow-check: not required
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: Exact decoder commit
+        required: true
+        type: string
+      only:
+        description: Optional comma-separated input IDs
+        required: false
+        default: ''
+        type: string
+      diagnose_only:
+        description: Compare pixels without timing or profiling
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      CANDIDATE: ${{ inputs.candidate }}
+      ONLY: ${{ inputs.only }}
+      DIAGNOSE_ONLY: ${{ inputs.diagnose_only }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          path: driver
+      - name: Check reference process and comparison boundaries
+        run: python3 -m unittest discover -s driver/scripts/tests -p test_reference_hevc.py
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ env.CANDIDATE }}
+          path: candidate
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Build the opt-in scalar driver
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE"
+          cp ../driver/bench/hevc-reference/decode.rs crates/coreav-hevc/examples/reference.rs
+          CARGO_PROFILE_RELEASE_DEBUG=1 cargo build --locked --release -p coreav-hevc --features native-hevc --example reference
+          rustc -Vv > "$RUNNER_TEMP/compiler.txt"
+      - name: Install profiling tools
+        run: sudo apt-get update -qq && sudo apt-get install -y valgrind
+      - name: Install the pinned binary oracle
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: driver/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Compare pixels before decoder-only reference calls
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          EXTRA=()
+          if [ "$DIAGNOSE_ONLY" = true ]; then EXTRA+=(--diagnose-only); fi
+          python3 -I driver/scripts/hevc_reference.py \
+            --native "$PWD/candidate/target/release/examples/reference" \
+            --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/reference" \
+            --candidate "$CANDIDATE" --only "$ONLY" "${EXTRA[@]}"
+      - name: Bind retained results to the dispatched decoder
+        run: |
+          python3 -I driver/scripts/hevc_reference.py check-result \
+            "$RUNNER_TEMP/reference/results.json" --expected-candidate "$CANDIDATE"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hevc-reference-${{ env.CANDIDATE }}
+          path: |
+            ${{ runner.temp }}/reference/results.json
+            ${{ runner.temp }}/compiler.txt
+          if-no-files-found: error
+          retention-days: 30
