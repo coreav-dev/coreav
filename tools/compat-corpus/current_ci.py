@@ -175,11 +175,11 @@ def main():
     opts = parser.parse_args()
     opts.coreav = str(pathlib.Path(opts.coreav).resolve())
     opts.write_baseline = None
-    ffmpeg, ffprobe = shutil.which('ffmpeg'), shutil.which('ffprobe')
-    if (not ffmpeg or not ffprobe
-            or pathlib.Path(ffprobe).resolve() != (pathlib.Path(ffmpeg).parent / 'ffprobe').resolve()
-            or list(test_oracle.verify_bin(pathlib.Path(ffmpeg).parent))):
-        parser.error('install the pinned ffmpeg and ffprobe with scripts/install-oracle-ffmpeg.sh')
+    try:
+        pair = test_oracle.require()
+    except test_oracle.QualificationError as error:
+        parser.error(str(error))
+    ffmpeg, ffprobe = str(pair.ffmpeg), str(pair.ffprobe)
     legacy = reporter()
     records = []
     legacy.ffmpeg_refusals = lambda o, f, c, errors: refusals(legacy, o, f, c, errors, records, ffmpeg, ffprobe)

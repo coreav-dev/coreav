@@ -95,13 +95,16 @@ class CurrentPolicy(unittest.TestCase):
             def refusals(*args):
                 args[5].append({'status': 'unverified'})
                 return collections.Counter(fail=1), []
+            pair = current_ci.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
             with mock.patch.object(sys, 'argv', ['current_ci.py', 'commands', '--coreav', 'candidate',
                                                 '--report', str(report), '--baseline', 'baseline.json']), \
                     mock.patch.object(current_ci, 'reporter', return_value=legacy), \
-                    mock.patch.object(current_ci, 'refusals', side_effect=refusals), \
+                    mock.patch.object(current_ci, 'refusals', side_effect=refusals) as checked, \
                     mock.patch.object(current_ci.shutil, 'which', side_effect=lambda n: '/oracle/' + n), \
-                    mock.patch.object(current_ci.test_oracle, 'verify_bin', return_value=[]):
+                    mock.patch.object(current_ci.test_oracle, 'require', return_value=pair) as qualify:
                 self.assertEqual(current_ci.main(), 1)
+                qualify.assert_called_once()
+                self.assertEqual(checked.call_args.args[-2:], (str(pair.ffmpeg), str(pair.ffprobe)))
 
     def test_the_frozen_judging_files_keep_their_registered_hashes(self):
         registration = json.loads((ROOT / 'docs/measurements/compat-0.1.0/judging.json').read_text())
