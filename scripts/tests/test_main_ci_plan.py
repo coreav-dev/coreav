@@ -46,6 +46,84 @@ class MainPlan(unittest.TestCase):
         key = ''.join(str(evaluate(piece, context)) if piece.startswith('${{') else piece for piece in pieces)
         return key, bool(evaluate(setting['cancel-in-progress'], context))
 
+    def test_reused_groups_skip_fixtures_cache_and_the_already_proved_base_guard(self):
+        gate = self.workflows['ci']['jobs']['ci-changes']
+        publish, = [s for s in gate['steps'] if s.get('name') == 'Publish the shared fixtures before fan-out']
+        for event in ('pull_request', 'merge_group', 'push'):
+            for reused in (False, True):
+                context = {'github': {'event_name': event, 'event': {'pull_request': {'draft': False}}},
+                           'steps': {'result': {'outputs': {'reuse': str(reused).lower()}},
+                                     'filter': {'outputs': {'run': 'true'}},
+                                     'bench-guard': {'outputs': {'run': 'true'}}}}
+                with self.subTest(event=event, reused=reused):
+                    self.assertEqual(bool(evaluate(publish['if'], context)),
+                                     not (event == 'merge_group' and reused))
+                    self.assertEqual(bool(evaluate(gate['outputs']['main-cache'], context)),
+                                     event == 'push' and reused)
+                    self.assertEqual(bool(evaluate(gate['outputs']['bench-guard'], context)),
+                                     not (event == 'merge_group' and reused))
+                    self.assertEqual(bool(evaluate(gate['outputs']['run'], context)), not reused)
+
+    def test_every_required_workflow_records_or_checks_reuse_before_work(self):
+        for workflow, job in [('ci', 'ci-changes'), ('deny', 'deny-checks'),
+                              ('python', 'python-changes'), ('npm', 'npm-changes')]:
+            steps = self.workflows[workflow]['jobs'][job]['steps']
+            self.assertTrue(steps[0]['uses'].startswith('actions/checkout@'))
+            self.assertEqual(steps[1]['uses'], './.github/actions/merge-group-result')
+            self.assertEqual(steps[1]['with'], {'workflow': workflow + '.yml'})
+        text = subprocess.check_output(['ruby', '-rjson', '-rpsych', '-e',
+                                        'puts JSON.generate(Psych.load_file(ARGV[0]))',
+                                        str(ROOT / '.github/actions/merge-group-result/action.yml')], text=True)
+        action = json.loads(text)
+        upload, = [s for s in action['runs']['steps'] if s.get('uses', '').startswith('actions/upload-artifact@')]
+        self.assertEqual(upload['if'], "steps.result.outputs.record_name != ''")
+        self.assertTrue(upload['continue-on-error'])
+        self.assertEqual(upload['with']['name'], '${{ steps.result.outputs.record_name }}')
+
+    def test_reused_groups_require_fresh_root_and_fuzz_advisories(self):
+        steps = self.workflows['deny']['jobs']['deny-checks']['steps']
+        fresh, = [s for s in steps if s.get('id') == 'fresh-advisories']
+        witness, = [s for s in steps if s.get('name') == 'Require fresh advisories on a reused merge group']
+        install, = [s for s in steps if s.get('name') == 'Install cargo-deny']
+        condition = "github.event_name == 'merge_group' && steps.result.outputs.reuse == 'true'"
+        self.assertEqual(fresh['if'], condition)
+        self.assertEqual(witness['if'], 'always() && ' + condition)
+        self.assertEqual(install['if'], "steps.result.outputs.reuse != 'true' || github.event_name == 'merge_group'")
+        self.assertNotIn('continue-on-error', fresh)
+        self.assertNotIn('continue-on-error', witness)
+        self.assertEqual(witness['env'], {'ADVISORIES': '${{ steps.fresh-advisories.outcome }}'})
+        self.assertIn('python3 scripts/fuzz_plan.py --projects', fresh['run'])
+        self.assertNotIn('--offline', fresh['run'])
+        self.assertNotIn('--disable-fetch', fresh['run'])
+        self.assertFalse(any('advisory' in str(s.get('with', {}).get('path', '')).lower()
+                             for s in steps if 'cache@' in s.get('uses', '')))
+        for outcome in ('success', '', 'skipped', 'cancelled', 'failure'):
+            done = subprocess.run(['bash', '-c', witness['run']], env={'ADVISORIES': outcome},
+                                  capture_output=True)
+            self.assertEqual(done.returncode == 0, outcome == 'success')
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'scripts').mkdir()
+            (root / 'scripts/fuzz_plan.py').write_text("print('crates/alpha/fuzz\\ncrates/beta/fuzz')\n")
+            (root / 'cargo').write_text('#!/usr/bin/env python3\nimport json, os, sys\n'
+                'with open(os.environ["CALLS"], "a") as output: output.write(json.dumps(sys.argv[1:]) + "\\n")\n'
+                'fail = os.environ.get("FAIL", "")\n'
+                'sys.exit(int(bool(fail) and (fail == "root" and "--manifest-path" not in sys.argv '
+                'or fail in " ".join(sys.argv))))\n')
+            (root / 'cargo').chmod(0o755)
+            for failure in ('', 'root', 'beta'):
+                calls = root / 'calls.jsonl'
+                calls.unlink(missing_ok=True)
+                done = subprocess.run(['bash', '-c', fresh['run']], cwd=root, capture_output=True,
+                    env={'PATH': str(root) + ':/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin',
+                         'RUNNER_TEMP': directory, 'CALLS': str(calls), 'FAIL': failure})
+                self.assertEqual(done.returncode == 0, failure == '', done.stderr)
+                self.assertEqual([json.loads(line) for line in calls.read_text().splitlines()], [
+                    ['deny', '--all-features', 'check', 'advisories'],
+                    ['deny', '--all-features', '--manifest-path', 'crates/alpha/fuzz/Cargo.toml', 'check', 'advisories'],
+                    ['deny', '--all-features', '--manifest-path', 'crates/beta/fuzz/Cargo.toml', 'check', 'advisories'],
+                ])
+
     def test_aac_source_build_runs_the_whole_transcode_target(self):
         steps = self.workflows['ci']['jobs']['isobmff-decode']['steps']
         step, = [s for s in steps if s.get('name') == 'coreav transcode on the fixtures, with both encoders']
@@ -302,6 +380,15 @@ class MainPlan(unittest.TestCase):
         self.assertEqual(set(plan['npm']), {'npm-changes', 'npm-report'})
         self.assertEqual(set(plan['deny']), {'deny', 'deny-checks'})
         self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 18)
+
+    def test_proven_groups_keep_only_gate_and_report_jobs(self):
+        plan = self.plan('merge_group', True)
+        self.assertEqual(set(plan['ci']), {'ci-changes', 'ci-report'})
+        self.assertEqual(set(plan['deny']), {'deny-checks', 'deny'})
+        self.assertEqual(set(plan['python']), {'python-changes', 'python-report'})
+        self.assertEqual(set(plan['npm']), {'npm-changes', 'npm-report'})
+        self.assertEqual(plan['ci-full'], {})
+        self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 8)
 
     def test_installer_only_proof_is_reused_without_starting_the_h264_group(self):
         for event, reused in (('pull_request', False), ('merge_group', False),

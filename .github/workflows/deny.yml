@@ -201,7 +201,7 @@ jobs:
       # (crates/*/fuzz), so a new one is checked without editing this file;
       # finding none fails. cargo-deny is the version the action above runs.
       - name: Install cargo-deny
-        if: steps.result.outputs.reuse != 'true'
+        if: steps.result.outputs.reuse != 'true' || github.event_name == 'merge_group'
         env:
           VERSION: 0.20.2
           SHA256: 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
@@ -213,6 +213,23 @@ jobs:
           echo "$SHA256  $RUNNER_TEMP/deny.tar.gz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/deny.tar.gz" -C "$RUNNER_TEMP" "$name/cargo-deny"
           echo "$RUNNER_TEMP/$name" >> "$GITHUB_PATH"
+      - name: Refresh advisory checks on a reused merge group
+        id: fresh-advisories
+        if: github.event_name == 'merge_group' && steps.result.outputs.reuse == 'true'
+        run: |
+          set -euo pipefail
+          python3 scripts/fuzz_plan.py --projects > "$RUNNER_TEMP/fuzz-projects.txt"
+          status=0
+          cargo deny --all-features check advisories || status=1
+          while read -r project; do
+            cargo deny --all-features --manifest-path "$project/Cargo.toml" check advisories || status=1
+          done < "$RUNNER_TEMP/fuzz-projects.txt"
+          exit "$status"
+      - name: Require fresh advisories on a reused merge group
+        if: always() && github.event_name == 'merge_group' && steps.result.outputs.reuse == 'true'
+        env:
+          ADVISORIES: ${{ steps.fresh-advisories.outcome }}
+        run: test "$ADVISORIES" = success
       - name: Check the licenses of every fuzz project
         if: steps.result.outputs.reuse != 'true'
         run: |

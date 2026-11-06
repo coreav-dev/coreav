@@ -40,6 +40,14 @@ Both jobs consume the same run-bound fixture artifact. On a full run, fixture pr
 
 The base fixture job retains stream and packet comparison, dependent known-divergence checks, schemas, hostile inputs, policy checking, audio and text extraction, and the text known-divergence audit. The latter takes 3.77 minutes but stays in the base job to balance the two branches. The new job builds the same required command variants and retains its reports under a separate artifact name.
 
+### Reuse the exact tested tree and base in the queue
+
+The longest ten projected merge-group cohorts are limited by Linux `check` four times, decode fixtures twice, and macOS checks, npm smoke, deny and bench-guard once each. These are the projected last prerequisites plus retained report admission, not proof of a single cause. Full H.264 and transcode moves alone cannot remove this tail.
+
+The required workflows record the actual ready-PR checkout tree, first-parent base and attempt through the existing `merge-group-result` action. A merge group reuses only the newest successful same-workflow PR run at its current head when both recorded identities match. This preserves changed-path selection and the head-versus-base instruction comparison. A new base, missing receipt, newer failure or pending run, rerun without a fresh attempt receipt, fork, Dependabot run, incomplete index or API failure runs the normal suite. Main cache maintenance and fixture generation do not start on queue hits; main's baseline guard and all independent full suites retain their existing obligations. Advisory checks remain fresh on a hit for the root and every discovered fuzz manifest; an explicit outcome witness refuses a skipped scan. A failed-job-only rerun without a new changes-job receipt safely misses rather than borrowing the earlier attempt's receipt.
+
+The non-required H.264 encoder workflow no longer repeats in the queue. It retains PR, main and manual validation. The workflow checker enforces the absence of merge-group triggers on non-required workflows, including quoted and shorthand triggers.
+
 ## Implemented job tiers
 
 These are this branch's job tiers. Durations are pre-change successful PR job execution median/p90 in minutes unless marked otherwise. They exclude runner queues. Matrix rows group related legs without adding their parallel durations. The required names remain in [the required-check table](ci-checks.md#required-status-checks-exact-names).
@@ -117,7 +125,15 @@ The model adds 0.4 minutes for fresh common fixture production. The new fixture 
 
 These forecasts describe routine required validation on the matched source cohorts, not every heavy-triggered PR, an unconditional service guarantee, or the final-head manual exception. Heavy-path measurements are reported separately above. Moving full suites prevents their automatic execution on every PR revision, but a numerical forecast for their full final-head manual duration is not justified.
 
-The plan does not forecast a sub-30-minute merge-group p90 with the observed queues. It reduces serial execution and repeated full-suite demand without inventing queue relief. Measure ordinary PR and merge-group runs after implementation, report whether worker speedup and smoke assumptions held, and retain failed and unfinished outcomes. Any later runner or merge-queue policy change needs its own decision.
+The queue-reuse extension has separate conditional projections on the same 50 successful source cohorts. It retains each gate's observed queue and each report's admission/execution lag, removes only the work skipped by proven reuse, retains deny's container preparation, expression validation and cleanup, and adds 1.1 minutes per workflow for the bounded metadata lookup. Fresh advisory work uses historical root full-deny, binary installation and fuzz-licence durations as a proxy, plus one extra minute for network work; this is an unmeasured allowance, not a runtime bound. Gates run in parallel. No queue relief from fewer jobs or the encoder-trigger removal is credited.
+
+| Conditional queue scenario | Projected median / p90 minutes |
+|---|---|
+| All four workflows prove the tested tree and base | 3.31 / 10.51 |
+| All miss, assumed effective 1.5× npm parity | 21.57 / 42.93 |
+| All miss, assumed effective 2× npm parity | 20.16 / 40.91 |
+
+These are counterfactuals, not observed latencies or an overall projection. Seven of 13 cache-identifiable groups had matching prior tested trees and bases, but 37 of 50 lack a prior PR association, including all ten slowest projected cohorts. Branch association and incomplete run coverage add selection uncertainty. This cannot establish a reuse probability, especially in the tail. Mixed hit/miss workflows lie between the conditional paths for each cohort; their aggregate median and p90 cannot be inferred by averaging these quantiles. Measure actual receipt hits, fallbacks, failures, unfinished runs and queue latency after deployment before claiming an overall sub-30-minute p90.
 
 ## Atomic implementation and verification
 

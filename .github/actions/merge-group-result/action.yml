@@ -1,12 +1,12 @@
 name: Merge-group result
-description: Reuse this workflow's successful merge-group run for the same tree on main.
+description: Reuse successful checks for an identical tested tree and base.
 inputs:
   workflow:
-    description: Workflow file whose successful merge-group result may be reused.
+    description: Workflow file whose successful result may be reused.
     required: true
 outputs:
   reuse:
-    description: Whether this workflow already passed on a merge group with this tree.
+    description: Whether this workflow has eligible successful same-tree evidence.
     value: ${{ steps.result.outputs.reuse }}
 runs:
   using: composite
@@ -17,3 +17,11 @@ runs:
         GH_TOKEN: ${{ github.token }}
         WORKFLOW: ${{ inputs.workflow }}
       run: python3 -I scripts/merge_group_result.py --workflow "$WORKFLOW"
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      if: steps.result.outputs.record_name != ''
+      continue-on-error: true
+      with:
+        name: ${{ steps.result.outputs.record_name }}
+        path: ${{ steps.result.outputs.record_path }}
+        if-no-files-found: error
+        retention-days: 2

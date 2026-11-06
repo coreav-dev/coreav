@@ -75,9 +75,9 @@ jobs:
     outputs:
       run: ${{ steps.result.outputs.reuse != 'true' && steps.filter.outputs.run == 'true' }}
       h264-conformance: ${{ steps.result.outputs.reuse != 'true' && steps.h264-conformance.outputs.run == 'true' }}
-      main-cache: ${{ steps.result.outputs.reuse == 'true' && steps.filter.outputs.run == 'true' }}
+      main-cache: ${{ github.event_name == 'push' && steps.result.outputs.reuse == 'true' && steps.filter.outputs.run == 'true' }}
       oracle-installer: ${{ steps.result.outputs.reuse != 'true' && steps.oracle-installer.outputs.run == 'true' }}
-      bench-guard: ${{ steps.bench-guard.outputs.run }}
+      bench-guard: ${{ !(github.event_name == 'merge_group' && steps.result.outputs.reuse == 'true') && steps.bench-guard.outputs.run == 'true' }}
       fuzz-plan: ${{ steps.fuzz-plan.outputs.plan }}
       # Whether `check-macos` and `check-windows` run: always on a push or
       # a manual run, and on a pull request or a merge group when it changes
@@ -204,6 +204,7 @@ jobs:
       - name: Publish the shared fixtures before fan-out
         if: >-
           steps.filter.outputs.run == 'true' &&
+          !(github.event_name == 'merge_group' && steps.result.outputs.reuse == 'true') &&
           (github.event_name != 'pull_request' || !github.event.pull_request.draft)
         uses: ./.github/actions/ci-fixtures
         with:
