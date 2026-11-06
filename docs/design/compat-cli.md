@@ -1499,6 +1499,8 @@ failure does. B1 is judged on the other `out-of-scope` `ffmpeg` commands,
 `-h OUTPUT` and `-help OUTPUT` included, which are help on a topic.
 The `ffprobe` commands of the set hold no help query.
 
+Bounded AVC/AAC input-side seek copies use a separate registered model in `copy_check.py`, not native gapless clipping. Command arguments and source tracks select it; the writer summary is checked against the independently computed run and edit interval, never used as its authority. Complete ordered pinned packet/stream/frame/format records, raw pixels and AAC PCM must match, and independent ISO sample, edit, group and extent checks must pass. Other operations keep their existing oracle and grouping. The registered candidate and historical results are unchanged.
+
 **R3 on the fixtures (CI).** The `the_0_1_0_commands_on_the_fixtures` test of
 `coreav-cli` runs every `ffmpeg` command of `commands-0.1.0` on every
 generated fixture of its container families that has none of the stream

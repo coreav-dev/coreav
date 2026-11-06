@@ -59,7 +59,8 @@ class InstructionTolerance(unittest.TestCase):
 class FfmpegGuard(unittest.TestCase):
     def test_required_refusals_are_only_the_two_approved_commands(self):
         self.assertEqual(bench_guard.REQUIRED_REFUSALS,
-                         {"ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"})
+                         {"ffmpeg-C19-clip-audio-input"})
+        self.assertNotIn("ffmpeg-C18-clip-input", bench_guard.REQUIRED_REFUSALS)
         self.assertEqual(bench_guard.CASES["ffmpeg-C02-join"],
                          ("video.mp4", ["ffmpeg", "-f", "concat", "-i", "{inputs:concat}",
                                         "-c", "copy", "{out}/out.mp4"]))
@@ -140,7 +141,7 @@ class FfmpegGuard(unittest.TestCase):
     def test_required_refusal_cannot_disappear_with_its_fixture_or_old_count(self):
         with tempfile.TemporaryDirectory() as directory:
             work = pathlib.Path(directory)
-            name = "ffmpeg-C18-clip-input"
+            name = "ffmpeg-C19-clip-audio-input"
             args = SimpleNamespace(coreav="coreav", decoder_coreav=None, fixtures=work,
                                    report_only=False, write=None)
             with patch.multiple(bench_guard, CASES={name: bench_guard.CASES[name]}, URL_CASES={}), \
@@ -149,6 +150,26 @@ class FfmpegGuard(unittest.TestCase):
                  patch.object(bench_guard, "instructions", return_value=(100, None)), \
                  contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(bench_guard.run_cases(args, {"startup": 100}, 0.05, {}, {}, work), 1)
+
+    def test_c18_native_success_is_counted_instead_of_required_to_refuse(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = pathlib.Path(directory)
+            name = "ffmpeg-C18-clip-input"
+            (work / "basic.mp4").write_bytes(b"fixture")
+            args = SimpleNamespace(coreav="coreav", decoder_coreav=None, fixtures=work,
+                                   report_only=False, write=work / "counts.json")
+            with patch.multiple(bench_guard, CASES={name: bench_guard.CASES[name]}, URL_CASES={}), \
+                 patch.object(bench_guard, "derive"), patch.object(bench_guard, "generate", return_value={}), \
+                 patch.object(bench_guard, "craft", return_value={}), \
+                 patch.object(bench_guard, "required_refusal") as refused, \
+                 patch.object(bench_guard, "instructions", side_effect=[(100, None), (1000, None)]) as counted, \
+                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(bench_guard.run_cases(args, {"startup": 100}, 0.05, {}, {}, work), 0)
+            refused.assert_not_called()
+            self.assertEqual(counted.call_count, 2)
+            report = json.loads(args.write.read_text())
+            self.assertEqual(report["cases"][name]["instructions"], 900)
+            self.assertEqual(report["required_refusals"], {})
 
     def test_every_selected_ffmpeg_shape_has_its_own_case(self):
         entries = {e["id"]: e for e in json.loads(release_set.OUT.read_text())["entries"] if e["tool"] == "ffmpeg"}

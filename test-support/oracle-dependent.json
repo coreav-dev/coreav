@@ -102,6 +102,8 @@
     "y4m_refuses_autorotation_that_would_misstate_chroma_siting"
   ],
   "crates/coreav-cli/tests/ffmpeg_input_seek.rs": [
+    "audio_bearing_input_seek_matches_complete_packets_and_presented_samples",
+    "closed_gop_input_seek_witnesses_match_complete_outputs",
     "input_seek_copy_keeps_only_exact_packet_timelines"
   ],
   "crates/coreav-cli/tests/ffmpeg_matroska.rs": [
