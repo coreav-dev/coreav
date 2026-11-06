@@ -457,6 +457,7 @@ def delegated_python_sites(root, paths):
 
 
 def inventory(root):
+    root = Path(root).resolve()
     paths = sorted(set(filter(None, subprocess.check_output(
         ['git', '-C', str(root), 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], text=True).split('\0'))))
     frozen = frozen_files(root, paths)
@@ -464,6 +465,8 @@ def inventory(root):
             not (root / HISTORICAL_RECORD).resolve().is_relative_to(root)):
         raise ValueError('historical source record must not be a symbolic link')
     historical = historical_records(root, json.loads((root / HISTORICAL_RECORD).read_text()))
+    paths = [path for path in paths if (root / path).is_file() and not (root / path).is_symlink()
+             and (root / path).resolve().is_relative_to(root)]
     found = []
     python_sources = set()
     for path in paths:

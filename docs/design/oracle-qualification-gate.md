@@ -43,3 +43,17 @@ Re-derive all 190 current Rust rows against their exact source text and position
 5. In that follow-up, only after trusted evidence has zero unknown and zero bypass rows, add the classifier to the unfiltered `deny-checks` job under its existing required report. Run it before checkout-writing steps and retain its report outside the checkout. No ruleset change or new check name is needed.
 
 The complete change requires affected tests, final-head CI, exact-head similarity evidence and independent review. Source and generated regression checks are sufficient; do not start media-corpus, performance, remote-infrastructure or additional fuzz campaigns for this migration.
+
+## Report-only migration receipt
+
+The representation-only commit preserves every previously trusted per-file verdict count: 43 bypass locations and 50 rows, 36 qualified locations and 69 rows, and 1,127 excluded locations and 1,320 rows. It does not classify unknowns. Its 5,774 discovered rows exceed the merged baseline's 5,722 by two classifier boundaries and 50 new classifier-regression boundaries. The closed inventory contributes another 290 unresolved file boundaries.
+
+The separate consumer migration re-derives the same 50 bypass rows at their current exact sites, including Rust byte spans, and changes those 43 locations to qualified references. It also re-derives the moved CoreAV-under-test exclusions without changing their counts. The new shell regressions add nine discovered rows. The resulting report accounts for all 6,073 rows: 5,783 discovered rows and 290 closure rows, each mapped exactly once.
+
+Integrating main `ebe4021` adds 12 discovered rows in the input-summary checker and two in its tests. All 14 remain unknown. Its two new Rust files and design note enter the closed inventory without inheriting a verdict. The integrated report maps all 6,087 rows: 5,797 discovered and 290 closure rows. No previously trusted proof becomes stale and no additional site is classified.
+
+The missing-index-file, gitlink, root-normalization and complete workflow-trigger regressions add two more discovered rows, both unknown. After those guard changes, every retained source digest, exact site and Rust span is checked again before rebinding the discovery and classifier anchors. The qualified and excluded counts do not change. The final report maps all 6,089 rows: 5,799 discovered and 290 closure rows.
+
+The Bash 3.2 shell regression adds three discovered rows, all unknown. The probe harness's four qualified rows are re-derived against the guarded array expressions and read loop without changing the 119 qualified rows. Release and AVI trigger coverage now follows all shared qualification inputs; AVI also covers its fixture generators. The final report maps all 6,092 rows: 5,802 discovered and 290 closure rows.
+
+The current catalogue has 79 qualified locations and 119 rows, no confirmed bypass rows, and 4,215 unknown locations in 662 files containing 4,653 rows. Zero confirmed bypasses does not establish that no bypass remains among those unknowns. The original unresolved rows, their moved or changed sites, the new regression boundaries and the unscanned-file boundaries all remain obligations of the dependent follow-up. The classifier exits unsuccessfully for those unknowns; this change does not make it required in CI.

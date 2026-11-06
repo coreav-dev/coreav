@@ -329,8 +329,8 @@
     "scripts/oracle-ffmpeg.env": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
     "scripts/oracle.py": "baa57c7b373f4a8773323c39ab5bc873d7e7c5409a95c358c0130cc8b7d1d523",
     "scripts/oracle_audio.py": "cc4a68c084aab8f22201a517fb35efbc427f85590b5007e3dfc852e6dc5a98f4",
-    "scripts/oracle_invocation_check.py": "b0bf70c5140f7c0eb29ab83657e1e31b25bea359204ad7736aea0ceda88df4db",
-    "scripts/oracle_invocation_classify.py": "d763416a31c65c39c9194526d1a1f43fbd3351217b80b2f9b87af27a7567157e",
+    "scripts/oracle_invocation_check.py": "88e69fde0833e9b3d3b148f7dd2fe7542fda209a3a51a5381067b51152e98cd1",
+    "scripts/oracle_invocation_classify.py": "5154335ff1a70f83c3d476825042c2f40c693ea6d1485c1b67e18195b6aa75f8",
     "scripts/oracle_kd_mkv.py": "f03b407674c5faa955381f2439bac16f412591041f31326bab241b2f81526b27",
     "scripts/oracle_kd_ts.py": "a837051ee8900c860973e0e91bacfed14eb21be99b07260938cf1d409d322d31",
     "scripts/oracle_pin.py": "b221378b054a6e6bae92051ae4e4e4fa1add451213f28e888825fa6e43f2f909",
@@ -417,7 +417,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -509,7 +509,7 @@
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "numpy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -684,7 +684,7 @@
         "numpy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle": "0f4d5deb411fac36ab10a7f6be3e3fa9f5a62017eac55a1b048f55ead9433aab",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_kd_mkv": "f9ccf07f96ecc0083474d105201315c14932e3e4d84c3ab069381c13801daa01",
         "oracle_kd_ts": "483af13143cd5356df1dd424860591e189de87cbdb29013007960fca3914ccdc",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
@@ -1170,7 +1170,7 @@
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "numpy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -1249,7 +1249,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -1386,7 +1386,7 @@
         "numpy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle": "0f4d5deb411fac36ab10a7f6be3e3fa9f5a62017eac55a1b048f55ead9433aab",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_kd_mkv": "f9ccf07f96ecc0083474d105201315c14932e3e4d84c3ab069381c13801daa01",
         "oracle_kd_ts": "483af13143cd5356df1dd424860591e189de87cbdb29013007960fca3914ccdc",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
@@ -1963,7 +1963,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -2038,7 +2038,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -2141,7 +2141,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -2217,7 +2217,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -2350,7 +2350,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -2453,7 +2453,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -2526,7 +2526,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -2601,7 +2601,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -2764,7 +2764,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -2866,7 +2866,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -2944,7 +2944,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -3033,7 +3033,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -3139,7 +3139,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -3272,7 +3272,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -3344,7 +3344,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -3476,7 +3476,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -3533,7 +3533,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -6432,7 +6432,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -6640,7 +6640,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -6715,12 +6715,13 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "pathlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "re": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "rust:crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs:test_oracle": "8b0a98a79c680d42ebd9c8b15e197bf51b426cb734703a3b00ed3feb866832ab",
         "shlex": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "shutil": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "subprocess": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -6740,107 +6741,107 @@
         "scripts/test_oracle.py",
         "test-support/oracle.rs"
       ],
-      "sha256": "2d72e6aed47edfdf3dc1a53a79b6489a7ecaee75e72e96d7cf5a33b78eceff60",
+      "sha256": "6b2fa0e523937482eacf267475912dcb7fcee9f631fca26ed218f56573e3d1a1",
       "sites": [
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 2323,
-            "start": 1898
+            "end": 1920,
+            "start": 1495
           },
           "site": [
-            62,
+            51,
             "Rust",
             "<structural>",
             "Command::new(ffmpeg)\n            .args([\"-nostdin\", \"-v\", \"error\", \"-f\", \"s16le\", \"-ar\"])\n            .arg(rate.to_string())\n            .arg(\"-ac\")\n            .arg(channels.to_string())\n            .args(include_str!(\"../../../scripts/oracle-audio-args.txt\").split_whitespace())\n            .arg(\"-i\")\n            .arg(input)\n            .args([\"-c:a\", \"aac\", \"-b:a\", \"128k\", \"-write_crc32\", \"0\"])\n            .arg(&source)"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 1917,
-            "start": 1911
+            "end": 1514,
+            "start": 1508
           },
           "site": [
-            62,
+            51,
             "Rust",
             "<structural>",
             "ffmpeg"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 2900,
-            "start": 2465
+            "end": 2497,
+            "start": 2062
           },
           "site": [
-            79,
+            68,
             "Rust",
             "<structural>",
             "Command::new(ffprobe).args([\n        \"-v\", \"error\", \"-show_packets\", \"-show_streams\", \"-show_format\", \"-show_data_hash\", \"sha256\", \"-show_entries\",\n        \"packet=pts,dts,duration,size,data_hash,flags:packet_side_data:stream=codec_name,profile,sample_rate,channels,time_base,start_pts,duration_ts,initial_padding,extradata_hash:stream_tags=:stream_disposition=:format=start_time,duration:format_tags=\", \"-of\", \"json\",\n    ]).arg(path)"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 2485,
-            "start": 2478
+            "end": 2082,
+            "start": 2075
           },
           "site": [
-            79,
+            68,
             "Rust",
             "<structural>",
             "ffprobe"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 5993,
-            "start": 5986
+            "end": 5585,
+            "start": 5579
           },
           "site": [
-            180,
+            168,
             "Rust",
             "<structural>",
-            "&ffmpeg"
+            "ffmpeg"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 6428,
-            "start": 5973
+            "end": 6020,
+            "start": 5566
           },
           "site": [
-            180,
+            168,
             "Rust",
             "<structural>",
-            "Command::new(&ffmpeg)\n                            .args([\"-v\", \"error\", \"-y\"])\n                            .args(\n                                include_str!(\"../../../scripts/oracle-audio-args.txt\")\n                                    .split_whitespace(),\n                            )\n                            .arg(\"-i\")\n                            .arg(&source)\n                            .args(options)\n                            .arg(&expected)"
+            "Command::new(ffmpeg)\n                            .args([\"-v\", \"error\", \"-y\"])\n                            .args(\n                                include_str!(\"../../../scripts/oracle-audio-args.txt\")\n                                    .split_whitespace(),\n                            )\n                            .arg(\"-i\")\n                            .arg(&source)\n                            .args(options)\n                            .arg(&expected)"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 6900,
-            "start": 6630
+            "end": 6492,
+            "start": 6222
           },
           "site": [
-            195,
+            183,
             "Rust",
             "<structural>",
             "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n                                .args([\"--strict-safe\", \"ffmpeg\"])\n                                .args(&args)\n                                .arg(&actual)\n                                .env_remove(\"COREAV_FALLBACK_ACTIVE\")"
@@ -6849,13 +6850,13 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 6671,
-            "start": 6643
+            "end": 6263,
+            "start": 6235
           },
           "site": [
-            195,
+            183,
             "Rust",
             "<structural>",
             "env!(\"CARGO_BIN_EXE_coreav\")"
@@ -6864,13 +6865,13 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 8088,
-            "start": 7818
+            "end": 7678,
+            "start": 7408
           },
           "site": [
-            217,
+            205,
             "Rust",
             "<structural>",
             "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n                                .args([\"--strict-safe\", \"ffmpeg\"])\n                                .args(&args)\n                                .arg(&actual)\n                                .env_remove(\"COREAV_FALLBACK_ACTIVE\")"
@@ -6879,13 +6880,13 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 7859,
-            "start": 7831
+            "end": 7449,
+            "start": 7421
           },
           "site": [
-            217,
+            205,
             "Rust",
             "<structural>",
             "env!(\"CARGO_BIN_EXE_coreav\")"
@@ -6894,28 +6895,28 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 9328,
-            "start": 8947
+            "end": 8917,
+            "start": 8537
           },
           "site": [
-            238,
+            226,
             "Rust",
             "<structural>",
-            "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n                                .arg(\"ffmpeg\")\n                                .args(&args)\n                                .arg(&actual)\n                                .env(\"COREAV_FALLBACK\", &ffmpeg)\n                                .env_remove(\"COREAV_STRICT_SAFE\")\n                                .env_remove(\"COREAV_FALLBACK_ACTIVE\")"
+            "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n                                .arg(\"ffmpeg\")\n                                .args(&args)\n                                .arg(&actual)\n                                .env(\"COREAV_FALLBACK\", ffmpeg)\n                                .env_remove(\"COREAV_STRICT_SAFE\")\n                                .env_remove(\"COREAV_FALLBACK_ACTIVE\")"
           ],
           "verdict": "excluded"
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 8988,
-            "start": 8960
+            "end": 8578,
+            "start": 8550
           },
           "site": [
-            238,
+            226,
             "Rust",
             "<structural>",
             "env!(\"CARGO_BIN_EXE_coreav\")"
@@ -6923,44 +6924,44 @@
           "verdict": "excluded"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 10446,
-            "start": 10439
+            "end": 10030,
+            "start": 10024
           },
           "site": [
-            275,
+            262,
             "Rust",
             "<structural>",
-            "&ffmpeg"
+            "ffmpeg"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 11095,
-            "start": 10426
+            "end": 10679,
+            "start": 10011
           },
           "site": [
-            275,
+            262,
             "Rust",
             "<structural>",
-            "Command::new(&ffmpeg)\n            .args([\n                \"-v\",\n                \"error\",\n                \"-f\",\n                \"lavfi\",\n                \"-i\",\n                \"testsrc2=size=64x48:rate=25:duration=0.16\",\n            ])\n            .args(include_str!(\"../../../scripts/oracle-audio-args.txt\").split_whitespace())\n            .arg(\"-i\")\n            .arg(&source)\n            .args([\n                \"-c:v\",\n                \"libx264\",\n                \"-threads:v\",\n                \"1\",\n                \"-bf\",\n                \"0\",\n                \"-g\",\n                \"4\",\n                \"-c:a\",\n                \"copy\",\n            ])\n            .arg(&av)"
+            "Command::new(ffmpeg)\n            .args([\n                \"-v\",\n                \"error\",\n                \"-f\",\n                \"lavfi\",\n                \"-i\",\n                \"testsrc2=size=64x48:rate=25:duration=0.16\",\n            ])\n            .args(include_str!(\"../../../scripts/oracle-audio-args.txt\").split_whitespace())\n            .arg(\"-i\")\n            .arg(&source)\n            .args([\n                \"-c:v\",\n                \"libx264\",\n                \"-threads:v\",\n                \"1\",\n                \"-bf\",\n                \"0\",\n                \"-g\",\n                \"4\",\n                \"-c:a\",\n                \"copy\",\n            ])\n            .arg(&av)"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 11364,
-            "start": 11210
+            "end": 10948,
+            "start": 10794
           },
           "site": [
-            305,
+            292,
             "Rust",
             "<structural>",
             "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n            .arg(\"remux\")\n            .arg(&av)\n            .arg(&native)\n            .args([\"--streams\", \"0\"])"
@@ -6969,13 +6970,13 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 11251,
-            "start": 11223
+            "end": 10835,
+            "start": 10807
           },
           "site": [
-            305,
+            292,
             "Rust",
             "<structural>",
             "env!(\"CARGO_BIN_EXE_coreav\")"
@@ -6984,13 +6985,13 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 11800,
-            "start": 11608
+            "end": 11384,
+            "start": 11192
           },
           "site": [
-            319,
+            306,
             "Rust",
             "<structural>",
             "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n                .args([\"--strict-safe\", \"ffmpeg\", \"-y\", \"-i\"])\n                .arg(&av)\n                .args(options)\n                .arg(&actual)"
@@ -6999,13 +7000,13 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 11649,
-            "start": 11621
+            "end": 11233,
+            "start": 11205
           },
           "site": [
-            319,
+            306,
             "Rust",
             "<structural>",
             "env!(\"CARGO_BIN_EXE_coreav\")"
@@ -7014,13 +7015,13 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 12216,
-            "start": 12054
+            "end": 11800,
+            "start": 11638
           },
           "site": [
-            333,
+            320,
             "Rust",
             "<structural>",
             "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n        .args([\"--strict-safe\", \"ffmpeg\", \"-i\"])\n        .arg(&av)\n        .args([\"-c\", \"copy\"])\n        .arg(&refused)"
@@ -7029,13 +7030,13 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 12095,
-            "start": 12067
+            "end": 11679,
+            "start": 11651
           },
           "site": [
-            333,
+            320,
             "Rust",
             "<structural>",
             "env!(\"CARGO_BIN_EXE_coreav\")"
@@ -7043,74 +7044,74 @@
           "verdict": "excluded"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 12508,
-            "start": 12501
+            "end": 12090,
+            "start": 12084
           },
           "site": [
-            347,
+            334,
             "Rust",
             "<structural>",
-            "&ffmpeg"
+            "ffmpeg"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 12743,
-            "start": 12488
+            "end": 12325,
+            "start": 12071
           },
           "site": [
-            347,
+            334,
             "Rust",
             "<structural>",
-            "Command::new(&ffmpeg)\n            .args([\"-v\", \"error\"])\n            .args(include_str!(\"../../../scripts/oracle-audio-args.txt\").split_whitespace())\n            .arg(\"-i\")\n            .arg(aligned)\n            .args([\"-c\", \"copy\"])\n            .arg(&iso)"
+            "Command::new(ffmpeg)\n            .args([\"-v\", \"error\"])\n            .args(include_str!(\"../../../scripts/oracle-audio-args.txt\").split_whitespace())\n            .arg(\"-i\")\n            .arg(aligned)\n            .args([\"-c\", \"copy\"])\n            .arg(&iso)"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 12887,
-            "start": 12880
+            "end": 12468,
+            "start": 12462
           },
           "site": [
-            359,
+            346,
             "Rust",
             "<structural>",
-            "&ffmpeg"
+            "ffmpeg"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 13124,
-            "start": 12867
+            "end": 12705,
+            "start": 12449
           },
           "site": [
-            359,
+            346,
             "Rust",
             "<structural>",
-            "Command::new(&ffmpeg)\n            .args([\"-v\", \"error\"])\n            .args(include_str!(\"../../../scripts/oracle-audio-args.txt\").split_whitespace())\n            .arg(\"-i\")\n            .arg(&iso)\n            .args([\"-c\", \"copy\"])\n            .arg(&expected)"
+            "Command::new(ffmpeg)\n            .args([\"-v\", \"error\"])\n            .args(include_str!(\"../../../scripts/oracle-audio-args.txt\").split_whitespace())\n            .arg(\"-i\")\n            .arg(&iso)\n            .args([\"-c\", \"copy\"])\n            .arg(&expected)"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 13421,
-            "start": 13243
+            "end": 13002,
+            "start": 12824
           },
           "site": [
-            371,
+            358,
             "Rust",
             "<structural>",
             "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n            .args([\"--strict-safe\", \"ffmpeg\", \"-i\"])\n            .arg(&iso)\n            .args([\"-c\", \"copy\"])\n            .arg(&actual)"
@@ -7119,13 +7120,13 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 13284,
-            "start": 13256
+            "end": 12865,
+            "start": 12837
           },
           "site": [
-            371,
+            358,
             "Rust",
             "<structural>",
             "env!(\"CARGO_BIN_EXE_coreav\")"
@@ -7133,44 +7134,44 @@
           "verdict": "excluded"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 16923,
-            "start": 16916
+            "end": 16488,
+            "start": 16482
           },
           "site": [
-            476,
+            461,
             "Rust",
             "<structural>",
-            "&ffmpeg"
+            "ffmpeg"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 17192,
-            "start": 16903
+            "end": 16757,
+            "start": 16469
           },
           "site": [
-            476,
+            461,
             "Rust",
             "<structural>",
-            "Command::new(&ffmpeg)\n                .args([\"-v\", \"error\", \"-y\"])\n                .args(include_str!(\"../../../scripts/oracle-audio-args.txt\").split_whitespace())\n                .arg(\"-i\")\n                .arg(&input)\n                .args([\"-c\", \"copy\"])\n                .arg(&expected)"
+            "Command::new(ffmpeg)\n                .args([\"-v\", \"error\", \"-y\"])\n                .args(include_str!(\"../../../scripts/oracle-audio-args.txt\").split_whitespace())\n                .arg(\"-i\")\n                .arg(&input)\n                .args([\"-c\", \"copy\"])\n                .arg(&expected)"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 17682,
-            "start": 17465
+            "end": 17247,
+            "start": 17030
           },
           "site": [
-            491,
+            476,
             "Rust",
             "<structural>",
             "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n                .args([\"--strict-safe\", \"ffmpeg\", \"-v\", \"error\", \"-y\", \"-i\"])\n                .arg(&input)\n                .args([\"-c\", \"copy\"])\n                .arg(&actual)"
@@ -7179,13 +7180,13 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 17506,
-            "start": 17478
+            "end": 17071,
+            "start": 17043
           },
           "site": [
-            491,
+            476,
             "Rust",
             "<structural>",
             "env!(\"CARGO_BIN_EXE_coreav\")"
@@ -7194,28 +7195,28 @@
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 18516,
-            "start": 18163
+            "end": 18080,
+            "start": 17728
           },
           "site": [
-            509,
+            494,
             "Rust",
             "<structural>",
-            "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n                .args([\"ffmpeg\", \"-v\", \"error\", \"-y\", \"-i\"])\n                .arg(&input)\n                .args([\"-c\", \"copy\"])\n                .arg(&actual)\n                .env(\"COREAV_FALLBACK\", &ffmpeg)\n                .env_remove(\"COREAV_STRICT_SAFE\")\n                .env_remove(\"COREAV_FALLBACK_ACTIVE\")"
+            "Command::new(env!(\"CARGO_BIN_EXE_coreav\"))\n                .args([\"ffmpeg\", \"-v\", \"error\", \"-y\", \"-i\"])\n                .arg(&input)\n                .args([\"-c\", \"copy\"])\n                .arg(&actual)\n                .env(\"COREAV_FALLBACK\", ffmpeg)\n                .env_remove(\"COREAV_STRICT_SAFE\")\n                .env_remove(\"COREAV_FALLBACK_ACTIVE\")"
           ],
           "verdict": "excluded"
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 18204,
-            "start": 18176
+            "end": 17769,
+            "start": 17741
           },
           "site": [
-            509,
+            494,
             "Rust",
             "<structural>",
             "env!(\"CARGO_BIN_EXE_coreav\")"
@@ -7237,7 +7238,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -7886,7 +7887,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -7958,7 +7959,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -8032,7 +8033,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -8110,7 +8111,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -8458,7 +8459,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -8683,7 +8684,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -8761,7 +8762,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -8839,7 +8840,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -9063,7 +9064,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -9122,7 +9123,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -9406,7 +9407,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -9480,12 +9481,13 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "pathlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "re": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "rust:crates/coreav-cli/tests/frame_handoff.rs:test_oracle": "fa2e2e2b61a600ba86ff244d08a1fcf7d2639daa8cdf581bd4dacfb4b6274701",
         "shlex": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "shutil": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "subprocess": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -9505,32 +9507,32 @@
         "scripts/test_oracle.py",
         "test-support/oracle.rs"
       ],
-      "sha256": "b78aa02ac5a202b16aea232c967b03a4564253c095f7f628e8ae1c9f71382dd2",
+      "sha256": "bc9b72bb79f3cbcc357f05b7166569f7ac2abc1bba6b7378eb234752454b846a",
       "sites": [
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The process-cached Rust qualification owner returns the retained pair before fixture creation; each helper receives its FFmpeg or ffprobe path from that selection. Real-pin tests pass and each test rejects the system pair at stage=oracle_qualification.",
           "program_span": {
-            "end": 1557,
-            "start": 1550
+            "end": 1306,
+            "start": 1300
           },
           "site": [
-            37,
+            33,
             "Rust",
             "<structural>",
-            "&ffmpeg"
+            "ffmpeg"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
           "class": "reviewed-exclusion",
-          "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+          "evidence": "Re-derived exact current command of the Cargo-built CoreAV binary under test, not the reference oracle.",
           "program_span": {
-            "end": 2703,
-            "start": 2675
+            "end": 2452,
+            "start": 2424
           },
           "site": [
-            75,
+            71,
             "Rust",
             "<structural>",
             "env!(\"CARGO_BIN_EXE_coreav\")"
@@ -9552,7 +9554,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -9612,7 +9614,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -9715,7 +9717,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -9788,7 +9790,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -9845,7 +9847,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -9951,7 +9953,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -10064,7 +10066,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -10287,7 +10289,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -10312,84 +10314,84 @@
         "scripts/test_oracle.py",
         "test-support/oracle.rs"
       ],
-      "sha256": "870efad502950d8dbb9a3f88c8672a2c10d610dcada7fb8dfe5dbc12e29c37c1",
+      "sha256": "a0754043e333014ca5c3bfb2f611deae0529270663699ff42daaccd4f6c03110",
       "sites": [
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            13,
+            20,
             "shell",
             "<shell>",
-            "ffmpeg -hide_banner -encoders"
+            "\"$FFMPEG\" -hide_banner -encoders"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            21,
-            "shell",
-            "<shell>",
-            "\"${ff[@]}\" \"${video[@]}\" -c:v \"$av1\" \"$dir/av1.mp4\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            22,
-            "shell",
-            "<shell>",
-            "\"${ff[@]}\" \"${video[@]}\" -c:v libvpx -deadline realtime -cpu-used 8 \"$dir/vp8.webm\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            23,
-            "shell",
-            "<shell>",
-            "\"${ff[@]}\" \"${video[@]}\" -c:v libvpx-vp9 -deadline realtime -cpu-used 8 \"$dir/vp9.webm\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            24,
-            "shell",
-            "<shell>",
-            "\"${ff[@]}\" \"${video[@]}\" -c:v libx264 -preset ultrafast \"$dir/h264.mp4\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            25,
-            "shell",
-            "<shell>",
-            "\"${ff[@]}\" -f lavfi -i testsrc2=size=320x240:rate=10:duration=1 \\\n  -f lavfi -i sine=frequency=440:sample_rate=48000:duration=1 -pix_fmt yuv420p \\\n  -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -c:a flac \"$dir/flac.mkv\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
             28,
             "shell",
             "<shell>",
+            "\"${ff[@]}\" \"${video[@]}\" -c:v \"$av1\" \"$dir/av1.mp4\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            29,
+            "shell",
+            "<shell>",
+            "\"${ff[@]}\" \"${video[@]}\" -c:v libvpx -deadline realtime -cpu-used 8 \"$dir/vp8.webm\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            30,
+            "shell",
+            "<shell>",
+            "\"${ff[@]}\" \"${video[@]}\" -c:v libvpx-vp9 -deadline realtime -cpu-used 8 \"$dir/vp9.webm\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            31,
+            "shell",
+            "<shell>",
+            "\"${ff[@]}\" \"${video[@]}\" -c:v libx264 -preset ultrafast \"$dir/h264.mp4\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            32,
+            "shell",
+            "<shell>",
+            "\"${ff[@]}\" -f lavfi -i testsrc2=size=320x240:rate=10:duration=1 \\\n  -f lavfi -i sine=frequency=440:sample_rate=48000:duration=1 -pix_fmt yuv420p \\\n  -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -c:a flac \"$dir/flac.mkv\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            35,
+            "shell",
+            "<shell>",
             "\"${ff[@]}\" -f lavfi -i sine=frequency=440:sample_rate=48000:duration=1 -c:a aac \"$dir/aac.m4a\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         }
       ]
     },
@@ -10415,7 +10417,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -11196,7 +11198,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_kd_mkv": "f9ccf07f96ecc0083474d105201315c14932e3e4d84c3ab069381c13801daa01",
         "oracle_kd_ts": "483af13143cd5356df1dd424860591e189de87cbdb29013007960fca3914ccdc",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
@@ -11332,7 +11334,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -11670,7 +11672,7 @@
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "numpy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -11866,7 +11868,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -12249,7 +12251,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -12461,7 +12463,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -12486,95 +12488,95 @@
         "scripts/test_oracle.py",
         "test-support/oracle.rs"
       ],
-      "sha256": "2edfdf356a214c97fc24c9e445892beaf9bd9e339d9fd519f100a800b1f05010",
+      "sha256": "26c87534e3c4c163fa1f48dd9dd5ffb26049d5707c8776f613bf787516bad297",
       "sites": [
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            26,
+            32,
             "shell",
             "<shell>",
-            "ffmpeg -hide_banner -encoders"
+            "\"$FFMPEG\" -hide_banner -encoders"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            42,
+            48,
             "shell",
             "<shell>",
             "\"${FF[@]}\" \"$@\" \"$OUT/$name\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            83,
+            89,
             "shell",
             "<shell>",
             "\"${FF[@]}\" \"${VSRC[@]}\" \"${ASRC[@]}\" \"${VP9[@]}\" -c:a libopus -shortest -f webm pipe:1"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            143,
+            149,
             "shell",
             "<shell>",
             "\"${FF[@]}\" \"${A44[@]}\" -c:a aac \"$SRC/aac_44k.mkv\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            144,
+            150,
             "shell",
             "<shell>",
             "\"${FF[@]}\" \"${A44[@]}\" -c:a ac3 \"$SRC/ac3_44k.mkv\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            166,
+            172,
             "shell",
             "<shell>",
             "\"${FF[@]}\" -f lavfi -i \"testsrc2=size=320x240:rate=25:duration=1\" \"${VP9[@]}\" \"$JOIN/a.ivf\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            167,
+            173,
             "shell",
             "<shell>",
             "\"${FF[@]}\" -f lavfi -i \"testsrc2=size=1280x720:rate=25:duration=1\" \"${VP9[@]}\" \"$JOIN/b.ivf\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            169,
+            175,
             "shell",
             "<shell>",
             "\"${FF[@]}\" -f concat -safe 0 -i \"$JOIN/list.txt\" -c copy \"$OUT/size_vp9_resize.webm\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         }
       ]
     },
@@ -12591,7 +12593,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -12616,18 +12618,18 @@
         "scripts/test_oracle.py",
         "test-support/oracle.rs"
       ],
-      "sha256": "d7f797724e4521b1a4840ce41953cfb5f1fd8e4b79a0266feacbf325bf4d5551",
+      "sha256": "5480dc35dfd9f8130fe66b405ecb4fa2c3bb2b9504ecfe2ca96df4f035da4c8a",
       "sites": [
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            41,
+            47,
             "shell",
             "<shell>",
             "\"${FF[@]}\" \"$@\" \"$OUT/$name\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         }
       ]
     },
@@ -12644,7 +12646,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -12669,172 +12671,172 @@
         "scripts/test_oracle.py",
         "test-support/oracle.rs"
       ],
-      "sha256": "baa6378c62602ce2332f2d1138766965eaa979737864a29737cd4d92b16ab6cb",
+      "sha256": "77c18727d09dc8125d36616fd0d839d1537b2311d91f5163e25ef3c8a4ac8956",
       "sites": [
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            27,
+            33,
             "shell",
             "<shell>",
-            "ffmpeg -hide_banner -encoders"
+            "\"$FFMPEG\" -hide_banner -encoders"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            50,
-            "shell",
-            "<shell>",
-            "\"${FF[@]}\" \"$@\" \"$OUT/$name\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            60,
+            56,
             "shell",
             "<shell>",
             "\"${FF[@]}\" \"$@\" \"$OUT/$name\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            68,
+            66,
             "shell",
             "<shell>",
-            "\"${FF[@]}\" \"${SRC[@]}\" \"${VID[@]}\" \"${AUD[@]}\" \"$OUT/basic.mp4\""
+            "\"${FF[@]}\" \"$@\" \"$OUT/$name\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            69,
-            "shell",
-            "<shell>",
-            "\"${FF[@]}\" \"${SRC[@]}\" \"${VID[@]}\" \"${AUD[@]}\" -movflags +faststart \"$OUT/faststart.mp4\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            70,
-            "shell",
-            "<shell>",
-            "\"${FF[@]}\" \"${SRC[@]}\" \"${VID[@]}\" \"${AUD[@]}\" -movflags frag_keyframe+empty_moov \"$OUT/fragmented.mp4\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            73,
-            "shell",
-            "<shell>",
-            "\"${FF[@]}\" \"${SRC[@]}\" \"${VID[@]}\" \"${AUD[@]}\" -movflags frag_keyframe \"$OUT/fragmented_moov.mp4\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
             74,
             "shell",
             "<shell>",
-            "\"${FF[@]}\" \"${SRC[@]}\" \"${VID[@]}\" \"${AUD[@]}\" \"$OUT/basic.mov\""
+            "\"${FF[@]}\" \"${SRC[@]}\" \"${VID[@]}\" \"${AUD[@]}\" \"$OUT/basic.mp4\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            289,
+            75,
+            "shell",
+            "<shell>",
+            "\"${FF[@]}\" \"${SRC[@]}\" \"${VID[@]}\" \"${AUD[@]}\" -movflags +faststart \"$OUT/faststart.mp4\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            76,
+            "shell",
+            "<shell>",
+            "\"${FF[@]}\" \"${SRC[@]}\" \"${VID[@]}\" \"${AUD[@]}\" -movflags frag_keyframe+empty_moov \"$OUT/fragmented.mp4\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            79,
+            "shell",
+            "<shell>",
+            "\"${FF[@]}\" \"${SRC[@]}\" \"${VID[@]}\" \"${AUD[@]}\" -movflags frag_keyframe \"$OUT/fragmented_moov.mp4\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            80,
+            "shell",
+            "<shell>",
+            "\"${FF[@]}\" \"${SRC[@]}\" \"${VID[@]}\" \"${AUD[@]}\" \"$OUT/basic.mov\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            295,
             "shell",
             "<shell>",
             "\"${FF[@]}\" -f lavfi -i \"testsrc2=size=320x240:rate=25:duration=1\" \"$@\" \"$dir/a.$format\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            290,
-            "shell",
-            "<shell>",
-            "\"${FF[@]}\" -f lavfi -i \"testsrc2=size=1280x720:rate=25:duration=1\" \"$@\" \"$dir/b.$format\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            293,
-            "shell",
-            "<shell>",
-            "\"${FF[@]}\" -f h264 -r 25 -i \"$dir/ab.h264\" -c copy \"$OUT/$name\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
             296,
             "shell",
             "<shell>",
-            "\"${FF[@]}\" -f concat -safe 0 -i \"$dir/list.txt\" -c copy \"$OUT/$name\""
+            "\"${FF[@]}\" -f lavfi -i \"testsrc2=size=1280x720:rate=25:duration=1\" \"$@\" \"$dir/b.$format\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            619,
+            299,
+            "shell",
+            "<shell>",
+            "\"${FF[@]}\" -f h264 -r 25 -i \"$dir/ab.h264\" -c copy \"$OUT/$name\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            302,
+            "shell",
+            "<shell>",
+            "\"${FF[@]}\" -f concat -safe 0 -i \"$dir/list.txt\" -c copy \"$OUT/$name\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
+          "site": [
+            625,
             "shell",
             "<shell>",
             "\"${FF[@]}\" \"${KAUD[@]}\" -c:a libvorbis \"$OUT/.codec_vorbis.ogg\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            670,
+            676,
             "shell",
             "<shell>",
             "\"${FF[@]}\" -f lavfi -i \"testsrc2=size=64x64:rate=1:duration=1\" -frames:v 1 \"$OUT/cover_src.png\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared qualification owner resolves the complete pair before any output creation; the command uses its retained FFmpeg or ffprobe path. Rejected and malformed owner controls fail before output; retained-path dispatch ignores a decoy PATH.",
           "site": [
-            671,
+            677,
             "shell",
             "<shell>",
             "\"${FF[@]}\" \"${KAUD[@]}\" -i \"$OUT/cover_src.png\" -map 0 -map 1 -c:a aac -c:v copy \\\n  -disposition:v attached_pic \"$OUT/cover_src.m4a\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         }
       ]
     },
@@ -12852,7 +12854,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -12926,7 +12928,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -13124,7 +13126,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -13304,7 +13306,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -14236,7 +14238,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -14300,7 +14302,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -14363,7 +14365,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -15651,7 +15653,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -15914,7 +15916,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -15939,51 +15941,51 @@
         "scripts/test_oracle.py",
         "test-support/oracle.rs"
       ],
-      "sha256": "8ffb1e92747b2f7e5d668e9f70074b90ca99347fbfdbb2723aead2a536970ac5",
+      "sha256": "99672cb1b06d0b360508e4a12203c503b39e6c57eaf19aa8ab49526ee270b9be",
       "sites": [
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
-          "site": [
-            36,
-            "shell",
-            "<shell>",
-            "\"$FFPROBE\" -v error -of json -show_format -show_streams \"$MEDIA_FILE\""
-          ],
-          "verdict": "confirmed-bypass"
-        },
-        {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared owner qualifies and returns both paths before any output. Bash 3.2-safe guarded array expansion retains overrides; a read loop preserves the complete audio argument list, including an unterminated final line. Actual Bash 3.2 and modern-shell controls verify retained dispatch and reject malformed selections before output.",
           "site": [
             43,
             "shell",
             "<shell>",
-            "\"$FFPROBE\" -v error -of json -show_streams -show_packets \"$MEDIA_FILE\""
+            "\"$FFPROBE\" -v error -of json -show_format -show_streams \"$MEDIA_FILE\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared owner qualifies and returns both paths before any output. Bash 3.2-safe guarded array expansion retains overrides; a read loop preserves the complete audio argument list, including an unterminated final line. Actual Bash 3.2 and modern-shell controls verify retained dispatch and reject malformed selections before output.",
           "site": [
-            51,
+            50,
+            "shell",
+            "<shell>",
+            "\"$FFPROBE\" -v error -of json -show_streams -show_packets \"$MEDIA_FILE\""
+          ],
+          "verdict": "qualified-via-owner"
+        },
+        {
+          "class": "reviewed-reference",
+          "evidence": "The shared owner qualifies and returns both paths before any output. Bash 3.2-safe guarded array expansion retains overrides; a read loop preserves the complete audio argument list, including an unterminated final line. Actual Bash 3.2 and modern-shell controls verify retained dispatch and reject malformed selections before output.",
+          "site": [
+            58,
             "shell",
             "<shell>",
             "\"$FFPROBE\" -v error -show_entries stream=index,codec_type -of csv=p=0 \"$MEDIA_FILE\""
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         },
         {
-          "class": "reviewed-bypass",
-          "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+          "class": "reviewed-reference",
+          "evidence": "The shared owner qualifies and returns both paths before any output. Bash 3.2-safe guarded array expansion retains overrides; a read loop preserves the complete audio argument list, including an unterminated final line. Actual Bash 3.2 and modern-shell controls verify retained dispatch and reject malformed selections before output.",
           "site": [
-            80,
+            90,
             "shell",
             "<shell>",
-            "\"$FFMPEG\" -nostdin -v error \"${AUDIO_DECODE_INPUT[@]}\" -i \"$MEDIA_FILE\" \"${FFMPEG_ARGS[@]}\" -fps_mode passthrough -f framemd5 -"
+            "\"$FFMPEG\" -nostdin -v error ${AUDIO_DECODE_INPUT[@]+\"${AUDIO_DECODE_INPUT[@]}\"} -i \"$MEDIA_FILE\" \"${FFMPEG_ARGS[@]}\" -fps_mode passthrough -f framemd5 -"
           ],
-          "verdict": "confirmed-bypass"
+          "verdict": "qualified-via-owner"
         }
       ]
     },
@@ -16005,7 +16007,7 @@
         "io": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_kd_ts": "483af13143cd5356df1dd424860591e189de87cbdb29013007960fca3914ccdc",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
@@ -16318,7 +16320,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -16628,7 +16630,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -16824,7 +16826,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -16887,7 +16889,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -16976,7 +16978,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -17200,7 +17202,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -17669,7 +17671,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -18206,7 +18208,7 @@
         "numpy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle": "0f4d5deb411fac36ab10a7f6be3e3fa9f5a62017eac55a1b048f55ead9433aab",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_kd_mkv": "f9ccf07f96ecc0083474d105201315c14932e3e4d84c3ab069381c13801daa01",
         "oracle_kd_ts": "483af13143cd5356df1dd424860591e189de87cbdb29013007960fca3914ccdc",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
@@ -18675,7 +18677,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -18752,7 +18754,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -19014,7 +19016,7 @@
         "http": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -19116,7 +19118,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -19450,7 +19452,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -19577,7 +19579,7 @@
         "numpy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle": "0f4d5deb411fac36ab10a7f6be3e3fa9f5a62017eac55a1b048f55ead9433aab",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_kd_mkv": "f9ccf07f96ecc0083474d105201315c14932e3e4d84c3ab069381c13801daa01",
         "oracle_kd_ts": "483af13143cd5356df1dd424860591e189de87cbdb29013007960fca3914ccdc",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
@@ -20285,7 +20287,7 @@
         "numpy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle": "0f4d5deb411fac36ab10a7f6be3e3fa9f5a62017eac55a1b048f55ead9433aab",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_kd_mkv": "f9ccf07f96ecc0083474d105201315c14932e3e4d84c3ab069381c13801daa01",
         "oracle_kd_ts": "483af13143cd5356df1dd424860591e189de87cbdb29013007960fca3914ccdc",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
@@ -21126,7 +21128,7 @@
         "numpy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle": "0f4d5deb411fac36ab10a7f6be3e3fa9f5a62017eac55a1b048f55ead9433aab",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_kd_mkv": "f9ccf07f96ecc0083474d105201315c14932e3e4d84c3ab069381c13801daa01",
         "oracle_kd_ts": "483af13143cd5356df1dd424860591e189de87cbdb29013007960fca3914ccdc",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
@@ -21763,7 +21765,7 @@
         "hashlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -21843,7 +21845,7 @@
         "importlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -22607,7 +22609,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
         "oracle_pin_macos": "a9f1e59d0230178d4d141133b430597006e4d601fceb87549fced9827273555c",
         "os": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -22919,7 +22921,7 @@
         "numpy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle": "0f4d5deb411fac36ab10a7f6be3e3fa9f5a62017eac55a1b048f55ead9433aab",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_kd_mkv": "f9ccf07f96ecc0083474d105201315c14932e3e4d84c3ab069381c13801daa01",
         "oracle_kd_ts": "483af13143cd5356df1dd424860591e189de87cbdb29013007960fca3914ccdc",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
@@ -23719,7 +23721,7 @@
         "json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "math": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "oracle_audio": "0de5831eec02792a085d5c9b2efafa7eff5f3772d55173f6a32ea284403ca0d8",
-        "oracle_invocation_check": "a304b17b66e1025beb40d256960577f61c3d5aed43a3600a311f944716cfb4bc",
+        "oracle_invocation_check": "b4802bf73f6e0ad5ebe59a50ad0b4ed9cfabb2cb4bf93707ade5c480a361fe7c",
         "oracle_kd_mkv": "f9ccf07f96ecc0083474d105201315c14932e3e4d84c3ab069381c13801daa01",
         "oracle_kd_ts": "483af13143cd5356df1dd424860591e189de87cbdb29013007960fca3914ccdc",
         "oracle_pin": "8b722d771ba20415a189d6709d6a98c4e6386c72c8ca1ae9b5e8f86de9acab47",
@@ -24403,6 +24405,7 @@
     "crates/coreav-cli/src/ffprobe/audio/wav_tests.rs": "source",
     "crates/coreav-cli/src/ffprobe/frames.rs": "source",
     "crates/coreav-cli/src/ffprobe/frames_tests.rs": "source",
+    "crates/coreav-cli/src/ffprobe/hevc_summary_tests.rs": "source",
     "crates/coreav-cli/src/ffprobe/iso.rs": "source",
     "crates/coreav-cli/src/ffprobe/iso_meta.rs": "source",
     "crates/coreav-cli/src/ffprobe/limits.rs": "source",
@@ -24420,6 +24423,7 @@
     "crates/coreav-cli/src/ffprobe/ts/params.rs": "source",
     "crates/coreav-cli/src/ffprobe/video.rs": "source",
     "crates/coreav-cli/src/ffprobe/video/avc.rs": "source",
+    "crates/coreav-cli/src/ffprobe/video/hevc.rs": "source",
     "crates/coreav-cli/src/ffprobe/writer.rs": "source",
     "crates/coreav-cli/src/hls.rs": "source",
     "crates/coreav-cli/src/join.rs": "source",
@@ -25240,6 +25244,7 @@
     "docs/design/h264-pgo-release.md": "data",
     "docs/design/h264.md": "data",
     "docs/design/hevc-inloop.md": "data",
+    "docs/design/hevc-input-summary.md": "data",
     "docs/design/hevc-intra.md": "data",
     "docs/design/hevc.md": "data",
     "docs/design/hls.md": "data",
@@ -26717,6 +26722,7 @@
     "scripts/tests/test_raw_pcm_check.py": "source",
     "scripts/tests/test_registered_candidate.py": "source",
     "scripts/tests/test_rust_distribution_notices_check.py": "source",
+    "scripts/tests/test_shell_oracle_qualification.py": "source",
     "scripts/tests/test_standalone_audio_probe_check.py": "source",
     "scripts/tests/test_svt_av1_check.py": "source",
     "scripts/tests/test_svt_av1_licenses.py": "source",

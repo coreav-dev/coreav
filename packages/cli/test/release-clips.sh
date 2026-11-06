@@ -9,15 +9,22 @@
 # pinned FFmpeg, scripts/install-oracle-ffmpeg.sh).
 set -euo pipefail
 dir="$1"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ORACLE_PATHS="$(python3 -I -B "$ROOT/scripts/test_oracle.py" --resolve)"
+if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+   [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+  echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+  exit 1
+fi
 mkdir -p "$dir"
-encoders="$(ffmpeg -hide_banner -encoders)"
+encoders="$("$FFMPEG" -hide_banner -encoders)"
 av1=
 for encoder in libsvtav1 libaom-av1 librav1e; do
   if grep -qw -- "$encoder" <<< "$encoders"; then av1="$encoder"; break; fi
 done
 [ -n "$av1" ] || { echo "error: ffmpeg has no AV1 encoder" >&2; exit 1; }
 video=(-f lavfi -i testsrc2=size=320x240:rate=10:duration=1 -pix_fmt yuv420p)
-ff=(ffmpeg -nostdin -hide_banner -loglevel error -y)
+ff=("$FFMPEG" -nostdin -hide_banner -loglevel error -y)
 "${ff[@]}" "${video[@]}" -c:v "$av1" "$dir/av1.mp4"
 "${ff[@]}" "${video[@]}" -c:v libvpx -deadline realtime -cpu-used 8 "$dir/vp8.webm"
 "${ff[@]}" "${video[@]}" -c:v libvpx-vp9 -deadline realtime -cpu-used 8 "$dir/vp9.webm"

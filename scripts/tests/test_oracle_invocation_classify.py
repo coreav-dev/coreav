@@ -53,6 +53,18 @@ class Classification(unittest.TestCase):
         self.assertEqual(report['counts']['confirmed-bypass']['locations'], 1)
         self.assertEqual(report['counts']['qualified-via-owner']['rows'], 0)
 
+    def test_missing_index_files_and_gitlinks_remain_unknown(self):
+        (self.root / 'deleted.rs').write_text('fn main() {}')
+        subprocess.run(['git', 'init', '--quiet', str(self.root)], check=True)
+        subprocess.run(['git', '-C', str(self.root), 'add', '.'], check=True)
+        (self.root / 'deleted.rs').unlink()
+        (self.root / 'module').mkdir()
+        subprocess.run(['git', '-C', str(self.root), 'update-index', '--add', '--cacheinfo',
+                        '160000,' + '1' * 40 + ',module'], check=True)
+        report = classifier.classify(self.root, [])
+        self.assertEqual({site['path'] for site in report['locations']}, {'deleted.rs', 'module'})
+        self.assertEqual(report['counts']['unknown']['rows'], 2)
+
     def test_owner_return_value_qualifies(self):
         sites = self.sites('import test_oracle, subprocess\ndef main():\n'
                            '    pair = test_oracle.require()\n'

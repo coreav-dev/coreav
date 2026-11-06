@@ -94,7 +94,7 @@ class HistoricalRecords(unittest.TestCase):
 
 
 class Discovery(unittest.TestCase):
-    def whole_inventory(self, sources):
+    def whole_inventory(self, sources, prepare=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             historical = 'docs/measurements/past/source.txt'
@@ -114,7 +114,28 @@ class Discovery(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(source)
             subprocess.run(['git', 'init', '--quiet', str(root)], check=True, capture_output=True)
-            return check.inventory(root)
+            return check.inventory(prepare(root) if prepare else root)
+
+    def test_inventory_normalizes_a_symlinked_root(self):
+        def prepare(root):
+            link = root / 'linked-root'
+            link.symlink_to(root, target_is_directory=True)
+            return link
+        sites = self.whole_inventory({'kept.sh': 'ffmpeg -version\n'}, prepare)
+        self.assertTrue(any(site['path'] == 'kept.sh' for site in sites))
+
+    def test_missing_index_files_and_gitlinks_do_not_crash_discovery(self):
+        def prepare(root):
+            subprocess.run(['git', '-C', str(root), 'add', '.'], check=True)
+            for name in ('deleted.txt', 'deleted.rs', 'deleted.js'):
+                (root / name).unlink()
+            (root / 'module').mkdir()
+            subprocess.run(['git', '-C', str(root), 'update-index', '--add', '--cacheinfo',
+                            '160000,' + '1' * 40 + ',module'], check=True)
+            return root
+        sites = self.whole_inventory({'kept.sh': 'ffmpeg -version\n', 'deleted.txt': 'data',
+                                      'deleted.rs': 'fn main() {}', 'deleted.js': 'let x = 1;'}, prepare)
+        self.assertTrue(any(site['path'] == 'kept.sh' for site in sites))
 
     def test_extensionless_shebang_scripts_are_discovered(self):
         sites = self.whole_inventory({

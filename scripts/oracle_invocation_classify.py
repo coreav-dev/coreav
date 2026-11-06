@@ -49,6 +49,10 @@ def repository_paths(root):
 def file_kind(path, root=None):
     if path.is_symlink() or root is not None and not path.resolve().is_relative_to(root):
         return 'unscanned-symlink'
+    if not path.exists():
+        return 'unscanned-missing'
+    if not path.is_file():
+        return 'unscanned-nonregular'
     if path.suffix in SUFFIXES:
         return 'source'
     with path.open('rb') as source:
@@ -68,8 +72,7 @@ def file_kind(path, root=None):
 
 def file_inventory(root, paths=None):
     return {path: file_kind(root / path, root) for path in (paths or repository_paths(root))
-            if path != RECORD and not path.startswith(discovery.HISTORICAL_BOUNDARY + '/')
-            and ((root / path).exists() or (root / path).is_symlink())}
+            if path != RECORD and not path.startswith(discovery.HISTORICAL_BOUNDARY + '/')}
 
 
 def site_key(site):
