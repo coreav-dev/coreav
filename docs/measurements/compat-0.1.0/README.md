@@ -190,3 +190,5 @@ python3 -I scripts/compat_sources.py register --tooling "$(git rev-parse HEAD)" 
 ```
 
 The registration does not hash itself, this page or the tests, so recording later results does not require changing the judging state. Re-registering cannot authorize rerunning a missed bar.
+
+**Forward-only judging and source-role amendment.** The [registration amendment](../../design/compat-registration-amendment.md) records the process deadline, MPEG-TS policy and VP9 validator differences approved for future measurements. It changes no earlier result or published number. Both Rust artifacts still come from the candidate above. The observer's driver and path-module sources are bound to that candidate; only frozen sources consumed by tooling must also be identical in the tooling checkout. This supersedes the earlier requirement to compare unused tooling copies of observer sources. The complete frozen and judging rosters, candidate, workflow, inputs, commands, pins and tolerances remain unchanged. The existing unfiltered `deny` workflow verifies the actual judging registration without media; it does not regenerate the JSON or authorize a measurement.
