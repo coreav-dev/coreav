@@ -728,7 +728,11 @@ def run(root, plan, allocation_sha256, acquisition_sha256=None):
             for cell in schedule(rows, plan):
                 value = execute(command(root, lookup[cell['label']], cell['arm'], cell['threads'], False, plan, oracle))
                 emit({'kind': 'timed', **cell, **value})
-            status = diagnostics.run(root, plan, execute)
+            def diagnostic_execute(argv, *args, **kwargs):
+                if argv[0] == str(root / 'ffmpeg'):
+                    argv = [str(oracle.ffmpeg), *argv[1:]]
+                return execute(argv, *args, **kwargs)
+            status = diagnostics.run(root, plan, diagnostic_execute)
             emit({'kind': 'diagnostics', 'status': status})
             health('after')
             emit({'kind': 'host', 'phase': 'after', **host(instance)})

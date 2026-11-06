@@ -43,7 +43,12 @@ class Selection(unittest.TestCase):
             for name in ('verify_receipt', 'audit_collection', 'bind'):
                 stack.enter_context(mock.patch.object(acquisition, name))
             stack.enter_context(mock.patch.object(acquisition, 'policy', return_value={'artifact_revision': 'revision'}))
-            stack.enter_context(mock.patch.object(diagnostics, 'run', return_value='complete'))
+            pcm = diagnostics.oracle_pcm(root, root / 'diagnostics/output.mp4')
+
+            def diagnostic_run(root, plan, execute):
+                execute(pcm, maximum=1, timeout=180)
+                return 'complete'
+            stack.enter_context(mock.patch.object(diagnostics, 'run', side_effect=diagnostic_run))
             stack.enter_context(mock.patch.object(driver.subprocess, 'run'))
             stack.enter_context(mock.patch.object(driver, 'execute', side_effect=execute))
             require = stack.enter_context(mock.patch.object(driver.test_oracle, 'require', return_value=oracle))
@@ -52,7 +57,8 @@ class Selection(unittest.TestCase):
             self.assertEqual(commands.count([str(oracle.ffprobe), '-v', 'error', '-threads', '1', '-select_streams', 'v:0',
                                              '-show_entries', 'stream=codec_name,pix_fmt,width,height,field_order,profile',
                                              '-of', 'json', str(root / 'media/h000.h264')]), 1)
-            oracle_calls = [c for c in commands if str(oracle.ffmpeg) in c]
+            self.assertIn([str(oracle.ffmpeg), *pcm[1:]], commands)
+            oracle_calls = [c for c in commands if str(oracle.ffmpeg) in c and c[0] == 'taskset']
             self.assertEqual(len(oracle_calls), 5)
             self.assertTrue(all(c[3] == str(oracle.ffmpeg) for c in oracle_calls))
             self.assertFalse(any(str(root / 'ffmpeg') in c or str(root / 'ffprobe') in c for c in commands))
