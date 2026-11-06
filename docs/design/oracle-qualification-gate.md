@@ -152,6 +152,8 @@ The maintainer approved these three amendments on 2026-11-06. Change only each s
 
 Commit the registered code change first, then generate registration from that immutable code commit in its own following commit with the existing procedure. Exactly these three hashes may change in `judging.json`; every other hash and the complete observer registration stay identical. Rebind only that registration file's diagnostic historical-snapshot digest. The candidate, observer objects, frozen rosters, pins, comparison judgments and published numbers stay unchanged, and no past input is rerun or rejudged.
 
+The judging roster requires every module a judging source imports to be a judging source itself. Since the nested-probe repair, `scripts/oracle_kd.py` imports `scripts/test_oracle.py`, which imports `scripts/oracle_pin_macos.py`; neither is in `JUDGING`, so the existing roster regression fails. The maintainer approved adding exactly these two owner modules to `JUDGING` in `scripts/compat_sources.py` on 2026-11-06. Commit that roster change first, then register from it in its own following commit. The only `judging.json` changes are the two new entries and the new `compat_sources.py` hash, plus the registration file's diagnostic historical-snapshot digest. The roster regression must pass unchanged.
+
 ### Implementation order and verification
 
 1. Commit this plan. Capture the invalid fresh merged baseline and the original-row obligations without claiming classification progress.
