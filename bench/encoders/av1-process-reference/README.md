@@ -1,6 +1,6 @@
 # AV1 process-boundary reference figures
 
-These are reference figures, not a judged verdict or a performance claim. On three lossy H.264 inputs, sandboxed CoreAV took 1.063 times FFmpeg's end-to-end time (geometric mean of per-input ratios), and in-process CoreAV took 1.037 times. The encoder process boundary accounts for 39% of the summed time gap. The rest is outside the boundary and has the same size as the decode-path difference seen in separate decode-only calls.
+These are reference figures, not a judged verdict or a performance claim. On three lossy H.264 inputs, sandboxed CoreAV took 1.063 times FFmpeg's end-to-end time (geometric mean of per-input ratios), and in-process CoreAV took 1.037 times. The encoder process boundary accounts for 39% of the summed time gap. The rest is outside the boundary and has the same size as the decode-path difference seen in separate decode-only calls. A follow-up diagnostic places that difference in the command-line path that turns decoded pictures into output frames, made worse by the static musl allocator, not in the H.264 decoder.
 
 All three arms produced byte-identical AV1 packet streams for each input: one packet hash per input across all nine calls, the same payload bytes and the same PSNR. So the timing differences come from the pipeline around the encoder, not from different encoder work.
 
@@ -36,7 +36,7 @@ The median CPU accounting shows where the extra time is spent. Across inputs, th
 
 ## Decode-only diagnostic
 
-Each implementation decoded each input to the same complete 8-bit 4:2:0 raw stream (identical byte counts and SHA-256), then made three alternating calls writing to the null device. CoreAV used its native decoder's default host-core workers, and FFmpeg's decoder was given the same 4 workers. These calls include demuxing and raw output, so they are a decode-path reference, not a decoder-kernel benchmark.
+Each implementation decoded each input to the same complete 8-bit 4:2:0 raw stream (identical byte counts and SHA-256), then made three alternating calls writing to the null device. CoreAV used its native decoder's default host-core workers, and FFmpeg's decoder was given the same 4 workers. These calls include demuxing and raw output, so they are a decode-path reference, not a decoder-kernel benchmark. Both sides were the static musl builds used for the end-to-end calls.
 
 | Input | CoreAV seconds | FFmpeg seconds | Ratio | Difference |
 |---|---:|---:|---:|---:|
@@ -44,11 +44,31 @@ Each implementation decoded each input to the same complete 8-bit 4:2:0 raw stre
 | input02 | 1.393 | 0.929 | 1.50 | 0.464 |
 | input03 | 3.667 | 1.909 | 1.92 | 1.758 |
 
-The summed decode-path difference (2.49 s) is close to the summed residual I-F (2.58 s). The end-to-end calls decode and encode at the same time, so this agreement is consistent with the residual being mostly decode-side, but it does not prove it. The time CoreAV spends inside its decoder calls during transcoding (`decode` in calls.json) overlaps encoding and is not added to either figure. CoreAV's decode-only calls also used more system time than FFmpeg's (2.45 s against 0.82 s at 1080p).
+The summed decode-path difference (2.49 s) is close to the summed residual I-F (2.58 s). The end-to-end calls decode and encode at the same time, so this agreement is consistent with the residual coming mostly from the decode path, but it does not prove it. The time CoreAV spends inside its decoder calls during transcoding (`decode` in calls.json) overlaps encoding and is not added to either figure. CoreAV's decode-only calls also used more system time than FFmpeg's (2.45 s against 0.82 s at 1080p).
+
+## Decode-path follow-up
+
+The decode-only ratios above did not match earlier measurements of the decoder itself, which had it close to or faster than FFmpeg. A separate one-off diagnostic on a GitHub-hosted runner (AMD EPYC 7763, 4 visible CPUs) rebuilt the same three inputs from their originals, checked every raw output against the hashes above, and timed three alternating rounds of these commands:
+
+- The same `coreav ffmpeg ... -f rawvideo -` command, built for musl and for glibc (`cli,native-h264` features, `av1-measurement` profile).
+- The decoder alone (`crates/coreav-h264/examples/decode --threads 4` on the Annex B stream), writing frames or discarding them, for both libraries.
+- The oracle FFmpeg 9.0.2 (a glibc build) with the decode command above.
+
+Medians in seconds, with the median minor page-fault count. [decode-path-followup.json](decode-path-followup.json) has every call and the `strace -c` counts.
+
+| Input | CLI, musl | CLI, glibc | Decoder, glibc, writing | Decoder, glibc, discarding | FFmpeg oracle |
+|---|---:|---:|---:|---:|---:|
+| input01 | 1.514 / 347k | 1.254 / 193k | 0.850 / 8k | 0.835 / 8k | 1.008 / 17k |
+| input02 | 2.564 / 757k | 1.863 / 506k | 1.290 / 8k | 1.280 / 8k | 1.149 / 29k |
+| input03 | 6.835 / 2.10M | 4.938 / 1.37M | 2.675 / 14k | 2.587 / 14k | 2.623 / 63k |
+
+The decoder alone takes 0.83 to 1.16 times FFmpeg's decode time on this runner across all four decoder arms, and writing raw frames adds almost nothing. The gap is in the command-line path that turns decoded pictures into output frames. Built with glibc, that path takes 1.4 to 1.8 times the decoder's time and incurs about 1,500 fresh page faults per 1080p frame, which is about two newly mapped frame-sized buffers per frame. The static musl build makes it worse: its allocator returns large blocks to the system, so at 1080p the same path made 8,244 `mmap` and 8,238 `munmap` calls for 901 frames (glibc: 95 and 79), with 0.7 million more page faults and 1.9 s more time. Decoder-only calls with musl are within 6% of glibc.
+
+All three arms of the end-to-end calls used static musl builds, so they compare like for like. In a single-call count on a development machine with the 480p input, the sandboxed and in-process CoreAV arms incurred 484k and 456k page faults against 248k for FFmpeg. The boundary adds little of this cost, and both CoreAV arms carry it, so the residual I-F most likely reflects the frame path's allocations rather than the H.264 decoder.
 
 ## What this means for encoder isolation
 
-Running SVT-AV1 in-process would remove about 1.8% of end-to-end CoreAV time on these inputs and about two fifths of the gap to FFmpeg. In exchange, it would give up crash isolation, the separate address-space limit and the ability to stop a stuck encoder. The larger part of the gap is outside the boundary. These figures are input for a future isolation proposal; they change no policy, and production builds keep the sandbox.
+Running SVT-AV1 in-process would remove about 1.8% of end-to-end CoreAV time on these inputs and about two fifths of the gap to FFmpeg. In exchange, it would give up crash isolation, the separate address-space limit and the ability to stop a stuck encoder. The larger part of the gap is outside the boundary, in the frame path described above. These figures are input for a future isolation proposal; they change no policy, and production builds keep the sandbox.
 
 ## Limits
 
