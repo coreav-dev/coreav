@@ -446,7 +446,10 @@ def main():
         if step not in STEPS:
             sys.exit(f'unknown step {step}; steps: {", ".join(STEPS)}')
     if set(steps) & {'build', 'fixtures', 'corpus', 'hostile'}:
-        args.oracle = test_oracle.require('ffmpeg', 'ffprobe')
+        try:
+            args.oracle = test_oracle.require()
+        except test_oracle.QualificationError as error:
+            sys.exit(f'stage3 run: {error}')
     work.mkdir(parents=True, exist_ok=True)
     for step in STEPS:
         if step in steps:

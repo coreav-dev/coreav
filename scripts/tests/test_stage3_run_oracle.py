@@ -23,7 +23,7 @@ class OracleSelection(unittest.TestCase):
                     mock.patch.object(driver, 'extra_hostile', None), \
                     mock.patch.object(driver.subprocess, 'run', return_value=types.SimpleNamespace(stdout='version\n')) as execute:
                 self.assertEqual(driver.main(), 0)
-            qualify.assert_called_once_with('ffmpeg', 'ffprobe')
+            qualify.assert_called_once_with()
             self.assertEqual([call.args[0] for call in execute.call_args_list],
                              [[str(pair.ffmpeg), '-version'], [str(pair.ffprobe), '-version'], ['mediainfo', '--Version']])
 
