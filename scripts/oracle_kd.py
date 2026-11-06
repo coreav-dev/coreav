@@ -32,6 +32,7 @@ from fractions import Fraction
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
 import oracle_kd_ts  # noqa: E402
+import test_oracle
 KD_FILE = ROOT / 'docs' / 'known-divergences.json'
 IN_SCOPE = ('.mp4', '.mov', '.m4a')
 
@@ -1065,9 +1066,10 @@ def _hevc_sps(path, index):
 def _first_frame_size(path, index):
     """The size of the stream's first decoded frame, from ffprobe (a black
     box), or None."""
+    pair = test_oracle.require()
     try:
         done = subprocess.run(
-            ['ffprobe', '-v', 'error', '-select_streams', str(index), '-read_intervals', '%+#1',
+            [str(pair.ffprobe), '-v', 'error', '-select_streams', str(index), '-read_intervals', '%+#1',
              '-show_entries', 'frame=width,height', '-of', 'json', str(path)],
             capture_output=True, timeout=60, check=False)
         frames = json.loads(done.stdout).get('frames', [])
