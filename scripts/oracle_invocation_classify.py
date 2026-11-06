@@ -21,9 +21,9 @@ DEPENDENCIES = ('scripts/test_oracle.py', 'test-support/oracle.rs',
                 'scripts/oracle_invocation_classify.py')
 VERDICTS = ('confirmed-bypass', 'unknown', 'qualified-via-owner', 'excluded')
 CLASSES = ('reviewed-reference', 'reviewed-exclusion', 'reviewed-bypass',
-           'registered-source', 'bootstrap', 'runtime-boundary')
+           'registered-source', 'bootstrap', 'runtime-boundary', 'unavailable-input')
 CLASS_VERDICTS = dict(zip(CLASSES, ('qualified-via-owner', 'excluded', 'confirmed-bypass',
-                                  'excluded', 'excluded', 'excluded')))
+                                  'excluded', 'excluded', 'excluded', 'unknown')))
 SUFFIXES = {'.py', '.rs', '.sh', '.bash', '.yml', '.yaml', '.js', '.mjs', '.cjs', '.ts', '.tsx'}
 DATA = {'.md', '.txt', '.json', '.toml', '.lock', '.csv', '.svg', '.png', '.jpg',
         '.jpeg', '.gif', '.webp', '.mp4', '.mkv', '.webm', '.m4a', '.wav', '.flac',
@@ -254,7 +254,7 @@ def validate_record(record):
             if not isinstance(identity[-1], int) or identity[-1] < 0 or identity in seen:
                 raise ValueError('remove duplicate exact-site evidence entries')
             seen.add(identity)
-            if (entry.get('verdict') not in VERDICTS or entry['verdict'] == 'unknown'
+            if (entry.get('verdict') not in VERDICTS
                     or entry.get('class') not in CLASSES or not entry.get('evidence')):
                 raise ValueError('restore a closed verdict, evidence class and explanation')
             if CLASS_VERDICTS[entry['class']] != entry['verdict']:
@@ -333,6 +333,7 @@ def classify(root, sites, record=None):
     matched = defaultdict(set)
     docstrings = {}
     groups = {}
+    row_results = []
     for row, site in enumerate(current_sites):
         path, line = site['path'], site['line']
         key = site_key(site)
@@ -371,6 +372,7 @@ def classify(root, sites, record=None):
                                    and isinstance(node.body[0].value.value, str)}
             if line in docstrings[path]:
                 verdict, evidence_class, evidence = 'excluded', 'python-docstring', 'AST docstring data'
+        row_results.append((verdict, evidence_class))
         origin = (path, folded_line)
         if origin not in groups:
             groups[origin] = dict(path=path, line=folded_line, verdict=verdict, rule=evidence_class,
@@ -384,9 +386,14 @@ def classify(root, sites, record=None):
         if entries.keys() - matched[path]:
             problems.append(dict(path=path, reason='dead-site-evidence'))
     locations = []
+    unknown_rules = Counter()
     for value in groups.values():
         value['patterns'] = sorted(value['patterns'])
         locations.append(value)
+        if value['verdict'] == 'unknown':
+            for row in value['rows']:
+                verdict, rule = row_results[row]
+                unknown_rules[rule if verdict == 'unknown' else 'folded-to-unknown'] += 1
     counts = {}
     for verdict in VERDICTS:
         selected = [item for item in locations if item['verdict'] == verdict]
@@ -395,6 +402,7 @@ def classify(root, sites, record=None):
     patterns = Counter(item['rule'] for item in locations if item['verdict'] == 'confirmed-bypass')
     row_ids = sorted(row for item in locations for row in item['rows'])
     return dict(schema=2, evidence_valid=bool(record) and not problems, counts=counts,
+                unknown_rules=dict(sorted(unknown_rules.items())),
                 problems=problems,
                 top_patterns=[dict(rule=rule, locations=count,
                               files=len({item['path'] for item in locations if item['rule'] == rule}))
@@ -460,7 +468,7 @@ def main():
     if args.refresh:
         print('unreviewed proposal written; the catalogue is unchanged')
         return 0
-    print(json.dumps({key: report[key] for key in ('evidence_valid', 'counts', 'problems',
+    print(json.dumps({key: report[key] for key in ('evidence_valid', 'counts', 'unknown_rules', 'problems',
                                                   'top_patterns', 'reconciliation')}, sort_keys=True))
     if not report['reconciliation']['exact'] or not report['evidence_valid']:
         return 2
