@@ -4,6 +4,10 @@ How the workflows under `.github/workflows` are shaped so that a branch
 ruleset can require them. The exact list of names it requires is the table
 under "Required status checks" below.
 
+## Planned validation tiers
+
+[Shorter PR validation](ci-tiers.md) records the measured required and heavy-codec paths, the proposed fixture/npm changes, the full-suite tiers and their forecast. It is a plan, not the active merge contract. The required-check table and executable rules below stay in effect until the implementation changes the workflows, checker, scheduling tests and agent rules together.
+
 ## The problem
 
 Branch protection matches a required status check by **name**, and the name
