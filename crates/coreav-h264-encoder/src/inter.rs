@@ -4,7 +4,7 @@ use super::*;
 use crate::motion::{Layout, Part};
 use coreav_kernels_h264::Block;
 
-const SPLIT_SATD: u64 = 128;
+const SPLIT_SATD: u64 = 64;
 
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct Inter {
@@ -1086,7 +1086,7 @@ mod tests {
             plane.data.fill(128);
         }
         let csources = [Tile::empty(), Tile::empty()];
-        for (amplitude, searches) in [(8, 1), (60, 2)] {
+        for (amplitude, searches) in [(4, 1), (60, 2)] {
             let mut source = Tile::empty();
             for y in 0..16 {
                 for x in 0..16 {
