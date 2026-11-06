@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "tools" / "compat-corpus"))
 
 from flac_output_check import make_source, probe, run
 from oracle_audio import INPUT_ARGS as AUDIO_INPUT
-from test_oracle import verify_bin
+import test_oracle
 from speed import timed
 
 
@@ -107,7 +107,7 @@ def summary(rows):
 
 
 def measure(coreav, oracle, root, report):
-    ffmpeg, ffprobe = oracle / "ffmpeg", oracle / "ffprobe"
+    ffmpeg, ffprobe = oracle.ffmpeg, oracle.ffprobe
     cpu = min(os.sched_getaffinity(0))
     os.sched_setaffinity(0, {cpu})
     cpuinfo = Path("/proc/cpuinfo").read_text()
@@ -195,29 +195,30 @@ def main():
                 raise RuntimeError("FLAC tooling smoke runs in Actions")
         else:
             report["head"] = require_main()
-        problems = list(verify_bin(args.oracle_dir))
-        if problems:
-            raise RuntimeError("oracle verification failed")
+        try:
+            oracle = test_oracle.require(args.oracle_dir / "ffmpeg", args.oracle_dir / "ffprobe")
+        except test_oracle.QualificationError:
+            raise RuntimeError("oracle verification failed") from None
         with tempfile.TemporaryDirectory(prefix="flac-measure-") as directory:
             root = Path(directory)
-            coreav, oracle = args.coreav.resolve(), args.oracle_dir.resolve()
+            coreav = args.coreav.resolve()
             if args.smoke:
                 for kind in ("tones", "polynomial", "noise"):
                     row = {"class": kind, "bits": 24, "channels": 2, "rate": 32, "case": kind}
                     expected = samples(row, seconds=1)
-                    source = make_source(oracle / "ffmpeg", root, 24, 2, 48000, expected, kind)
+                    source = make_source(oracle.ffmpeg, root, 24, 2, 48000, expected, kind)
                     output = {side: root / f"{kind}-{side}.flac" for side in ("native", "reference")}
-                    for argv in commands(coreav, oracle / "ffmpeg", source, output).values():
+                    for argv in commands(coreav, oracle.ffmpeg, source, output).values():
                         run(argv)
-                    validate(oracle / "ffmpeg", oracle / "ffprobe", output, expected, row)
+                    validate(oracle.ffmpeg, oracle.ffprobe, output, expected, row)
             else:
                 report["rows"] = roster()
                 report["plan_sha256"] = hashlib.sha256((ROOT / "docs/design/flac-output.md").read_bytes()).hexdigest()
                 report["driver_sha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-                for label, path in (("coreav", coreav), ("reference", oracle / "ffmpeg")):
+                for label, path in (("coreav", coreav), ("reference", oracle.ffmpeg)):
                     with path.open("rb") as binary:
                         report[f"{label}_sha256"] = hashlib.file_digest(binary, "sha256").hexdigest()
-                report["reference_version"] = run([oracle / "ffmpeg", "-version"]).decode().splitlines()[0]
+                report["reference_version"] = run([oracle.ffmpeg, "-version"]).decode().splitlines()[0]
                 measure(coreav, oracle, root, report)
         report["state"] = "complete"
     except BaseException as error:

@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
-from test_oracle import verify_bin
+import test_oracle
 
 
 def run(args):
@@ -100,9 +100,10 @@ def wav_samples(data):
 
 
 def check(coreav, oracle, work):
-    errors = list(verify_bin(oracle))
-    if errors:
-        raise ValueError('unverified oracle: ' + '; '.join(errors))
+    try:
+        oracle = test_oracle.require(oracle / 'ffmpeg', oracle / 'ffprobe')
+    except test_oracle.QualificationError as error:
+        raise ValueError('unverified oracle: ' + str(error)) from None
     work.mkdir(parents=True, exist_ok=True)
     source = work / 'source.f32'
     source.write_bytes(b''.join(struct.pack('<f', .2 * math.sin(2 * math.pi * 440 * n / 48000))
@@ -112,7 +113,7 @@ def check(coreav, oracle, work):
                                                 ('hybrid', '24000', 'voip', 1),
                                                 ('celt', '96000', 'lowdelay', 2)]:
         path = work / f'{mode}.ogg'
-        run([oracle / 'ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', '48000', '-ac', '1',
+        run([oracle.ffmpeg, '-v', 'error', '-f', 'f32le', '-ar', '48000', '-ac', '1',
              *AUDIO_DECODE_INPUT, '-i', source, '-ac', channels, '-c:a', 'libopus', '-b:a', bitrate,
              '-application', application, '-vbr', 'off', '-y', path])
         head, packets, eos = ogg_packets(path.read_bytes())
@@ -154,7 +155,7 @@ def check(coreav, oracle, work):
                 expected = 4800 - (48 if middle else 0)
                 if len(wanted) != expected * stride:
                     raise AssertionError('invalid independent trim model')
-                reference = run([oracle / 'ffmpeg', '-v', 'error', *AUDIO_DECODE_INPUT,
+                reference = run([oracle.ffmpeg, '-v', 'error', *AUDIO_DECODE_INPUT,
                                  '-i', path, '-f', 'f32le', '-'])
                 if len(reference) != expected * channels * 4:
                     raise AssertionError('pinned oracle disagrees with specified count')

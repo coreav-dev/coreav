@@ -34,12 +34,10 @@ def source():
 
 class OpusMp4Presentation(unittest.TestCase):
     def test_oracle_diagnostics_are_consumed_before_work_is_created(self):
-        def rejected(_):
-            yield 'wrong oracle version'
-
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory) / 'cases'
-            with mock.patch.object(presentation, 'verify_bin', side_effect=rejected), \
+            with mock.patch.object(presentation.test_oracle, 'require',
+                    side_effect=presentation.test_oracle.QualificationError('wrong oracle version')), \
                     mock.patch.object(presentation, 'run', side_effect=AssertionError('unexpected process')) as launch:
                 with self.assertRaisesRegex(ValueError, 'unverified oracle'):
                     presentation.check(Path('native'), Path('oracle'), work)
@@ -80,6 +78,23 @@ class OpusMp4Presentation(unittest.TestCase):
         self.assertEqual(presentation.wav_samples(data), b'1234')
         with self.assertRaisesRegex(ValueError, 'incomplete'):
             presentation.wav_samples(data[:-1])
+
+
+
+class OracleSelection(unittest.TestCase):
+    def test_first_execution_uses_the_owner_returned_program(self):
+        import test_oracle
+        pair = test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified/ffprobe'))
+        stopped = RuntimeError('stop before media execution')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with mock.patch.object(test_oracle, 'require', return_value=pair) as qualify, \
+                    mock.patch.object(presentation, 'run', side_effect=stopped) as run:
+                with self.assertRaises(RuntimeError) as error:
+                    presentation.check(Path('native'), Path('/requested'), root / 'work')
+            self.assertIs(error.exception, stopped)
+            qualify.assert_called_once_with(Path('/requested/ffmpeg'), Path('/requested/ffprobe'))
+            self.assertEqual(run.call_args.args[0][0], pair.ffmpeg)
 
 
 if __name__ == '__main__':

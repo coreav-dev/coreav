@@ -109,5 +109,49 @@ class PcmQualification(unittest.TestCase):
                 qualification.compare(self.pcm('h', values), reference, 's16', 2)
 
 
+
+class OracleSelection(unittest.TestCase):
+    def test_generation_receives_the_owner_returned_pair(self):
+        import sys
+        import tempfile
+        import test_oracle
+        pair = test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified/ffprobe'))
+        stopped = RuntimeError('stop before generating media')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            argv = ['aac_pcm_eligibility', '--coreav', 'coreav', '--oracle-dir', '/requested',
+                    '--work', str(root / 'work'), '--out', str(root / 'report.json'),
+                    '--pns-diagnostic', 'diagnostic']
+            with mock.patch.object(sys, 'argv', argv), \
+                    mock.patch.object(test_oracle, 'require', return_value=pair) as qualify, \
+                    mock.patch.object(qualification, 'generate', side_effect=stopped) as generate:
+                with self.assertRaises(RuntimeError) as error:
+                    qualification.main()
+            self.assertIs(error.exception, stopped)
+            qualify.assert_called_once_with(Path('/requested/ffmpeg'), Path('/requested/ffprobe'))
+            self.assertIs(generate.call_args.args[0], pair)
+
+    def test_pin_failure_removes_stale_report_without_creating_work(self):
+        import sys
+        import tempfile
+        import test_oracle
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            out, work = root / 'report.json', root / 'work'
+            out.write_text('stale')
+            argv = ['aac_pcm_eligibility', '--coreav', 'coreav', '--oracle-dir', '/requested',
+                    '--work', str(work), '--out', str(out), '--pns-diagnostic', 'diagnostic']
+            with mock.patch.object(sys, 'argv', argv), \
+                    mock.patch.object(test_oracle, 'require', side_effect=test_oracle.QualificationError('private pin detail')), \
+                    mock.patch.object(qualification, 'generate') as generate, \
+                    mock.patch.object(qualification, 'run') as run:
+                with self.assertRaisesRegex(ValueError, '^unverified pinned oracle$'):
+                    qualification.main()
+            generate.assert_not_called()
+            run.assert_not_called()
+            self.assertFalse(out.exists())
+            self.assertFalse(work.exists())
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -15,7 +15,7 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 from oracle_pin import load
-from test_oracle import verify_bin
+import test_oracle
 
 
 def run(args, *, env=None):
@@ -87,7 +87,7 @@ def pns_check(oracle, source, directory, metadata):
     import numpy as np
     import aac_pns
 
-    reference = run([oracle / 'ffmpeg', '-v', 'error', '-f', 'aac', *AUDIO_DECODE_INPUT,
+    reference = run([oracle.ffmpeg, '-v', 'error', '-f', 'aac', *AUDIO_DECODE_INPUT,
                      '-i', directory / 'packets.aac', '-c:a', 'pcm_f32le', '-f', 'f32le', '-'])
     if reference.returncode or reference.stderr:
         raise ValueError('untrimmed oracle failed or reported damage')
@@ -96,7 +96,7 @@ def pns_check(oracle, source, directory, metadata):
     oracle_raw = np.frombuffer(reference.stdout, dtype='<f4').reshape(-1, channels)
     spectra = np.fromfile(directory / 'spectra.f32', dtype='<f4').reshape(packets, channels, 1024)
     metrics = aac_pns.compare(native_raw, oracle_raw, metadata, spectra)
-    probe = run([oracle / 'ffprobe', '-v', 'error', '-select_streams', 'a:0',
+    probe = run([oracle.ffprobe, '-v', 'error', '-select_streams', 'a:0',
                  '-show_streams', '-show_packets', '-of', 'json', source])
     if probe.returncode or probe.stderr:
         raise ValueError('PNS presentation probe failed')
@@ -166,7 +166,7 @@ def check(coreav, oracle, source, work, diagnostic):
 
 def check_output(coreav, oracle, source, work, metadata, pns):
     row = {'sha256': hashlib.sha256(source.read_bytes()).hexdigest(), 'formats': {}}
-    probe = run([oracle / 'ffprobe', '-v', 'error', '-select_streams', 'a:0',
+    probe = run([oracle.ffprobe, '-v', 'error', '-select_streams', 'a:0',
                  '-show_entries', 'stream=sample_rate,channels,profile', '-of', 'json', source])
     if probe.returncode:
         raise ValueError('oracle probe failed')
@@ -191,11 +191,11 @@ def check_output(coreav, oracle, source, work, metadata, pns):
             wave = run([*base, '-f', 'wav', 'pipe:'])
             if wave.returncode != 4 or wave.stdout:
                 raise ValueError('ineligible stream wrote a WAVE header')
-            env = {**os.environ, 'COREAV_FALLBACK': str(oracle / 'ffmpeg')}
+            env = {**os.environ, 'COREAV_FALLBACK': str(oracle.ffmpeg)}
             env.pop('COREAV_STRICT_SAFE', None)
             fallback = run([*native(coreav, source, ['-map', '0:a:0', '-c:a', codec], strict=False),
                             '-f', fmt + 'le', 'pipe:'], env=env)
-            reference = run([oracle / 'ffmpeg', '-v', 'error', *AUDIO_DECODE_INPUT,
+            reference = run([oracle.ffmpeg, '-v', 'error', *AUDIO_DECODE_INPUT,
                              '-i', source, '-map', '0:a:0', '-c:a', codec, '-f', fmt + 'le', '-'])
             if fallback.returncode or reference.returncode or fallback.stdout != reference.stdout:
                 raise ValueError('ineligible stream did not replay through the pinned fallback')
@@ -207,7 +207,7 @@ def check_output(coreav, oracle, source, work, metadata, pns):
             raise ValueError('native command admitted unsupported diagnostic predicates')
         if refusal:
             raise ValueError('eligibility differs across formats')
-        reference = run([oracle / 'ffmpeg', '-v', 'error', *AUDIO_DECODE_INPUT,
+        reference = run([oracle.ffmpeg, '-v', 'error', *AUDIO_DECODE_INPUT,
                          '-i', source, '-map', '0:a:0', '-c:a', codec, '-f', fmt + 'le', '-'])
         if reference.returncode or reference.stderr:
             raise ValueError('oracle decode failed or reported damage')
@@ -251,7 +251,7 @@ def check_output(coreav, oracle, source, work, metadata, pns):
         if wav(wave.stdout, fmt, row['channels'], row['rate']) != actual.stdout:
             raise ValueError('WAV stdout packing differs from complete raw output')
         if fmt == 's16':
-            pin_wave = run([oracle / 'ffmpeg', '-v', 'error', *AUDIO_DECODE_INPUT,
+            pin_wave = run([oracle.ffmpeg, '-v', 'error', *AUDIO_DECODE_INPUT,
                             '-i', source, '-map', '0:a:0', '-map_metadata', '-1',
                             '-c:a', codec, '-f', 'wav', 'pipe:'])
             if pin_wave.returncode or pin_wave.stderr:
@@ -266,7 +266,7 @@ def check_output(coreav, oracle, source, work, metadata, pns):
             raise ValueError('WAV file packing differs from complete raw output')
         if fmt == 's16':
             pin_file = work / 'reference.wav'
-            pin_wave = run([oracle / 'ffmpeg', '-v', 'error', '-y', *AUDIO_DECODE_INPUT,
+            pin_wave = run([oracle.ffmpeg, '-v', 'error', '-y', *AUDIO_DECODE_INPUT,
                             '-i', source, '-map', '0:a:0', '-map_metadata', '-1',
                             '-c:a', codec, '-f', 'wav', pin_file])
             if pin_wave.returncode or pin_wave.stderr:
@@ -388,7 +388,7 @@ def generate(oracle, work, diagnostic):
                                      ('switching', '0.1*sin(2*PI*431*t)+if(lt(mod(t,0.04),0.001),0.7,0)')]:
                 path = work / f'{kind}-{rate}-{channels}.m4a'
                 expression = '|'.join(expression.replace('431', str(431 + c * 107)) for c in range(channels))
-                encoded = run([oracle / 'ffmpeg', '-v', 'error', '-y', '-f', 'lavfi',
+                encoded = run([oracle.ffmpeg, '-v', 'error', '-y', '-f', 'lavfi',
                                '-i', f"aevalsrc='{expression}':s={rate}:d=0.25",
                                '-c:a', 'aac', '-aac_pns', '0', path])
                 if encoded.returncode:
@@ -396,13 +396,13 @@ def generate(oracle, work, diagnostic):
                 paths.append(path)
     paths.extend(controls(work / 'tone-48000-1.m4a', work))
     path = work / 'pns.m4a'
-    encoded = run([oracle / 'ffmpeg', '-v', 'error', '-y', '-f', 'lavfi',
+    encoded = run([oracle.ffmpeg, '-v', 'error', '-y', '-f', 'lavfi',
                    '-i', 'sine=frequency=440:sample_rate=48000:duration=2', '-c:a', 'aac', path])
     if encoded.returncode:
         raise ValueError('generated PNS encode failed')
     paths.append(path)
     path = work / 'all-ms-intensity.m4a'
-    encoded = run([oracle / 'ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+    encoded = run([oracle.ffmpeg, '-v', 'error', '-y', '-f', 'lavfi', '-i',
                    "aevalsrc='0.2*sin(2*PI*431*t)|0.2*sin(2*PI*538*t)':s=48000:d=0.5",
                    '-c:a', 'aac', '-aac_pns', '0', '-aac_ms', '1', '-b:a', '32k', path])
     if encoded.returncode:
@@ -415,7 +415,7 @@ def generate(oracle, work, diagnostic):
             raise ValueError('synthetic PNS packet construction failed')
         for source in sorted(fixtures.glob('*.aac')):
             target = work / (source.stem + '.m4a')
-            copied = run([oracle / 'ffmpeg', '-v', 'error', '-y', '-f', 'aac',
+            copied = run([oracle.ffmpeg, '-v', 'error', '-y', '-f', 'aac',
                           '-i', source, '-c:a', 'copy', target])
             if copied.returncode:
                 raise ValueError('synthetic PNS packet remux failed')
@@ -433,17 +433,18 @@ def main():
     parser.add_argument('files', type=Path, nargs='*')
     args = parser.parse_args()
     args.out.unlink(missing_ok=True)
-    errors = list(verify_bin(args.oracle_dir))
-    if errors:
-        raise ValueError('unverified pinned oracle')
+    try:
+        oracle = test_oracle.require(args.oracle_dir / 'ffmpeg', args.oracle_dir / 'ffprobe')
+    except test_oracle.QualificationError:
+        raise ValueError('unverified pinned oracle') from None
     args.work.mkdir(parents=True, exist_ok=True)
-    files = args.files or generate(args.oracle_dir, args.work, args.pns_diagnostic)
+    files = args.files or generate(oracle, args.work, args.pns_diagnostic)
     if not args.files:
         destination_checks(args.coreav, args.work / 'tone-48000-1.m4a', args.work)
     rows = []
     for source in files:
         try:
-            row = check(args.coreav, args.oracle_dir, source, args.work, args.pns_diagnostic)
+            row = check(args.coreav, oracle, source, args.work, args.pns_diagnostic)
             expected = 'ineligible' if source.name in ('all-ms-intensity.m4a',
                 'noncanonical-gapless.m4a', 'pns-tns.m4a', 'pns-ms.m4a',
                 'pns-illegal-window.m4a') else 'pass'

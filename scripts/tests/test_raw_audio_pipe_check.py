@@ -192,7 +192,8 @@ class WaveCommands(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(CHECK, "check_wave_case", side_effect=collect), \
                 patch.object(CHECK, "wave_refusals", return_value=0), \
                 patch.object(CHECK.sys, "platform", "linux"), patch.object(CHECK.platform, "machine", return_value="x86_64"):
-            CHECK.wave_paths(Path("coreav"), Path("oracle"), Path(directory))
+            CHECK.wave_paths(Path("coreav"), CHECK.test_oracle.Oracle(
+                Path("oracle/ffmpeg"), Path("oracle/ffprobe")), Path(directory))
         rate_cases = [(args, kwargs) for args, kwargs in cases if kwargs.get("output_rate") == 16000]
         self.assertFalse(any(args[7] == "f32" for args, _ in rate_cases))
         for representation in ("u8", "s16", "s24", "s32"):
@@ -237,7 +238,8 @@ class WaveRefusals(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(CHECK, "check_wave_case", side_effect=lambda *args, **kwargs: cases.append((args, kwargs)) or 1), \
                 patch.object(CHECK, "wave_refusals", return_value=0):
-            CHECK.wave_paths(Path("coreav"), Path("oracle"), Path(directory))
+            CHECK.wave_paths(Path("coreav"), CHECK.test_oracle.Oracle(
+                Path("oracle/ffmpeg"), Path("oracle/ffprobe")), Path(directory))
         floats = [(args, kwargs) for args, kwargs in cases if args[7] == "f32"]
         self.assertTrue(floats)
         for _, kwargs in floats:
@@ -295,6 +297,37 @@ class WaveRefusals(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(CHECK.subprocess, "run", side_effect=write_on_refusal):
             with self.assertRaisesRegex(AssertionError, "created output"):
                 CHECK.wave_refusals(Path("coreav"), Path(directory), {"COREAV_STRICT_SAFE": "1"})
+
+
+
+class OracleSelection(unittest.TestCase):
+    def test_main_hands_the_returned_pair_to_every_driver(self):
+        import contextlib
+        import io
+        import test_oracle
+        pair = test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified/ffprobe'))
+        argv = ['raw_audio_pipe_check', '--coreav', 'coreav', '--oracle-bin', '/requested', '--smoke']
+        with patch.object(CHECK.sys, 'argv', argv), \
+                patch.object(test_oracle, 'require', return_value=pair) as qualify, \
+                patch.object(CHECK, 'check', return_value=1) as check, \
+                patch.object(CHECK, 'conformance_paths', return_value=2) as conformance, \
+                patch.object(CHECK, 'wave_paths', return_value=3) as wave, \
+                contextlib.redirect_stdout(io.StringIO()):
+            CHECK.main()
+        qualify.assert_called_once_with(Path('/requested/ffmpeg'), Path('/requested/ffprobe'))
+        for driver in (check, conformance, wave):
+            self.assertIs(driver.call_args.args[1], pair)
+
+    def test_pin_failure_precedes_temporary_output_and_execution(self):
+        import test_oracle
+        argv = ['raw_audio_pipe_check', '--coreav', 'coreav', '--oracle-bin', '/requested']
+        with patch.object(CHECK.sys, 'argv', argv), \
+                patch.object(test_oracle, 'require', side_effect=test_oracle.QualificationError('wrong pin')), \
+                patch.object(CHECK.tempfile, 'TemporaryDirectory') as output, \
+                patch.object(CHECK, 'run') as run, self.assertRaisesRegex(SystemExit, 'wrong pin'):
+            CHECK.main()
+        output.assert_not_called()
+        run.assert_not_called()
 
 
 if __name__ == "__main__":

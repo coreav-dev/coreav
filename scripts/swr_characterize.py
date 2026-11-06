@@ -10,7 +10,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
-from test_oracle import verify_bin
+import test_oracle
 
 RATES = [(44100, 48000), (44100, 22050), (44100, 16000),
          (48000, 44100), (48000, 22050), (48000, 16000),
@@ -130,9 +130,11 @@ def cases(wave='initial'):
 
 
 def capture(ffmpeg, directory, wave='initial'):
-    problems = list(verify_bin(ffmpeg.parent))
-    if problems:
-        raise RuntimeError('\n'.join(problems))
+    try:
+        oracle = test_oracle.require(ffmpeg, ffmpeg.parent / 'ffprobe')
+    except test_oracle.QualificationError as error:
+        raise RuntimeError(str(error)) from None
+    ffmpeg = oracle.ffmpeg
     directory.mkdir(parents=True, exist_ok=False)
     rows = []
     started = time.monotonic()

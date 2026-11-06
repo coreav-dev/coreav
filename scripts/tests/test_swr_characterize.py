@@ -33,7 +33,8 @@ class Characterization(unittest.TestCase):
                         raise subprocess.TimeoutExpired(args, options['timeout'])
                     return 'a' * 40
 
-                with patch.object(swr, 'verify_bin', return_value=[]), \
+                with patch.object(swr.test_oracle, 'require', return_value=swr.test_oracle.Oracle(
+                        binary, binary.with_name('ffprobe'))), \
                      patch.object(Path, 'read_text', return_value='model name: test\nflags: fma'), \
                      patch.object(swr.subprocess, 'check_output', side_effect=lookup), \
                      patch.object(swr.subprocess, 'run') as run:
@@ -72,7 +73,8 @@ class Characterization(unittest.TestCase):
                 binary = root / 'ffmpeg'
                 binary.write_bytes(b'stand-in')
                 result = SimpleNamespace(returncode=0, stdout=b'', stderr=b'')
-                with patch.object(swr, 'verify_bin', return_value=[]), \
+                with patch.object(swr.test_oracle, 'require', return_value=swr.test_oracle.Oracle(
+                        binary, binary.with_name('ffprobe'))), \
                      patch.object(swr, 'cases', return_value=[case]), \
                      patch.object(swr.subprocess, 'check_output', side_effect=['a' * 40, 'stand-in']), \
                      patch.object(Path, 'read_text', return_value='model name: test\nflags: fma'), \
@@ -83,6 +85,40 @@ class Characterization(unittest.TestCase):
                 self.assertEqual('-dither_method' in args, wave != 'raw-confirmation')
                 self.assertEqual(args[args.index('-i') - 2:args.index('-i')], list(swr.AUDIO_DECODE_INPUT))
                 self.assertTrue(json.loads((root / 'capture/provenance.json').read_text())['complete'])
+
+
+
+class OracleSelection(unittest.TestCase):
+    def test_capture_executes_the_owner_returned_program(self):
+        import test_oracle
+        pair = test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified/ffprobe'))
+        case = (44100, 48000, 's16le', 's16le', 1, 'constant', 1, False, None)
+        result = SimpleNamespace(returncode=0, stdout=b'', stderr=b'')
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.object(test_oracle, 'require', return_value=pair) as qualify, \
+                    patch.object(Path, 'read_bytes', return_value=b'stand-in'), \
+                    patch.object(Path, 'read_text', return_value='model name: test'), \
+                    patch.object(swr, 'cases', return_value=[case]), \
+                    patch.object(swr.subprocess, 'check_output', side_effect=['head', 'version']) as version, \
+                    patch.object(swr.subprocess, 'run', return_value=result) as run, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                swr.capture(Path('/requested/custom-ffmpeg'), Path(temporary) / 'capture')
+            qualify.assert_called_once_with(Path('/requested/custom-ffmpeg'), Path('/requested/ffprobe'))
+            self.assertEqual(version.call_args.args[0][0], str(pair.ffmpeg))
+            self.assertEqual(run.call_args.args[0][0], str(pair.ffmpeg))
+
+    def test_pin_failure_precedes_capture_output(self):
+        import test_oracle
+        with tempfile.TemporaryDirectory() as temporary:
+            out = Path(temporary) / 'capture'
+            with patch.object(test_oracle, 'require', side_effect=test_oracle.QualificationError('wrong pin')), \
+                    patch.object(swr.subprocess, 'run') as run, \
+                    patch.object(swr.subprocess, 'check_output') as provenance:
+                with self.assertRaisesRegex(RuntimeError, 'wrong pin'):
+                    swr.capture(Path('/requested/ffmpeg'), out)
+            run.assert_not_called()
+            provenance.assert_not_called()
+            self.assertFalse(out.exists())
 
 
 if __name__ == '__main__':

@@ -66,12 +66,10 @@ class OpusPcmEligibility(unittest.TestCase):
                 run.assert_not_called()
 
     def test_oracle_diagnostics_are_consumed_before_fixture_or_tool_io(self):
-        def diagnostics(_):
-            yield 'wrong oracle'
-
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'absent'
-            with mock.patch.object(eligibility, 'verify_bin', diagnostics), \
+            with mock.patch.object(eligibility.test_oracle, 'require',
+                    side_effect=eligibility.test_oracle.QualificationError('wrong oracle')), \
                     mock.patch.object(eligibility, 'run') as run:
                 with self.assertRaisesRegex(ValueError, 'wrong oracle'):
                     eligibility.check(path, path, path, path)
@@ -101,6 +99,25 @@ class OpusPcmEligibility(unittest.TestCase):
         self.assertIn('python3 -I scripts/opus_pcm_eligibility.py', job)
         self.assertIn('--opus-compare "$RUNNER_TEMP/opus-compare/opus_compare"', job)
         self.assertIn('${{ runner.temp }}/opus-pcm-eligibility.json', job)
+
+
+
+class OracleSelection(unittest.TestCase):
+    def test_first_execution_uses_the_owner_returned_program(self):
+        import test_oracle
+        pair = test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified/ffprobe'))
+        stopped = RuntimeError('stop before media execution')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tool = root / 'comparison-tool'
+            tool.touch()
+            with mock.patch.object(test_oracle, 'require', return_value=pair) as qualify, \
+                    mock.patch.object(eligibility, 'run', side_effect=stopped) as run:
+                with self.assertRaises(RuntimeError) as error:
+                    eligibility.check(Path('native'), Path('/requested'), tool, root / 'work')
+            self.assertIs(error.exception, stopped)
+            qualify.assert_called_once_with(Path('/requested/ffmpeg'), Path('/requested/ffprobe'))
+            self.assertEqual(run.call_args.args[0][0], pair.ffmpeg)
 
 
 if __name__ == '__main__':

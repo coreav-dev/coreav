@@ -12,7 +12,7 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
-from test_oracle import verify_bin
+import test_oracle
 
 
 FIELDS = (
@@ -43,7 +43,7 @@ def native_command(coreav, input_path, output, before=(), after=()):
 
 
 def check(coreav, oracle, root):
-    ffmpeg, ffprobe = oracle / "ffmpeg", oracle / "ffprobe"
+    ffmpeg, ffprobe = oracle.ffmpeg, oracle.ffprobe
     env = {**os.environ, "COREAV_STRICT_SAFE": "1", "COREAV_FALLBACK": str(root / "absent-ffmpeg")}
     outcomes = []
 
@@ -185,11 +185,12 @@ def main():
     parser.add_argument("--oracle-dir", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
-    problems = list(verify_bin(args.oracle_dir))
-    if problems:
-        parser.error("; ".join(problems))
+    try:
+        oracle = test_oracle.require(args.oracle_dir / "ffmpeg", args.oracle_dir / "ffprobe")
+    except test_oracle.QualificationError as error:
+        parser.error(str(error))
     with tempfile.TemporaryDirectory(prefix="coreav-pcm-") as directory:
-        outcomes = check(args.coreav.resolve(), args.oracle_dir.resolve(), Path(directory))
+        outcomes = check(args.coreav.resolve(), oracle, Path(directory))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps({"outcomes": outcomes}, indent=2) + "\n")
     print(f"PCM output: {len(outcomes)} commands matched samples and ffprobe fields")
