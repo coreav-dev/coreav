@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use super::*;
 use crate::motion::{Layout, Part};
 use coreav_kernels_h264::Block;
@@ -109,9 +111,9 @@ fn predict(
         part.mv.y.rem_euclid(divisor) as u8,
     );
     if chroma {
-        Scalar.chroma_mc(dst, src, xf, yf);
+        crate::kernels::pixels().chroma_mc(dst, src, xf, yf);
     } else {
-        Scalar.luma_mc(dst, src, xf, yf);
+        crate::kernels::pixels().luma_mc(dst, src, xf, yf);
     }
     Ok(())
 }
@@ -266,9 +268,7 @@ impl Search<'_> {
                         .data
                         .get(start..start + part.width)
                         .ok_or(Error::Internal)?;
-                    for (&a, &b) in original.iter().zip(predicted) {
-                        sad += u64::from(a.abs_diff(b));
-                    }
+                    sad += crate::kernels::sad(original, predicted)?;
                 } else {
                     for (x, &a) in original.iter().enumerate() {
                         sad += u64::from(a.abs_diff(reference.sample(ix + x as i32, iy)?));
@@ -283,12 +283,15 @@ impl Search<'_> {
             let mut tile = Tile::empty();
             predict(reference, &mut tile, part, self.mx, self.my, false)?;
             for y in part.y..part.y + part.height {
-                for x in part.x..part.x + part.width {
-                    let at = Tile::at(x, y);
-                    let original = *self.decision.source.0.get(at).ok_or(Error::Internal)?;
-                    let predicted = *tile.0.get(at).ok_or(Error::Internal)?;
-                    sad += u64::from((i32::from(original) - i32::from(predicted)).unsigned_abs());
-                }
+                let at = Tile::at(part.x, y);
+                let original = self
+                    .decision
+                    .source
+                    .0
+                    .get(at..at + part.width)
+                    .ok_or(Error::Internal)?;
+                let predicted = tile.0.get(at..at + part.width).ok_or(Error::Internal)?;
+                sad += crate::kernels::sad(original, predicted)?;
                 if cutoff.is_some_and(|limit| sad + motion_cost > limit) {
                     return Ok(None);
                 }

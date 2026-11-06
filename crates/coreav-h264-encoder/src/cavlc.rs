@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::vlc::{CHROMA_ZEROS, RUNS, TOKENS, ZEROS};
 use crate::{Error, Result, bits::Bits};
 

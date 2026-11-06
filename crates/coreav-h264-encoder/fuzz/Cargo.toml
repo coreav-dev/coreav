@@ -1,0 +1,29 @@
+[package]
+name = "coreav-h264-encoder-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[features]
+scalar = []
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-h264-encoder = { path = "..", features = ["full"] }
+coreav-kernels-h264 = { path = "../../coreav-kernels-h264" }
+
+[[bin]]
+name = "sad"
+path = "fuzz_targets/sad.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "deny"
