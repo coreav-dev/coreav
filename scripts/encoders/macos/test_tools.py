@@ -24,6 +24,7 @@ import process
 import registration
 import smoke
 import timing
+from test_oracle import Oracle
 
 
 def h(value):
@@ -486,6 +487,14 @@ class Smoke(unittest.TestCase):
     @mock.patch.object(smoke.sys, "platform", "linux")
     @mock.patch.object(smoke.platform, "machine", return_value="x86_64")
     def test_oracle_commands_are_explicit_and_errors_cannot_be_availability(self, machine):
+        self.verify_oracle_commands()
+
+    @mock.patch.object(smoke.sys, "platform", "linux")
+    @mock.patch.object(smoke.platform, "machine", return_value="x86_64")
+    def test_smoke_executes_the_distinctive_returned_owner_pair(self, machine):
+        self.verify_oracle_commands(distinctive=True)
+
+    def verify_oracle_commands(self, distinctive=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             capture, oracle = root / "capture", root / "oracle"
@@ -494,6 +503,12 @@ class Smoke(unittest.TestCase):
             smoke_directory(capture)
             for name in ("ffmpeg", "ffprobe"):
                 (oracle / name).write_bytes(name.encode())
+            owner_dir = root / "owner"
+            owner_dir.mkdir()
+            for name in ("ffmpeg", "ffprobe"):
+                (owner_dir / name).write_bytes(name.encode())
+            selected = Oracle(owner_dir / "ffmpeg", owner_dir / "ffprobe") if distinctive else \
+                Oracle(oracle / "ffmpeg", oracle / "ffprobe")
             decoder = root / "decoder"
             decoder.write_bytes(b"fake independent decoder")
             commands = []
@@ -517,18 +532,22 @@ class Smoke(unittest.TestCase):
                                    "width": 64, "height": 64, "frames": 4, "warnings": 0})
                 return 1
 
-            with mock.patch.object(smoke, "run", side_effect=fake):
+            with mock.patch("test_oracle.require", return_value=selected) as owner, \
+                    mock.patch.object(smoke, "run", side_effect=fake):
                 result = smoke.verify_capture(capture, oracle, "hardware", decoder, True)
+            owner.assert_called_once_with(oracle.resolve() / "ffmpeg", oracle.resolve() / "ffprobe")
             self.assertEqual(result["status"], "verified")
             self.assertTrue(any("install-oracle-ffmpeg.sh" in str(arg) for command in commands for arg in command))
-            self.assertTrue(any("--verify-bin" in command for command in commands))
+            self.assertEqual([command[0] for command in commands[1:]],
+                             [str(selected.ffmpeg), str(selected.ffprobe), str(decoder.resolve())])
             decode = next(command for command in commands if str(command[0]).endswith("ffmpeg"))
             self.assertLess(decode.index("-c:v"), decode.index("-i"))
             self.assertEqual(decode[decode.index("-c:v") + 1], "h264")
             self.assertIn("-xerror", decode)
             self.assertNotIn("-c", decode)
             for error in (evidence.Invalid("timeout"), evidence.Invalid("child_failure"), OSError("secret-path")):
-                with mock.patch.object(smoke, "run", side_effect=error), self.assertRaises(type(error)):
+                with mock.patch("test_oracle.require", return_value=selected), \
+                        mock.patch.object(smoke, "run", side_effect=error), self.assertRaises(type(error)):
                     smoke.verify_capture(capture, oracle, "hardware", decoder)
             record = evidence.load(capture / "capture.json")
             record["files"]["video.h264"]["sha256"] = h("changed")
@@ -802,7 +821,7 @@ class Judgments(unittest.TestCase):
                 return cache_fact(source, instant, instant + 1)
 
             with mock.patch.multiple(timing,
-                    preflight=mock.Mock(return_value=reg), input_hashes=mock.Mock(), warm=mock.Mock(),
+                    preflight=mock.Mock(return_value=(reg, Oracle(root / reg["executables"]["ffmpeg"]["file"], root / "ffprobe"))), input_hashes=mock.Mock(), warm=mock.Mock(),
                     ram_volume=mock.Mock(), host_state=mock.Mock(return_value=observation()),
                     availability_file=mock.Mock(return_value={"registration_sha256": registration_hash}),
                     run=encode, capture_identity=identity), \
@@ -886,12 +905,14 @@ class Retention(unittest.TestCase):
                 nonlocal count
                 count += 1
                 if count == 2:
+                    self.assertEqual(command[0], str(selected.ffmpeg))
                     raise evidence.Invalid("process_infrastructure")
                 Path(command[command.index("--output") + 1]).write_bytes(b"fake output")
                 evidence.write(Path(command[command.index("--report") + 1]), {})
                 return 1
 
-            with mock.patch.object(timing, "preflight", return_value=reg), \
+            selected = Oracle(root / "owner-encoder", root / "owner-probe")
+            with mock.patch.object(timing, "preflight", return_value=(reg, selected)), \
                     mock.patch.object(timing, "bound_gate", return_value=({"ended_ns": time.time_ns() - 1000000}, 1)), \
                     mock.patch.object(timing, "availability_file", return_value={"registration_sha256": reg_hash}), \
                     mock.patch.object(timing, "ram_volume"), \

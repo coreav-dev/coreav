@@ -78,11 +78,13 @@ def ram_volume(directory):
         require(any(directory == mount or directory.is_relative_to(mount) for mount in mounts), "ram_volume")
 
 
-def commands(registration, item, cell, root, output, native_report):
+def commands(registration, item, cell, root, output, native_report, oracle=None):
     covered_class(item)
     rate = item["rate"]
     values = {name: str(Path(root) / record["file"])
               for name, record in registration["executables"].items()}
+    if oracle is not None:
+        values["ffmpeg"] = str(oracle.ffmpeg)
     values.update(raw=str(Path(root) / item["raw_file"]), width=str(item["width"]),
                   height=str(item["height"]), geometry=f'{item["width"]}x{item["height"]}',
                   rate_num=str(rate["num"]), rate_den=str(rate["den"]),
@@ -187,7 +189,7 @@ def capture_gate(args):
               "phase": args.phase, "diagnostic": "gate_incomplete"}
     write_gate(args.report, result)
     try:
-        reg = preflight(args.registration, args.root)
+        reg, oracle = preflight(args.registration, args.root)
         cache.preflight(reg, args.root)
         reg_hash = file_hash(args.registration)
         available = availability_file(args.availability, reg, args.root)
@@ -218,7 +220,7 @@ def capture_gate(args):
                         directory = temporary / f"{arm}-{iteration}-{label}"
                         directory.mkdir()
                         output = directory / "video.h264"
-                        command = commands(reg, source, "hardware", args.root, output, directory / "packets.stats")["ffmpeg"]
+                        command = commands(reg, source, "hardware", args.root, output, directory / "packets.stats", oracle)["ffmpeg"]
                         pair[label + "_started_ns"] = time.time_ns()
                         pair[label + "_ns"] = run(command, directory, 300, env=environment)
                         pair[label + "_ended_ns"] = time.time_ns()
@@ -275,7 +277,7 @@ def execute(args):
     args.report.parent.mkdir(parents=True, exist_ok=True)
     write(args.report, report)
     try:
-        registration = preflight(args.registration, args.root)
+        registration, oracle = preflight(args.registration, args.root)
         report.update(coverage(registration))
         cache.preflight(registration, args.root)
         registration_hash = file_hash(args.registration)
@@ -307,7 +309,7 @@ def execute(args):
                             directory = working / call
                             directory.mkdir()
                             output, native = directory / "video.h264", directory / "native.json"
-                            command = commands(registration, item, cell, args.root, output, native)[side]
+                            command = commands(registration, item, cell, args.root, output, native, oracle)[side]
                             record = {"cell": cell, "input_id": item["id"], "iteration": iteration,
                                       "side": side, "elapsed_ns": None, "status": "aborted",
                                       "output_sha256": None, "output_bytes": None,

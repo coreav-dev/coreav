@@ -21,6 +21,7 @@ import producer
 import registration
 import smoke
 import timing
+from test_oracle import Oracle
 from test_tools import h, hosted_refusal, native, observation, proof, registered
 
 SPS = b"\x67\x64\x00\x1f\x80"
@@ -422,7 +423,7 @@ class RealEvidencePaths(unittest.TestCase):
             args = SimpleNamespace(oracle_bin=root, coreav_decoder=root / "decoder", model=model, resume=False,
                                    registration=root / "registration.json", capture=root / "timing.json")
             with mock.patch.object(producer, "run", side_effect=fake):
-                result = producer.analyse(directory, source, item, "hardware", "ffmpeg", reg, args, spec())
+                result = producer.analyse(directory, source, item, "hardware", "ffmpeg", reg, args, spec(), Oracle(root / "ffmpeg", root / "ffprobe"))
             self.assertEqual(result["baseline"]["identity"]["encoder_id"], "actual.fake.encoder")
             self.assertEqual(result["requested_settings"]["observation"], "unobserved")
             self.assertEqual(sum(row["bytes"] for row in result["packet_ledger"]), len(VIDEO))
@@ -468,19 +469,19 @@ class RealEvidencePaths(unittest.TestCase):
             evidence.write(directory / "native.json", native_report(item))
             with mock.patch.object(producer, "run", side_effect=evidence.Invalid("process_infrastructure")), \
                     self.assertRaises(evidence.Invalid):
-                producer.analyse(directory, source, item, "hardware", "coreav", reg, args, spec())
+                producer.analyse(directory, source, item, "hardware", "coreav", reg, args, spec(), Oracle(root / "ffmpeg", root / "ffprobe"))
             self.assertEqual(evidence.load(directory / "analysis-owner.json")["status"], "incomplete")
             (directory / "analysis-owner.json.tmp").write_bytes(b'{"partial":')
             (directory / "analysis" / "unrelated.txt").write_bytes(b"keep")
             args.resume = True
             with mock.patch.object(producer, "run") as command, self.assertRaises(evidence.Invalid):
-                producer.analyse(directory, source, item, "hardware", "coreav", reg, args, spec())
+                producer.analyse(directory, source, item, "hardware", "coreav", reg, args, spec(), Oracle(root / "ffmpeg", root / "ffprobe"))
             command.assert_not_called()
             self.assertEqual((directory / "analysis" / "unrelated.txt").read_bytes(), b"keep")
             (directory / "analysis" / "unrelated.txt").unlink()
             fake = FakeCommands(item, smoke.source())
             with mock.patch.object(producer, "run", side_effect=fake):
-                result = producer.analyse(directory, source, item, "hardware", "coreav", reg, args, spec())
+                result = producer.analyse(directory, source, item, "hardware", "coreav", reg, args, spec(), Oracle(root / "ffmpeg", root / "ffprobe"))
             self.assertTrue((directory / "failure.json").exists())
             self.assertFalse((directory / "analysis-owner.json.tmp").exists())
             producer.verify_output(result, directory, source, item, "hardware", "coreav", reg, spec(), args)
@@ -490,9 +491,9 @@ class RealEvidencePaths(unittest.TestCase):
             (other / "video.h264").write_bytes(VIDEO)
             evidence.write(other / "native.json", native_report(item))
             with mock.patch.object(producer, "run", side_effect=evidence.Invalid("child_crash")), self.assertRaises(evidence.Invalid):
-                producer.analyse(other, source, item, "hardware", "coreav", reg, args, spec())
+                producer.analyse(other, source, item, "hardware", "coreav", reg, args, spec(), Oracle(root / "ffmpeg", root / "ffprobe"))
             with mock.patch.object(producer, "run") as command, self.assertRaises(evidence.Invalid):
-                producer.analyse(other, source, item, "hardware", "coreav", reg, args, spec())
+                producer.analyse(other, source, item, "hardware", "coreav", reg, args, spec(), Oracle(root / "ffmpeg", root / "ffprobe"))
             command.assert_not_called()
 
     def test_fake_commands_produce_replayable_dual_decode_and_metric_bytes(self):
@@ -515,21 +516,24 @@ class RealEvidencePaths(unittest.TestCase):
             args = SimpleNamespace(oracle_bin=root, coreav_decoder=root / "decoder", model=model, resume=False,
                                    registration=root / "registration.json", capture=root / "timing.json")
             fake = FakeCommands(item, smoke.source())
+            selected = Oracle(root / "owner" / "ffmpeg", root / "owner" / "ffprobe")
             with mock.patch.object(producer, "run", side_effect=fake):
-                result = producer.analyse(directory, source, item, "hardware", "coreav", reg, args, spec())
+                result = producer.analyse(directory, source, item, "hardware", "coreav", reg, args, spec(), selected)
             producer.verify_output(result, directory, source, item, "hardware", "coreav", reg, spec(), args)
             args.resume = True
             with mock.patch.object(producer, "run", side_effect=AssertionError("completed work reran")):
-                self.assertEqual(producer.analyse(directory, source, item, "hardware", "coreav", reg, args, spec()), result)
+                self.assertEqual(producer.analyse(directory, source, item, "hardware", "coreav", reg, args, spec(), selected), result)
             changed = copy.deepcopy(reg)
             changed["metric_tools"]["model"] = h("changed-model")
             with mock.patch.object(producer, "run") as command, self.assertRaises(evidence.Invalid):
-                producer.analyse(directory, source, item, "hardware", "coreav", changed, args, spec())
+                producer.analyse(directory, source, item, "hardware", "coreav", changed, args, spec(), selected)
             command.assert_not_called()
             self.assertEqual(result["metrics"]["frames"][0]["squared_error"], 6144)
             self.assertEqual(result["metrics"]["frames"][0]["samples"], 6144)
             self.assertEqual(result["decoders"]["coreav"]["frame_sha256"], result["decoders"]["ffmpeg"]["frame_sha256"])
             commands = fake.commands
+            self.assertEqual([command[0] for command in commands if Path(command[0]).name in ("ffmpeg", "ffprobe")],
+                             [str(selected.ffmpeg), str(selected.ffprobe), str(selected.ffmpeg)])
             self.assertTrue(any("compare" in command for command in commands))
             graph = next(command[command.index("-filter_complex") + 1] for command in commands if "-filter_complex" in command)
             self.assertIn("libvmaf=model=path=model.json", graph)
@@ -592,7 +596,10 @@ class RealEvidencePaths(unittest.TestCase):
                     "files": evidence.bind(directory, names, SMALL)})
 
             SMALL = producer.SMALL
-            with mock.patch.object(producer, "preflight", return_value=reg), \
+            (root / "owner").mkdir()
+            (root / "owner/ffprobe").write_bytes(b"ffprobe")
+            selected = Oracle(root / "owner/ffmpeg", root / "owner/ffprobe")
+            with mock.patch.object(producer, "preflight", return_value=(reg, selected)) as admission, \
                     mock.patch.object(timing, "host_state", return_value=observation()), \
                     mock.patch.object(observations, "host_observation", return_value=reg["host"]), \
                     mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}), \
@@ -600,6 +607,11 @@ class RealEvidencePaths(unittest.TestCase):
                     mock.patch.object(smoke, "capture", side_effect=native_capture), \
                     mock.patch.object(producer, "run", side_effect=fake):
                 producer.capture_preflights(args)
+            self.assertEqual(admission.call_args_list[0], mock.call(args.registration, args.root, args.ffprobe))
+            for name in ("ffmpeg", "ffprobe"):
+                commands = [command for command in fake.commands if Path(command[0]).name == name]
+                self.assertTrue(commands)
+                self.assertTrue(all(command[0] == str(getattr(selected, name)) for command in commands))
             result = timing.availability_file(args.output / "availability.json", reg, root)
             self.assertEqual(result["cells"]["hardware"]["ffmpeg"]["status"], "encoded")
             self.assertEqual(result["cells"]["software"]["coreav"]["status"], "unavailable")
@@ -614,7 +626,7 @@ class RealEvidencePaths(unittest.TestCase):
             (software / "manifest.json").write_bytes(original)
             refused_software = True
             refused_args = SimpleNamespace(**{**vars(args), "output": root / "hosted-refusal"})
-            with mock.patch.object(producer, "preflight", return_value=reg), \
+            with mock.patch.object(producer, "preflight", return_value=(reg, Oracle(root / "ffmpeg", (root / "ffprobe").resolve()))), \
                     mock.patch.object(timing, "host_state", return_value=observation()), \
                     mock.patch.object(observations, "host_observation", return_value=reg["host"]), \
                     mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}), \
@@ -634,7 +646,7 @@ class RealEvidencePaths(unittest.TestCase):
                 timing.availability_file(args.output / "availability.json", reg, root)
             fake.drop_observation = "encoder_id"
             args.output = root / "missing-observation"
-            with mock.patch.object(producer, "preflight", return_value=reg), \
+            with mock.patch.object(producer, "preflight", return_value=(reg, Oracle(root / "ffmpeg", (root / "ffprobe").resolve()))), \
                     mock.patch.object(timing, "host_state", return_value=observation()), \
                     mock.patch.object(observations, "host_observation", return_value=reg["host"]), \
                     mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}), \
@@ -766,7 +778,7 @@ class GuardedEntry(unittest.TestCase):
             with mock.patch.object(producer, "trusted_analysis_event"), \
                     mock.patch.object(producer, "validate", return_value=reg), \
                     mock.patch.object(producer, "campaign_binding", return_value=binding), \
-                    mock.patch.object(producer, "analysis_preflight", return_value=reg), \
+                    mock.patch.object(producer, "analysis_preflight", return_value=(reg, Oracle(root / "ffmpeg", root / "ffprobe"))), \
                     mock.patch.object(producer, "run", side_effect=AssertionError("sealed media reran")):
                 evidence.write(args.registration, {})
                 with mock.patch.object(timing, "replay", side_effect=KeyboardInterrupt), \

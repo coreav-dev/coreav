@@ -86,7 +86,7 @@ class RecipeTests(unittest.TestCase):
     def test_exact_literal_conversion_and_command(self):
         value = item()
         before = copy.deepcopy(value)
-        command = p.command("/local/source.bin", value, "/local/oracle")
+        command = p.command("/local/source.bin", value, "/local/oracle/ffmpeg")
         conversion = (
             "scale=w=iw:h=ih:flags=bilinear+accurate_rnd+bitexact:sws_dither=none:in_color_matrix=bt709:"
             "out_color_matrix=bt709:in_range=tv:out_range=tv:threads=1,format=pix_fmts=yuv444p16le,"
@@ -258,7 +258,7 @@ class MaterializationTests(unittest.TestCase):
                 )
                 if phase == "oracle":
                     self.assertEqual(
-                        argv[1:3], ["-I", str(p.ROOT / "scripts/oracle_pin.py")]
+                        argv[1:3], ["-I", str(p.ROOT / "scripts/test_oracle.py")]
                     )
                     if after_capture:
                         after_capture(phase, source, oracle)
@@ -275,6 +275,7 @@ class MaterializationTests(unittest.TestCase):
                 return result
 
             with (
+                mock.patch("test_oracle.require", return_value=p.test_oracle.Oracle(oracle / "ffmpeg", oracle / "ffprobe")),
                 mock.patch.object(process, "capture", side_effect=captured) as capture,
                 mock.patch.object(process, "publish", side_effect=published),
             ):
