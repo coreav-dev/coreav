@@ -3,8 +3,7 @@
 use super::*;
 use coreav_isobmff::{Error, SliceSource};
 
-#[path = "../../../coreav-isobmff/tests/common/text_movie.rs"]
-mod common;
+use super::summary_test_movie as common;
 
 fn movie(samples: &[Vec<u8>]) -> (Vec<u8>, Movie) {
     let mut entry = vec![0; 78];
