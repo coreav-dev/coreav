@@ -56,6 +56,8 @@ def main():
                         case.mkdir(exist_ok=True)
                         for name, driver in (("auto", args.auto_driver), ("scalar", args.scalar_driver)):
                             prefix = case / name
+                            for suffix in ("h264", "recon", "decoded"):
+                                prefix.with_suffix("." + suffix).unlink(missing_ok=True)
                             command = [str(driver.resolve()), str(width), str(height), str(qp), str(frames), str(raw.resolve()), str(prefix.with_suffix(".h264").resolve()), str(prefix.with_suffix(".recon").resolve()), str(prefix.with_suffix(".decoded").resolve()), deblock, str(interval)]
                             result = subprocess.run(command, capture_output=True, timeout=120)
                             if result.returncode or result.stderr:

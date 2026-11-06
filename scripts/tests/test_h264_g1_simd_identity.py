@@ -2,8 +2,10 @@ import importlib.util
 import json
 from pathlib import Path
 import statistics
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 SPEC = importlib.util.spec_from_file_location("simd_identity", Path(__file__).parents[1] / "h264_g1_simd_identity.py")
@@ -12,6 +14,21 @@ SPEC.loader.exec_module(IDENTITY)
 
 
 class IdentityTests(unittest.TestCase):
+    def test_noop_driver_cannot_reuse_outputs_from_an_earlier_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = Path(tmp) / "32x32-ramp-10-false-1"
+            case.mkdir()
+            for name in ("auto", "scalar"):
+                for suffix in ("h264", "recon", "decoded"):
+                    (case / name).with_suffix("." + suffix).write_bytes(b"x" * 6144)
+            args = ["identity", "--auto-driver", sys.executable, "--scalar-driver", sys.executable, "--output", tmp]
+            noop = IDENTITY.subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
+            with mock.patch.object(sys, "argv", args), mock.patch.object(IDENTITY.subprocess, "run", return_value=noop):
+                with self.assertRaises(FileNotFoundError):
+                    IDENTITY.main()
+            self.assertFalse((case / "auto.h264").exists())
+            self.assertFalse((case / "scalar.h264").exists())
+
     def test_reference_retains_all_pairs_and_prior_stream_identities(self):
         design = Path(__file__).parents[2] / "docs/design"
         record = json.loads((design / "h264-encoder-simd-reference.json").read_text())
