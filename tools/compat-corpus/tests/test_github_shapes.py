@@ -869,6 +869,21 @@ class AccountingAndGate(unittest.TestCase):
         self.assertIn(' '.join(run.BUILD), text)
         self.assertLess(text.index('candidate_not_merged'), text.index('cargo build'))
 
+    def test_measure_runs_the_candidate_only_on_the_dispatching_owner_pair(self):
+        measure = (run.ROOT / '.github/workflows/github-shapes.yml').read_text().split('  measure:', 1)[1].split('\n  aac-controls:', 1)[0]
+        copy = measure.index('"$RUNNER_TEMP/oracle-owner/scripts/"')
+        self.assertLess(copy, measure.index('git checkout --detach "$COMMIT"'))
+        self.assertIn('cp scripts/test_oracle.py scripts/oracle_pin.py scripts/oracle_pin_macos.py scripts/oracle-ffmpeg.env \\\n'
+                      '            scripts/oracle-ffmpeg-macos.env "$RUNNER_TEMP/oracle-owner/scripts/"', measure)
+        resolve = measure.index('"$RUNNER_TEMP/oracle-owner/scripts/test_oracle.py" --resolve')
+        driver = measure.index('github_shapes.py run')
+        self.assertLess(resolve, driver)
+        command = measure[driver:measure.index('--summary', driver)]
+        self.assertIn('--ffmpeg "$FFMPEG"', command)
+        self.assertIn('--ffprobe "$FFPROBE"', command)
+        self.assertNotIn('oracle/ffmpeg', command)
+        self.assertNotIn('oracle/ffprobe', command)
+
 
 if __name__ == '__main__':
     unittest.main()

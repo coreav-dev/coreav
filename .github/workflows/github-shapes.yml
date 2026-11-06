@@ -68,6 +68,9 @@ jobs:
           [ "$GITHUB_REF" = refs/heads/main ] || { echo '::error::main_dispatch_required'; exit 1; }
           [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::candidate_sha'; exit 1; }
           git merge-base --is-ancestor "$COMMIT" origin/main || { echo '::error::candidate_not_merged'; exit 1; }
+          mkdir -p "$RUNNER_TEMP/oracle-owner/scripts"
+          cp scripts/test_oracle.py scripts/oracle_pin.py scripts/oracle_pin_macos.py scripts/oracle-ffmpeg.env \
+            scripts/oracle-ffmpeg-macos.env "$RUNNER_TEMP/oracle-owner/scripts/"
           git checkout --detach "$COMMIT"
           test -f docs/design/github-shapes-200.md
           test -f tools/compat-corpus/github_shapes.py
@@ -99,11 +102,18 @@ jobs:
       - name: Acquire and replay all registered shapes
         run: |
           set -euo pipefail
+          ORACLE_PATHS="$(python3 -I -B "$RUNNER_TEMP/oracle-owner/scripts/test_oracle.py" --resolve \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe")"
+          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+            exit 1
+          fi
           python3 tools/compat-corpus/github_shapes.py run --commit "$COMMIT" \
             --build-record "$RUNNER_TEMP/shape-build.json" \
-            --coreav "$PWD/target/release/coreav" --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+            --coreav "$PWD/target/release/coreav" --ffmpeg "$FFMPEG" \
             --pns-diagnostic "$PWD/target/release/examples/pns_diagnostic" \
-            --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --x264 "$RUNNER_TEMP/oracle/x264" \
+            --ffprobe "$FFPROBE" --x264 "$RUNNER_TEMP/oracle/x264" \
             --bundle "$RUNNER_TEMP/shape-evidence" --scratch "$RUNNER_TEMP/shape-replay" \
             --summary "$RUNNER_TEMP/shape-summary.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
