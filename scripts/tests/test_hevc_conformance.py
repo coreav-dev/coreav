@@ -1013,7 +1013,10 @@ class Conformance(unittest.TestCase):
             path.write_bytes(b'abc')
             return path
 
-        def inspect(item, path, out, oracle_bin, *, intra=None, complete=None):
+        qualified = runner.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
+
+        def inspect(item, path, out, oracle, *, intra=None, complete=None):
+            self.assertIs(oracle, qualified)
             self.assertIsNone(intra)
             self.assertIsNone(complete)
             self.assertEqual(path.read_bytes(), b'abc')
@@ -1025,9 +1028,10 @@ class Conformance(unittest.TestCase):
                                manifests=manifests)
         with mock.patch.dict(sys.modules, {'round_files': round_files, 'r2pool': limits}), \
                 mock.patch.object(runner, 'roster', return_value=files), \
-                mock.patch.object(runner.test_oracle, 'verify_bin', return_value=[]), \
+                mock.patch.object(runner.test_oracle, 'require', return_value=qualified) as require, \
                 mock.patch.object(runner, 'corpus_record', side_effect=inspect):
             runner.fetch_corpus(args, inspect=True)
+        require.assert_called_once_with(self.root / 'ffmpeg', self.root / 'ffprobe')
         self.assertEqual(list(dest.iterdir()), [keep])
         receipt = runner.read_json(args.out / 'corpus-census.json')
         self.assertEqual([f['status'] for f in receipt['files']], ['inspected', 'inspected'])
@@ -1035,6 +1039,43 @@ class Conformance(unittest.TestCase):
         self.assertFalse(receipt['passed'])
         self.assertTrue(all('key' not in f for f in receipt['files']))
         pool.close.assert_called_once()
+
+    def test_census_executes_the_qualified_oracle_pair_not_the_caller_directory(self):
+        import hevc_decode
+        caller, selected = self.root / 'caller', self.root / 'qualified'
+        for directory in (caller, selected):
+            directory.mkdir()
+            for name in ('ffmpeg', 'ffprobe', 'native', 'parser'):
+                (directory / name).write_bytes(directory.name.encode() + name.encode())
+        qualified = runner.test_oracle.Oracle(selected / 'ffmpeg', selected / 'ffprobe')
+        with mock.patch.object(runner.test_oracle, 'require', return_value=qualified) as require:
+            self.assertIs(runner.qualified_oracle(caller), qualified)
+        require.assert_called_once_with(caller / 'ffmpeg', caller / 'ffprobe')
+        with mock.patch.object(runner.test_oracle, 'require',
+                               side_effect=runner.test_oracle.QualificationError('stage=oracle_qualification: x')):
+            with self.assertRaisesRegex(ValueError, 'pinned oracle binaries are required'):
+                runner.qualified_oracle(caller)
+        source = self.root / 'original.mp4'
+        source.write_bytes(b'abc')
+        item = dict(sha256=runner.digest(source), size=3, partition='held-out-partition', sets=[])
+        out, err = self.root / 'metadata.stdout', self.root / 'metadata.stderr'
+        runner.write_json(out, dict(format=dict(format_name='mp4'), streams=[dict(codec_type='video', codec_name='hevc',
+            index=0, profile='Main', width=16, height=16, pix_fmt='yuv420p', field_order='progressive')]))
+        err.write_text('')
+        commands = []
+
+        def child(command, directory, label, **kwargs):
+            commands.append(command)
+            return (0, out, err) if label == 'metadata' else (1, out, err)
+
+        options = dict(native=selected / 'native', parser=selected / 'parser', max_memory_bytes=1024,
+                       max_stream_bins=100, max_picture_bins=10)
+        with mock.patch.object(runner, 'child', side_effect=child), \
+                mock.patch.object(hevc_decode.harness, 'child', side_effect=child):
+            record = runner.corpus_record(item, source, self.root / 'out', qualified, complete=options)
+        self.assertEqual(record['status'], 'blocked')
+        self.assertEqual([command[0] for command in commands], [selected / 'ffprobe', selected / 'ffmpeg'])
+        self.assertEqual(record['decode']['oracle'], {name: runner.digest(selected / name) for name in ('ffmpeg', 'ffprobe')})
 
     def test_configuration_diagnostics_stay_out_of_public_census_records(self):
         source = self.root / 'original.mp4'
@@ -1044,8 +1085,9 @@ class Conformance(unittest.TestCase):
             profile='Main 10', width=16, height=16, pix_fmt='yuv420p10le', extradata='private configuration canary')]))
         err.write_text('')
         item = dict(sha256=runner.digest(source), size=3, partition='held-out-partition')
+        qualified = runner.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe')
         with mock.patch.object(runner, 'child', return_value=(0, out, err)) as child:
-            record = runner.corpus_record(item, source, self.root, self.root)
+            record = runner.corpus_record(item, source, self.root, qualified)
         self.assertIn('-show_data', child.call_args.args[0])
         self.assertEqual(record['status'], 'inspected')
         self.assertNotIn('canary', json.dumps(record))
@@ -1060,15 +1102,16 @@ class Conformance(unittest.TestCase):
             profile='Main', width=16, height=16, pix_fmt='yuv420p', field_order='progressive')]))
         err.write_text('')
         options = dict(native=self.root / 'native', parser=self.root / 'headers', max_memory_bytes=1024, max_bins=100)
+        qualified = runner.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe')
         for partition in ('held-out-partition', 'development'):
             item = dict(sha256=runner.digest(source), size=3, partition=partition)
             with mock.patch.object(runner, 'child', return_value=(0,out,err)), \
                     mock.patch('hevc_intra.development_picture', return_value=dict(complete=True)) as decode:
-                record = runner.corpus_record(item, source, self.root, self.root, intra=options)
+                record = runner.corpus_record(item, source, self.root, qualified, intra=options)
                 self.assertEqual(record['status'], 'inspected')
                 if partition == 'development':
                     self.assertTrue(record['intra']['complete'])
-                    decode.assert_called_once_with(item,source,self.root / item['sha256'],self.root,**options)
+                    decode.assert_called_once_with(item,source,self.root / item['sha256'],qualified,**options)
                 else:
                     self.assertNotIn('intra', record)
                     decode.assert_not_called()

@@ -61,6 +61,13 @@ EXCLUSION_TRIAL_IDENTITIES = {
 }
 
 
+def qualified_oracle(directory):
+    try:
+        return test_oracle.require(directory / 'ffmpeg', directory / 'ffprobe')
+    except test_oracle.QualificationError as error:
+        raise ValueError(f'pinned oracle binaries are required: {error}') from None
+
+
 def require(condition, message):
     if not condition:
         raise ValueError(message)
@@ -1239,7 +1246,7 @@ def fetch_corpus(args, inspect=False):
                  files=len(selected)) if count != 1 else None
     files = selected
     if inspect:
-        require(not list(test_oracle.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
+        qualified = qualified_oracle(args.oracle_bin)
         if getattr(args, 'packet_native', None):
             require(args.parser and args.packet_native.is_file() and args.parser.is_file()
                     and 0 < args.decode_memory_bytes <= 4 << 30
@@ -1299,7 +1306,7 @@ def fetch_corpus(args, inspect=False):
                         if getattr(args, 'boundary_native', None):
                             require(complete is not None and args.boundary_native.is_file(), 'boundary_requires_packet_native')
                             complete['boundary'] = args.boundary_native
-                        records[index] = corpus_record(item, path, args.out, args.oracle_bin, intra=options, complete=complete)
+                        records[index] = corpus_record(item, path, args.out, qualified, intra=options, complete=complete)
                         write_json(args.out / 'corpus-census.json', corpus_result(records, expected, scope))
                     finally:
                         path.unlink(missing_ok=True)
@@ -1311,12 +1318,12 @@ def fetch_corpus(args, inspect=False):
         pool.close()
 
 
-def corpus_record(item, path, directory, oracle_bin, *, intra=None, complete=None):
+def corpus_record(item, path, directory, qualified, *, intra=None, complete=None):
     record = dict(item)
     try:
         require(path.stat().st_size == item['size'] and digest(path) == item['sha256'],
                 'corpus size or SHA-256 differs')
-        command = [oracle_bin / 'ffprobe', '-v', 'error', '-show_format', '-show_streams', '-show_data', '-of', 'json', path]
+        command = [qualified.ffprobe, '-v', 'error', '-show_format', '-show_streams', '-show_data', '-of', 'json', path]
         code, out, err = child(command, directory / item['sha256'], 'metadata')
         require(code == 0 and not err.read_bytes().strip(), 'corpus metadata oracle failed')
         meta = read_json(out)
@@ -1333,7 +1340,7 @@ def corpus_record(item, path, directory, oracle_bin, *, intra=None, complete=Non
         record['admission'] = 'requires native parameter-set validation'
         if intra and item['partition'] == 'development':
             import hevc_intra
-            record['intra'] = hevc_intra.development_picture(item, path, directory / item['sha256'], oracle_bin, **intra)
+            record['intra'] = hevc_intra.development_picture(item, path, directory / item['sha256'], qualified, **intra)
             record['admission'] = 'first independent IRAP validated; full decode not established'
         if complete:
             import hevc_decode
@@ -1341,7 +1348,7 @@ def corpus_record(item, path, directory, oracle_bin, *, intra=None, complete=Non
                 complete = dict(complete, refusal_stream_index=stream['index'])
             scope_refusal = (record['profile'] not in ('Main', 'Main 10') or record['bit_depth'] not in (8, 10)
                              or record['field_order'] not in (None, 'unknown', 'progressive'))
-            record['decode'] = hevc_decode.corpus_decode(item, path, directory / item['sha256'], oracle_bin,
+            record['decode'] = hevc_decode.corpus_decode(item, path, directory / item['sha256'], qualified,
                                                        scope_refusal=scope_refusal, **complete)
             record['admission'] = 'expected profile refusal' if 'expected_refusal' in record['decode'] else 'complete packet comparison'
             if record['decode'].get('follow_up') in PACKET_TOOLING_REFUSALS:
@@ -1428,12 +1435,12 @@ def corpus_result(records, expected=None, scope=None):
 
 
 def corpus(args):
-    require(not list(test_oracle.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
+    qualified = qualified_oracle(args.oracle_bin)
     files = roster()
     records = [dict(item, status='not_run') for item in files]
     for index, item in enumerate(files):
         path = args.data / f"{item['sha256']}.{item['ext']}"
-        records[index] = corpus_record(item, path, args.out, args.oracle_bin)
+        records[index] = corpus_record(item, path, args.out, qualified)
         write_json(args.out / 'corpus-census.json', corpus_result(records))
     require(all(r['status'] == 'inspected' for r in records), 'corpus metadata census blocked')
 

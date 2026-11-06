@@ -55,15 +55,16 @@ class Packing(unittest.TestCase):
                             available=True, changed_samples=[1, 0, 0])) as diagnostic:
                     options = dict(native=root / 'native', parser=root / 'parser',
                                    max_memory_bytes=256 << 20, max_bins=1 << 28)
+                    qualified = runner.harness.test_oracle.Oracle(root / 'ffmpeg', root / 'ffprobe')
                     if changed:
                         with self.assertRaisesRegex(ValueError, 'native_reference_mismatch'):
-                            runner.development_picture(item, source, destination, root, **options)
+                            runner.development_picture(item, source, destination, qualified, **options)
                         diagnostic.assert_called_once()
                         stream = diagnostic.call_args.args[3]
                         self.assertEqual(stream['record']['reference_frames'], [oracle])
                         self.assertEqual(stream['record']['reference_packing']['md5'], oracle['md5'])
                     else:
-                        self.assertTrue(runner.development_picture(item, source, destination, root,
+                        self.assertTrue(runner.development_picture(item, source, destination, qualified,
                                                                   **options)['complete'])
                         diagnostic.assert_not_called()
                 report = json.loads((destination / 'intra.json').read_text())
