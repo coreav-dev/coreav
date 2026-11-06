@@ -16,6 +16,8 @@ import wave
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import standalone_audio_probe_check as check
 
+ORACLE = check.test_oracle.Oracle(Path("qualified/ffmpeg"), Path("qualified/ffprobe"))
+
 
 class StandaloneAudioProbe(unittest.TestCase):
     def setUp(self):
@@ -93,9 +95,9 @@ class StandaloneAudioProbe(unittest.TestCase):
 
         (self.root / "unrelated.txt").write_text("keep")
         with patch.object(check, "run", side_effect=encoder):
-            first = check.generate(Path("oracle"), self.root)
+            first = check.generate(ORACLE, self.root)
             contents = {path.name: path.read_bytes() for path in first}
-            second = check.generate(Path("oracle"), self.root)
+            second = check.generate(ORACLE, self.root)
         self.assertEqual(len(first), 45)
         self.assertEqual(len(set(first)), len(first))
         self.assertEqual(contents, {path.name: path.read_bytes() for path in second})
@@ -114,7 +116,7 @@ class StandaloneAudioProbe(unittest.TestCase):
         source = self.root / "file.wav"
         with patch.object(check, "run", side_effect=command), patch.dict(os.environ, {
                 "COREAV_STRICT_SAFE": "0", "COREAV_FALLBACK": "bad", "COREAV_FALLBACK_ACTIVE": "1"}):
-            self.assertEqual(check.compare(Path("coreav"), Path("oracle"), [source]), 2)
+            self.assertEqual(check.compare(Path("coreav"), ORACLE, [source]), 2)
         self.assertEqual([args[args.index("-of") + 1] for args, _ in calls], ["default", "default", "json", "json"])
         for oracle_call, native_call in ((calls[0], calls[1]), (calls[2], calls[3])):
             self.assertEqual(oracle_call[0][-1], native_call[0][-1])
@@ -136,12 +138,12 @@ class StandaloneAudioProbe(unittest.TestCase):
 
                 with patch.object(check, "run", side_effect=output), self.assertRaisesRegex(
                         check.CheckFailure, f"file.wav \\({writer}\\): stdout differs"):
-                    check.compare(Path("coreav"), Path("oracle"), [self.root / "file.wav"])
+                    check.compare(Path("coreav"), ORACLE, [self.root / "file.wav"])
 
     def test_empty_successful_outputs_do_not_pass(self):
         with patch.object(check, "run", return_value=subprocess.CompletedProcess([], 0, b"", b"")), \
                 self.assertRaises(check.CheckFailure):
-            check.compare(Path("coreav"), Path("oracle"), [self.root / "file.wav"])
+            check.compare(Path("coreav"), ORACLE, [self.root / "file.wav"])
 
     def test_refusals_require_failure_empty_stdout_and_a_diagnostic(self):
         paths = [self.root / name for name in ("wav-rifx-s16.wav", "wav-rifx-f32.wav", "wav-partial-sample.wav")]
@@ -150,11 +152,11 @@ class StandaloneAudioProbe(unittest.TestCase):
             with self.subTest(status=status, stdout=stdout, stderr=stderr), patch.object(
                     check, "run", return_value=subprocess.CompletedProcess([], status, stdout, stderr)):
                 if status == 4 and not stdout and stderr:
-                    self.assertEqual(check.verify(Path("coreav"), Path("oracle"), paths),
+                    self.assertEqual(check.verify(Path("coreav"), ORACLE, paths),
                                      {"parity": 0, "refusals": 6, "divergences": 0})
                 else:
                     with self.assertRaises(check.CheckFailure):
-                        check.verify(Path("coreav"), Path("oracle"), paths)
+                        check.verify(Path("coreav"), ORACLE, paths)
 
     def test_known_divergence_checks_entire_reports_and_restores_the_fixture(self):
         source = self.root / "wav-extensible-s32-valid24.wav"
@@ -183,11 +185,11 @@ class StandaloneAudioProbe(unittest.TestCase):
 
                 with patch.object(check, "run", side_effect=output):
                     if fault is None:
-                        self.assertEqual(check.verify(Path("coreav"), Path("oracle"), [source]),
+                        self.assertEqual(check.verify(Path("coreav"), ORACLE, [source]),
                                          {"parity": 0, "refusals": 0, "divergences": 2})
                     else:
                         with self.assertRaises(check.CheckFailure):
-                            check.verify(Path("coreav"), Path("oracle"), [source])
+                            check.verify(Path("coreav"), ORACLE, [source])
                 self.assertEqual(source.read_bytes(), original)
 
     def test_command_failure_and_timeout_have_bounded_diagnostics(self):
@@ -202,13 +204,24 @@ class StandaloneAudioProbe(unittest.TestCase):
             check.run(["program"])
 
     def test_pin_failure_prevents_fixture_generation(self):
-        with patch.object(check.test_oracle, "verify_bin", return_value=("bad pin",)) as verify, \
-                patch.object(check, "generate") as generate, contextlib.redirect_stderr(io.StringIO()) as stderr:
+        with patch.object(check.test_oracle, "require", side_effect=check.test_oracle.QualificationError("bad pin")) \
+                as require, patch.object(check, "generate") as generate, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
             result = check.main(["--coreav", "coreav", "--oracle-dir", "oracle", "--directory", str(self.root)])
         self.assertEqual(result, 1)
         self.assertIn("bad pin", stderr.getvalue())
-        verify.assert_called_once_with(Path("oracle").resolve())
+        require.assert_called_once_with(Path("oracle").resolve() / "ffmpeg", Path("oracle").resolve() / "ffprobe")
         generate.assert_not_called()
+
+    def test_generation_and_comparison_execute_the_owner_returned_pair(self):
+        with patch.object(check.test_oracle, "require", return_value=ORACLE), \
+                patch.object(check, "generate", return_value=[]) as generate, \
+                patch.object(check, "verify", return_value={"parity": 0, "refusals": 0, "divergences": 0}) as verify, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check.main(["--coreav", "coreav", "--oracle-dir", "oracle",
+                                         "--directory", str(self.root)]), 0)
+        self.assertIs(generate.call_args.args[0], ORACLE)
+        self.assertIs(verify.call_args.args[1], ORACLE)
 
 
 if __name__ == "__main__":

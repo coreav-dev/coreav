@@ -11,6 +11,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
+import test_oracle
 
 
 def run(args, *, data=None, env=None):
@@ -197,7 +198,7 @@ def check_wave_case(coreav, ffmpeg, root, env, name, encoded, payload, represent
 
 
 def wave_paths(coreav, oracle, root, smoke=False):
-    ffmpeg = oracle / "ffmpeg"
+    ffmpeg = oracle.ffmpeg
     env = {**os.environ, "COREAV_STRICT_SAFE": "1",
            "COREAV_FALLBACK": str(root / "missing-fallback")}
     count = 0
@@ -348,7 +349,7 @@ def wave_refusals(coreav, root, env):
 
 
 def conformance_paths(coreav, oracle, root):
-    ffmpeg = oracle / "ffmpeg"
+    ffmpeg = oracle.ffmpeg
     env = {**os.environ, "COREAV_STRICT_SAFE": "1",
            "COREAV_FALLBACK": str(root / "missing-fallback")}
     fallback = root / "ffmpeg"
@@ -427,7 +428,7 @@ def conformance_paths(coreav, oracle, root):
 
 
 def check(coreav, oracle, root, smoke=False):
-    ffmpeg = oracle / "ffmpeg"
+    ffmpeg = oracle.ffmpeg
     env = {**os.environ, "COREAV_STRICT_SAFE": "1",
            "COREAV_FALLBACK": str(root / "missing-fallback")}
     count = 0
@@ -503,15 +504,15 @@ def main():
     parser.add_argument("--oracle-bin", type=Path, required=True)
     parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
-    from test_oracle import verify_bin
-    problems = list(verify_bin(args.oracle_bin))
-    if problems:
-        raise SystemExit("\n".join(problems))
+    try:
+        oracle = test_oracle.require(args.oracle_bin / "ffmpeg", args.oracle_bin / "ffprobe")
+    except test_oracle.QualificationError as error:
+        raise SystemExit(str(error))
     with tempfile.TemporaryDirectory(prefix="coreav-raw-audio-") as directory:
-        count = check(args.coreav.resolve(), args.oracle_bin.resolve(), Path(directory), args.smoke)
-        conformance = conformance_paths(args.coreav.resolve(), args.oracle_bin.resolve(),
+        count = check(args.coreav.resolve(), oracle, Path(directory), args.smoke)
+        conformance = conformance_paths(args.coreav.resolve(), oracle,
                                         Path(directory))
-        wave = wave_paths(args.coreav.resolve(), args.oracle_bin.resolve(), Path(directory), args.smoke)
+        wave = wave_paths(args.coreav.resolve(), oracle, Path(directory), args.smoke)
     print(f"raw audio pipes: {count} exact-output, eligibility and fallback checks passed")
     print(f"raw audio pipes: {conformance} conformance-path and refusal checks passed")
     print(f"raw audio pipes: {wave} WAVE exact-output, eligibility and replay checks passed")

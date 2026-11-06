@@ -91,17 +91,39 @@ class CurrentPolicy(unittest.TestCase):
                 counts, failures = legacy.ffmpeg_refusals(opts, [], collections.Counter(), [])
                 report.write_text(json.dumps({'B1 ffmpeg': dict(counts), 'failures': failures}))
                 return 0
-            legacy = types.SimpleNamespace(cmd_commands=commands)
+            legacy = types.SimpleNamespace(cmd_commands=commands, ENV={'PATH': '/usr/bin'})
+            real_which = shutil.which
             def refusals(*args):
                 args[5].append({'status': 'unverified'})
                 return collections.Counter(fail=1), []
+            pair = current_ci.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
             with mock.patch.object(sys, 'argv', ['current_ci.py', 'commands', '--coreav', 'candidate',
                                                 '--report', str(report), '--baseline', 'baseline.json']), \
                     mock.patch.object(current_ci, 'reporter', return_value=legacy), \
-                    mock.patch.object(current_ci, 'refusals', side_effect=refusals), \
-                    mock.patch.object(current_ci.shutil, 'which', side_effect=lambda n: '/oracle/' + n), \
-                    mock.patch.object(current_ci.test_oracle, 'verify_bin', return_value=[]):
+                    mock.patch.object(current_ci, 'refusals', side_effect=refusals) as checked, \
+                    mock.patch.object(current_ci.shutil, 'which',
+                                      side_effect=lambda n, path=None: real_which(n, path=path) if path else '/oracle/' + n), \
+                    mock.patch.object(current_ci.test_oracle, 'require', return_value=pair) as qualify:
+                pair = current_ci.test_oracle.Oracle(pathlib.Path(tmp) / 'ffmpeg', pathlib.Path(tmp) / 'ffprobe')
+                for program in (pair.ffmpeg, pair.ffprobe):
+                    program.write_text('#!/bin/sh\n')
+                    program.chmod(0o755)
+                qualify.return_value = pair
                 self.assertEqual(current_ci.main(), 1)
+                qualify.assert_called_once()
+                self.assertEqual(checked.call_args.args[-2:], (str(pair.ffmpeg), str(pair.ffprobe)))
+                self.assertEqual(legacy.ENV['PATH'].split(os.pathsep)[0], tmp)
+
+    def test_a_path_that_does_not_reach_the_returned_probe_is_rejected(self):
+        legacy = types.SimpleNamespace(cmd_commands=mock.Mock(), ENV={'PATH': '/usr/bin'})
+        pair = current_ci.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
+        with mock.patch.object(sys, 'argv', ['current_ci.py', 'commands', '--coreav', 'candidate', '--report', 'r.json']), \
+                mock.patch.object(current_ci, 'reporter', return_value=legacy), \
+                mock.patch.object(current_ci.shutil, 'which', return_value='/elsewhere/ffprobe'), \
+                mock.patch.object(current_ci.test_oracle, 'require', return_value=pair), \
+                self.assertRaises(SystemExit):
+            current_ci.main()
+        legacy.cmd_commands.assert_not_called()
 
     def test_the_frozen_judging_files_keep_their_registered_hashes(self):
         registration = json.loads((ROOT / 'docs/measurements/compat-0.1.0/judging.json').read_text())

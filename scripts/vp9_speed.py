@@ -207,7 +207,7 @@ def same_frame(args, a, b):
 
 def time_file(args, f, path, tmp):
     res = {'sha256': f['sha256'], 'class': 'vp9', 'ext': f['ext'], 'size': f['size'], 'holdout': f['holdout']}
-    t = to.at_time(path, args.ffprobe)
+    t = to.at_time(path, args.ffmpeg, args.ffprobe)
     if t is None:
         return dict(res, status='no_duration')
     res['t'] = t
@@ -345,7 +345,7 @@ def gate(args, tmp, which, spec):
 def preflight(args, tmp):
     """Each arm makes a thumbnail of the gate file with the backend it is named for; the gate's S1 command needs T
     and the size of the first arm's."""
-    t = to.at_time(pathlib.Path(args.gate), args.ffprobe)
+    t = to.at_time(pathlib.Path(args.gate), args.ffmpeg, args.ffprobe)
     if t is None:
         raise SystemExit('the gate file has no presented duration')
     spec = None

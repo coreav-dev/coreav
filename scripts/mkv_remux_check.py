@@ -42,6 +42,7 @@ from fractions import Fraction
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
+import test_oracle  # noqa: E402
 
 TIMEOUT = 3600
 # The codecs this remux copies (ffprobe names), and the reasons a stream of
@@ -59,12 +60,12 @@ def run(argv):
 
 
 def ffprobe(path):
-    code, out = run(["ffprobe", "-v", "error", "-of", "json", "-show_format", "-show_streams", str(path)])
+    code, out = run([str(test_oracle.require().ffprobe), "-v", "error", "-of", "json", "-show_format", "-show_streams", str(path)])
     return json.loads(out) if code == 0 else None
 
 
 def framemd5(path, index, copy=True):
-    argv = ["ffmpeg", "-nostdin", "-v", "error", "-copyts", *AUDIO_DECODE_INPUT, "-i", str(path), "-map", f"0:{index}"]
+    argv = [str(test_oracle.require().ffmpeg), "-nostdin", "-v", "error", "-copyts", *AUDIO_DECODE_INPUT, "-i", str(path), "-map", f"0:{index}"]
     if copy:
         argv += ["-c", "copy"]
     else:

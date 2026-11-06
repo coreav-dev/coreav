@@ -81,12 +81,12 @@ def save(work, step, value):
     path.write_text(json.dumps({'provenance': provenance(), **value}, indent=1) + '\n')
 
 
-def versions():
+def versions(oracle):
     """The first non-empty line each tool prints for its version."""
     def first(command):
         out = subprocess.run(command, capture_output=True, text=True).stdout
         return next((line.strip() for line in out.split('\n') if line.strip()), None)
-    return {'ffmpeg': first(['ffmpeg', '-version']), 'ffprobe': first(['ffprobe', '-version']),
+    return {'ffmpeg': first([str(oracle.ffmpeg), '-version']), 'ffprobe': first([str(oracle.ffprobe), '-version']),
             'mediainfo': next((line.strip() for line in subprocess.run(['mediainfo', '--Version'], capture_output=True,
                                text=True).stdout.split('\n') if 'MediaInfoLib' in line), None)}
 
@@ -98,7 +98,7 @@ def step_build(work, args):
                           '-p', 'coreav-isobmff-adapter', '-p', 'coreav-mkv-adapter'], timeout=7200)
     if status:
         sys.exit(f'build failed:\n{err[-2000:]}')
-    built = {'coreav_sha256': sha256(RELEASE / 'coreav'), 'tools': versions()}
+    built = {'coreav_sha256': sha256(RELEASE / 'coreav'), 'tools': versions(args.oracle)}
     if extra_hostile:
         built.update(extra_hostile.build(run))
     save(work, 'build', built)
@@ -188,12 +188,13 @@ def count_mkv_remux(stdout, report):
     return list(r['files']), f"{r['files'][0]}/{r['files'][1]} files, packets {r['packets'][0]}/{r['packets'][1]}"
 
 
-def probe_oracle(work, media, adapter, kd_script, name, extra_kd=()):
+def probe_oracle(work, media, adapter, kd_script, name, oracle, extra_kd=()):
     out = work / name
     shutil.rmtree(out, ignore_errors=True)
     for side, extra in (('reference', []), ('candidate', ['--adapter', RELEASE / adapter])):
         status, _, err = run([ROOT / 'scripts' / 'oracle-capture.sh', '--media', media, '--out', out / side,
-                              '--levels', 'streams,packets', *extra])
+                              '--levels', 'streams,packets', *extra],
+                             FFMPEG=str(oracle.ffmpeg), FFPROBE=str(oracle.ffprobe))
         if status:
             return {'passed': False, 'error': f'{side} capture failed: {err[-300:]}'}
     run([RELEASE / 'coreav-oracle', 'compare', '--reference', out / 'reference', '--candidate', out / 'candidate',
@@ -251,20 +252,20 @@ def step_fixtures(work, args):
                  for k, d in (('isobmff', fx), ('matroska', fxm))}
     result = {'generated': generated, 'probe': {}, 'checks': [], 'mediainfo': {}}
     result['probe']['isobmff'] = probe_oracle(work, fx, 'isobmff-adapter', 'oracle_kd.py', 'oracle-isobmff',
-                                              ['--media', fx])
+                                              args.oracle, ['--media', fx])
     # KD-MKV-DECLARED-SIZE reads the files' track headers, as in the mkv-fixtures job.
     result['probe']['matroska'] = probe_oracle(work, fxm, 'mkv-adapter', 'oracle_kd_mkv.py', 'oracle-matroska',
-                                               ['--media', fxm])
+                                               args.oracle, ['--media', fxm])
     kd = work / 'oracle-isobmff' / 'known-divergences.json'
     coreav = RELEASE / 'coreav'
     py = [sys.executable, '-I']
     checks = result['checks']
     checks.append(checker('ffprobe -of json -show_format -show_streams, MP4/MOV', py + [ROOT / 'scripts' / 'compat_check.py',
-                          '--coreav', coreav, '--media', fx, '--kd-overlay', kd,
+                          '--coreav', coreav, '--media', fx, '--kd-overlay', kd, '--ffprobe', str(args.oracle.ffprobe),
                           '--report', work / 'compat.json'], counter=count_compat, report=work / 'compat.json'))
     kd_mkv = work / 'oracle-matroska' / 'known-divergences.json'
     checks.append(checker('ffprobe -of json -show_format -show_streams, Matroska', py + [ROOT / 'scripts' / 'compat_check.py',
-                          '--coreav', coreav, '--media', fxm, '--kd-overlay', kd_mkv,
+                          '--coreav', coreav, '--media', fxm, '--kd-overlay', kd_mkv, '--ffprobe', str(args.oracle.ffprobe),
                           '--report', work / 'compat-mkv.json'],
                           counter=count_compat, report=work / 'compat-mkv.json'))
     mediainfo = shutil.which('mediainfo')
@@ -285,6 +286,7 @@ def step_fixtures(work, args):
         script = {'extract-audio': 'extract_check.py', 'clip': 'clip_check.py',
                   'split': 'split_check.py'}.get(name, 'remux_check.py')
         command = py + [ROOT / 'scripts' / script, '--manifest', target / 'manifest.json', '--mediainfo', mediainfo,
+                        '--ffmpeg', str(args.oracle.ffmpeg), '--ffprobe', str(args.oracle.ffprobe),
                         '--report', work / f'{out}.json']
         if name == 'extract-audio':
             command += ['--media', fx, '--kd-overlay', kd]
@@ -307,12 +309,13 @@ def step_fixtures(work, args):
                               counter=count_hls, report=work / 'hls.json'))
     checks.append(checker('extract-subtitles and chapters', py + [ROOT / 'scripts' / 'text_check.py', '--coreav',
                           coreav, '--media', fx, '--mediainfo', mediainfo, '--kd-overlay', kd,
+                          '--ffmpeg', str(args.oracle.ffmpeg), '--ffprobe', str(args.oracle.ffprobe),
                           '--report', work / 'text.json'], counter=count_text, report=work / 'text.json'))
     policies = ['--policy', ROOT / 'scripts' / 'policy_fixtures.json']
     for p in sorted((ROOT / 'docs' / 'schema' / 'policy-examples').glob('*.json')):
         policies += ['--policy', p]
     checks.append(checker('check (upload policy)', py + [ROOT / 'scripts' / 'policy_check.py', '--coreav', coreav,
-                          *policies, '--media', fx, '--ffprobe', 'ffprobe', '--oracle-frames',
+                          *policies, '--media', fx, '--ffprobe', str(args.oracle.ffprobe), '--oracle-frames',
                           '--report', work / 'policy.json'], counter=count_policy, report=work / 'policy.json'))
     checks.append(checker('Matroska and WebM remux', py + [ROOT / 'scripts' / 'mkv_remux_check.py', 'fixtures',
                           '--coreav', coreav, '--media', fxm, '--out', work / 'mkv-remux', '--mediainfo',
@@ -333,7 +336,8 @@ def step_corpus(work, args):
         status, _, err = run([sys.executable, '-I', HERE / 'corpus.py', 'run', '--family', family, '--out', out,
                               '--work', work / f'work-{family}', '--workers', str(args.workers),
                               *(['--recheck', args.recheck] if args.recheck else [])],
-                             timeout=6 * 3600, **corpus_credentials())
+                             timeout=6 * 3600, FFMPEG=str(args.oracle.ffmpeg), FFPROBE=str(args.oracle.ffprobe),
+                             **corpus_credentials())
         if status:
             sys.exit(f'corpus run failed ({family}):\n{err[-2000:]}')
         result['families'][family] = corpus.summarize(out, family)
@@ -366,7 +370,7 @@ def step_hostile(work, args):
     if not (fx / 'MANIFEST').exists():
         sys.exit('the hostile step needs the fixtures step first')
     status, out, err = run([sys.executable, '-I', ROOT / 'tools' / 'hostile' / 'generate.py',
-                            suite, fx, shutil.which('ffmpeg')])
+                            suite, fx, str(args.oracle.ffmpeg)])
     if status:
         sys.exit(f'hostile generation failed:\n{err[-2000:]}')
     manifest = json.loads((suite / 'manifest.json').read_text())
@@ -443,8 +447,11 @@ def main():
     for step in steps:
         if step not in STEPS:
             sys.exit(f'unknown step {step}; steps: {", ".join(STEPS)}')
-    if set(steps) & {'fixtures', 'corpus', 'hostile'}:
-        test_oracle.require('ffmpeg', 'ffprobe')
+    if set(steps) & {'build', 'fixtures', 'corpus', 'hostile'}:
+        try:
+            args.oracle = test_oracle.require()
+        except test_oracle.QualificationError as error:
+            sys.exit(f'stage3 run: {error}')
     work.mkdir(parents=True, exist_ok=True)
     for step in STEPS:
         if step in steps:

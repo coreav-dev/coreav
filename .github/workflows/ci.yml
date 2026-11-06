@@ -1085,7 +1085,14 @@ jobs:
         run: |
           set -euo pipefail
           cargo test --locked --release -p coreav-isobmff-write --test join fixtures_round_trip -- --ignored
+          ORACLE_PATHS="$(python3 -I -B scripts/test_oracle.py --resolve)"
+          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+            exit 1
+          fi
           python3 -I scripts/join_check.py --manifest "$COREAV_JOIN_OUT/manifest.json" \
+            --ffmpeg "$FFMPEG" --ffprobe "$FFPROBE" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" --ffmpeg-concat \
             --report "$RUNNER_TEMP/coreav-join.json"
       # docs/design/compat-cli.md, "coreav ffmpeg" (R3 on the fixtures):
@@ -1104,7 +1111,14 @@ jobs:
           set -euo pipefail
           cargo test --locked --release -p coreav-cli --test ffmpeg the_0_1_0_commands_on_the_fixtures -- --ignored
           cargo test --locked --release -p coreav-cli --test ffmpeg_concat c02_guard_concat_preserves_complete_native_output -- --ignored
+          ORACLE_PATHS="$(python3 -I -B scripts/test_oracle.py --resolve)"
+          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+            exit 1
+          fi
           python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
+            --ffmpeg "$FFMPEG" --ffprobe "$FFPROBE" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
             --report "$RUNNER_TEMP/coreav-ffmpeg.json"
           COREAV_CURRENT_CI_ORACLE=1 python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_copy_check.py
@@ -1678,7 +1692,14 @@ jobs:
         run: |
           set -euo pipefail
           cargo test --locked --release -p coreav-cli --test ffmpeg the_0_1_0_commands_on_the_fixtures -- --ignored
+          ORACLE_PATHS="$(python3 -I -B scripts/test_oracle.py --resolve)"
+          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+            exit 1
+          fi
           python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
+            --ffmpeg "$FFMPEG" --ffprobe "$FFPROBE" \
             --mediainfo mediainfo --report "$RUNNER_TEMP/mkv-ffmpeg.json"
       # docs/design/remux.md, "Audio sample entries": FLAC, ALAC, AC-3 and
       # E-AC-3 copied into MP4 by remux, clip, split, join and coreav ffmpeg

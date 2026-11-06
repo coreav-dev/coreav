@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from opus_matroska_padding import matroska, run, wav_samples
 from opus_mp4_presentation import boxes, metadata
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
-from test_oracle import verify_bin
+import test_oracle
 
 
 def native(coreav, source, after, output='pipe:', threads=1, strict=True):
@@ -60,9 +60,10 @@ def compare(tool, work, label, reference, native, channels):
 
 
 def check(coreav, oracle, tool, work):
-    errors = list(verify_bin(oracle))
-    if errors:
-        raise ValueError('unverified oracle: ' + '; '.join(errors))
+    try:
+        oracle = test_oracle.require(oracle / 'ffmpeg', oracle / 'ffprobe')
+    except test_oracle.QualificationError as error:
+        raise ValueError('unverified oracle: ' + str(error)) from None
     if not tool.is_file():
         raise ValueError('the pinned Opus comparison tool is required')
     work.mkdir(parents=True, exist_ok=True)
@@ -81,7 +82,7 @@ def check(coreav, oracle, tool, work):
                 .07 * math.sin(2 * math.pi * (3171 + 71 * channel) * n / 48000))
                 for n in range(4800) for channel in range(channels)))
             path = work / f'{label}.mp4'
-            run([oracle / 'ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', '48000', '-ac', channels,
+            run([oracle.ffmpeg, '-v', 'error', '-f', 'f32le', '-ar', '48000', '-ac', channels,
                  *AUDIO_DECODE_INPUT, '-i', source, '-c:a', 'libopus', '-b:a', bitrate,
                  '-application', application, '-vbr', 'off', '-movie_timescale', '48000', '-y', path])
             data = path.read_bytes()
@@ -105,7 +106,7 @@ def check(coreav, oracle, tool, work):
                         summary['output']['sample_rate'] != 48000 or summary['warnings'] or \
                         len(raw[format]) != info['packet_samples'] * channels * width:
                     raise ValueError('incomplete native packet control')
-            reference = run([oracle / 'ffmpeg', '-v', 'error', '-c:a', 'libopus',
+            reference = run([oracle.ffmpeg, '-v', 'error', '-c:a', 'libopus',
                              *AUDIO_DECODE_INPUT, '-i', packet_source, '-f', 's16le', '-'])
             whole_quality = compare(tool, work, label, reference, raw['s16'], channels)
             terminal_bytes = 2880 * channels * 2
@@ -146,7 +147,7 @@ def check(coreav, oracle, tool, work):
                     if channels == 1 and (sys.platform, platform.machine()) == ('linux', 'x86_64'):
                         floats = work / f'{name}-rate.f32'
                         floats.write_bytes(raw['f32'][start * 4:(start + length) * 4])
-                        expected = run([oracle / 'ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', '48000',
+                        expected = run([oracle.ffmpeg, '-v', 'error', '-f', 'f32le', '-ar', '48000',
                             '-ac', '1', *AUDIO_DECODE_INPUT, '-i', floats, '-ar', '16000',
                             '-f', format + 'le', '-'])
                         actual = run(native(coreav, variant_path, ['-ar', '16000', '-f', format + 'le']))

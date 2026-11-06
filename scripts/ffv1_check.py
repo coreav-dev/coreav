@@ -66,8 +66,11 @@ def verify_oracles(ffmpeg, ffprobe):
     ffmpeg, ffprobe = Path(ffmpeg).resolve(), Path(ffprobe).resolve()
     require(ffmpeg.name == 'ffmpeg' and ffprobe.name == 'ffprobe' and ffmpeg.parent == ffprobe.parent,
             'supply ffmpeg and ffprobe from the same pinned installation')
-    problems = list(test_oracle.verify_bin(ffmpeg.parent))
-    require(not problems, '\n'.join(problems))
+    try:
+        oracle = test_oracle.require(ffmpeg, ffprobe)
+    except test_oracle.QualificationError as error:
+        raise GateError(str(error)) from error
+    ffmpeg, ffprobe = oracle.ffmpeg, oracle.ffprobe
     for executable in (ffmpeg, ffprobe):
         run([executable, '-version'], output_limit=65536)
     return ffmpeg, ffprobe

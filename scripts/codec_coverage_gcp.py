@@ -87,12 +87,13 @@ def host(job, oracle, fixtures=None, binaries=None):
         cpu = next((l.split(':', 1)[1].strip() for l in open('/proc/cpuinfo') if l.startswith('model name')), None)
         mem = next((int(l.split()[1]) for l in open('/proc/meminfo') if l.startswith('MemTotal:')), None)
     oracle = pathlib.Path(oracle)
+    qualified = test_oracle.require(oracle / 'ffmpeg', oracle / 'ffprobe')
     out = {'job': job, 'image': os.environ.get('ImageOS'), 'image_version': os.environ.get('ImageVersion'),
            'cpu_model': cpu, 'cores': os.cpu_count(), 'memory_kib': mem, 'kernel': platform.release(),
-           'ffmpeg': {n: {'sha256': sha256(oracle / n),
-                          'version': subprocess.run([str(oracle / n), '-version'], capture_output=True,
+           'ffmpeg': {n: {'sha256': sha256(program),
+                          'version': subprocess.run([str(program), '-version'], capture_output=True,
                                                     text=True).stdout.partition('\n')[0]}
-                      for n in ('ffmpeg', 'ffprobe')}}
+                      for n, program in (('ffmpeg', qualified.ffmpeg), ('ffprobe', qualified.ffprobe))}}
     if fixtures:
         out['fixtures'] = {n: sha256(pathlib.Path(fixtures) / n) for n in fixture_files()}
     if binaries:

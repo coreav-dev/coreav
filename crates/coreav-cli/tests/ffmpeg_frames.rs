@@ -16,7 +16,7 @@ use std::process::{Command, Output, Stdio};
 
 struct Fixture {
     dir: PathBuf,
-    oracle: PathBuf,
+    oracle: &'static test_oracle::Oracle,
     input: PathBuf,
 }
 
@@ -31,13 +31,13 @@ fn checked(command: &mut Command) -> Vec<u8> {
 }
 
 fn fixture(name: &str) -> Option<Fixture> {
-    let oracle = test_oracle::require().ffmpeg().to_path_buf();
+    let oracle = test_oracle::require();
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("ffmpeg-frames-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let input = dir.join("input.mp4");
     checked(
-        Command::new(&oracle)
+        Command::new(oracle.ffmpeg())
             .args([
                 "-v",
                 "error",
@@ -87,7 +87,7 @@ impl Fixture {
 
     fn decode(&self, name: &str, format: &str) -> Vec<u8> {
         checked(
-            Command::new(&self.oracle)
+            Command::new(self.oracle.ffmpeg())
                 .args(["-v", "error", "-i"])
                 .arg(self.dir.join(name))
                 .args(["-pix_fmt", format, "-f", "rawvideo", "-"]),
@@ -96,7 +96,7 @@ impl Fixture {
 
     fn fields(&self, name: &str) -> serde_json::Value {
         serde_json::from_slice(&checked(
-            Command::new(self.oracle.with_file_name("ffprobe"))
+            Command::new(self.oracle.ffprobe())
                 .args([
                     "-v",
                     "error",
@@ -122,7 +122,7 @@ fn raw_file_pipe_and_y4m_keep_every_decoded_sample() {
     f.success(&[], "out.y4m");
     assert_eq!(f.decode("out.y4m", "yuv420p"), reference);
     checked(
-        Command::new(&f.oracle)
+        Command::new(f.oracle.ffmpeg())
             .args(["-v", "error", "-i"])
             .arg(&f.input)
             .arg(f.dir.join("reference.y4m")),
@@ -144,7 +144,7 @@ fn image_names_limits_seeking_and_update_are_codec_independent() {
         f.success(&["-frames:v", "1"], &single);
         let reference = format!("reference.{extension}");
         checked(
-            Command::new(&f.oracle)
+            Command::new(f.oracle.ffmpeg())
                 .args(["-v", "error", "-i"])
                 .arg(&f.input)
                 .args(["-frames:v", "1"])
@@ -271,7 +271,7 @@ fn raw_stdout_reports_a_final_flush_failure() {
         return;
     };
     checked(
-        Command::new(&f.oracle)
+        Command::new(f.oracle.ffmpeg())
             .args([
                 "-v",
                 "error",
@@ -315,7 +315,7 @@ fn dropping_frames_matches_the_oracles_raw_samples() {
         let name = format!("rate-{}.yuv", rate.replace('/', "-"));
         f.success(&["-r", rate], &name);
         let reference = checked(
-            Command::new(&f.oracle)
+            Command::new(f.oracle.ffmpeg())
                 .args(["-v", "error", "-i"])
                 .arg(&f.input)
                 .args(["-r", rate, "-f", "rawvideo", "-"]),
@@ -440,7 +440,7 @@ fn seeking_counts_leading_empty_edits_on_the_input_timeline() {
     };
     let delayed = f.dir.join("delayed.mp4");
     checked(
-        Command::new(&f.oracle)
+        Command::new(f.oracle.ffmpeg())
             .args([
                 "-v",
                 "error",
@@ -470,7 +470,7 @@ fn seeking_counts_leading_empty_edits_on_the_input_timeline() {
     f.input = delayed;
     f.success(&["-ss", "1", "-frames:v", "1"], "after-seek.yuv");
     let expected = checked(
-        Command::new(&f.oracle)
+        Command::new(f.oracle.ffmpeg())
             .args(["-v", "error", "-i"])
             .arg(&f.input)
             .args(["-ss", "1", "-frames:v", "1", "-f", "rawvideo", "-"]),
@@ -495,7 +495,7 @@ fn unavailable_decoders_refuse_before_output_and_allow_normal_fallback() {
     };
     let input = f.dir.join("hevc.mp4");
     checked(
-        Command::new(&f.oracle)
+        Command::new(f.oracle.ffmpeg())
             .args(["-v", "error", "-i"])
             .arg(&f.input)
             .args([
@@ -525,7 +525,7 @@ fn unavailable_decoders_refuse_before_output_and_allow_normal_fallback() {
         .args(["-frames:v", "1"])
         .arg(f.dir.join("normal.png"))
         .env_remove("COREAV_STRICT_SAFE")
-        .env("COREAV_FALLBACK", &f.oracle)
+        .env("COREAV_FALLBACK", f.oracle.ffmpeg())
         .output()
         .unwrap();
     assert!(
@@ -543,7 +543,7 @@ fn y4m_refuses_autorotation_that_would_misstate_chroma_siting() {
     };
     let input = f.dir.join("turned.mp4");
     checked(
-        Command::new(&f.oracle)
+        Command::new(f.oracle.ffmpeg())
             .args(["-v", "error", "-display_rotation:v:0", "180", "-i"])
             .arg(&f.input)
             .args(["-c", "copy"])

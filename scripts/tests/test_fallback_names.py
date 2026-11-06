@@ -24,7 +24,8 @@ class FallbackNames(unittest.TestCase):
         self.directory = self.root / 'oracle bin'
         for attribute, value in [('ROOT', self.root), ('OUT', self.out), ('SOURCE', self.source)]:
             self.enterContext(patch.object(names, attribute, value))
-        self.verify = self.enterContext(patch.object(names.test_oracle, 'verify_bin', return_value=[]))
+        self.oracle = names.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
+        self.verify = self.enterContext(patch.object(names.test_oracle, 'require', return_value=self.oracle))
         self.listing = self.enterContext(patch.object(names, 'run', side_effect=self.listings))
         vocabulary = SimpleNamespace(FFMPEG_VALUE=set(), FFMPEG_CODEC=set(), FFMPEG_FLAG=set(),
                                      FFPROBE_VALUE=set(), FFPROBE_FLAG=set())
@@ -53,7 +54,7 @@ class FallbackNames(unittest.TestCase):
         before = self.out.read_bytes(), self.out.stat().st_mtime_ns
         self.assertEqual(self.invoke(check=True), (0, ''))
         self.assertEqual((self.out.read_bytes(), self.out.stat().st_mtime_ns), before)
-        self.verify.assert_called_with(self.directory)
+        self.verify.assert_called_with(self.directory / 'ffmpeg', self.directory / 'ffprobe')
         for name in ['-sample', '-flag', 'public_encoder', 'public_format,alias',
                      'alias_section', 'public_key']:
             self.assertIn(name, self.out.read_text())
@@ -77,12 +78,19 @@ class FallbackNames(unittest.TestCase):
     def test_both_oracle_versions_are_verified_before_listing(self):
         for tool in ['ffmpeg', 'ffprobe']:
             with self.subTest(tool=tool):
-                self.verify.return_value = [f'{tool}: expected the oracle from scripts/oracle-ffmpeg.env']
+                self.verify.side_effect = names.test_oracle.QualificationError(
+                    f'{tool}: expected the oracle from scripts/oracle-ffmpeg.env')
                 for check in [False, True]:
                     with self.assertRaisesRegex(SystemExit, tool):
                         self.invoke(check=check)
                 self.listing.assert_not_called()
                 self.assertFalse(self.out.exists())
+
+    def test_listings_execute_the_owner_returned_pair(self):
+        self.invoke()
+        self.assertEqual([call.args[0] for call in self.listing.call_args_list],
+                         [self.oracle.ffmpeg, self.oracle.ffprobe, self.oracle.ffmpeg,
+                          self.oracle.ffmpeg, self.oracle.ffprobe])
 
     def test_invalid_names_never_replace_the_file(self):
         self.invoke()

@@ -10,7 +10,7 @@ When a review corrects a mistake, fix it and add its row to the area file it bel
 |---|---|
 | [docs/agents/ci.md](docs/agents/ci.md) | Workflow required checks, path filters, DCO, pinned actions, merge-group reuse, and workspace lints. |
 | [docs/agents/codecs.md](docs/agents/codecs.md) | H.264, AAC, Opus, VP9, AC-3, MP3 and AudioToolbox behavior; HEVC decoding and planning. |
-| [docs/agents/compat-corpus.md](docs/agents/compat-corpus.md) | Corpus exclusions, compatibility workflows, fixture comparisons, the HEVC conformance census and oracle preparation, and the B4 and R4 drivers. |
+| [docs/agents/compat-corpus.md](docs/agents/compat-corpus.md) | Corpus exclusions, compatibility and codec-coverage workflows with their candidate and oracle-owner checkouts, fixture comparisons, the HEVC conformance census and oracle preparation, and the B4 and R4 drivers. |
 | [docs/agents/containers.md](docs/agents/containers.md) | ISO BMFF, Matroska, MPEG-TS, and AVI. |
 | [docs/agents/docs.md](docs/agents/docs.md) | Documentation-site prose, schema wording, and design-note updates. |
 | [docs/agents/ffmpeg-cli.md](docs/agents/ffmpeg-cli.md) | CLI and ffprobe behavior, the FFmpeg pin, and fallback names. |

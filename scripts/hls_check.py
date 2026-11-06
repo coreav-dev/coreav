@@ -57,6 +57,7 @@ from fractions import Fraction
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import clip_check as cc  # noqa: E402
 import remux_check  # noqa: E402
+import test_oracle  # noqa: E402
 import track_boxes  # noqa: E402
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
@@ -76,7 +77,7 @@ def run(cmd, check=True):
 
 
 def ffprobe_json(args):
-    return json.loads(run(["ffprobe", "-v", "error", "-of", "json", *args]).stdout)
+    return json.loads(run([str(test_oracle.require().ffprobe), "-v", "error", "-of", "json", *args]).stdout)
 
 
 def streams(path):
@@ -89,7 +90,7 @@ def packets(path, index):
     gigabytes to parse."""
     streams_ = ffprobe_json(["-select_streams", str(index), "-show_entries", "stream=time_base", str(path)])
     tb = Fraction(streams_["streams"][0]["time_base"]) if streams_.get("streams") else Fraction(1)
-    text = run(["ffprobe", "-v", "error", "-select_streams", str(index), "-show_data_hash", "MD5",
+    text = run([str(test_oracle.require().ffprobe), "-v", "error", "-select_streams", str(index), "-show_data_hash", "MD5",
                 "-show_entries", "packet=pts,dts,duration,size,flags,data_hash",
                 "-of", "compact=p=0", str(path)]).stdout.decode()
     result = []
@@ -116,7 +117,7 @@ def packets(path, index):
 
 def frames(path, index=None):
     """(time, hash) of every decoded frame of one stream, `-copyts`."""
-    cmd = ["ffmpeg", "-v", "error", *THREADS, "-copyts", *AUDIO_DECODE_INPUT, "-i", str(path)]
+    cmd = [str(test_oracle.require().ffmpeg), "-v", "error", *THREADS, "-copyts", *AUDIO_DECODE_INPUT, "-i", str(path)]
     if index is not None:
         cmd += ["-map", f"0:{index}"]
     # Frames keep their decoded times in the stream's own time base: no
@@ -1047,7 +1048,7 @@ def source_composition_times(source, index):
     """Every sample's stored composition time in the source track, in media
     ticks: ffprobe's packets with edit lists ignored (each sample once, at its
     stored times; scripts/clip_check.py reads them the same way)."""
-    text = run(["ffprobe", "-v", "error", "-ignore_editlist", "1", "-select_streams", str(index),
+    text = run([str(test_oracle.require().ffprobe), "-v", "error", "-ignore_editlist", "1", "-select_streams", str(index),
                 "-show_entries", "packet=pts", "-of", "csv=p=0", str(source)]).stdout.decode()
     try:
         return [int(line) for line in text.split() if line.strip()]
@@ -1140,9 +1141,9 @@ def kd_source_last_cut(source, index, whole, src, out, src_frames, unmatched, ex
         return False
     if (src[-1]["hash"], src[-1]["duration"]) != (out[-1]["hash"], out[-1]["duration"]):
         return False
-    cut = remux_check.last_skip_samples("ffprobe", str(source), index)
+    cut = remux_check.last_skip_samples(str(test_oracle.require().ffprobe), str(source), index)
     return (cut is not None and cut[0] == 0 and cut[1] > 0
-            and remux_check.last_skip_samples("ffprobe", str(whole), 0) is None)
+            and remux_check.last_skip_samples(str(test_oracle.require().ffprobe), str(whole), 0) is None)
 
 
 def kd_fragment_reading(source, index, out_frames, work):  # KD-HLS-8
@@ -1152,8 +1153,9 @@ def kd_fragment_reading(source, index, out_frames, work):  # KD-HLS-8
     source stream into fragmented MP4, at the same times up to one
     constant."""
     copy = pathlib.Path(work) / f"fragcopy-{index}.mp4"
+    ffmpeg = str(test_oracle.require().ffmpeg)
     try:
-        run(["ffmpeg", "-v", "error", "-y", "-i", str(source), "-map", f"0:{index}", "-c", "copy",
+        run([ffmpeg, "-v", "error", "-y", "-i", str(source), "-map", f"0:{index}", "-c", "copy",
              "-movflags", "frag_keyframe+empty_moov+default_base_moof", str(copy)])
         reference = frames(copy)
     except RuntimeError:

@@ -387,6 +387,21 @@ jobs:
         with:
           ref: ${{ needs.coverage-plan.outputs.commit }}
           persist-credentials: false
+      - name: Check out the oracle owner from this run's commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: oracle-owner
+          persist-credentials: false
+          sparse-checkout: |
+            /scripts/test_oracle.py
+            /scripts/oracle_pin.py
+            /scripts/oracle_pin_macos.py
+            /scripts/oracle-ffmpeg.env
+            /scripts/oracle-ffmpeg-macos.env
+          sparse-checkout-cone-mode: false
+      - name: Keep the oracle owner outside the candidate tree
+        run: mv "$GITHUB_WORKSPACE/oracle-owner" "$RUNNER_TEMP/oracle-owner"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: coverage-binaries
@@ -438,8 +453,15 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x "$RUNNER_TEMP/bin/decode-oracle"
+          ORACLE_PATHS="$(python3 -I -B "$RUNNER_TEMP/oracle-owner/scripts/test_oracle.py" --resolve \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe")"
+          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+            exit 1
+          fi
           python3 -I tools/compat-corpus/decode_breadth.py run --decode-oracle "$RUNNER_TEMP/bin/decode-oracle" \
-            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \
+            --ffmpeg "$FFMPEG" --ffprobe "$FFPROBE" \
             --files "$RUNNER_TEMP/private/set.json" --shard "$SHARD/$SHARDS" --fetch "$RUNNER_TEMP/media" \
             --deadline "$DEADLINE" --records "$RUNNER_TEMP/private/v1.jsonl" --jobs 2
       - name: Count what the shard left for the rerun host
@@ -559,6 +581,21 @@ jobs:
         with:
           ref: ${{ needs.coverage-plan.outputs.commit }}
           persist-credentials: false
+      - name: Check out the oracle owner from this run's commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: oracle-owner
+          persist-credentials: false
+          sparse-checkout: |
+            /scripts/test_oracle.py
+            /scripts/oracle_pin.py
+            /scripts/oracle_pin_macos.py
+            /scripts/oracle-ffmpeg.env
+            /scripts/oracle-ffmpeg-macos.env
+          sparse-checkout-cone-mode: false
+      - name: Keep the oracle owner outside the candidate tree
+        run: mv "$GITHUB_WORKSPACE/oracle-owner" "$RUNNER_TEMP/oracle-owner"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: coverage-binaries
@@ -582,8 +619,15 @@ jobs:
           scripts/gen-fixtures.sh "$RUNNER_TEMP/fixtures"
           scripts/gen-fixtures-mkv.sh "$RUNNER_TEMP/fixtures"
           scripts/gen-fixtures-ts.sh "$RUNNER_TEMP/fixtures"
-          python3 -I scripts/gen-v2-fixtures.py --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
-            --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --out "$RUNNER_TEMP/fixtures"
+          ORACLE_PATHS="$(python3 -I -B "$RUNNER_TEMP/oracle-owner/scripts/test_oracle.py" --resolve \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe")"
+          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+            exit 1
+          fi
+          python3 -I scripts/gen-v2-fixtures.py --ffmpeg "$FFMPEG" \
+            --ffprobe "$FFPROBE" --out "$RUNNER_TEMP/fixtures"
       - name: Record the host and the fixtures
         run: |
           mkdir -p "$RUNNER_TEMP/public"
@@ -600,7 +644,15 @@ jobs:
           python3 -I -m unittest discover -s scripts/tests -p 'test_gen_v2_fixtures.py'
       - name: Verify supplemental reference assignments
         run: |
-          python3 -I scripts/v2_fixture_check.py --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+          set -euo pipefail
+          ORACLE_PATHS="$(python3 -I -B "$RUNNER_TEMP/oracle-owner/scripts/test_oracle.py" --resolve \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe")"
+          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+            exit 1
+          fi
+          python3 -I scripts/v2_fixture_check.py --ffmpeg "$FFMPEG" \
             --fixtures "$RUNNER_TEMP/fixtures" --work "$RUNNER_TEMP/fixture-check" \
             --report "$RUNNER_TEMP/public/v2-fixture-reference.json"
       - name: V2 and V3, encode breadth and the native share
@@ -611,10 +663,17 @@ jobs:
           chmod +x "$RUNNER_TEMP/bin/coreav" "$RUNNER_TEMP/bin/ffmpeg-harness" "$RUNNER_TEMP/bin/x264"
           # 0: a complete run; 2: void (a fallback log line that ran, a fault, a missing command), a result all the
           # same. Anything else is not a run.
+          ORACLE_PATHS="$(python3 -I -B "$RUNNER_TEMP/oracle-owner/scripts/test_oracle.py" --resolve \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe")"
+          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+            exit 1
+          fi
           code=0
           python3 -I tools/compat-corpus/encode_breadth.py run --coreav "$RUNNER_TEMP/bin/coreav" \
-            --harness "$RUNNER_TEMP/bin/ffmpeg-harness" --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
-            --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --x264 "$RUNNER_TEMP/bin/x264" \
+            --harness "$RUNNER_TEMP/bin/ffmpeg-harness" --ffmpeg "$FFMPEG" \
+            --ffprobe "$FFPROBE" --x264 "$RUNNER_TEMP/bin/x264" \
             --fixtures "$RUNNER_TEMP/fixtures" --work "$RUNNER_TEMP/work" \
             --records "$RUNNER_TEMP/public/v2-v3.jsonl" --summary "$RUNNER_TEMP/public/v2-v3-summary.json" \
             --jobs 4 || code=$?
@@ -649,6 +708,21 @@ jobs:
           [ "$(git rev-parse HEAD)" = "$COMMIT" ] || { echo '::error::image checkout differs from the selected commit'; exit 1; }
           python3 -I scripts/png_bmp_yuv_plan.py --event "$GITHUB_EVENT_NAME" --ref "$GITHUB_REF" \
             --set v2 --registration "$REGISTRATION" --commit "$COMMIT"
+      - name: Check out the oracle owner from this run's commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: oracle-owner
+          persist-credentials: false
+          sparse-checkout: |
+            /scripts/test_oracle.py
+            /scripts/oracle_pin.py
+            /scripts/oracle_pin_macos.py
+            /scripts/oracle-ffmpeg.env
+            /scripts/oracle-ffmpeg-macos.env
+          sparse-checkout-cone-mode: false
+      - name: Keep the oracle owner outside the candidate tree
+        run: mv "$GITHUB_WORKSPACE/oracle-owner" "$RUNNER_TEMP/oracle-owner"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: coverage-binaries
@@ -666,9 +740,16 @@ jobs:
           scripts/gen-fixtures.sh "$RUNNER_TEMP/fixtures"
           scripts/gen-fixtures-mkv.sh "$RUNNER_TEMP/fixtures"
           scripts/gen-fixtures-ts.sh "$RUNNER_TEMP/fixtures"
-          python3 -I scripts/gen-v2-fixtures.py --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
-            --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --out "$RUNNER_TEMP/fixtures"
-          python3 -I scripts/v2_fixture_check.py --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+          ORACLE_PATHS="$(python3 -I -B "$RUNNER_TEMP/oracle-owner/scripts/test_oracle.py" --resolve \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe")"
+          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+            exit 1
+          fi
+          python3 -I scripts/gen-v2-fixtures.py --ffmpeg "$FFMPEG" \
+            --ffprobe "$FFPROBE" --out "$RUNNER_TEMP/fixtures"
+          python3 -I scripts/v2_fixture_check.py --ffmpeg "$FFMPEG" \
             --fixtures "$RUNNER_TEMP/fixtures" --work "$RUNNER_TEMP/fixture-check" \
             --report "$RUNNER_TEMP/public/v2-fixture-reference.json"
           python3 -I scripts/codec_coverage_gcp.py host --job v2-images --oracle "$RUNNER_TEMP/oracle" \
@@ -682,11 +763,18 @@ jobs:
           chmod +x "$RUNNER_TEMP/bin/coreav" "$RUNNER_TEMP/bin/ffmpeg-harness" \
             "$RUNNER_TEMP/bin/image-harness" "$RUNNER_TEMP/bin/x264"
           cp "$RUNNER_TEMP/bin/manifest-image-build.json" "$RUNNER_TEMP/public/"
+          ORACLE_PATHS="$(python3 -I -B "$RUNNER_TEMP/oracle-owner/scripts/test_oracle.py" --resolve \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe")"
+          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
+             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
+            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+            exit 1
+          fi
           python3 -I tools/compat-corpus/png_bmp_yuv.py run --registration "$REGISTRATION" \
             --coreav "$RUNNER_TEMP/bin/coreav" --harness "$RUNNER_TEMP/bin/ffmpeg-harness" \
             --image-harness "$RUNNER_TEMP/bin/image-harness" \
             --build-manifest "$RUNNER_TEMP/bin/manifest-image-build.json" \
-            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \
+            --ffmpeg "$FFMPEG" --ffprobe "$FFPROBE" \
             --x264 "$RUNNER_TEMP/bin/x264" --fixtures "$RUNNER_TEMP/fixtures" \
             --work "$RUNNER_TEMP/image-work" --records "$RUNNER_TEMP/public/v2-images.jsonl" \
             --summary "$RUNNER_TEMP/public/v2-images-summary.json" \

@@ -77,6 +77,10 @@ class SharedFixtures(unittest.TestCase):
         self.assertIn('oracle_pin.py --verify-bin', generate['run'])
         self.assertEqual(save['with']['key'], restore['with']['key'])
         self.assertEqual(save['with']['path'], restore['with']['path'])
+        composed, = [s for s in steps if s.get('id') == 'composed']
+        composed_save, = [s for s in steps if s.get('name') == 'Save the registered composed-audio fixtures']
+        self.assertEqual(composed['with']['key'], '${{ steps.key.outputs.composed }}')
+        self.assertEqual(composed_save['with']['key'], composed['with']['key'])
 
     def test_key_changes_with_the_pin_generator_and_discovered_helpers(self):
         key, = [s for s in self.action['runs']['steps'] if s.get('id') == 'key']
@@ -90,6 +94,15 @@ class SharedFixtures(unittest.TestCase):
                              for name in test_oracle.SUPPORT})
             for name, content in contents.items():
                 (scripts / name).write_text(content)
+            composed_inputs = {
+                'docs/design/composed-opus-aac-v2.json': '{}\n',
+                'scripts/composed_audio.py': 'composed source\n',
+                'scripts/composed_audio_fixtures.py': 'fixture source\n',
+            }
+            for name, content in composed_inputs.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content)
 
             def compute():
                 output = root / 'output'
@@ -100,10 +113,23 @@ class SharedFixtures(unittest.TestCase):
 
             original = compute()
             self.assertEqual(original, compute())
+            original_keys = dict(line.split('=', 1) for line in original.splitlines())
+            self.assertIn('composed', original_keys)
             for name, content in contents.items():
                 (scripts / name).write_text(content + '\n')
-                self.assertNotEqual(original, compute(), name)
+                changed = compute()
+                self.assertNotEqual(original, changed, name)
+                if name in test_oracle.SUPPORT or name == 'install-oracle-ffmpeg.sh':
+                    self.assertNotEqual(original_keys['composed'],
+                                        dict(line.split('=', 1) for line in changed.splitlines())['composed'], name)
                 (scripts / name).write_text(content)
+            for name, content in composed_inputs.items():
+                path = root / name
+                path.write_text(content + '\n')
+                changed = dict(line.split('=', 1) for line in compute().splitlines())
+                self.assertEqual(original_keys['key'], changed['key'], name)
+                self.assertNotEqual(original_keys['composed'], changed['composed'], name)
+                path.write_text(content)
             (scripts / 'extra.py').write_text('extra\n')
             (scripts / 'gen-fixtures.sh').write_text(contents['gen-fixtures.sh'] + '$SCRIPTS/extra.py\n')
             added = compute()

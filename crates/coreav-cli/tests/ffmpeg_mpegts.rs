@@ -1,6 +1,9 @@
 //! Bounded transport copy checked against the pinned black-box oracle.
 #![allow(clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -14,18 +17,8 @@ impl Drop for FixtureDir {
 }
 
 fn tools() -> Option<(PathBuf, PathBuf)> {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| "/opt/coreav-oracle-bin/ffmpeg".into());
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
-    if ffmpeg.is_file() && ffprobe.is_file() {
-        return Some((ffmpeg, ffprobe));
-    }
-    assert!(
-        std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-        "the pinned FFmpeg oracle is required"
-    );
-    None
+    let pin = test_oracle::require();
+    Some((pin.ffmpeg().to_path_buf(), pin.ffprobe().to_path_buf()))
 }
 
 fn scratch(name: &str) -> FixtureDir {

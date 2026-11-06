@@ -1,5 +1,6 @@
 """Capture contract tests using public CLI-shaped outputs, no implementation source."""
 import importlib.util
+import argparse
 import os
 from pathlib import Path
 import subprocess
@@ -14,6 +15,24 @@ spec.loader.exec_module(oracle)
 
 
 class CaptureTests(unittest.TestCase):
+    def test_imported_capture_executes_the_owner_returned_pair(self):
+        qualified = oracle.test_oracle.Oracle(Path('/qualified/encoder'), Path('/qualified/probe'))
+
+        def execute(command, **kwargs):
+            output = (b'{"streams":[{"index":0,"codec_type":"video"}]}'
+                      if command[0] == str(qualified.ffprobe) else b'#tb 0: 1/25\n')
+            return subprocess.CompletedProcess(command, 0, output, b'')
+
+        with patch.object(oracle.test_oracle, 'require', return_value=qualified) as require, \
+                patch.object(oracle.subprocess, 'run', side_effect=execute) as run:
+            result = oracle.capture_one(Path('fixture'), argparse.Namespace(
+                ffmpeg='original-encoder', ffprobe='original-probe', timeout=10))
+        require.assert_called_once_with('original-encoder', 'original-probe')
+        self.assertEqual([c.args[0][0] for c in run.call_args_list],
+                         [str(qualified.ffprobe)] * 3 + [str(qualified.ffmpeg)])
+        self.assertTrue(result['probe_success'])
+        self.assertTrue(result['frames_success'])
+
     def test_stream_duration_keeps_exact_ticks(self):
         stream = oracle.normalize_stream({"index": 0, "codec_type": "video",
             "time_base": "1/90000", "duration_ts": 3003, "duration": "0.033367"})

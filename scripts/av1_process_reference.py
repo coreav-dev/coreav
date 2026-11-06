@@ -13,6 +13,8 @@ import statistics
 import subprocess
 import time
 
+import test_oracle
+
 
 ARMS = ('sandbox', 'in_process', 'ffmpeg')
 
@@ -94,7 +96,7 @@ def raw_identity(path):
     return {'bytes': path.stat().st_size, 'sha256': digest.hexdigest()}
 
 
-def decode_diagnostic(args, manifest, output):
+def decode_diagnostic(args, oracle, manifest, output):
     results = []
     for item in manifest:
         commands = {
@@ -103,15 +105,16 @@ def decode_diagnostic(args, manifest, output):
             'ffmpeg': [args.ffmpeg, '-nostdin', '-v', 'error', '-noautorotate', '-flags', 'unaligned',
                        '-c:v', 'h264', '-threads', str(len(os.sched_getaffinity(0))), '-i', item['path'], '-an',
                        '-fps_mode', 'passthrough', '-noautoscale', '-pix_fmt', 'yuv420p', '-f', 'rawvideo', '-']}
+        reference = [str(oracle.ffmpeg), *commands['ffmpeg'][1:]]
         identities = {}
         temporary = output / 'raw.tmp'
-        for arm, command in commands.items():
+        for arm, command in [*commands.items(), ('oracle', reference)]:
             raw_call(command, temporary, args.timeout)
             identities[arm] = raw_identity(temporary)
             temporary.unlink()
-        if identities['coreav'] != identities['ffmpeg']:
+        if not identities['coreav'] == identities['ffmpeg'] == identities['oracle']:
             raise ValueError('decode-only raw sample streams differ')
-        source = probe(args.probe, item['path'])
+        source = probe(oracle.ffprobe, item['path'])
         expected = source['frames'] * source['width'] * source['height'] * 3 // 2
         if identities['coreav']['bytes'] != expected:
             raise ValueError('decode-only raw stream is incomplete')
@@ -187,18 +190,22 @@ def summarize(data):
 
 
 def capture(args):
+    try:
+        oracle = test_oracle.require(args.oracle, args.probe)
+    except test_oracle.QualificationError as error:
+        raise ValueError(str(error)) from error
     output = args.output.resolve()
     output.mkdir(exist_ok=False)
     manifest = json.loads(args.manifest.read_text())
     data = {'method': 'continuous-av1-process-reference-v1', 'inputs': [], 'calls': [],
             'decoder_workers_requested': len(os.sched_getaffinity(0)),
             'binaries': {name: hashlib.sha256(Path(path).read_bytes()).hexdigest()
-                         for name, path in [('coreav', args.coreav), ('ffmpeg', args.ffmpeg), ('oracle', args.oracle)]}}
+                         for name, path in [('coreav', args.coreav), ('ffmpeg', args.ffmpeg), ('oracle', oracle.ffmpeg)]}}
     record = output / 'calls.json'
     try:
         for item in manifest:
             source = Path(item['path']).resolve()
-            observed = probe(args.probe, source)
+            observed = probe(oracle.ffprobe, source)
             if observed['duration_seconds'] < 30 and not args.synthetic_smoke:
                 raise ValueError('reference inputs must be at least thirty seconds')
             source_info = {'label': item['label'], 'sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
@@ -243,13 +250,13 @@ def capture(args):
                         settings = receipt['video']['encoding']
                     row = {'input': item['label'], 'round': round_, 'arm': arm, **timing,
                            'receipt': receipt, 'decode': decode, 'encoder_observation': observation,
-                           'probe': probe(args.probe, destination),
+                           'probe': probe(oracle.ffprobe, destination),
                            'output_sha256': hashlib.sha256(destination.read_bytes()).hexdigest(),
-                           **quality(args.oracle, source, destination, output / 'metric.txt')}
+                           **quality(oracle.ffmpeg, source, destination, output / 'metric.txt')}
                     data['calls'].append(row)
                     record.write_text(json.dumps(data, indent=2, allow_nan=False) + '\n')
                     print(item['label'], round_, arm, timing['seconds'], flush=True)
-        data['decode_diagnostics'] = decode_diagnostic(args, manifest, output)
+        data['decode_diagnostics'] = decode_diagnostic(args, oracle, manifest, output)
         summary = summarize(data)
         (output / 'summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False) + '\n')
     except CommandFailure as error:

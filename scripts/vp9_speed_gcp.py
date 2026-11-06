@@ -67,7 +67,7 @@ SCRIPTS = ('vp9_speed.py', 'thumbnail_oracle.py', 'transcode_check.py')
 
 def job_script(args, gate_name, first_name):
     bins = ' '.join(f'bin/{n}' for n in ('coreav-libvpx', 'coreav-fallback', 'decode-oracle'))
-    tools = '--ffmpeg $PWD/bin/ffmpeg --ffprobe $PWD/bin/ffprobe'
+    tools = '--ffmpeg "$ffmpeg" --ffprobe "$ffprobe"'
     expect = ''.join(f' --expect {shlex.quote(v)}' for v in args.expect)
     lines = [
         'set -u',
@@ -75,12 +75,19 @@ def job_script(args, gate_name, first_name):
         'chmod +x bin/*',
         '(sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libvpx9 libdav1d7) '
         '> out/apt.log 2>&1',
+        'oracle_paths=$(python3 -I scripts/test_oracle.py --resolve '
+        '--ffmpeg "$PWD/bin/ffmpeg" --ffprobe "$PWD/bin/ffprobe") || exit 2',
+        'oracle_pair=(); while IFS= read -r path; do oracle_pair[${#oracle_pair[@]}]="$path"; done <<EOF\n'
+        '$oracle_paths\nEOF',
+        '[ "${#oracle_pair[@]}" -eq 2 ] && [ -x "${oracle_pair[0]}" ] && '
+        '[ -x "${oracle_pair[1]}" ] || exit 2',
+        'ffmpeg=${oracle_pair[0]}; ffprobe=${oracle_pair[1]}',
         '{ lscpu; nproc; free -g; uname -a; df -h /dev/shm; echo "smt active: '
         '$(cat /sys/devices/system/cpu/smt/active 2>&1)"; python3 --version; dpkg-query -W libvpx9 libdav1d7; '
         f'for b in {bins}; do echo "== $b"; ldd $b; done; '
-        'sha256sum bin/* scripts/*; bin/ffmpeg -version | head -1; '
-        'bin/ffmpeg -hide_banner -decoders | grep -E " (vp9|libvpx-vp9) "; '
-        f'echo "default decoder for VP9:"; bin/ffmpeg -hide_banner -v verbose -i files/{shlex.quote(first_name)} '
+        'sha256sum bin/* scripts/*; "$ffmpeg" -version | head -1; '
+        '"$ffmpeg" -hide_banner -decoders | grep -E " (vp9|libvpx-vp9) "; '
+        f'echo "default decoder for VP9:"; "$ffmpeg" -hide_banner -v verbose -i files/{shlex.quote(first_name)} '
         '-frames:v 1 -f null - 2>&1 | grep -E "Stream #0:[0-9]+ -> #0:[0-9]+ \\(vp9"; } > out/host.txt 2>&1',
         f'if ldd {bins} | grep -q "not found"; then echo "missing libraries" >> out/progress.txt; exit 2; fi',
         'export PATH="$PWD/bin:$PATH"',

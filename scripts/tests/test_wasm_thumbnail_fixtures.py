@@ -19,6 +19,58 @@ SPEC.loader.exec_module(FIXTURES)
 
 
 class FixtureContracts(unittest.TestCase):
+    def test_plan_keeps_requested_paths_without_qualification_or_execution(self):
+        output = io.StringIO()
+        arguments = ['fixtures', '--oracle-bin', '/requested', '--x264', '/x264',
+                     '--output', '/outside', '--plan']
+        with mock.patch.object(sys, 'argv', arguments), \
+             mock.patch.object(FIXTURES.test_oracle, 'require') as require, \
+             mock.patch.object(FIXTURES, 'execute') as execute, contextlib.redirect_stdout(output):
+            FIXTURES.main()
+        require.assert_not_called()
+        execute.assert_not_called()
+        plan = json.loads(output.getvalue())
+        self.assertEqual(len(plan['roster']), 52)
+        self.assertEqual({row['argv'][0] for row in plan['commands'] if 'argv' in row},
+                         {'/requested/ffmpeg', '/x264'})
+
+    def test_generation_executes_the_owner_returned_pair(self):
+        for stage in ('pattern', 'probe'):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                qualified = root / 'qualified'
+                qualified.mkdir()
+                for name in ('ffmpeg', 'ffprobe', 'x264'):
+                    (qualified / name).write_bytes(b'never executed')
+                oracle = FIXTURES.test_oracle.Oracle(qualified / 'ffmpeg', qualified / 'ffprobe')
+                command_plan = None if stage == 'pattern' else []
+                with mock.patch.object(FIXTURES.sys, 'platform', 'linux'), \
+                     mock.patch.object(FIXTURES, 'hostile_rows', return_value=[]), \
+                     mock.patch.object(FIXTURES.test_oracle, 'require', return_value=oracle) as require, \
+                     mock.patch.object(FIXTURES.oracle_pin, 'load', return_value={'X264_COMMIT': '1234567'}), \
+                     mock.patch.object(FIXTURES, 'commands', wraps=FIXTURES.commands) as commands, \
+                     mock.patch.object(FIXTURES, 'execute', side_effect=[b'x264 1234567', ValueError('private')]) as execute:
+                    if command_plan is not None:
+                        commands.return_value = command_plan
+                    with self.assertRaises(FIXTURES.GenerationFailure) as caught:
+                        FIXTURES.generate(root / 'requested', qualified / 'x264', root / 'output')
+                require.assert_called_once_with(root / 'requested/ffmpeg', root / 'requested/ffprobe')
+                self.assertIs(commands.call_args.args[0], oracle)
+                self.assertEqual(caught.exception.stage, stage)
+                self.assertEqual(execute.call_args_list[1].args[0][0], str(getattr(oracle, 'ffmpeg' if stage == 'pattern' else 'ffprobe')))
+
+    def test_pin_failure_precedes_subprocesses_and_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = pathlib.Path(directory) / 'output'
+            with mock.patch.object(FIXTURES.sys, 'platform', 'linux'), \
+                 mock.patch.object(FIXTURES, 'hostile_rows', return_value=[]), \
+                 mock.patch.object(FIXTURES.test_oracle, 'require', side_effect=FIXTURES.test_oracle.QualificationError('private-marker')), \
+                 mock.patch.object(FIXTURES, 'execute') as execute:
+                with self.assertRaisesRegex(ValueError, '^the pinned oracle programs are required$'):
+                    FIXTURES.generate(pathlib.Path('/requested'), pathlib.Path('/x264'), output)
+            execute.assert_not_called()
+            self.assertFalse(output.exists())
+
     def test_generation_keeps_the_failed_command_stage_and_private_cause(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
@@ -27,7 +79,7 @@ class FixtureContracts(unittest.TestCase):
             cause = ValueError("private-marker")
             with mock.patch.object(FIXTURES.sys, "platform", "linux"), \
                  mock.patch.object(FIXTURES, "hostile_rows", return_value=[]), \
-                 mock.patch.object(FIXTURES.test_oracle, "verify_bin", return_value=[]), \
+                 mock.patch.object(FIXTURES.test_oracle, "require", return_value=FIXTURES.test_oracle.Oracle(root / "ffmpeg", root / "ffprobe")), \
                  mock.patch.object(FIXTURES.oracle_pin, "load", return_value={"X264_COMMIT": "1234567"}), \
                  mock.patch.object(FIXTURES, "commands", return_value=[{"kind": "inspect-sps", "argv": ["tool"]}]), \
                  mock.patch.object(FIXTURES, "execute", side_effect=[b"x264 1234567", cause]):
@@ -54,7 +106,8 @@ class FixtureContracts(unittest.TestCase):
         rows = list(FIXTURES.fixture_rows())
         self.assertEqual(len(rows), 52)
         self.assertEqual(len({row["id"] for row in rows}), 52)
-        plan = list(FIXTURES.commands(pathlib.Path("/oracle"), pathlib.Path("/x264"), pathlib.Path("/outside")))
+        oracle = FIXTURES.test_oracle.Oracle(pathlib.Path("/oracle/ffmpeg"), pathlib.Path("/oracle/ffprobe"))
+        plan = list(FIXTURES.commands(oracle, pathlib.Path("/x264"), pathlib.Path("/outside")))
         encodes = [row["argv"] for row in plan if row["kind"] == "encode"]
         self.assertEqual(len(encodes), 14)
         for argv in encodes:
@@ -65,7 +118,8 @@ class FixtureContracts(unittest.TestCase):
         self.assertEqual(sum(row["kind"] == "inspect-sps" for row in plan), 14)
 
     def test_rotation_sets_the_input_display_matrix_before_stream_copy(self):
-        plan = list(FIXTURES.commands(pathlib.Path("/oracle"), pathlib.Path("/x264"), pathlib.Path("/outside")))
+        oracle = FIXTURES.test_oracle.Oracle(pathlib.Path("/oracle/ffmpeg"), pathlib.Path("/oracle/ffprobe"))
+        plan = list(FIXTURES.commands(oracle, pathlib.Path("/x264"), pathlib.Path("/outside")))
         rotations = [row for row in plan if row["kind"] == "variant" and row["geometry"].startswith("rotate")]
         self.assertEqual(len(rotations), 12)
         for row in rotations:

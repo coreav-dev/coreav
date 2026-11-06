@@ -46,6 +46,15 @@ for arg in "$@"; do
 done
 [ -x "$COREAV" ] || { echo "build coreav first: cargo build --release -p coreav-cli" >&2; exit 2; }
 [ -n "$FFMPEG" ] || { echo "ffmpeg not found (scripts/install-oracle-ffmpeg.sh)" >&2; exit 2; }
+ORACLE="$(python3 -I "$ROOT/scripts/test_oracle.py" --resolve --ffmpeg "$FFMPEG")"
+ORACLE_PATHS=()
+while IFS= read -r program; do ORACLE_PATHS+=("$program"); done <<< "$ORACLE"
+if [ "${#ORACLE_PATHS[@]}" -ne 2 ] || [[ "${ORACLE_PATHS[0]}" != /* ]] || [[ "${ORACLE_PATHS[1]}" != /* ]] || [[ "$ORACLE" == *$'\r'* ]]; then
+  echo "stage=oracle_qualification: malformed resolver response" >&2
+  exit 2
+fi
+FFMPEG="${ORACLE_PATHS[0]}"
+FFPROBE="${ORACLE_PATHS[1]}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 if [ -z "$FILE" ]; then
@@ -68,7 +77,6 @@ section "the file: $(basename "$FILE"), $(wc -c < "$FILE") bytes, sha256 $(sha25
 # empty environment and no capabilities. Nothing else of the host is in it
 # (an allow list): no user, service or session data, socket, terminal or
 # other device.
-FFMPEG="$(readlink -f "$FFMPEG")"
 ROOT_DIR="$WORK/root"
 mkdir "$ROOT_DIR"
 sandbox() {

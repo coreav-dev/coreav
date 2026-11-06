@@ -53,7 +53,7 @@ def ffmpeg_command(binary, path, threads, output):
             '-fps_mode', 'passthrough', *output]
 
 
-def verify(native, ffmpeg, source):
+def verify(native, oracle, source):
     raw, _ = command([native, source, 'check'])
     rows = [json.loads(line) for line in raw.splitlines()]
     pictures = [row for row in rows if row.get('type') == 'picture']
@@ -63,7 +63,7 @@ def verify(native, ffmpeg, source):
     if depth not in (8, 10) or any((p['bit_depth'], p['width'], p['height']) !=
             (depth, pictures[0]['width'], pictures[0]['height']) for p in pictures):
         raise ValueError('depth_change')
-    metadata, _ = command([pathlib.Path(ffmpeg).with_name('ffprobe'), '-v', 'error',
+    metadata, _ = command([oracle.ffprobe, '-v', 'error',
         '-select_streams', 'v:0', '-show_entries', 'stream=pix_fmt,width,height', '-of', 'json', source])
     streams = json.loads(metadata)['streams']
     if len(streams) != 1 or (streams[0]['width'], streams[0]['height']) != (pictures[0]['width'], pictures[0]['height']):
@@ -71,12 +71,12 @@ def verify(native, ffmpeg, source):
     pixel_format = streams[0]['pix_fmt']
     if pixel_format not in ({'yuv420p', 'yuvj420p'} if depth == 8 else {'yuv420p10le'}):
         raise ValueError('oracle_pixel_format')
-    oracle, _ = command(ffmpeg_command(ffmpeg, source, True,
+    reference, _ = command(ffmpeg_command(oracle.ffmpeg, source, True,
         ['-pix_fmt', '+' + pixel_format, '-f', 'framemd5', '-']))
-    dimensions = re.findall(rb'^#dimensions\s+0:\s+(\d+)x(\d+)\s*$', oracle, re.M)
+    dimensions = re.findall(rb'^#dimensions\s+0:\s+(\d+)x(\d+)\s*$', reference, re.M)
     if dimensions != [(str(pictures[0]['width']).encode(), str(pictures[0]['height']).encode())]:
         raise ValueError('oracle_geometry')
-    frames = [line.decode().split(',') for line in oracle.splitlines()
+    frames = [line.decode().split(',') for line in reference.splitlines()
               if line and not line.startswith(b'#')]
     expected = [(int(row[-2]), row[-1].strip()) for row in frames]
     actual = [(p['output_bytes'], p['output_md5']) for p in pictures]
@@ -129,17 +129,17 @@ def accepted_result(path, expected_candidate):
     return report
 
 
-def measure(args, source, identity):
+def measure(args, oracle, source, identity):
     record = dict(id=identity, input_sha256=conformance.digest(source), stage='verification')
     try:
-        record.update(verify(args.native, args.oracle_bin / 'ffmpeg', source))
+        record.update(verify(args.native, oracle, source))
         if getattr(args, 'diagnose_only', False):
             record['status'] = 'verified'
             return record
         record['stage'] = 'timing'
         commands = dict(coreav=[args.native, source, 'decode'])
         for arm in ARMS[1:]:
-            commands[arm] = ffmpeg_command(args.oracle_bin / 'ffmpeg', source, arm == 'ffmpeg_one',
+            commands[arm] = ffmpeg_command(oracle.ffmpeg, source, arm == 'ffmpeg_one',
                                            ['-progress', 'pipe:1', '-f', 'null', '-'])
         for arm in ARMS:
             stdout, _ = command(commands[arm])
@@ -208,7 +208,7 @@ def fetch(entry, directory, budget):
         time.sleep(2 ** attempt)
 
 
-def inputs(args, directory, pool):
+def inputs(args, oracle, directory, pool):
     selected = [r for r in conformance.roster() if r['partition'] == 'development']
     entries = {}
     for name in ('v1', 'v1-ts-audio', 'v2-heldout'):
@@ -229,7 +229,7 @@ def inputs(args, directory, pool):
         original = fetch(entry, directory, pool.limits)
         prepared = directory / f'd{index:02}.hevc'
         try:
-            command([args.oracle_bin / 'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+            command([oracle.ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin',
                 '-i', original, '-map', '0:v:0', '-an', '-sn', '-dn', '-frames:v', str(args.frames),
                 '-c:v', 'copy', '-bsf:v', 'hevc_mp4toannexb', '-f', 'hevc', '-y', prepared])
             yield identity, prepared, item['sha256']
@@ -254,7 +254,7 @@ def inputs(args, directory, pool):
         if conformance.digest(original) != member['sha256']:
             raise ValueError('conformance_member_identity')
         prepared = directory / f'c{index:02}.hevc'
-        command([args.oracle_bin / 'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+        command([oracle.ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin',
             '-i', original, '-map', '0:v:0', '-frames:v', str(args.frames), '-c:v', 'copy',
             '-f', 'hevc', '-y', prepared])
         yield f'c{index:02}', prepared, member['sha256']
@@ -288,7 +288,7 @@ def main():
     args.only = set(args.only.split(',')) if args.only else set()
     if args.only - {f'd{i:02}' for i in range(26)} - {f'c{i:02}' for i in range(4)}:
         parser.error('unknown reference input ID')
-    test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+    oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
     args.out.mkdir(parents=True, exist_ok=True)
     report = dict(candidate=args.candidate, oracle=oracle_pin.load()['BUILD'],
         native_sha256=conformance.digest(args.native), frames_cap=args.frames, repeats=args.repeats,
@@ -315,8 +315,8 @@ def main():
         with tempfile.TemporaryDirectory(prefix='hevc-reference-') as temp:
             directory = pathlib.Path(temp)
             profiled = set()
-            for identity, source, original_sha in inputs(args, directory, pool):
-                row = measure(args, source, identity)
+            for identity, source, original_sha in inputs(args, oracle, directory, pool):
+                row = measure(args, oracle, source, identity)
                 row['source_sha256'] = original_sha
                 report['files'].append(row)
                 save()
@@ -325,9 +325,9 @@ def main():
                 if row['status'] == 'timed' and identity.startswith('c') and row['depth'] not in profiled:
                     try:
                         small = directory / 'profile.hevc'
-                        command([args.oracle_bin / 'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+                        command([oracle.ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin',
                             '-i', source, '-frames:v', '2', '-c:v', 'copy', '-f', 'hevc', '-y', small])
-                        profile_row = dict(id=identity, **verify(args.native, args.oracle_bin / 'ffmpeg', small))
+                        profile_row = dict(id=identity, **verify(args.native, oracle, small))
                         profile(args, small, profile_row, directory)
                         row['profile'] = profile_row
                     except (ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired):

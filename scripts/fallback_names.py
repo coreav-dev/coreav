@@ -123,10 +123,11 @@ def rust_options(tool, name, found):
 
 
 def generate(bin_dir):
-    problems = list(test_oracle.verify_bin(bin_dir))
-    if problems:
-        sys.exit('\n'.join(problems))
-    ffmpeg, ffprobe = bin_dir / 'ffmpeg', bin_dir / 'ffprobe'
+    try:
+        oracle = test_oracle.require(bin_dir / 'ffmpeg', bin_dir / 'ffprobe')
+    except test_oracle.QualificationError as error:
+        sys.exit(str(error))
+    ffmpeg, ffprobe = oracle.ffmpeg, oracle.ffprobe
     vocabulary = classify()
     ffmpeg_options, constants = options(
         run(ffmpeg, '-h', 'full'),

@@ -14,6 +14,9 @@ from evidence import require, sha, token, verify, write
 from process import run
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "scripts"))
+import test_oracle
+
 LEVELS = (37, 91, 145, 199)
 LIMIT = 4 * 1024**2
 FIELDS = ("schema status requested_mode unavailable_reason width height fps_num fps_den "
@@ -219,21 +222,23 @@ def verify_capture(directory, oracle, mode, coreav_decoder, install=False, hoste
         if install:
             run(["bash", str(ROOT / "scripts/install-oracle-ffmpeg.sh"), str(oracle)],
                 temporary, 1800, stdout="install-out", stderr="install-error")
-        run([sys.executable, "-I", str(ROOT / "scripts/oracle_pin.py"), "--verify-bin", str(oracle)],
-            temporary, 120, stdout="verify-out", stderr="verify-error")
-        hashes = {name: file_hash(oracle / name) for name in ("ffmpeg", "ffprobe")}
+        try:
+            oracle = test_oracle.require(oracle / "ffmpeg", oracle / "ffprobe")
+        except test_oracle.QualificationError:
+            raise Invalid("child_failure") from None
+        hashes = {name: file_hash(getattr(oracle, name)) for name in ("ffmpeg", "ffprobe")}
         coreav_decoder = Path(coreav_decoder).resolve(strict=True)
         decoder_hash = file_hash(coreav_decoder)
         video = read(directory, "video.h264", LIMIT)
         require(sha(video) == capture_record["files"]["video.h264"]["sha256"], "file_hash")
         (temporary / "video.h264").write_bytes(video)
-        run([str(oracle / "ffmpeg"), "-nostdin", "-v", "error", "-xerror", "-err_detect", "explode",
+        run([str(oracle.ffmpeg), "-nostdin", "-v", "error", "-xerror", "-err_detect", "explode",
              "-max_alloc", "67108864", "-max_pixels", "4096", "-threads", "1", "-c:v", "h264",
              "-f", "h264", "-i", str(temporary / "video.h264"),
              "-map", "0:v:0", "-an", "-frames:v", "5", "-fps_mode", "passthrough", "-pix_fmt", "yuv420p",
              "-f", "rawvideo", str(temporary / "decoded.yuv")], temporary, 60,
             stdout="decode-out", stderr="decode-error")
-        run([str(oracle / "ffprobe"), "-v", "error", "-max_alloc", "67108864", "-max_pixels", "4096",
+        run([str(oracle.ffprobe), "-v", "error", "-max_alloc", "67108864", "-max_pixels", "4096",
              "-threads", "1", "-f", "h264",
              "-select_streams", "v:0", "-show_entries",
              "stream=codec_name,width,height,pix_fmt,color_range,color_space,color_transfer,color_primaries:"
@@ -254,7 +259,7 @@ def verify_capture(directory, oracle, mode, coreav_decoder, install=False, hoste
                 not read(temporary, "probe-error", 32768) and
                 not read(temporary, "coreav-error", 32768), "decoder_error")
         probe(load(temporary / "probe.json", LIMIT), value)
-        require(hashes == {name: file_hash(oracle / name) for name in hashes}, "tool_changed")
+        require(hashes == {name: file_hash(getattr(oracle, name)) for name in hashes}, "tool_changed")
         require(file_hash(coreav_decoder) == decoder_hash, "tool_changed")
         verify(directory, capture_record["files"], names, LIMIT)
         return {"schema": "coreav.videotoolbox-smoke-verification/1", "status": "verified",

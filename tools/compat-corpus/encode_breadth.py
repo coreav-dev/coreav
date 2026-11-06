@@ -863,14 +863,11 @@ def cmd_run(opts):
 
 
 def oracle_programs(opts):
-    directory = pathlib.Path(opts.ffmpeg).resolve().parent
-    if pathlib.Path(opts.ffmpeg).resolve() != (directory / 'ffmpeg').resolve():
-        raise ValueError('ffmpeg must be the pinned installation executable')
-    if pathlib.Path(opts.ffprobe).resolve() != (directory / 'ffprobe').resolve():
-        raise ValueError('ffprobe must be installed beside the pinned ffmpeg')
-    problems = list(test_oracle.verify_bin(directory))
-    if problems:
-        raise ValueError('; '.join(problems))
+    try:
+        pair = test_oracle.require(opts.ffmpeg, opts.ffprobe)
+    except test_oracle.QualificationError as error:
+        raise ValueError(str(error)) from error
+    opts.ffmpeg, opts.ffprobe = str(pair.ffmpeg), str(pair.ffprobe)
     return {name: {'version': subprocess.run([str(getattr(opts, name)), '-version'], capture_output=True,
                                              text=True, check=True, timeout=10).stdout.splitlines()[0],
                    'sha256': sha256(getattr(opts, name))} for name in ('ffmpeg', 'ffprobe')}

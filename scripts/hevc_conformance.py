@@ -1085,15 +1085,16 @@ def census_result(records, registration_sha256, parser_sha256, oracle, synthetic
                 later_effective_tool_coverage='header flags identify candidates, not demonstrated pixel effects')
 
 
-def run(args):
+def run(args, oracle=None):
     data = registration(args.registration)
     exclusions = known_exclusions() if any(c['test'] in EXCLUSION_IDENTITIES for c in data['archives']) else {}
     exclusions_sha = digest(ROOT / 'bench/hevc-conformance/known-exclusions.json') if exclusions else None
     require(all('archive_sha256' in c and 'extracted' in c for c in data['archives']),
             'run requires the SHA-bound manifest produced by the manifest command')
-    require(not list(test_oracle.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
-    oracle = {name: digest(args.oracle_bin / name) for name in ('ffmpeg', 'ffprobe')}
-    oracle['pin_sha256'] = digest(ROOT / oracle_pin.PIN)
+    if oracle is None:
+        oracle = qualified_oracle(args.oracle_bin)
+    oracle_identity = {name: digest(getattr(oracle, name)) for name in ('ffmpeg', 'ffprobe')}
+    oracle_identity['pin_sha256'] = digest(ROOT / oracle_pin.PIN)
     acquisition = read_json(args.data / 'acquisition.json')
     require(acquisition['registration_identity_sha256'] == registration_identity(data)
             and acquisition['complete'], 'complete SHA-bound acquisition is required')
@@ -1103,7 +1104,7 @@ def run(args):
     if getattr(args, 'synthetic_data', None) is not None:
         import hevc_synthetic
         synthetic = hevc_synthetic.inspect(args.synthetic_data, args.out / 'synthetic', args.parser,
-                                           args.oracle_bin, sys.modules[__name__])
+                                           oracle, sys.modules[__name__])
     records = []
     for case in data['archives']:
         result = dict(archive=case['archive'], test=case['test'], streams=[])
@@ -1151,12 +1152,12 @@ def run(args):
                                                                          sys.modules[__name__])
                     record['oracle_preparation'] = preparation
                 diagnostics = record['oracle_stderr'] = []
-                packets = probe(args.oracle_bin / 'ffprobe', oracle_path, output,
+                packets = probe(oracle.ffprobe, oracle_path, output,
                                 diagnostics=diagnostics, stream=case['test'], preparation=preparation)
-                frames = probe(args.oracle_bin / 'ffprobe', oracle_path, output, frames=True,
+                frames = probe(oracle.ffprobe, oracle_path, output, frames=True,
                                diagnostics=diagnostics, stream=case['test'], preparation=preparation)['frames']
                 attempts = record['reference_attempts'] = []
-                confirmation = confirm_reference(args.oracle_bin / 'ffmpeg', oracle_path, output, frames,
+                confirmation = confirm_reference(oracle.ffmpeg, oracle_path, output, frames,
                     [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file'],
                     diagnostics=diagnostics, stream=case['test'], attempts=attempts,
                     preparation=preparation)
@@ -1172,7 +1173,7 @@ def run(args):
                 if not record['reference_frames'] and any(
                         picture['all_intra'] for picture in pictures):
                     record['reference_frames'] = anchored_reference_frames(
-                        args.oracle_bin / 'ffmpeg', oracle_path, output, frames, outputs,
+                        oracle.ffmpeg, oracle_path, output, frames, outputs,
                         confirmation, inventory, case['test'], member['sha256'])
                 record['intra_candidates'] = coverage(pictures, outputs, record['reference_frames'])
                 record['status'] = 'headers_checked'
@@ -1182,7 +1183,7 @@ def run(args):
         except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
             result.update(status='blocked', reason=str(error))
         records.append(result)
-        result = census_result(records, digest(args.registration), digest(args.parser), oracle, synthetic)
+        result = census_result(records, digest(args.registration), digest(args.parser), oracle_identity, synthetic)
         result['known_exclusions_sha256'] = exclusions_sha
         write_json(args.out / 'census.json', result)
     require(result['complete'], 'G1 blocked; inspect census.json')

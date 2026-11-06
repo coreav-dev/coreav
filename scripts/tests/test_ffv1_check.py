@@ -140,7 +140,12 @@ class BoundaryFailures(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        verifier = patch.object(gate.test_oracle, 'verify_bin', side_effect=gate.oracle_pin.verify_bin)
+        def qualify(ffmpeg, ffprobe):
+            problems = list(gate.oracle_pin.verify_bin(ffmpeg.parent))
+            if problems:
+                raise gate.test_oracle.QualificationError('\n'.join(problems))
+            return gate.test_oracle.Oracle(ffmpeg, ffprobe)
+        verifier = patch.object(gate.test_oracle, 'require', side_effect=qualify)
         verifier.start()
         self.addCleanup(verifier.stop)
 

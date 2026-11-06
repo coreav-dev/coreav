@@ -6,15 +6,23 @@ import importlib.util
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
+from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 SPEC = importlib.util.spec_from_file_location('av1_reference', ROOT / 'scripts/av1_process_reference.py')
 reference = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(reference)
+SMOKE = importlib.util.spec_from_file_location('av1_smoke', ROOT / 'scripts/av1_measurement_smoke.py')
+smoke = importlib.util.module_from_spec(SMOKE)
+SMOKE.loader.exec_module(smoke)
 
 
 class ReferenceReplay(unittest.TestCase):
@@ -78,6 +86,67 @@ class ReferenceReplay(unittest.TestCase):
         data['calls'][1]['psnr_db'] = 40
         with self.assertRaises(ValueError):
             reference.summarize(data)
+
+
+class OwnerPair(unittest.TestCase):
+    OWNER = test_oracle.Oracle(Path('/owner/ffmpeg'), Path('/owner/ffprobe'))
+
+    def test_capture_qualifies_its_pair_before_any_call(self):
+        args = SimpleNamespace(oracle='requested/ffmpeg', probe='requested/ffprobe', output=Path('unused'))
+        with mock.patch.object(reference.test_oracle, 'require',
+                               side_effect=test_oracle.QualificationError('pin mismatch')) as require, \
+                mock.patch.object(reference, 'run') as run, mock.patch.object(reference, 'raw_call') as raw_call:
+            with self.assertRaisesRegex(ValueError, 'pin mismatch'):
+                reference.capture(args)
+        require.assert_called_once_with('requested/ffmpeg', 'requested/ffprobe')
+        run.assert_not_called()
+        raw_call.assert_not_called()
+
+    def diagnose(self, outputs):
+        commands = []
+
+        def raw_call(command, destination, timeout):
+            commands.append(command)
+            if destination != os.devnull:
+                Path(destination).write_bytes(outputs[str(command[0])])
+            return {'seconds': 1, 'user_seconds': 0, 'system_seconds': 0}
+
+        args = SimpleNamespace(coreav='/subject/coreav', ffmpeg='/subject/ffmpeg', timeout=5)
+        with tempfile.TemporaryDirectory() as temporary, \
+                mock.patch.object(reference.os, 'sched_getaffinity', return_value={0}, create=True), \
+                mock.patch.object(reference, 'raw_call', side_effect=raw_call), \
+                mock.patch.object(reference, 'probe', return_value={'frames': 1, 'width': 2, 'height': 2}) as probe:
+            result = reference.decode_diagnostic(args, self.OWNER, [{'path': 'input.mp4', 'label': 'sample'}],
+                                                 Path(temporary))
+        probe.assert_called_once_with(self.OWNER.ffprobe, 'input.mp4')
+        return result, commands
+
+    def test_decode_diagnostic_judges_both_decoders_against_the_returned_oracle(self):
+        raw = bytes(6)
+        result, commands = self.diagnose({'/subject/coreav': raw, '/subject/ffmpeg': raw, '/owner/ffmpeg': raw})
+        self.assertEqual([str(command[0]) for command in commands[:3]],
+                         ['/subject/coreav', '/subject/ffmpeg', '/owner/ffmpeg'])
+        self.assertEqual(commands[2][1:], commands[1][1:])
+        self.assertEqual({str(command[0]) for command in commands[3:]}, {'/subject/coreav', '/subject/ffmpeg'})
+        self.assertEqual(len(result[0]['calls']), 6)
+
+    def test_decode_diagnostic_refuses_a_comparator_that_only_agrees_with_coreav(self):
+        with self.assertRaisesRegex(ValueError, 'differ'):
+            self.diagnose({'/subject/coreav': bytes(6), '/subject/ffmpeg': bytes(6), '/owner/ffmpeg': b'\x01' * 6})
+
+    def test_smoke_executes_only_the_returned_pair(self):
+        class Stop(Exception):
+            pass
+
+        with tempfile.TemporaryDirectory() as temporary, \
+                mock.patch.object(sys, 'argv', ['smoke', '--coreav', 'coreav', '--oracle', 'requested',
+                                                '--work', str(Path(temporary) / 'work')]), \
+                mock.patch.object(smoke.test_oracle, 'require', return_value=self.OWNER) as require, \
+                mock.patch.object(smoke, 'run', side_effect=Stop) as run:
+            with self.assertRaises(Stop):
+                smoke.main()
+        require.assert_called_once_with(Path('requested/ffmpeg'), Path('requested/ffprobe'))
+        self.assertEqual(run.call_args.args[0][0], str(self.OWNER.ffmpeg))
 
 
 class BuildIsolation(unittest.TestCase):

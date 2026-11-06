@@ -14,6 +14,9 @@ from evidence import require, sha, token
 from process import run
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "scripts"))
+import test_oracle
+
 PLAN = "scripts/encoders/macos/videotoolbox-plan.md"
 CLASSES = ((360, 1000000), (720, 3000000), (1080, 6000000), (2160, 20000000))
 COVERED_CLASSES = (360, 720, 1080)
@@ -344,7 +347,7 @@ def coreav_build_records(registration, root):
                     "coreav_build_configuration")
 
 
-def preflight(registration_path, root=ROOT):
+def preflight(registration_path, root=ROOT, ffprobe=None):
     event = os.environ.get("GITHUB_EVENT_NAME", "")
     require(event not in ("pull_request", "pull_request_target", "merge_group") and
             not os.environ.get("GITHUB_ACTIONS") and sys.platform == "darwin", "judged_event")
@@ -362,10 +365,15 @@ def preflight(registration_path, root=ROOT):
         binary = root / registration["executables"]["ffmpeg"]["file"]
         require((binary.parent / "ffprobe").resolve(strict=True) ==
                 (root / build_record["ffprobe_file"]).resolve(strict=True), "baseline_probe_changed")
-        run([sys.executable, str(root / "scripts/oracle_pin_macos.py"), "--root", str(root),
-             "--verify-bin", str(binary.parent)], temporary, 60, stdout="pin", stderr="pin-error")
+        try:
+            oracle = test_oracle.require(binary, ffprobe if ffprobe is not None else root / build_record["ffprobe_file"])
+        except test_oracle.QualificationError:
+            raise Invalid("child_failure") from None
+        run([sys.executable, str(root / "scripts/test_oracle.py"), "--resolve",
+             "--ffmpeg", str(oracle.ffmpeg), "--ffprobe", str(oracle.ffprobe)], temporary, 60,
+            stdout="pin", stderr="pin-error")
         require(not read(temporary, "pin-error", 65536), "baseline_pin")
-        run([str(binary), "-version"], temporary, 10, stdout="version", stderr="version-error")
+        run([str(oracle.ffmpeg), "-version"], temporary, 10, stdout="version", stderr="version-error")
         version = read(temporary, "version", 65536).decode().splitlines()
         require(version and version[0].split()[:3] == ["ffmpeg", "version", build_record["macos_build"]],
                 "baseline_version")
@@ -373,11 +381,11 @@ def preflight(registration_path, root=ROOT):
                          if line.startswith("configuration: ")]
         require(len(configuration) == 1 and shlex.split(configuration[0]) ==
                 build_record["configuration"], "baseline_configuration")
-        run([str(binary), "-hide_banner", "-h", "encoder=h264_videotoolbox"], temporary, 10,
+        run([str(oracle.ffmpeg), "-hide_banner", "-h", "encoder=h264_videotoolbox"], temporary, 10,
             stdout="help", stderr="help-error")
         require(sha(read(temporary, "help", 1024**2)) == build_record["encoder_help_sha256"],
                 "baseline_controls")
-    return registration
+    return registration, oracle
 
 
 def baseline_build(value, registration, root):

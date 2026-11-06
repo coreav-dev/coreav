@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
-from test_oracle import verify_bin
+import test_oracle
 
 
 def run(args):
@@ -102,9 +102,10 @@ def wav_samples(data):
 
 
 def check(coreav, oracle, work):
-    errors = list(verify_bin(oracle))
-    if errors:
-        raise ValueError('unverified oracle: ' + '; '.join(errors))
+    try:
+        oracle = test_oracle.require(oracle / 'ffmpeg', oracle / 'ffprobe')
+    except test_oracle.QualificationError as error:
+        raise ValueError('unverified oracle: ' + str(error)) from None
     work.mkdir(parents=True, exist_ok=True)
     pcm = work / 'source.f32'
     pcm.write_bytes(b''.join(struct.pack('<f', .2 * math.sin(2 * math.pi * 440 * n / 48000))
@@ -113,7 +114,7 @@ def check(coreav, oracle, work):
     for mode, bitrate, application in [('silk', '12000', 'voip'), ('hybrid', '24000', 'voip'),
                                        ('celt', '96000', 'lowdelay')]:
         source = work / f'{mode}.mp4'
-        run([oracle / 'ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', '48000', '-ac', '1',
+        run([oracle.ffmpeg, '-v', 'error', '-f', 'f32le', '-ar', '48000', '-ac', '1',
              *AUDIO_DECODE_INPUT, '-i', pcm, '-c:a', 'libopus', '-b:a', bitrate,
              '-application', application, '-vbr', 'off', '-movie_timescale', '48000', '-y', source])
         data = source.read_bytes()
@@ -133,7 +134,7 @@ def check(coreav, oracle, work):
                 struct.pack_into('>H', variant, info['config'] + 2, skip)
                 path = work / f'{mode}-{length}-{skip}.mp4'
                 path.write_bytes(variant)
-                reference = run([oracle / 'ffmpeg', '-v', 'error', *AUDIO_DECODE_INPUT,
+                reference = run([oracle.ffmpeg, '-v', 'error', *AUDIO_DECODE_INPUT,
                                  '-i', path, '-f', 'f32le', '-'])
                 oracle_count = len(reference) // 4
                 if oracle_count != full:

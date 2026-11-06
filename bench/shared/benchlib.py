@@ -133,14 +133,14 @@ def machine():
 
 
 
-def tool_versions():
+def tool_versions(ffmpeg):
     """The first line each tool prints for its version."""
     def first_line(cmd):
         try:
             return subprocess.run(cmd, capture_output=True, text=True, timeout=30).stdout.splitlines()[0]
         except Exception:
             return None
-    return {'ffmpeg': first_line(['ffmpeg', '-version']), 'node': first_line(['node', '--version'])}
+    return {'ffmpeg': first_line([ffmpeg, '-version']), 'node': first_line(['node', '--version'])}
 
 
 SEED, RESAMPLES = 20261018, 10000

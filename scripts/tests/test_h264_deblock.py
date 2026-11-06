@@ -119,7 +119,7 @@ class Report(unittest.TestCase):
         self.platform = patch.object(deblock.sys, 'platform', 'linux')
         self.platform.start()
         self.addCleanup(self.platform.stop)
-        self.pin = patch.object(g1.test_oracle, 'verify_bin', return_value=[])
+        self.pin = patch.object(g1.test_oracle, 'require', return_value=g1.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe'))
         self.pin.start()
         self.addCleanup(self.pin.stop)
 
@@ -193,7 +193,7 @@ class Report(unittest.TestCase):
         self.assertEqual(len(self.report()['cells']), 2)
 
     def test_pin_and_provenance_failures_retain_incomplete_report(self):
-        with patch.object(g1.test_oracle, 'verify_bin', return_value=['wrong oracle']):
+        with patch.object(g1.test_oracle, 'require', side_effect=g1.test_oracle.QualificationError('wrong oracle')):
             with self.assertRaisesRegex(ValueError, 'wrong oracle'):
                 deblock.main(self.argv)
         self.assertFalse(self.report()['complete'])
@@ -291,7 +291,8 @@ class SharedCompare(unittest.TestCase):
                     return subprocess.CompletedProcess(command, code, stdout=stdout, stderr=stderr)
 
                 with patch.object(g1.subprocess, 'run', side_effect=process):
-                    args = (root / 'driver', root / 'ffmpeg', root / 'ldecod', root / 'input',
+                    tools = g1.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified-probe/ffprobe'))
+                    args = (root / 'driver', tools, root / 'ldecod', root / 'input',
                             root / 'cell', 18, 22, 28, 1)
                     options = dict(colour=deblock.COLOUR, deblocking=True) if enabled else {}
                     if fault is None:
@@ -299,6 +300,8 @@ class SharedCompare(unittest.TestCase):
                         self.assertTrue(result['conforming'])
                         self.assertEqual(result['reconstruction_sha256'], hashlib.sha256(samples).hexdigest())
                         self.assertEqual(len(commands), 4)
+                        self.assertEqual(commands[1][0], str(tools.ffprobe))
+                        self.assertEqual(commands[2][0], str(tools.ffmpeg))
                         g1.same_planes(root / 'cell/encoder.yuv', root / 'cell/jm.yuv', size)
                     else:
                         with self.assertRaises((ValueError, subprocess.SubprocessError)):

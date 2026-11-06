@@ -1,5 +1,8 @@
 from pathlib import Path
+from contextlib import redirect_stdout
 import copy
+import hashlib
+import io
 import json
 import subprocess
 import sys
@@ -52,6 +55,168 @@ class Classification(unittest.TestCase):
         report = classifier.classify(self.root, sites, self.record(sites, 'confirmed-bypass'))
         self.assertEqual(report['counts']['confirmed-bypass']['locations'], 1)
         self.assertEqual(report['counts']['qualified-via-owner']['rows'], 0)
+
+    def unavailable_record(self, sites, requires=()):
+        record = self.record(sites, 'excluded', requires=requires)
+        for entry in record['files'][self.path]['sites']:
+            entry.update(verdict='unknown', **{'class': 'unavailable-input'},
+                         evidence='input not available: runtime-selected fixture program')
+        return record
+
+    def assert_unknown_rules(self, report, expected):
+        self.assertEqual(report['unknown_rules'], expected)
+        self.assertEqual(sum(report['unknown_rules'].values()), report['counts']['unknown']['rows'])
+
+    def test_unavailable_input_has_only_the_unknown_verdict(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\n')
+        cases = [('unknown', value) for value in classifier.CLASSES if value != 'unavailable-input']
+        cases += [(value, 'unavailable-input') for value in classifier.VERDICTS if value != 'unknown']
+        cases += [('unknown', 'folded-to-unknown'), ('unknown', 'made-up')]
+        for verdict, evidence_class in cases:
+            with self.subTest(verdict=verdict, evidence_class=evidence_class):
+                record = self.unavailable_record(sites)
+                record['files'][self.path]['sites'][0].update(verdict=verdict, **{'class': evidence_class})
+                with self.assertRaisesRegex(ValueError, 'evidence class'):
+                    classifier.validate_record(record)
+
+    def test_unavailable_input_requires_an_explanation(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\n')
+        record = self.unavailable_record(sites)
+        record['files'][self.path]['sites'][0]['evidence'] = ''
+        with self.assertRaisesRegex(ValueError, 'explanation'):
+            classifier.validate_record(record)
+
+    def test_unavailable_input_retains_its_source_bound_reason(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\n')
+        record = self.unavailable_record(sites)
+        report = classifier.classify(self.root, sites, record)
+        self.assertTrue(report['evidence_valid'], report['problems'])
+        self.assertEqual(report['locations'][0]['verdict'], 'unknown')
+        self.assertEqual(report['locations'][0]['rule'], 'unavailable-input')
+        self.assertEqual(report['locations'][0]['evidence'], record['files'][self.path]['sites'][0]['evidence'])
+        self.assert_unknown_rules(report, {'unavailable-input': 1})
+
+    def test_explained_unknown_still_fails_the_gate_and_stale_source_exits_two(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\n')
+        record = self.unavailable_record(sites)
+        target = self.root / classifier.RECORD
+        target.parent.mkdir(parents=True)
+        target.write_text(json.dumps(record))
+        with tempfile.TemporaryDirectory() as outside:
+            output = Path(outside) / 'report.json'
+            for stale, expected_exit, expected_rules in (
+                    (False, 1, {'unavailable-input': 1}), (True, 2, {'unmatched-site': 1})):
+                with self.subTest(stale=stale):
+                    if stale:
+                        self.file.write_text(self.file.read_text() + '\n')
+                    stdout = io.StringIO()
+                    with patch.object(sys, 'argv', ['classifier', '--root', str(self.root), '--json', str(output)]), \
+                            patch.object(discovery, 'inventory', return_value=sites), redirect_stdout(stdout):
+                        self.assertEqual(classifier.main(), expected_exit)
+                    self.assert_unknown_rules(json.loads(output.read_text()), expected_rules)
+                    self.assertEqual(json.loads(stdout.getvalue())['unknown_rules'], expected_rules)
+
+    def test_unavailable_input_selector_edits_invalidate_the_reason(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\n')
+        selector = self.root / 'scripts/selector.py'
+        selector.write_text('value = 1\n')
+        record = self.unavailable_record(sites, requires=['scripts/selector.py'])
+        selector.write_text('value = 2\n')
+        report = classifier.classify(self.root, sites, record)
+        self.assertFalse(report['evidence_valid'])
+        self.assertIn('stale-file-evidence', {item['reason'] for item in report['problems']})
+        self.assert_unknown_rules(report, {'unmatched-site': 1})
+
+    def test_removed_unavailable_input_sites_leave_dead_evidence(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\n')
+        report = classifier.classify(self.root, [], self.unavailable_record(sites))
+        self.assertFalse(report['evidence_valid'])
+        self.assertIn('dead-site-evidence', {item['reason'] for item in report['problems']})
+        self.assert_unknown_rules(report, {})
+
+    def test_unavailable_input_does_not_cover_a_repeated_unmatched_occurrence(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\n')
+        report = classifier.classify(self.root, sites + copy.deepcopy(sites), self.unavailable_record(sites))
+        self.assertEqual(report['counts']['unknown']['locations'], 1)
+        self.assert_unknown_rules(report, {'unavailable-input': 1, 'unmatched-site': 1})
+
+    def test_unavailable_input_still_requires_the_exact_rust_span(self):
+        self.path = 'scripts/consumer.rs'
+        self.file = self.root / self.path
+        self.file.write_text('fn f() { Command::new(program); }\n')
+        start = self.file.read_bytes().index(b'program')
+        sites = [dict(path=self.path, line=1, kind='Rust', program='program', status='unclassified',
+                      program_span=dict(start=start, end=start + 7))]
+        record = self.unavailable_record(sites)
+        record['files'][self.path]['sites'][0]['program_span']['start'] += 1
+        report = classifier.classify(self.root, sites, record)
+        self.assert_unknown_rules(report, {'source-span-mismatch': 1})
+
+    def test_unavailable_input_cannot_fold_to_a_less_severe_origin(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\nsubprocess.run(other)\n')
+        for verdict, evidence_class in [('qualified-via-owner', 'reviewed-reference'), ('excluded', 'reviewed-exclusion')]:
+            with self.subTest(verdict=verdict):
+                record = self.unavailable_record(sites)
+                entries = record['files'][self.path]['sites']
+                entries[0].update(verdict=verdict, **{'class': evidence_class})
+                entries[1]['fold_to'] = sites[0]['line']
+                with self.assertRaisesRegex(ValueError, 'equally severe'):
+                    classifier.classify(self.root, sites, record)
+
+    def test_less_severe_rows_folded_into_unknown_have_their_own_report_reason(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\nsubprocess.run(other)\n')
+        for verdict, evidence_class in [('qualified-via-owner', 'reviewed-reference'), ('excluded', 'reviewed-exclusion')]:
+            with self.subTest(verdict=verdict):
+                record = self.unavailable_record(sites)
+                record['files'][self.path]['sites'][1].update(verdict=verdict, **{'class': evidence_class},
+                                                            fold_to=sites[0]['line'])
+                report = classifier.classify(self.root, sites, record)
+                self.assertEqual(report['counts']['unknown']['locations'], 1)
+                self.assert_unknown_rules(report, {'unavailable-input': 1, 'folded-to-unknown': 1})
+
+    def test_unknown_folded_into_bypass_does_not_enter_unknown_reasons(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\nsubprocess.run(other)\n')
+        record = self.unavailable_record(sites)
+        entries = record['files'][self.path]['sites']
+        entries[0].update(verdict='confirmed-bypass', **{'class': 'reviewed-bypass'})
+        entries[1]['fold_to'] = sites[0]['line']
+        report = classifier.classify(self.root, sites, record)
+        self.assertEqual(report['counts']['confirmed-bypass']['rows'], 2)
+        self.assertIn('unavailable-input', report['locations'][0]['patterns'])
+        self.assert_unknown_rules(report, {})
+
+    def test_stale_unavailable_input_proofs_cannot_keep_their_folds_or_reasons(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\nsubprocess.run(other)\n')
+        record = self.unavailable_record(sites)
+        record['files'][self.path]['sites'][1].update(verdict='qualified-via-owner',
+                                                   **{'class': 'reviewed-reference'}, fold_to=sites[0]['line'])
+        self.file.write_text(self.file.read_text() + '\n')
+        report = classifier.classify(self.root, sites, record)
+        self.assertFalse(report['evidence_valid'])
+        self.assertEqual(report['counts']['unknown']['locations'], 2)
+        self.assert_unknown_rules(report, {'unmatched-site': 2})
+
+    def test_an_observer_tooling_copy_cannot_use_registered_source_evidence(self):
+        sites = self.sites('import subprocess\nsubprocess.run(["ffprobe", "-version"])\n')
+        sites[0]['status'] = 'observer-copy'
+        record = self.record(sites, 'excluded')
+        record['frozen'][self.path] = record['files'][self.path]['sha256']
+        record['files'][self.path]['sites'][0]['class'] = 'registered-source'
+        report = classifier.classify(self.root, sites, record)
+        self.assertEqual(report['counts']['excluded']['rows'], 0)
+        self.assertEqual(report['counts']['unknown']['rows'], 1)
+        self.assertEqual(report['locations'][0]['rule'], 'boundary-class-mismatch')
+
+    def test_a_symlinked_checkout_root_is_normalized_before_source_bindings(self):
+        self.root = self.root.resolve()
+        sites = self.sites('import subprocess\nsubprocess.run(command)\n')
+        record = self.record(sites, 'excluded')
+        with tempfile.TemporaryDirectory() as outside:
+            alias = Path(outside) / 'checkout'
+            alias.symlink_to(self.root, target_is_directory=True)
+            report = classifier.classify(alias, sites, record)
+        self.assertTrue(report['evidence_valid'], report['problems'])
+        self.assertEqual(report['counts']['excluded']['rows'], 1)
 
     def test_missing_index_files_and_gitlinks_remain_unknown(self):
         (self.root / 'deleted.rs').write_text('fn main() {}')
@@ -292,6 +457,94 @@ class Classification(unittest.TestCase):
         self.assertEqual(report['counts']['qualified-via-owner']['rows'], 0)
         self.assertNotIn('external content', json.dumps(report))
 
+    def legal_link_record(self):
+        for relative in classifier.DEPENDENCIES:
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('')
+        target = self.root / 'LICENSE'
+        target.write_text('fixture legal text\n')
+        link = self.root / 'package/LICENSE'
+        link.parent.mkdir()
+        link.symlink_to('../LICENSE')
+        subprocess.run(['git', 'init', '--quiet', str(self.root)], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(self.root), 'add', '.'], check=True, capture_output=True)
+        self.path = link.relative_to(self.root).as_posix()
+        site = dict(path=self.path, line=1, kind='inventory', scope='<inventory>',
+                    program='unscanned-symlink', status='unclassified')
+        record = self.record([site], 'excluded', requires=classifier.DEPENDENCIES)
+        return link, target, record
+
+    def test_inward_legal_link_binds_link_text_and_tracked_regular_target(self):
+        link, target, record = self.legal_link_record()
+        proof = record['files'][self.path]
+        self.assertEqual(proof['sha256'], hashlib.sha256(b'symlink\0../LICENSE').hexdigest())
+        self.assertIn('LICENSE', proof['requires'])
+        self.assertEqual(record['dependencies']['LICENSE'], hashlib.sha256(target.read_bytes()).hexdigest())
+        report = classifier.classify(self.root, [], record)
+        self.assertTrue(report['evidence_valid'], report['problems'])
+        self.assertEqual(report['counts']['excluded']['rows'], 1)
+        self.assertEqual(classifier.file_kind(link, self.root.resolve()), 'unscanned-symlink')
+
+    def test_legal_link_target_edits_and_same_content_retargeting_invalidate_evidence(self):
+        link, target, record = self.legal_link_record()
+        original = target.read_bytes()
+        other = self.root / 'OTHER.txt'
+        other.write_bytes(original)
+        subprocess.run(['git', '-C', str(self.root), 'add', 'OTHER.txt'], check=True, capture_output=True)
+        record['inventory'] = classifier.file_inventory(self.root)
+        self.assertTrue(classifier.classify(self.root, [], record)['evidence_valid'])
+        target.write_text('changed legal text\n')
+        changed = classifier.classify(self.root, [], record)
+        self.assertFalse(changed['evidence_valid'])
+        self.assertEqual(changed['counts']['excluded']['rows'], 0)
+        target.write_bytes(original)
+        link.unlink()
+        link.symlink_to('../OTHER.txt')
+        self.assertNotEqual(classifier.Bindings(self.root).hash(self.path), record['files'][self.path]['sha256'])
+        changed = classifier.classify(self.root, [], record)
+        self.assertFalse(changed['evidence_valid'])
+        self.assertEqual(changed['counts']['excluded']['rows'], 0)
+
+    def test_legal_link_refuses_missing_untracked_outward_and_indirect_targets(self):
+        link, target, record = self.legal_link_record()
+        untracked = link.with_name('untracked-license')
+        untracked.symlink_to('../LICENSE')
+        with self.assertRaises(ValueError):
+            classifier.Bindings(self.root).context(untracked.relative_to(self.root).as_posix())
+        untracked.unlink()
+        original = target.read_bytes()
+        target.unlink()
+        with self.assertRaises((OSError, ValueError)):
+            classifier.Bindings(self.root).context(self.path)
+        target.write_bytes(original)
+        other = self.root / 'UNTRACKED'
+        other.write_bytes(original)
+        link.unlink()
+        link.symlink_to('../UNTRACKED')
+        with self.assertRaises(ValueError):
+            classifier.Bindings(self.root).context(self.path)
+        with tempfile.TemporaryDirectory() as outside:
+            external = Path(outside) / 'LICENSE'
+            external.write_text('outside legal text\n')
+            link.unlink()
+            link.symlink_to(external)
+            real_open = Path.open
+
+            def checked_open(path, *args, **kwargs):
+                self.assertTrue(path.resolve().is_relative_to(self.root.resolve()), 'read left the checkout')
+                return real_open(path, *args, **kwargs)
+
+            with patch.object(Path, 'open', checked_open), self.assertRaises(ValueError):
+                classifier.Bindings(self.root).context(self.path)
+        other.unlink()
+        other.symlink_to('LICENSE')
+        subprocess.run(['git', '-C', str(self.root), 'add', 'UNTRACKED'], check=True, capture_output=True)
+        link.unlink()
+        link.symlink_to('../UNTRACKED')
+        with self.assertRaises(ValueError):
+            classifier.Bindings(self.root).context(self.path)
+
     def test_duplicate_and_regex_entries_are_rejected(self):
         sites = self.sites('import subprocess\nsubprocess.run(command)\n')
         record = self.record(sites, 'qualified-via-owner')
@@ -364,7 +617,7 @@ class Classification(unittest.TestCase):
         sites = self.sites('import subprocess\nsubprocess.run(command)\n')
         (self.root / 'scripts/compat_sources.py').write_text('')
         record = self.record(sites, 'qualified-via-owner')
-        with patch.object(discovery, 'frozen_files', return_value={'scripts/registered.py'}):
+        with patch.object(discovery, 'frozen_files', return_value=({'scripts/registered.py'}, set())):
             report = classifier.classify(self.root, sites, record)
         self.assertFalse(report['evidence_valid'])
         self.assertEqual(report['counts']['qualified-via-owner']['rows'], 0)

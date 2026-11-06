@@ -180,7 +180,9 @@ class SourceLastCut(unittest.TestCase):
     def cut(self, unmatched=None, extra=None, src=None, out=None, source_side=(0, 888), output_side=None):
         sides = {'source.mp4': source_side, 'whole.mp4': output_side}
         last = self.FRAMES[-1]
-        with mock.patch.object(hc.remux_check, 'last_skip_samples', side_effect=lambda _, path, __: sides[path]):
+        pair = mock.Mock(ffprobe=pathlib.Path('/verified/ffprobe'))
+        with mock.patch.object(hc.test_oracle, 'require', return_value=pair), \
+                mock.patch.object(hc.remux_check, 'last_skip_samples', side_effect=lambda _, path, __: sides[path]):
             return hc.kd_source_last_cut('source.mp4', 1, 'whole.mp4', src or [self.PACKET], out or [self.PACKET],
                                          self.FRAMES, unmatched or [(last[1], last[2])],
                                          extra if extra is not None else [last[1]], Fraction(0))

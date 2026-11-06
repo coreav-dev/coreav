@@ -126,6 +126,8 @@ def validate(m):
         command = m['commands'][name]
         if not isinstance(command, list) or not command or not all(isinstance(v, str) for v in command):
             raise ValueError(f'invalid frozen command {name}')
+        if command[0] not in {'{' + tool + '}' for tool in m['tools']}:
+            raise ValueError(f'frozen command {name} must run a pinned tool placeholder')
     fixture = m['metric_fixture']
     require(fixture['frames'], 60, 'metric fixture frames')
     require(fixture['finite'], True, 'metric fixture finite scores')
@@ -374,9 +376,11 @@ def measure(args, manifest):
     require(str(pathlib.Path(tools['ffmpeg']).with_name('ffprobe')), tools['ffprobe'], 'paired pinned FFmpeg tools')
     for name, pin in manifest['tools'].items():
         require(digest(tools[name]), pin['sha256'], f'{name} executable')
-    problems = list(test_oracle.verify_bin(pathlib.Path(tools['ffmpeg']).parent))
-    if problems:
-        raise ValueError('; '.join(problems))
+    try:
+        oracle = test_oracle.require(tools['ffmpeg'], tools['ffprobe'])
+    except test_oracle.QualificationError as error:
+        raise ValueError(str(error)) from error
+    tools.update(ffmpeg=oracle.ffmpeg, ffprobe=oracle.ffprobe)
     for clip in manifest['clips']:
         path = args.inputs / (clip['label'] + '.yuv')
         require((path.stat().st_size, digest(path)), (clip['bytes'], clip['sha256']), 'prepared input integrity')
@@ -410,7 +414,7 @@ def measure(args, manifest):
                     cells.append(cell)
                     continue
                 if arm == 'coreav':
-                    cell = compare(args.driver.resolve(), pathlib.Path(tools['ffmpeg']), pathlib.Path(tools['jm']), raw, directory,
+                    cell = compare(args.driver.resolve(), oracle, pathlib.Path(tools['jm']), raw, directory,
                                    clip['width'], clip['height'], qp, 60)
                     decoded = directory / 'encoder.yuv'
                 else:

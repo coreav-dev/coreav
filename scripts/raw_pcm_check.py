@@ -11,7 +11,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
-from test_oracle import verify_bin
+import test_oracle
 from pcm_output_check import fields, native_command, run
 from swr_characterize import RATES, pcm, signal
 
@@ -36,7 +36,7 @@ def digest(path):
 
 
 def check(coreav, oracle, root):
-    ffmpeg, ffprobe = oracle / 'ffmpeg', oracle / 'ffprobe'
+    ffmpeg, ffprobe = oracle.ffmpeg, oracle.ffprobe
     env = {**os.environ, 'COREAV_STRICT_SAFE': '1', 'COREAV_FALLBACK': str(root / 'absent-ffmpeg')}
     outcomes = []
     replay = []
@@ -84,20 +84,21 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--work-dir', type=Path)
     args = parser.parse_args()
-    problems = list(verify_bin(args.oracle_dir))
-    if problems:
-        parser.error('; '.join(problems))
+    try:
+        oracle = test_oracle.require(args.oracle_dir / 'ffmpeg', args.oracle_dir / 'ffprobe')
+    except test_oracle.QualificationError as error:
+        parser.error(str(error))
     if args.work_dir:
         args.work_dir.mkdir(parents=True, exist_ok=False)
-        outcomes = check(args.coreav.resolve(), args.oracle_dir.resolve(), args.work_dir.resolve())
+        outcomes = check(args.coreav.resolve(), oracle, args.work_dir.resolve())
     else:
         with tempfile.TemporaryDirectory(prefix='coreav-raw-') as temporary:
-            outcomes = check(args.coreav.resolve(), args.oracle_dir.resolve(), Path(temporary))
+            outcomes = check(args.coreav.resolve(), oracle, Path(temporary))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     report = {'scope': 'synthetic verification, not judged command coverage',
               'source': subprocess.check_output(['git', '-C', str(Path(__file__).resolve().parents[1]), 'rev-parse', 'HEAD'], text=True, timeout=10).strip(),
-              'coreav_sha256': digest(args.coreav), 'ffmpeg_sha256': digest(args.oracle_dir / 'ffmpeg'),
-              'ffprobe_sha256': digest(args.oracle_dir / 'ffprobe'), 'outcomes': outcomes}
+              'coreav_sha256': digest(args.coreav), 'ffmpeg_sha256': digest(oracle.ffmpeg),
+              'ffprobe_sha256': digest(oracle.ffprobe), 'outcomes': outcomes}
     args.out.write_text(json.dumps(report, indent=2) + '\n')
     print(f'Raw PCM: {len(outcomes)} commands matched complete samples and ffprobe fields')
 

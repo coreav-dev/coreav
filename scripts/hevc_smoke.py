@@ -29,7 +29,8 @@ def run(args):
         with tempfile.TemporaryDirectory(prefix='hevc-smoke-') as temporary:
             work = pathlib.Path(temporary)
             result['stage'] = 'inspection'
-            census = synthetic.inspect(args.data, work / 'headers', args.parser, args.oracle_bin, harness)
+            qualified = harness.test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+            census = synthetic.inspect(args.data, work / 'headers', args.parser, qualified, harness)
             result['stage'] = 'membership'
             recipes = fixture.recipes()
             expected_tests = ['SYNTHETIC_' + recipe['id'] for recipe in recipes]
@@ -56,7 +57,7 @@ def run(args):
                 harness.require(harness.digest(source) == stream['record']['sha256'], 'source_identity_changed')
                 directory = work / 'pictures' / str(ordinal)
                 result['stage'] = 'oracle'
-                oracle = intra.oracle_frames(args.oracle_bin / 'ffmpeg', source, directory, stream)
+                oracle = intra.oracle_frames(qualified.ffmpeg, source, directory, stream)
                 harness.require(len(oracle) == 2, 'oracle_failed')
                 for target in stream['targets']:
                     candidate = target['candidate']

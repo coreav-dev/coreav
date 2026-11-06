@@ -19,6 +19,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import hevc_conformance as harness
 import hevc_fixture as fixture
+import test_oracle
 
 COUNTERS = ('ctus', 'coding_units', 'transform_units', 'nonzero_transform_units',
             'transform_skips', 'transquant_bypass_units', 'pcm_units', 'dependent_segments',
@@ -460,16 +461,17 @@ def diagnose_picture(binary, source, directory, stream, candidate, native, metad
 def run(args):
     require(sys.platform == 'linux', 'linux_actions_required')
     require(0 < args.max_memory_bytes <= 4 << 30 and 0 < args.max_bins < 1 << 64, 'driver_budgets')
+    qualified = harness.qualified_oracle(args.oracle_bin)
     args.out.mkdir(parents=True, exist_ok=False)
     identities = dict(registration=harness.digest(args.registration), parser=harness.digest(args.parser),
                       native=harness.digest(args.native), synthetic_registration=harness.digest(fixture.REGISTRATION),
                       acquisition=harness.digest(args.data / 'acquisition.json'))
-    oracle_identity = {name: harness.digest(args.oracle_bin / name) for name in ('ffmpeg', 'ffprobe')}
+    oracle_identity = {name: harness.digest(getattr(qualified, name)) for name in ('ffmpeg', 'ffprobe')}
     result = dict(complete=False, gate='G3' if args.filters else 'G2', stage='g1', identities=identities, results=[])
     try:
         options = argparse.Namespace(**vars(args))
         options.out = args.out / 'g1'
-        harness.run(options)
+        harness.run(options, qualified)
         census = harness.read_json(options.out / 'census.json')
         require(census['registration_sha256'] == identities['registration']
                 and census['parser_sha256'] == identities['parser']
@@ -491,7 +493,7 @@ def run(args):
                             if case['test'] == stream['test'])
                 directory.mkdir(parents=True, exist_ok=True)
                 oracle_source, _ = harness.hevc_oracle_input.prepare(case, source, directory, harness)
-            oracle = oracle_frames(args.oracle_bin / 'ffmpeg', oracle_source, directory, stream)
+            oracle = oracle_frames(qualified.ffmpeg, oracle_source, directory, stream)
             diagnosed = False
             for target in stream['targets']:
                 candidate = target['candidate']
@@ -519,7 +521,7 @@ def run(args):
                     if entry['stage'] == 'comparison' and not diagnosed:
                         diagnosed = True
                         try:
-                            entry['diagnostic'] = diagnose_picture(args.oracle_bin / 'ffmpeg', oracle_source,
+                            entry['diagnostic'] = diagnose_picture(qualified.ffmpeg, oracle_source,
                                 directory, stream, candidate, output, metadata)
                         except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as diagnostic_error:
                             entry['diagnostic'] = dict(available=False, error_type=type(diagnostic_error).__name__)
@@ -533,7 +535,7 @@ def run(args):
                 and harness.digest(args.native) == identities['native']
                 and harness.digest(fixture.REGISTRATION) == identities['synthetic_registration']
                 and harness.digest(args.data / 'acquisition.json') == identities['acquisition']
-                and all(harness.digest(args.oracle_bin / name) == value for name, value in oracle_identity.items()),
+                and all(harness.digest(getattr(qualified, name)) == value for name, value in oracle_identity.items()),
                 'run_identity_changed')
         result['stage'] = 'aggregate'
         result['negative_controls'] = [dict(test=stream['test'], source_sha256=stream['record']['sha256'],
@@ -630,7 +632,7 @@ def main():
     args = parser.parse_args()
     try:
         result = run(args)
-    except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError):
+    except (test_oracle.QualificationError, ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError):
         print('hevc_intra: incomplete', file=sys.stderr)
         return 1
     print(json.dumps({key: result[key] for key in ('complete', 'candidate_count', 'coverage_gaps')}))

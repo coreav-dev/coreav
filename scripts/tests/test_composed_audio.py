@@ -13,6 +13,7 @@ import composed_audio as composed
 import composed_audio_fixtures as fixtures
 import transcode_check as checker
 import composed_audio_source as source_model
+import test_oracle
 
 
 class ComparatorDownload(unittest.TestCase):
@@ -609,6 +610,32 @@ class SourcePresentation(unittest.TestCase):
                         else:
                             with self.assertRaises(composed.Invalid):
                                 source_model.source_reference(args, root, path, 2, 1, {})
+
+
+class OracleVerification(unittest.TestCase):
+    def test_the_returned_pair_is_kept_and_no_sibling_is_rebuilt(self):
+        owner = test_oracle
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            installed, targets, log = root / 'installed', root / 'targets', root / 'calls'
+            installed.mkdir()
+            targets.mkdir()
+            for name in ('ffmpeg', 'ffprobe'):
+                program = targets / name
+                program.write_text(f'#!/bin/sh\necho {name} >> "{log}"\necho "{name} version 0"\n')
+                program.chmod(0o700)
+            (targets / 'decoder').write_text('never executed')
+            (installed / 'ffmpeg').symlink_to(targets / 'decoder')
+            (installed / 'ffprobe').symlink_to(targets / 'ffprobe')
+            with mock.patch.object(owner, '_selection', None), mock.patch.object(owner, '_result', None), \
+                    mock.patch.object(owner.sys, 'platform', 'linux'), \
+                    mock.patch.object(owner.oracle_pin, 'verify_bin', return_value=()):
+                pair = owner.require(installed / 'ffmpeg', installed / 'ffprobe')
+                args = SimpleNamespace(ffmpeg=str(pair.ffmpeg), ffprobe=str(pair.ffprobe))
+                composed.verify_oracle(args, {})
+            self.assertEqual((args.ffmpeg, args.ffprobe), (str((targets / 'decoder').resolve()),
+                                                           str((targets / 'ffprobe').resolve())))
+            self.assertFalse(log.exists())
 
 
 class BoundedCommands(unittest.TestCase):

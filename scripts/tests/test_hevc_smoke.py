@@ -5,6 +5,7 @@ import importlib.util
 import json
 import pathlib
 import tempfile
+import types
 import unittest
 from unittest import mock
 
@@ -61,17 +62,21 @@ class Smoke(unittest.TestCase):
                 paths.append(directory)
                 failed = mutation == 'native' or mutation == 'late-native' and len(commands) == 3
                 return (1 if failed else 0), stdout, directory / 'stderr'
+            qualified = types.SimpleNamespace(ffmpeg=root / 'qualified-ffmpeg', ffprobe=root / 'qualified-ffprobe')
             validate_metadata = smoke.intra.validate_metadata
             compare_picture = smoke.intra.compare_picture
             with mock.patch.object(smoke.sys, 'platform', 'linux'), \
+                 mock.patch.object(smoke.harness.test_oracle, 'require', return_value=qualified) as owner, \
                  mock.patch.object(smoke.synthetic, 'inspect', return_value=census) as inspect, \
                  mock.patch.object(smoke.intra, 'stream_targets', side_effect=streams), \
-                 mock.patch.object(smoke.intra, 'oracle_frames', return_value=[reference, reference]), \
+                 mock.patch.object(smoke.intra, 'oracle_frames', return_value=[reference, reference]) as frames, \
                  mock.patch.object(smoke.harness, 'child', side_effect=child), \
                  mock.patch.object(smoke.intra, 'validate_metadata') as metadata, \
                  mock.patch.object(smoke.intra, 'compare_picture', return_value={'bytes': 1}) as compare:
                 if mutation == 'inspection':
                     inspect.side_effect = ValueError('PRIVATE_MARKER')
+                if mutation == 'qualification':
+                    owner.side_effect = smoke.harness.test_oracle.QualificationError('PRIVATE_MARKER')
                 if mutation == 'metadata':
                     metadata.side_effect = validate_metadata
                 if mutation == 'pixels':
@@ -81,6 +86,8 @@ class Smoke(unittest.TestCase):
             self.assertEqual(json.loads(text), result)
             self.assertNotIn('PRIVATE_MARKER', text)
             self.assertTrue(all(not path.exists() for path in paths))
+            owner.assert_called_once_with(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+            self.selection = (qualified, inspect.call_args_list, frames.call_args_list)
             return result, commands
 
     def test_exact_eight_complete_identities_and_bounded_commands(self):
@@ -91,6 +98,17 @@ class Smoke(unittest.TestCase):
         for command, kwargs in commands:
             self.assertEqual(command[-2:], [str(256 << 20), str(1 << 28)])
             self.assertEqual(kwargs, dict(file_limit=256 << 20))
+
+    def test_inspection_and_oracle_frames_take_only_the_owner_returned_pair(self):
+        result, _ = self.execute()
+        self.assertTrue(result['complete'])
+        qualified, inspections, frames = self.selection
+        self.assertEqual([call.args[3] for call in inspections], [qualified])
+        self.assertEqual(len(frames), 4)
+        self.assertTrue(all(call.args[0] == qualified.ffmpeg for call in frames))
+        result, commands = self.execute('qualification')
+        self.assertEqual((result['stage'], result['reason'], commands), ('inspection', smoke.REASONS['inspection'], []))
+        self.assertEqual(self.selection[1], [])
 
     def test_missing_extra_and_duplicate_membership_never_launch_native(self):
         for mutation in ('missing-recipe', 'extra-recipe', 'duplicate-recipe',

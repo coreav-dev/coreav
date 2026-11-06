@@ -523,7 +523,7 @@ fn closed_gop_input_seek_witnesses_match_complete_outputs() {
 fn audio_bearing_input_seek_matches_complete_packets_and_presented_samples() {
     let pair = test_oracle::require();
     let ffmpeg = pair.ffmpeg();
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
+    let ffprobe = pair.ffprobe().to_path_buf();
     let owner = FixtureDir(
         Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("ffmpeg-input-seek-av-{}", std::process::id())),

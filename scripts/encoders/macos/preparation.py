@@ -13,10 +13,13 @@ from fractions import Fraction
 from pathlib import Path
 
 import preparation_process as process
-from evidence import digest, file_hash, integer, keys, require
+from evidence import Invalid, digest, file_hash, integer, keys, require
 from process import _SignalScope
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "scripts"))
+import test_oracle
+
 MAX_PIXELS = 3840 * 2160
 MAX_ALLOC = 256 << 20
 SOURCE_LIMIT = 8 << 30
@@ -188,7 +191,7 @@ def validate_recipe(item):
     return recipe
 
 
-def command(source_path, item, oracle_bin):
+def command(source_path, item, ffmpeg):
     recipe = validate_recipe(item)
     c = recipe["source_colour"]
     conversion = (
@@ -223,7 +226,7 @@ def command(source_path, item, oracle_bin):
     if recipe["container_name"] == "mov":
         discovery += ["-enable_drefs", "0", "-use_absolute_path", "0"]
     return [
-        str(Path(oracle_bin) / "ffmpeg"),
+        str(ffmpeg),
         "-hide_banner",
         "-nostdin",
         "-nostats",
@@ -312,10 +315,10 @@ def copy_source(source_path, destination, item):
         os.close(fd)
 
 
-def oracle_identity(oracle_bin, expected):
+def oracle_identity(oracle, expected):
     for name, value in expected.items():
         require(
-            file_hash(Path(oracle_bin) / name, limit=1 << 30) == value,
+            file_hash(getattr(oracle, name), limit=1 << 30) == value,
             "preparation_oracle_changed",
         )
 
@@ -353,14 +356,20 @@ def materialize_one(source_path, item, oracle_bin, output_dir):
             )
             copy_source(source_path, source, item)
             expected = recipe["oracle_sha256"]
-            oracle_identity(oracle_bin, expected)
+            selected = test_oracle.Oracle(Path(oracle_bin) / "ffmpeg", Path(oracle_bin) / "ffprobe")
+            oracle_identity(selected, expected)
+            try:
+                oracle = test_oracle.require(selected.ffmpeg, selected.ffprobe)
+            except test_oracle.QualificationError:
+                raise Invalid("child_failure") from None
             process.capture(
                 [
                     sys.executable,
                     "-I",
-                    str(ROOT / "scripts/oracle_pin.py"),
-                    "--verify-bin",
-                    str(oracle_bin),
+                    str(ROOT / "scripts/test_oracle.py"),
+                    "--resolve",
+                    "--ffmpeg", str(oracle.ffmpeg),
+                    "--ffprobe", str(oracle.ffprobe),
                 ],
                 output,
                 "oracle",
@@ -368,12 +377,12 @@ def materialize_one(source_path, item, oracle_bin, output_dir):
                 time.time() + 60,
                 guard=guard,
             )
-            oracle_identity(oracle_bin, expected)
+            oracle_identity(oracle, expected)
             hashes = process.RawHashes(
                 item["width"] * item["height"] * 3 // 2, item["frames"]
             )
             captured = process.capture(
-                command(source, item, oracle_bin),
+                command(source, item, oracle.ffmpeg),
                 output,
                 "prepare",
                 {
@@ -385,7 +394,7 @@ def materialize_one(source_path, item, oracle_bin, output_dir):
                 hashes,
                 guard,
             )
-            oracle_identity(oracle_bin, expected)
+            oracle_identity(oracle, expected)
             observed = captured["raw_hashes"]
             require(
                 observed["whole_sha256"] == item["raw_sha256"]

@@ -36,8 +36,8 @@ KNOWN_REFUSALS = ('truncated structure at offset', "invalid '", 'invalid element
                   'no keyframe before the frame at that time')
 
 
-def codec_of(path, ffprobe):
-    stream = thumbnail_oracle.default_video(path, ffprobe)
+def codec_of(path, ffmpeg, ffprobe):
+    stream = thumbnail_oracle.default_video(path, ffmpeg, ffprobe)
     if stream is None:
         return None
     r = thumbnail_oracle.run([ffprobe, '-v', 'error', '-select_streams', str(stream),
@@ -45,8 +45,8 @@ def codec_of(path, ffprobe):
     return r.stdout.decode().strip()
 
 
-def times_of(path, ffprobe, count):
-    t = thumbnail_oracle.at_time(path, ffprobe)
+def times_of(path, ffmpeg, ffprobe, count):
+    t = thumbnail_oracle.at_time(path, ffmpeg, ffprobe)
     if t is None:
         return []
     if count <= 1:
@@ -80,10 +80,10 @@ def one(decode_oracle, path, t):
             'packets_on': on['packets_decoded'], 'packets_off': off['packets_decoded']}
 
 
-def check(decode_oracle, path, ffprobe, times=1):
+def check(decode_oracle, path, ffmpeg, ffprobe, times=1):
     """The result of `path` at its times; the first that is not the same
     decides it."""
-    results = [one(decode_oracle, path, t) for t in times_of(path, ffprobe, times)]
+    results = [one(decode_oracle, path, t) for t in times_of(path, ffmpeg, ffprobe, times)]
     if not results:
         return {'status': 'no_duration'}
     worst = next((r for r in results if r['status'] in ('differs', 'failed')), None)
@@ -114,7 +114,7 @@ def main():
     results = []
     with tempfile.TemporaryDirectory() as copies:
         for path in files:
-            codec = codec_of(path, a.ffprobe)
+            codec = codec_of(path, a.ffmpeg, a.ffprobe)
             if codec not in CODECS:
                 continue
             targets = [path]
@@ -128,7 +128,7 @@ def main():
                     results.append({'status': 'failed', 'file': copy.name, 'codec': codec,
                                     'error': 'the Matroska copy could not be made'})
             for target in targets:
-                result = check(a.decode_oracle, target, a.ffprobe, a.times)
+                result = check(a.decode_oracle, target, a.ffmpeg, a.ffprobe, a.times)
                 result['file'] = target.name
                 result['codec'] = codec
                 results.append(result)

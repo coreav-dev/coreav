@@ -78,7 +78,8 @@ def frozen_files(root, paths):
                 pass
         values[rel] = local
     compatibility = values['scripts/compat_sources.py']
-    protected = set(compatibility['FROZEN']) | set(compatibility['JUDGING'])
+    observer = set(compatibility['OBSERVER'])
+    protected = (set(compatibility['FROZEN']) - observer) | set(compatibility['JUDGING'])
     protected.add(compatibility['JUDGING_REGISTRATION'])
     protected.update(values['tools/compat-corpus/b4_round10.py']['TOOL_FILES'])
     protected.update('scripts/' + name for name in values['scripts/vp9_pixel_round.py']['CAPTURE_SCRIPTS'])
@@ -87,7 +88,9 @@ def frozen_files(root, paths):
                      for name in ('capacity', 'run', 'receipts', 'oracle', 'agreement'))
     protected.update(values['scripts/h264_pgo_diagnostics.py']['TOOLS'])
     protected.add('scripts/h264_pgo_acquire.py')
-    return {path for path in paths if any(path == name or path.startswith(name + '/') for name in protected)}
+    strict = {path for path in paths if any(path == name or path.startswith(name + '/') for name in protected)}
+    copies = {path for path in paths if any(path == name or path.startswith(name + '/') for name in observer)} - strict
+    return strict | copies, copies
 
 
 class PythonSites:
@@ -460,7 +463,7 @@ def inventory(root):
     root = Path(root).resolve()
     paths = sorted(set(filter(None, subprocess.check_output(
         ['git', '-C', str(root), 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], text=True).split('\0'))))
-    frozen = frozen_files(root, paths)
+    frozen, observer_copies = frozen_files(root, paths)
     if ((root / HISTORICAL_RECORD).is_symlink() or
             not (root / HISTORICAL_RECORD).resolve().is_relative_to(root)):
         raise ValueError('historical source record must not be a symbolic link')
@@ -529,7 +532,9 @@ def inventory(root):
     for site in found:
         site['owner_path_hint'] = site['status'] == 'qualified'
         site['status'] = 'unclassified'
-        if site['path'] in frozen:
+        if site['path'] in observer_copies:
+            site['status'] = 'observer-copy'
+        elif site['path'] in frozen:
             site['status'] = 'frozen'
         elif site['path'] in BOOTSTRAP:
             site['status'] = 'bootstrap'

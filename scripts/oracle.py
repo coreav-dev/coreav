@@ -148,11 +148,12 @@ def decode(binary, fixture, streams, timeout):
 
 
 def capture_one(fixture, args):
-    metadata, success = probe(args.ffprobe, fixture, args.timeout)
-    packet_data, packet_success = probe(args.ffprobe, fixture, args.timeout, packets=True)
-    media_data, media_success = probe(args.ffprobe, fixture, args.timeout, packets=True, raw=True)
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    metadata, success = probe(str(qualified.ffprobe), fixture, args.timeout)
+    packet_data, packet_success = probe(str(qualified.ffprobe), fixture, args.timeout, packets=True)
+    media_data, media_success = probe(str(qualified.ffprobe), fixture, args.timeout, packets=True, raw=True)
     streams = [normalize_stream(stream) for stream in metadata.get("streams", [])]
-    frames, frames_success = decode(args.ffmpeg, fixture, streams, args.timeout)
+    frames, frames_success = decode(str(qualified.ffmpeg), fixture, streams, args.timeout)
     warnings = []
     if not success:
         warnings.append("ffprobe stream capture failed")

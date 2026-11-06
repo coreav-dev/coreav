@@ -57,7 +57,7 @@ def main():
     parser.add_argument('--stream', type=int, default=None)
     parser.add_argument('--only', default='')
     args = parser.parse_args()
-    test_oracle.require('ffmpeg', 'ffprobe')
+    oracle = test_oracle.require('ffmpeg', 'ffprobe')
     files = json.loads(Path(args.inputs).read_text())['files']
     if args.only:
         files = [f for f in files if any(f['sha256'].startswith(p) for p in args.only.split(','))]
@@ -65,7 +65,7 @@ def main():
     result = {}
     for f in files:
         url = r2.presign(f['key'])
-        done = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_entries',
+        done = subprocess.run([str(oracle.ffprobe), '-v', 'error', '-select_streams', 'a:0', '-show_entries',
                                'packet=pos,size', '-of', 'compact=p=0:nk=0', url], capture_output=True,
                               text=True, timeout=3600)
         packets = []

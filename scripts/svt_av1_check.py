@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-import oracle_pin
+import test_oracle
 
 
 FRAMES = 36
@@ -20,11 +20,12 @@ def run(command):
 
 
 def check(coreav, oracle, work, moving=False, shared_input=False):
-    problems = list(oracle_pin.verify_bin(oracle))
-    if problems:
-        raise ValueError('\n'.join(problems))
+    try:
+        oracle = test_oracle.require(oracle / 'ffmpeg', oracle / 'ffprobe')
+    except test_oracle.QualificationError as error:
+        raise ValueError(str(error)) from error
     work.mkdir(parents=True, exist_ok=True)
-    ffmpeg = oracle / 'ffmpeg'
+    ffmpeg = oracle.ffmpeg
     source = work / 'source.mp4'
     encoded = work / 'encoded.mp4'
     reference = work / 'reference.yuv'
@@ -51,7 +52,7 @@ def check(coreav, oracle, work, moving=False, shared_input=False):
         raise ValueError('explicit AV1 transcode did not return its v2 receipt')
     if receipt['video']['encoding']['segments'] < (1 if moving else 2):
         raise ValueError('the AV1 fixture did not cross a bounded-session boundary')
-    probe = json.loads(run([oracle / 'ffprobe', '-v', 'error', '-count_frames',
+    probe = json.loads(run([oracle.ffprobe, '-v', 'error', '-count_frames',
                            '-select_streams', 'v:0', '-show_entries',
                            'stream=codec_name,width,height,pix_fmt,nb_read_frames',
                            '-of', 'json', encoded]))

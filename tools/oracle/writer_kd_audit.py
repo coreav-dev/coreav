@@ -52,6 +52,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import test_oracle
+
 
 def boxes(data, start, end):
     """(type, header start, payload start, end) of each box in [start, end)."""
@@ -491,7 +493,11 @@ def main():
     entries = json.loads(Path(args.manifest).read_text())
     if args.limit:
         entries = entries[:args.limit]
-    tools = (args.ffprobe, args.ffmpeg, args.mediainfo)
+    try:
+        oracle = test_oracle.require(args.ffmpeg, args.ffprobe)
+    except test_oracle.QualificationError as error:
+        raise SystemExit(f"writer_kd_audit: {error}") from None
+    tools = (str(oracle.ffprobe), str(oracle.ffmpeg), args.mediainfo)
     work = tempfile.mkdtemp(prefix="writer-kd-audit-")
     results = []
     try:

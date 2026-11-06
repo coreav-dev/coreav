@@ -8,6 +8,8 @@
 
 #[path = "support/concat_output.rs"]
 mod concat_output;
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -126,21 +128,8 @@ fn ffmpeg(args: &[&str]) -> Run {
 }
 
 fn oracle() -> Option<(PathBuf, PathBuf)> {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
-    if ffmpeg.is_file() && ffprobe.is_file() {
-        return Some((ffmpeg, ffprobe));
-    }
-    let required =
-        std::env::var_os("CI").is_some() || std::env::var_os("COREAV_REQUIRE_FFMPEG").is_some();
-    assert!(
-        !required,
-        "no pinned ffmpeg and ffprobe (set COREAV_FFMPEG)"
-    );
-    eprintln!("skipping: no pinned ffmpeg and ffprobe (set COREAV_FFMPEG)");
-    None
+    let pin = test_oracle::require();
+    Some((pin.ffmpeg().to_path_buf(), pin.ffprobe().to_path_buf()))
 }
 
 #[test]

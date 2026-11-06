@@ -99,17 +99,24 @@ class OutputBinding(unittest.TestCase):
         return types.SimpleNamespace(returncode=0)
 
     def qualify(self, coreav, oracle, source, work, metadata, pns, capture):
+        self.assertIs(oracle, self.oracle)
         capture.update(self.capture)
         return {'status': 'pass', 'channels': 1, 'rate': 48000}
 
     def check(self, value=None, verdict=('failed', 'decoded samples')):
         value = value or command()
         codec = 'pcm_f32le' if '-f' in value.args and value.args[value.args.index('-f') + 1] == 'f32le' else 'pcm_s16le'
+        self.oracle = types.SimpleNamespace(ffmpeg=Path('/qualified/ffmpeg'), ffprobe=Path('/qualified/ffprobe'))
         with mock.patch.object(qualification, 'run', side_effect=self.scan), \
+             mock.patch.object(qualification.test_oracle, 'require', return_value=self.oracle) as owner, \
              mock.patch.object(qualification, 'check_output', side_effect=self.qualify), \
              mock.patch.object(qualification, 'pns_check', return_value='qualified PNS'):
-            return aac.compare(value, self.root, SOURCE, {(0, 0): codec}, verdict,
-                {'$AAC_DIAGNOSTIC': 'diagnostic', '$COREAV': 'coreav', '$FFMPEG': '/oracle/ffmpeg'}, self.root)
+            result = aac.compare(value, self.root, SOURCE, {(0, 0): codec}, verdict,
+                {'$AAC_DIAGNOSTIC': 'diagnostic', '$COREAV': 'coreav', '$FFMPEG': '/oracle/ffmpeg',
+                 '$FFPROBE': '/oracle/ffprobe'}, self.root)
+        for call in owner.call_args_list:
+            self.assertEqual(call, mock.call('/oracle/ffmpeg', '/oracle/ffprobe'))
+        return result
 
     def outputs(self, value):
         form = value.output_options[0][1]
@@ -301,7 +308,7 @@ class PinnedAacControls(unittest.TestCase):
                 ['-f', 's16le', '-']))), capture_output=True, timeout=120)
             self.assertEqual((result.returncode, result.stdout), (4, b''))
             with tempfile.TemporaryDirectory(dir=self.root) as temporary:
-                row = qualification.check(self.coreav, self.oracle.ffmpeg.parent, source,
+                row = qualification.check(self.coreav, self.oracle, source,
                     Path(temporary), self.diagnostic, {})
                 self.assertEqual(row['status'], 'ineligible')
 
@@ -309,7 +316,7 @@ class PinnedAacControls(unittest.TestCase):
         source = self.root / 'pns-independent.m4a'
         with tempfile.TemporaryDirectory(dir=self.root) as temporary:
             capture = {}
-            row = qualification.check(self.coreav, self.oracle.ffmpeg.parent, source,
+            row = qualification.check(self.coreav, self.oracle, source,
                                       Path(temporary), self.diagnostic, capture)
             self.assertEqual(row['status'], 'pass')
             self.assertIn('pns', row)

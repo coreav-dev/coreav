@@ -948,6 +948,24 @@ class Cli(Stubs):
             pathlib.Path(getattr(self.opts, name)).write_text(
                 f'#!{sys.executable}\nprint({name + " version " + build!r})\n')
 
+    def test_preflight_retains_both_owner_paths_for_queries_and_consumers(self):
+        selected = self.opts.ffmpeg, self.opts.ffprobe
+        pair = eb.test_oracle.Oracle(self.dir / 'verified/ffmpeg', self.dir / 'verified/ffprobe')
+        with mock.patch.object(eb.test_oracle, 'require', return_value=pair) as qualify, \
+                mock.patch.object(eb.subprocess, 'run', return_value=types.SimpleNamespace(stdout='qualified version\n')) as run, \
+                mock.patch.object(eb, 'sha256', return_value='qualified-digest') as digest:
+            programs = eb.oracle_programs(self.opts)
+        qualify.assert_called_once()
+        self.assertEqual(tuple(pathlib.Path(path).resolve() for path in qualify.call_args.args),
+                         tuple(pathlib.Path(path).resolve() for path in selected))
+        self.assertEqual((self.opts.ffmpeg, self.opts.ffprobe), (str(pair.ffmpeg), str(pair.ffprobe)))
+        self.assertEqual(run.call_args_list,
+                         [mock.call([str(path), '-version'], capture_output=True, text=True, check=True, timeout=10)
+                          for path in (pair.ffmpeg, pair.ffprobe)])
+        self.assertEqual(digest.call_args_list, [mock.call(str(path)) for path in (pair.ffmpeg, pair.ffprobe)])
+        self.assertEqual(programs, {name: {'version': 'qualified version', 'sha256': 'qualified-digest'}
+                                    for name in ('ffmpeg', 'ffprobe')})
+
     @unittest.skipUnless(sys.platform == 'linux', 'Linux banner-only stand-in qualification')
     def test_preflight_records_the_supplied_pinned_executables(self):
         self.pinned_stand_ins()
@@ -967,10 +985,11 @@ class Cli(Stubs):
         other.write_text(f'#!{sys.executable}\nprint("ffmpeg version 0.0.0")\n')
         other.chmod(0o755)
         self.opts.ffmpeg = str(other)
-        with self.assertRaises(ValueError):
-            eb.oracle_programs(self.opts)
-        with mock.patch.object(eb, 'evaluate') as evaluate, contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(eb.cmd_run(self.opts), 2)
+        with mock.patch.object(eb.test_oracle, '_selection', None), mock.patch.object(eb.test_oracle, '_result', None):
+            with self.assertRaises(ValueError):
+                eb.oracle_programs(self.opts)
+            with mock.patch.object(eb, 'evaluate') as evaluate, contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(eb.cmd_run(self.opts), 2)
         evaluate.assert_not_called()
 
     def test_run_writes_a_record_a_command_and_a_summary_with_the_programs_hashes(self):

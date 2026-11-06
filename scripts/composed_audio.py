@@ -10,13 +10,13 @@ import pathlib
 import re
 import selectors
 import signal
-import shutil
 import struct
 import subprocess
 import sys
 import time
 
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
+import test_oracle
 from composed_audio_source import expected_encoder, source_reference
 
 
@@ -625,14 +625,8 @@ def verify_comparator(program):
 
 
 def verify_oracle(args, env):
-    ffmpeg = pathlib.Path(shutil.which(args.ffmpeg) or args.ffmpeg).resolve()
-    ffprobe = pathlib.Path(shutil.which(args.ffprobe) or args.ffprobe).resolve()
-    if ffprobe != ffmpeg.with_name('ffprobe'):
-        raise Invalid('current checking requires the installed pinned oracle pair')
-    key = (str(ffmpeg), sha256_file(ffmpeg), sha256_file(ffprobe))
-    if getattr(args, '_verified_composed_oracle', None) != key:
-        bounded([sys.executable, '-I', ROOT / 'scripts/oracle_pin.py', '--verify-bin', ffmpeg.parent], env)
-        args._verified_composed_oracle = key
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
 
 
 LOADED_METHOD = method_digest()

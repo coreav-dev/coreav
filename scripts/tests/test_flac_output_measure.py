@@ -59,5 +59,51 @@ class FlacMeasurement(unittest.TestCase):
         self.assertEqual(stats["share_faster"], 0.0)
 
 
+
+class OracleSelection(unittest.TestCase):
+    def test_smoke_executes_and_validates_the_owner_returned_pair(self):
+        import contextlib
+        import io
+        import sys
+        import tempfile
+        import test_oracle
+        pair = test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified/ffprobe'))
+        with tempfile.TemporaryDirectory() as temporary:
+            out = Path(temporary) / 'report.json'
+            argv = ['flac_output_measure', '--coreav', 'coreav', '--oracle-dir', '/requested',
+                    '--out', str(out), '--smoke']
+            with patch.object(sys, 'argv', argv), patch.dict(os.environ, {'GITHUB_ACTIONS': 'true'}), \
+                    patch.object(test_oracle, 'require', return_value=pair) as qualify, \
+                    patch.object(measure, 'make_source', return_value=Path('source')) as source, \
+                    patch.object(measure, 'run', return_value=b'') as run, \
+                    patch.object(measure, 'validate') as validate, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(measure.main(), 0)
+            qualify.assert_called_once_with(Path('/requested/ffmpeg'), Path('/requested/ffprobe'))
+            self.assertTrue(all(call.args[0] == pair.ffmpeg for call in source.call_args_list))
+            self.assertEqual([call.args[0][0] for call in run.call_args_list][1::2],
+                             [str(pair.ffmpeg)] * 3)
+            self.assertTrue(all(call.args[:2] == (pair.ffmpeg, pair.ffprobe)
+                                for call in validate.call_args_list))
+
+    def test_pin_failure_retains_only_an_aborted_report(self):
+        import json
+        import sys
+        import tempfile
+        import test_oracle
+        with tempfile.TemporaryDirectory() as temporary:
+            out = Path(temporary) / 'report.json'
+            argv = ['flac_output_measure', '--coreav', 'coreav', '--oracle-dir', '/requested',
+                    '--out', str(out), '--smoke']
+            with patch.object(sys, 'argv', argv), patch.dict(os.environ, {'GITHUB_ACTIONS': 'true'}), \
+                    patch.object(test_oracle, 'require', side_effect=test_oracle.QualificationError('private pin detail')), \
+                    patch.object(measure, 'make_source') as source, patch.object(measure, 'run') as run:
+                with self.assertRaisesRegex(RuntimeError, '^oracle verification failed$'):
+                    measure.main()
+            source.assert_not_called()
+            run.assert_not_called()
+            report = json.loads(out.read_text())
+            self.assertEqual(report, {'state': 'aborted', 'rows': [], 'judged': False, 'error': 'RuntimeError'})
+
+
 if __name__ == "__main__":
     unittest.main()

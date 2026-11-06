@@ -92,12 +92,14 @@ def capture(oracle, output):
         sys.platform == "darwin" and not output.exists(), "capture_platform_or_output"
     )
     oracle = oracle.resolve(strict=True)
-    problems = list(test_oracle.verify_bin(oracle, ROOT))
-    require(not problems, "baseline_pin")
+    try:
+        oracle = test_oracle.require(oracle / "ffmpeg", oracle / "ffprobe")
+    except test_oracle.QualificationError:
+        require(False, "baseline_pin")
     pin = oracle_pin_macos.load(ROOT)
-    ffmpeg = oracle / "ffmpeg"
+    ffmpeg = oracle.ffmpeg
     version = command([str(ffmpeg), "-version"])
-    probe_version = command([str(oracle / "ffprobe"), "-version"])
+    probe_version = command([str(oracle.ffprobe), "-version"])
     help_text = command(
         [str(ffmpeg), "-hide_banner", "-h", "encoder=h264_videotoolbox"]
     )
@@ -109,7 +111,7 @@ def capture(oracle, output):
         "macos_pin_sha256": file_hash(ROOT / oracle_pin_macos.PIN),
         "binary_sha256": file_hash(ffmpeg),
         "ffprobe_file": "target/videotoolbox/bin/ffprobe",
-        "ffprobe_sha256": file_hash(oracle / "ffprobe"),
+        "ffprobe_sha256": file_hash(oracle.ffprobe),
         "configuration": config,
         "configuration_sha256": sha("\0".join(config).encode()),
         "encoder_help_sha256": sha(help_text),
@@ -131,7 +133,7 @@ def capture(oracle, output):
         baseline["acquisition"][name] = {
             "url": pin[f"MACOS_{name.upper()}_URL"],
             "archive_sha256": pin[f"MACOS_{name.upper()}_SHA256"],
-            "binary_sha256": file_hash(oracle / name),
+            "binary_sha256": file_hash(getattr(oracle, name)),
         }
         baseline["architectures"][name] = "arm64"
         baseline["signatures"][name] = {
@@ -161,7 +163,7 @@ def capture(oracle, output):
     cache_residency.preflight({"cache_observer": observer}, ROOT)
     require(
         file_hash(ffmpeg) == baseline["binary_sha256"]
-        and file_hash(oracle / "ffprobe") == baseline["ffprobe_sha256"],
+        and file_hash(oracle.ffprobe) == baseline["ffprobe_sha256"],
         "baseline_changed",
     )
     output.mkdir()

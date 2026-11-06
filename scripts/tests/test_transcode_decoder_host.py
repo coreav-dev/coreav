@@ -167,14 +167,14 @@ class DecoderHostTests(unittest.TestCase):
         path.write_bytes(b'not media')
         frames = '# synthetic fixture\n0, 0, 0, 1, 6, sample-hash\n'
         with patch.object(tool, 'output_check', return_value=(frames, [])):
-            result = tool.preflight(executor, file, path, self.out, self.out, self.out, self.out / 'checks')
+            result = tool.preflight(executor, file, path, {name: self.out / name for name in ('ffmpeg', 'ffprobe', 'x264')}, self.out, self.out, self.out / 'checks')
             self.assertEqual(result['ffmpeg']['process']['isolation'], 'in-process')
         for changed in [(frames + '0, 1, 1, 1, 6, other\n', []),
                         (frames.replace('sample-hash', 'changed-hash'), []),
                         (frames, [{'data_hash': 'changed-audio'}])]:
             with patch.object(tool, 'output_check', side_effect=[(frames, []), changed]):
                 with self.assertRaises(ValueError):
-                    tool.preflight(executor, file, path, self.out, self.out, self.out, self.out / 'checks')
+                    tool.preflight(executor, file, path, {name: self.out / name for name in ('ffmpeg', 'ffprobe', 'x264')}, self.out, self.out, self.out / 'checks')
 
     def test_timeout_prevents_a_successful_call(self):
         with patch.object(tool.subprocess, 'run', side_effect=subprocess.TimeoutExpired('synthetic', 1)):

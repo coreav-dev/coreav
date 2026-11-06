@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import http.client
 import importlib.util
 import json
@@ -505,6 +506,24 @@ class OracleDiagnostics(unittest.TestCase):
 
 
 class Conformance(unittest.TestCase):
+    def test_corpus_metadata_executes_the_owner_returned_program(self):
+        content = b'synthetic metadata identity'
+        sha = hashlib.sha256(content).hexdigest()
+        item = dict(sha256=sha, size=len(content), ext='mp4', partition='development', sets=[])
+        (self.root / (sha + '.mp4')).write_bytes(content)
+        out, err = self.root / 'metadata.json', self.root / 'metadata.stderr'
+        runner.write_json(out, dict(format=dict(format_name='mp4'), streams=[dict(codec_type='video',
+            codec_name='hevc', profile='Main', width=16, height=16, pix_fmt='yuv420p', field_order='progressive')]))
+        err.write_text('')
+        pair = runner.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
+        args = SimpleNamespace(data=self.root, out=self.root / 'out', oracle_bin=self.root / 'original')
+        with mock.patch.object(runner.test_oracle, 'require', return_value=pair) as owner, \
+                mock.patch.object(runner, 'roster', return_value=[item]), \
+                mock.patch.object(runner, 'child', return_value=(0, out, err)) as child:
+            runner.corpus(args)
+        owner.assert_called_once_with(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+        self.assertEqual(child.call_args.args[0][0], pair.ffprobe)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -860,18 +879,21 @@ class Conformance(unittest.TestCase):
         fixture = self.fixture()
         args = SimpleNamespace(registration=self.root / 'registration.json', data=self.root / 'data',
                                oracle_bin=self.root, parser=self.root / 'parser', out=self.root / 'out')
+        qualified = runner.test_oracle.Oracle(pathlib.Path('/qualified/ffmpeg'), pathlib.Path('/qualified/ffprobe'))
         with mock.patch.object(runner, 'registration', return_value=data), \
                 mock.patch.object(runner, 'read_json', side_effect=[acquisition, inventory]), \
                 mock.patch.object(runner, 'digest', return_value='f' * 64), \
-                mock.patch.object(runner.test_oracle, 'verify_bin', return_value=[]), \
+                mock.patch.object(runner.test_oracle, 'require', return_value=qualified), \
                 mock.patch.object(runner, 'child', return_value=(0, self.root / 'native', None)), \
                 mock.patch.object(runner, 'native_rows', return_value=fixture[2:5]), \
-                mock.patch.object(runner, 'probe', side_effect=[fixture[5], dict(frames=fixture[6])]), \
-                mock.patch.object(runner, 'confirm_reference', side_effect=ValueError('published output MD5 differs')), \
+                mock.patch.object(runner, 'probe', side_effect=[fixture[5], dict(frames=fixture[6])]) as probe, \
+                mock.patch.object(runner, 'confirm_reference', side_effect=ValueError('published output MD5 differs')) as confirm, \
                 mock.patch.object(runner, 'compare') as compare:
             with self.assertRaisesRegex(ValueError, 'G1 blocked'):
                 runner.run(args)
             compare.assert_not_called()
+            self.assertEqual([call.args[0] for call in probe.call_args_list], [qualified.ffprobe] * 2)
+            self.assertEqual(confirm.call_args.args[0], qualified.ffmpeg)
         result = runner.read_json(args.out / 'census.json')
         self.assertFalse(result['complete'])
         self.assertEqual(result['archives'][0]['status'], 'blocked')
@@ -1088,6 +1110,7 @@ class Conformance(unittest.TestCase):
         qualified = runner.test_oracle.Oracle(self.root / 'ffmpeg', self.root / 'ffprobe')
         with mock.patch.object(runner, 'child', return_value=(0, out, err)) as child:
             record = runner.corpus_record(item, source, self.root, qualified)
+        self.assertEqual(child.call_args.args[0][0], qualified.ffprobe)
         self.assertIn('-show_data', child.call_args.args[0])
         self.assertEqual(record['status'], 'inspected')
         self.assertNotIn('canary', json.dumps(record))

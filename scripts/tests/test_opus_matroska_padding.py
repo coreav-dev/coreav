@@ -24,12 +24,10 @@ def page(body, lengths, flags=0, granule=0):
 
 class OpusMatroskaPadding(unittest.TestCase):
     def test_oracle_diagnostics_are_consumed_before_work_is_created(self):
-        def rejected(_):
-            yield 'wrong oracle version'
-
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory) / 'cases'
-            with mock.patch.object(padding, 'verify_bin', side_effect=rejected), \
+            with mock.patch.object(padding.test_oracle, 'require',
+                    side_effect=padding.test_oracle.QualificationError('wrong oracle version')), \
                     mock.patch.object(padding, 'run', side_effect=AssertionError('unexpected process')) as launch:
                 with self.assertRaisesRegex(ValueError, 'unverified oracle'):
                     padding.check(Path('native'), Path('oracle'), work)
@@ -63,6 +61,23 @@ class OpusMatroskaPadding(unittest.TestCase):
         self.assertEqual(workflow.count('"scripts/opus_matroska_padding.py"'), 2)
         self.assertIn('python3 -I scripts/opus_matroska_padding.py --coreav target/debug/coreav', workflow)
         self.assertIn('${{ runner.temp }}/opus-matroska-padding.json', workflow)
+
+
+
+class OracleSelection(unittest.TestCase):
+    def test_first_execution_uses_the_owner_returned_program(self):
+        import test_oracle
+        pair = test_oracle.Oracle(Path('/qualified/ffmpeg'), Path('/qualified/ffprobe'))
+        stopped = RuntimeError('stop before media execution')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with mock.patch.object(test_oracle, 'require', return_value=pair) as qualify, \
+                    mock.patch.object(padding, 'run', side_effect=stopped) as run:
+                with self.assertRaises(RuntimeError) as error:
+                    padding.check(Path('native'), Path('/requested'), root / 'work')
+            self.assertIs(error.exception, stopped)
+            qualify.assert_called_once_with(Path('/requested/ffmpeg'), Path('/requested/ffprobe'))
+            self.assertEqual(run.call_args.args[0][0], pair.ffmpeg)
 
 
 if __name__ == '__main__':

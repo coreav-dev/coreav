@@ -12,6 +12,8 @@
 
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod common;
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
 
 use common::{Spec, aac_entry, av_movie, av_movie_with, bx, cat, full, u32s};
 use coreav_cli::fallback::Reason;
@@ -2163,16 +2165,9 @@ fn input_seek_refusal_contract_keeps_its_exact_command_scope() {
 }
 
 fn verify_input_seek_refusal(args: &[String], output: &Path) {
-    let pin = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("PATH")
-                .iter()
-                .flat_map(std::env::split_paths)
-                .map(|directory| directory.join(format!("ffmpeg{}", std::env::consts::EXE_SUFFIX)))
-                .find(|path| coreav_cli::fallback::executable(path))
-        })
-        .expect("stage=oracle_selection: no pinned FFmpeg executable");
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
     let pin = std::path::absolute(pin).unwrap();
     assert!(
         coreav_cli::fallback::executable(&pin),
@@ -2995,24 +2990,9 @@ fn the_automatic_selection_takes_video_before_a_cover_picture() {
     assert_eq!(listed(&output), (vec![V, A], vec![]));
 }
 
-/// The pinned `ffmpeg` and its `ffprobe`: `None` (a skip) when there are
-/// none, a failure in CI or with `COREAV_REQUIRE_FFMPEG` set.
 fn oracle() -> Option<(PathBuf, PathBuf)> {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
-    if ffmpeg.is_file() && ffprobe.is_file() {
-        return Some((ffmpeg, ffprobe));
-    }
-    let required =
-        std::env::var_os("CI").is_some() || std::env::var_os("COREAV_REQUIRE_FFMPEG").is_some();
-    assert!(
-        !required,
-        "no pinned ffmpeg and ffprobe (set COREAV_FFMPEG)"
-    );
-    eprintln!("skipping: no pinned ffmpeg and ffprobe (set COREAV_FFMPEG)");
-    None
+    let pin = test_oracle::require();
+    Some((pin.ffmpeg().to_path_buf(), pin.ffprobe().to_path_buf()))
 }
 
 #[cfg(unix)]

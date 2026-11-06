@@ -34,6 +34,7 @@ from fractions import Fraction
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
 import policy_ref  # noqa: E402
+import test_oracle  # noqa: E402
 KD_FILE = ROOT / 'docs' / 'known-divergences-mkv.json'
 IN_SCOPE = ('.mkv', '.webm', '.mka', '.mk3d')
 
@@ -189,9 +190,10 @@ def attachments(reference, candidate):
 def _first_frame_size(path, index):
     """The size of the stream's first decoded frame, from ffprobe (a black
     box), or None."""
+    pair = test_oracle.require()
     try:
         done = subprocess.run(
-            ['ffprobe', '-v', 'error', '-select_streams', str(index), '-read_intervals', '%+#1',
+            [str(pair.ffprobe), '-v', 'error', '-select_streams', str(index), '-read_intervals', '%+#1',
              '-show_entries', 'frame=width,height', '-of', 'json', str(path)],
             capture_output=True, timeout=60, check=False)
         frames = json.loads(done.stdout).get('frames', [])

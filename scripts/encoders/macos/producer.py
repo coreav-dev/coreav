@@ -30,6 +30,9 @@ from registration import CLASSES, COLOUR, ROOT, SCOPE, cadence_hint, clock, cove
 import smoke
 import timing
 
+sys.path.insert(0, str(ROOT / "scripts"))
+import test_oracle
+
 ENCODED = 1024**3
 RAW = 32 * 1024**3
 SMALL = 16 * 1024**2
@@ -424,7 +427,7 @@ def validate_history(value):
             "resume_history")
 
 
-def analyse(directory, source, item, cell, side, reg, args, observability):
+def analyse(directory, source, item, cell, side, reg, args, observability, oracle):
     directory = Path(directory)
     analysis = directory / "analysis"
     binding = unit_binding(directory, item, cell, side, reg, args)
@@ -470,9 +473,9 @@ def analyse(directory, source, item, cell, side, reg, args, observability):
     write(marker, owner)
     analysis.mkdir(exist_ok=False)
     try:
-        decode(directory / "video.h264", item, analysis, args.oracle_bin / "ffmpeg",
-               args.oracle_bin / "ffprobe", args.coreav_decoder)
-        capture_metrics(source, analysis / "ffmpeg.yuv", item, analysis, args.oracle_bin / "ffmpeg",
+        decode(directory / "video.h264", item, analysis, oracle.ffmpeg,
+               oracle.ffprobe, args.coreav_decoder)
+        capture_metrics(source, analysis / "ffmpeg.yuv", item, analysis, oracle.ffmpeg,
                         args.model, args.coreav_decoder)
         for path in analysis.iterdir():
             if path.name not in ANALYSIS_FILES:
@@ -614,16 +617,16 @@ def capture_preflights(args):
     args.output.mkdir(exist_ok=False)
     write(args.output / "producer-status.json", ledger)
     try:
-        reg = preflight(args.registration, args.root)
+        reg, oracle = preflight(args.registration, args.root, args.ffprobe)
         require(file_hash(Path(__file__).resolve()) == reg["metric_tools"]["evidence_producer"], "producer_changed")
         reg_hash = file_hash(args.registration)
         spec = load(args.root / reg["baseline_build"]["file"])["observability"]
         ledger = {"schema": "coreav.videotoolbox-availability/2", **roster_coverage(reg), "session_id": reg["session_id"],
                   "registration_sha256": reg_hash, "cells": {"hardware": {}, "software": {}}}
         native = args.root / reg["executables"]["coreav"]["file"]
-        baseline = args.root / reg["executables"]["ffmpeg"]["file"]
+        baseline = oracle.ffmpeg
         environment = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "C", "LC_ALL": "C", **reg["environment"]}
-        probe = args.ffprobe.resolve(strict=True)
+        probe = oracle.ffprobe
         build = load(args.root / reg["baseline_build"]["file"])
         require(file_hash(probe) == build["ffprobe_sha256"], "baseline_probe_changed")
         for cell in ("hardware", "software"):
@@ -643,7 +646,7 @@ def capture_preflights(args):
                     unit["raw_file"] = (directory / "source.yuv").relative_to(args.root).as_posix() \
                         if directory.is_relative_to(args.root) else "unused"
                     command = timing.commands(reg, unit, cell, args.root, directory / "video.h264",
-                                              directory / "packets.stats")["ffmpeg"]
+                                              directory / "packets.stats", oracle)["ffmpeg"]
                     command[command.index("-i") + 1] = str(directory / "source.yuv")
                     command[command.index("-b:v") + 1] = "2000000"
                     try:
@@ -687,7 +690,7 @@ def capture_preflights(args):
                 timing.host_state(reg)
         timing.availability(ledger, reg)
         require(file_hash(args.registration) == reg_hash, "registration_changed")
-        preflight(args.registration, args.root)
+        preflight(args.registration, args.root, args.ffprobe)
         write(args.output / "availability.json", ledger)
         (args.output / "producer-status.json").unlink()
     except BaseException as error:
@@ -708,7 +711,7 @@ def capture_fixtures(args):
               "covered_classes": None, "uncovered_classes": None, "status": "failed", "records": []}
     write(args.report, report)
     try:
-        reg = preflight(args.registration, args.root)
+        reg, oracle = preflight(args.registration, args.root)
         report.update(roster_coverage(reg))
         reg_hash = file_hash(args.registration)
         require(file_hash(Path(__file__).resolve()) == reg["metric_tools"]["evidence_producer"], "producer_changed")
@@ -733,7 +736,7 @@ def capture_fixtures(args):
                     report["records"].append(record)
                     try:
                         command = timing.commands(reg, item, cell, args.root, directory / "video.h264",
-                                                  directory / ("native.json" if side == "coreav" else "packets.stats"))[side]
+                                                  directory / ("native.json" if side == "coreav" else "packets.stats"), oracle)[side]
                         run(command, directory, 300, env=environment)
                         encoder_ended_ns = time.time_ns()
                         record["encoder_ended_ns"] = encoder_ended_ns
@@ -807,18 +810,20 @@ def analysis_preflight(args):
     with tempfile.TemporaryDirectory() as temporary:
         if args.install_oracle:
             run(["bash", str(args.root / "scripts/install-oracle-ffmpeg.sh"), str(args.oracle_bin)], temporary, 1800)
-        run([sys.executable, "-I", str(args.root / "scripts/oracle_pin.py"), "--verify-bin", str(args.oracle_bin)],
-            temporary, 120, stdout="pin-out", stderr="pin-error")
+        try:
+            oracle = test_oracle.require(args.oracle_bin / "ffmpeg", args.oracle_bin / "ffprobe")
+        except test_oracle.QualificationError:
+            raise Invalid("child_failure") from None
     for name in ("ffmpeg", "ffprobe"):
-        require(file_hash(args.oracle_bin / name) == reg["metric_tools"][name], "oracle_changed")
+        require(file_hash(getattr(oracle, name)) == reg["metric_tools"][name], "oracle_changed")
     require(file_hash(args.coreav_decoder) == reg["metric_tools"]["coreav_decoder"] and
             file_hash(args.model, SMALL) == reg["metric_tools"]["model"], "analysis_tool_changed")
     with tempfile.TemporaryDirectory() as temporary:
-        run([str(args.oracle_bin / "ffmpeg"), "-hide_banner", "-filters"], temporary, 30)
+        run([str(oracle.ffmpeg), "-hide_banner", "-filters"], temporary, 30)
         available = {parts[1] for line in read(temporary, "stdout", SMALL).decode().splitlines()
                      if len(parts := line.split()) >= 2}
         require({"libvmaf", "psnr", "ssim"} <= available, "metric_tool_unavailable")
-    return reg
+    return reg, oracle
 
 
 def campaign_binding(args, reg):
@@ -914,7 +919,8 @@ def build_bundle(args):
     if (args.output / "evidence.json").exists() or (args.output / "evidence.json").is_symlink():
         try:
             require(args.resume, "resume_required")
-            require(analysis_preflight(args) == prepared, "resume_binding")
+            reg, oracle = analysis_preflight(args)
+            require(reg == prepared, "resume_binding")
             with tempfile.TemporaryDirectory() as temporary:
                 timing.replay(SimpleNamespace(root=args.root, registration=args.registration,
                                               capture=args.capture, artifacts=args.artifacts,
@@ -935,7 +941,7 @@ def build_bundle(args):
             for name in expected_files - {"campaign.json"}:
                 remove_partial_write(args.output / name)
         write(args.output / "producer-status.json", report)
-        reg = analysis_preflight(args)
+        reg, oracle = analysis_preflight(args)
         require(reg == prepared, "resume_binding")
         reg_hash = file_hash(args.registration)
         captured = load(args.capture, SMALL)
@@ -1009,7 +1015,7 @@ def build_bundle(args):
                         file_hash(directory / "requested.json", SMALL) == call["requested_sha256"], "baseline_evidence")
                 baseline_identity(directory, reg, call["cell"], spec, call["output_sha256"], call["ended_ns"])
             item = by_id[call["input_id"]]
-            facts = analyse(directory, args.root / item["raw_file"], item, call["cell"], call["side"], reg, args, spec)
+            facts = analyse(directory, args.root / item["raw_file"], item, call["cell"], call["side"], reg, args, spec, oracle)
             require(facts["output_sha256"] == call["output_sha256"] and facts["payload_bytes"] == call["output_bytes"],
                     "output_changed")
             if call["side"] == "coreav":
@@ -1032,7 +1038,7 @@ def build_bundle(args):
                 facts = {}
                 for side in ("coreav", "ffmpeg"):
                     directory = args.artifacts / f"fixture.{cell}.{fixture}.{side}"
-                    facts[side] = analyse(directory, args.root / item["raw_file"], item, cell, side, reg, args, spec)
+                    facts[side] = analyse(directory, args.root / item["raw_file"], item, cell, side, reg, args, spec, oracle)
                 filename = f"fixture.{cell}.{fixture}.json"
                 fixture_value = {"schema": "coreav.videotoolbox-fixture-quality/1", "fixture": fixture,
                     "cell": cell, "producer_sha256": reg["metric_tools"]["evidence_producer"],

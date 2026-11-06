@@ -91,6 +91,7 @@ class AudioOracle(unittest.TestCase):
     def test_hls_frames_preserve_general_thread_override(self):
         for index in (None, 1):
             with patch.object(hls_check, 'THREADS', ['-threads', '8']), \
+                    patch.object(hls_check.test_oracle, 'require', return_value=SimpleNamespace(ffmpeg='ffmpeg')), \
                     patch.object(hls_check, 'run', return_value=SimpleNamespace(stdout=b'')) as run:
                 hls_check.frames('master.m3u8', index)
                 command = run.call_args.args[0]
@@ -120,7 +121,8 @@ class AudioOracle(unittest.TestCase):
 
     def test_matroska_hash_helper_owns_audio_even_when_copy_is_selected_later(self):
         for copy in (False, True):
-            with patch.object(mkv_remux_check, 'run', return_value=(0, b'')) as run:
+            with patch.object(mkv_remux_check.test_oracle, 'require', return_value=SimpleNamespace(ffmpeg='ffmpeg')), \
+                    patch.object(mkv_remux_check, 'run', return_value=(0, b'')) as run:
                 mkv_remux_check.framemd5('source.mkv', 0, copy=copy)
                 self.assert_input(run.call_args.args[0])
 

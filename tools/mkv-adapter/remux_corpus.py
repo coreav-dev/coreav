@@ -134,7 +134,7 @@ def check_with_oracle(source, output, document, mediainfo, oracle):
         command = [sys.executable, '-I', str(checker.__file__), 'check', str(source), str(output), str(summary)]
         if mediainfo:
             command += ['--mediainfo', mediainfo]
-        env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ.get('PATH', ''))
+        env = dict(os.environ, COREAV_FFMPEG=str(root / 'ffmpeg'), COREAV_FFPROBE=str(root / 'ffprobe'))
         done = subprocess.run(command, env=env, capture_output=True, timeout=TIMEOUT, check=False)
         if done.returncode not in (0, 1):
             raise RuntimeError('remux checker failed: ' + done.stderr.decode('utf-8', 'replace'))
