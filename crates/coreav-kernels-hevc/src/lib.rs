@@ -71,7 +71,7 @@ const REFERENCE_SAMPLES: usize = 129;
 /// Upper bound on fixed numerical arrays inside one kernel call, excluding inputs and outputs.
 #[cfg(feature = "native-hevc")]
 pub const SCRATCH_BYTES: usize = {
-    let inverse = core::mem::size_of::<inverse::Scratch>()
+    let inverse = core::mem::size_of::<inverse::Scratch<32>>()
         + 2 * core::mem::size_of::<[i32; REFERENCE_SAMPLES]>();
     let inter = core::mem::size_of::<inter::InterScratch>();
     if inverse > inter { inverse } else { inter }

@@ -713,12 +713,12 @@ fn complete_skip_sequence_wraps_frame_numbers_then_resets_at_idr() {
 #[test]
 fn disabled_all_intra_bytes_preserve_the_original_synthetic_stream() {
     let expected = concat!(
-        "000000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888422e4f93159bf8350",
-        "00100f52a896cf3caa252a84b113d4fe291e572aa5b5ca1800850f8600051241d3e3a7c74f8e9f07371cdc7371cde000",
-        "0000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888208bb16c4d2ff06a000",
-        "201aa55094bd729544a55094bd72ab71c9eb65525b5ca1800850d8600051241d3e3a7c74f8e9f07371cdc7371cde0000",
-        "00016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888422e4f93b4bfc1a800080",
-        "4a9544b9e7954252a8973cf6a5c37e3f2a92dae50c004286c4000288c1d3e3a7c74f8e9f07371cdc7371cde0",
+        "000000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888422e4d931317f8350",
+        "00100f52a896c9ea551295425889eaf2e1b3ce554b6b9430010a1f0c000a2483a7c74f8e9f1d3e0e6e39b8e6e39bc000",
+        "0000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888208bb36ccc6d6fc1a80",
+        "00806a954252f27a9544a55094bc9eab6a7d527ad955286002143618001449074f8e9f1d3e3a7c1cdc7371cdc7378000",
+        "0000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888422e4190131065e0d40",
+        "0040254aa25cf0e154252a8973c38ecee79c73c396787030010a1b10000a23074f8e9f1d3e3a7c1cdc7371cdc73780",
     );
     for gop in [Gop::AllIntra, Gop::Fixed { idr_interval: 1 }] {
         let mut s = settings(16, 16, 28);
@@ -754,4 +754,65 @@ fn disabled_all_intra_bytes_preserve_the_original_synthetic_stream() {
         let actual: String = output.iter().map(|b| format!("{b:02x}")).collect();
         assert_eq!(actual, expected);
     }
+}
+
+fn xorshift(seed: u32) -> Vec<u8> {
+    let mut x = seed;
+    (0..384)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            x as u8
+        })
+        .collect()
+}
+
+fn encode_16x16(encoder: &mut Encoder, raw: &[u8]) -> Result<String> {
+    let (y, uv) = raw.split_at(256);
+    let (cb, cr) = uv.split_at(64);
+    let au = encoder.encode(Picture {
+        y: Plane::new(y, 16, 16, 16).unwrap(),
+        cb: Plane::new(cb, 8, 8, 8).unwrap(),
+        cr: Plane::new(cr, 8, 8, 8).unwrap(),
+    })?;
+    Ok(au
+        .nals
+        .iter()
+        .flat_map(|nal| [0, 0, 0, 1].iter().chain(nal))
+        .map(|b| format!("{b:02x}"))
+        .collect())
+}
+
+#[test]
+fn idr_shortlist_falls_back_to_every_candidate_when_none_is_admitted() {
+    for (seed, qp) in [(5, 16), (18, 16), (20, 16), (10, 15)] {
+        let mut encoder = Encoder::new(settings(16, 16, qp), Limits::default()).unwrap();
+        assert!(
+            encode_16x16(&mut encoder, &xorshift(seed)).is_ok(),
+            "{seed} {qp}"
+        );
+    }
+}
+
+#[test]
+fn p_intra_fallback_keeps_every_candidate() {
+    let mut s = settings(16, 16, 16);
+    s.gop = Gop::Fixed { idr_interval: 32 };
+    let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+    encode_16x16(&mut encoder, &[128; 384]).unwrap();
+    let p = encode_16x16(&mut encoder, &xorshift(1)).unwrap();
+    let expected = concat!(
+        "000000016742c033da7a6a020203e0000003002000000790800000000168ce3e8000000001619a202aa6bd5ec64f832a",
+        "f00040b8e02180afcc17ac9e9c9f9abde0301035508134d56b9f85151b53fde000080d8039050b6843463b4d22d994d1",
+        "e00097a00803872383f89e74fb81ff8301756002de0d99b938f19d674a35e0000400c002e815c88d18b18fab9722d3ff",
+        "bc0001006053a01393d856c56a9815435f810e4879dd8335e517273b368871e0000805060ebcc2692eed078f2c9d51e7",
+        "810e02d84fbb438c8364084d875cfc010107989eb6174be48d626894a7c20404d031a74b0b0dc8f99d57db78010a003e",
+        "c4ecbabf65e17d51775f819c000d20c0673f225ba4dde2efef00203d80f055e2bcb9349e192d4c65e000182002966d61",
+        "a259c92e35f274fd0400020230100101000080d020e64002c00040240705db612a3796463b9450ffb8400c20142bbb5a",
+        "1645852e906bc0041c31c6d0376781b406dea769c4000200800020240160e25f32a987b0755200007020500010042488",
+        "66241c21c69a62b3400010051c0058cc1cb5ceead55d96cf7000638025b0a2a7ceb6931a33324fa04004069cfead3385",
+        "0fb6883ad0",
+    );
+    assert_eq!(p, expected);
 }
