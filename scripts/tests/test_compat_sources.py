@@ -22,12 +22,14 @@ class SourceRepo:
         self.git('init', '-q')
         self.git('symbolic-ref', 'HEAD', 'refs/heads/main')
         for path in sources.FROZEN:
-            self.write(path, path + '\n')
+            target = path + '/mod.rs' if path == 'crates/coreav-isobmff/tests/common' else path
+            self.write(target, path + '\n')
         for path in sources.JUDGING:
             self.write(path, path + '\n')
         for name in ('compat_sources.py', 'registered_candidate.py'):
             self.write('scripts/' + name, (ROOT / 'scripts' / name).read_text())
         self.write(sources.README, '')
+        self.write('.gitignore', '/target/\n')
         self.candidate = self.save()
         self.write('deadline', 'floor\n')
         self.floor = self.save()
@@ -136,13 +138,21 @@ class Sources(unittest.TestCase):
             for missing in (False, True):
                 with self.subTest(path=path, missing=missing):
                     self.repo.git('reset', '--hard', self.repo.tooling)
+                    target = path + '/mod.rs' if path == 'crates/coreav-isobmff/tests/common' else path
                     if missing:
-                        (self.root / path).unlink()
+                        (self.root / target).unlink()
                     else:
-                        self.repo.write(path, 'drift\n')
+                        self.repo.write(target, 'drift\n')
                     changed = self.repo.save()
-                    with self.assertRaises(ValueError):
-                        self.plan(tooling=changed, event='pull_request')
+                    if path in sources.OBSERVER:
+                        planned = self.plan(tooling=changed, event='pull_request')
+                        self.assertEqual(planned['frozen'][path], {
+                            'owner': 'r3-harness',
+                            'object': self.repo.git('rev-parse', f'{self.repo.candidate}:{path}'),
+                        })
+                    else:
+                        with self.assertRaises(ValueError):
+                            self.plan(tooling=changed, event='pull_request')
 
     def test_floor_registration_is_exact_unique_and_documented(self):
         for text in ('', self.repo.registration * 2, self.repo.registration.replace(self.repo.floor, 'main'),
@@ -174,6 +184,8 @@ class Sources(unittest.TestCase):
                      ('judging', 'registration_sha256'), ('judging', 'files', sources.JUDGING[0])]
         mutations += [('artifacts', name, field) for name in sources.ARTIFACTS
                       for field in ('role', 'built_from', 'sha256')]
+        mutations += [('frozen', path, field) for path in sources.FROZEN for field in ('owner', 'object')]
+        mutations += [('judging', 'observer', 'commit'), ('judging', 'observer', 'sources')]
         for path in mutations:
             with self.subTest(path=path):
                 changed = copy.deepcopy(original)
@@ -231,6 +243,101 @@ class Sources(unittest.TestCase):
             self.assertTrue(any(path == ROOT / frozen or path.is_relative_to(ROOT / frozen)
                                 for frozen in sources.FROZEN), module)
 
+    def test_observer_sources_are_registered_at_the_candidate_not_the_tooling_copy(self):
+        for path in sources.OBSERVER:
+            target = path + '/mod.rs' if path == 'crates/coreav-isobmff/tests/common' else path
+            self.repo.write(target, 'development observer\n')
+        self.repo.tooling = self.repo.save()
+        self.repo.git('update-ref', 'refs/remotes/origin/main', self.repo.tooling)
+        planned = self.plan()
+        _, dist, manifest = self.bundle()
+        for path in sources.OBSERVER:
+            expected = self.repo.git('rev-parse', f'{self.repo.candidate}:{path}')
+            self.assertNotEqual(expected, self.repo.git('rev-parse', f'{self.repo.tooling}:{path}'))
+            self.assertEqual(planned['frozen'][path], {'owner': 'r3-harness', 'object': expected})
+            self.assertEqual(manifest['judging']['observer']['sources'][path], expected)
+        shallow = Path(self.tmp.name) / 'shallow'
+        subprocess.run(['git', 'clone', '--quiet', '--depth', '1', self.root.as_uri(), str(shallow)],
+                       check=True, capture_output=True)
+        absent = subprocess.run(['git', 'cat-file', '-e', self.repo.candidate], cwd=shallow,
+                                capture_output=True, check=False)
+        self.assertNotEqual(absent.returncode, 0)
+        self.assertEqual(sources.verify(shallow, dist, self.repo.candidate, self.repo.tooling, self.run), manifest)
+        for path in sources.OBSERVER:
+            for oid in ('a' * 40, self.repo.git('rev-parse', f'{self.repo.tooling}:{path}')):
+                with self.subTest(path=path, object=oid):
+                    altered = copy.deepcopy(manifest)
+                    altered['frozen'][path]['object'] = oid
+                    (dist / 'sources.json').write_text(json.dumps(altered))
+                    with self.assertRaisesRegex(ValueError, re.escape(path)):
+                        sources.verify(shallow, dist, self.repo.candidate, self.repo.tooling, self.run)
+
+    def test_candidate_build_configuration_must_be_clean_but_ignored_outputs_are_allowed(self):
+        candidate, dist, _ = self.bundle()
+        (candidate / 'target').mkdir()
+        (candidate / 'target/cache').write_text('ignored build output\n')
+        sources.record(self.root, candidate, dist, self.repo.candidate,
+                       self.repo.tooling, self.run, 'rustc fixture')
+        (candidate / '.cargo').mkdir()
+        (candidate / '.cargo/config.toml').write_text('[build]\njobs = 1\n')
+        with self.assertRaisesRegex(ValueError, 'untracked'):
+            sources.record(self.root, candidate, dist, self.repo.candidate,
+                           self.repo.tooling, self.run, 'rustc fixture')
+
+    def test_the_registered_candidate_cannot_omit_an_observer_source(self):
+        for path in sources.OBSERVER:
+            with self.subTest(path=path):
+                self.repo.git('reset', '--hard', self.repo.candidate)
+                self.repo.git('rm', '-r', path)
+                missing = self.repo.save()
+                with self.assertRaisesRegex(ValueError, re.escape(path)):
+                    sources.observer_sources(self.root, missing)
+
+    def test_version_one_bundles_and_ambiguous_source_entries_are_rejected(self):
+        _, dist, manifest = self.bundle()
+        old = copy.deepcopy(manifest)
+        old['schema'] = 'compat-0.1.0-sources/1'
+        old['frozen'] = {path: value['object'] for path, value in old['frozen'].items()}
+        (dist / 'sources.json').write_text(json.dumps(old))
+        with self.assertRaisesRegex(ValueError, 'schema'):
+            self.verify(dist)
+        path = sources.OBSERVER[0]
+        for entry in ('a' * 40, {'owner': 'tooling', 'object': manifest['frozen'][path]['object']},
+                      {**manifest['frozen'][path], 'extra': True}):
+            with self.subTest(entry=entry):
+                altered = copy.deepcopy(manifest)
+                altered['frozen'][path] = entry
+                (dist / 'sources.json').write_text(json.dumps(altered))
+                with self.assertRaisesRegex(ValueError, re.escape(path)):
+                    self.verify(dist)
+
+    def test_observer_registration_rejects_wrong_candidate_objects_and_rosters(self):
+        base = self.repo.tooling
+        original = json.loads((self.root / sources.JUDGING_REGISTRATION).read_text())
+        path = sources.OBSERVER[0]
+        for mutation in ('candidate', 'object', 'missing', 'extra', 'format'):
+            with self.subTest(mutation=mutation):
+                self.repo.git('reset', '--hard', base)
+                changed = copy.deepcopy(original)
+                observer = changed['observer']
+                if mutation == 'candidate':
+                    observer['commit'] = 'b' * 40
+                elif mutation == 'object':
+                    observer['sources'][path] = 'a' * 40
+                elif mutation == 'missing':
+                    del observer['sources'][path]
+                elif mutation == 'extra':
+                    observer['sources']['unknown.rs'] = 'a' * 40
+                else:
+                    observer['sources'][path] = 'A' * 40
+                self.repo.write(sources.JUDGING_REGISTRATION, json.dumps(changed))
+                self.repo.tooling = self.repo.save()
+                self.repo.git('update-ref', 'refs/remotes/origin/main', self.repo.tooling)
+                with self.assertRaises(ValueError):
+                    self.plan()
+                with self.assertRaises(ValueError):
+                    sources.check(self.root)
+
     def test_each_judging_file_drift_and_deletion_names_the_file(self):
         base = self.repo.tooling
         for path in sources.JUDGING:
@@ -267,6 +374,7 @@ class Sources(unittest.TestCase):
         original = json.loads(sources.register(self.root, base))
         invalid = ['', '[]', '{', json.dumps({**original, 'schema': 'old'}),
                    json.dumps({**original, 'extra': {}})]
+        invalid.append(json.dumps({'schema': 'compat-0.1.0-judging/1', 'files': original['files']}))
         for extra in (sources.README, sources.JUDGING_REGISTRATION, sources.FROZEN[0], 'unknown.py'):
             invalid.append(json.dumps({**original, 'files': {**original['files'], extra: 'a' * 64}}))
         for hash_value in ('A' * 64, 'a' * 63, None):
@@ -285,6 +393,52 @@ class Sources(unittest.TestCase):
 
 
 class JudgingRoster(unittest.TestCase):
+    def test_frozen_and_observer_rosters_keep_their_exact_scope(self):
+        self.assertEqual(sources.FROZEN, (
+            'scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh',
+            'scripts/install-oracle-mediainfo.sh', 'scripts/oracle-audio-args.txt',
+            'tools/compat-corpus/commands-0.1.0', 'tools/compat-corpus/round_files.py',
+            'crates/coreav-cli/tests/ffmpeg.rs', 'crates/coreav-isobmff/tests/common',
+        ))
+        self.assertEqual(sources.OBSERVER, ('crates/coreav-cli/tests/ffmpeg.rs',
+                                          'crates/coreav-isobmff/tests/common'))
+        self.assertLessEqual(set(sources.OBSERVER), set(sources.FROZEN))
+
+    def test_deny_checks_the_real_registration_and_rejects_stale_committed_bytes(self):
+        from test_registered_candidate import load_workflow
+        workflow = load_workflow('deny.yml')
+        step = next(step for step in workflow['jobs']['deny-checks']['steps']
+                    if 'scripts/compat_sources.py check' in step.get('run', ''))
+        self.assertIn('python3 -I scripts/compat_sources.py check', step['run'].splitlines())
+        self.assertEqual(step['if'], "steps.result.outputs.reuse != 'true'")
+        command = [sys.executable, '-I', str(ROOT / 'scripts/compat_sources.py'), 'check']
+        valid = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
+        self.assertEqual(valid.returncode, 0, valid.stderr)
+        self.assertIn('36 files verified', valid.stdout)
+        for changed_file in (sources.JUDGING_REGISTRATION, 'scripts/oracle_audio.py'):
+            with self.subTest(path=changed_file), tempfile.TemporaryDirectory() as tmp:
+                clone = Path(tmp) / 'source'
+                subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(clone)],
+                               check=True, capture_output=True)
+                def git(*args, input=None):
+                    return subprocess.check_output(['git', *args], cwd=clone, input=input, text=True).strip()
+                git('read-tree', 'HEAD')
+                text = subprocess.check_output(['git', 'show', f'HEAD:{changed_file}'], cwd=clone, text=True)
+                if changed_file == sources.JUDGING_REGISTRATION:
+                    registration = json.loads(text)
+                    registration['files']['scripts/oracle_audio.py'] = 'a' * 64
+                    text = json.dumps(registration)
+                else:
+                    text += '\n'
+                oid = git('hash-object', '-w', '--stdin', input=text)
+                self.assertNotEqual(oid, git('rev-parse', f'HEAD:{changed_file}'))
+                git('update-index', '--cacheinfo', f'100644,{oid},{changed_file}')
+                commit = git('commit-tree', git('write-tree'), '-p', 'HEAD', '-m', 'Synthetic stale judging control')
+                git('update-ref', '--no-deref', 'HEAD', commit)
+                failed = subprocess.run(command, cwd=clone, capture_output=True, text=True, check=False)
+                self.assertEqual(failed.returncode, 1, failed.stdout + failed.stderr)
+                self.assertIn('scripts/oracle_audio.py differs from its registered judging hash', failed.stderr)
+
     def assert_imports_frozen(self, root, roster):
         owned = set(roster) | set(sources.FROZEN)
         search = ('scripts', 'tools/compat-corpus', 'tools/oracle', 'tools/stage3-report')

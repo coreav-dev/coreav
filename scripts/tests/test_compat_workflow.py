@@ -260,6 +260,10 @@ class SourceSplit(unittest.TestCase):
             root = directory / 'tooling'
             root.mkdir()
             repo = SourceRepo(root)
+            repo.write('crates/coreav-cli/tests/ffmpeg.rs', 'unused development observer\n')
+            repo.write('crates/coreav-isobmff/tests/common/mod.rs', 'unused development helper\n')
+            repo.tooling = repo.save()
+            repo.git('update-ref', 'refs/remotes/origin/main', repo.tooling)
             candidate = root / 'candidate'
             repo.git('worktree', 'add', '--detach', str(candidate), repo.candidate)
             programs = directory / 'programs'

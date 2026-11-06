@@ -8,6 +8,8 @@ The candidate remains `4062842fc42babef9e6661a37bbb18f7e375a80c`. The workflow a
 
 Keep the complete frozen and judging rosters, compatibility workflow, commands, input selection, oracle pins, installers and comparison tolerances unchanged. Correct source-role binding in planning, artifact recording and consumer verification. Retain explicit source identities so a verifier cannot substitute tooling-built observer artifacts or change source ownership.
 
+Judging registration version 2 retains the same 36 `files` entries and separately registers the candidate commit and the Git objects for the two observer source paths. Artifact provenance version 2 retains all eight frozen paths, each with its owner and object. Planning and the media-free check recompute the candidate objects with full history. Measurement and report checkouts are shallow: they compare observer objects with the committed registration rather than requiring unavailable candidate history. A valid-looking but substituted observer object must fail that comparison. Version 1 registrations and bundles are rejected rather than interpreted with the new ownership rules.
+
 ## Reviewed judging changes
 
 The original registration was committed in `660f830f8f7ceeaf25658caf3cc6cfc0b30a6208`. The reviewed main snapshot is `4464759f2ceda9ca572a0d04e27b13da2c3c5c71`.
