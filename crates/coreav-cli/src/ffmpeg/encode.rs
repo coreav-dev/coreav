@@ -308,7 +308,7 @@ pub fn request(
         x264: None,
         ffmpeg: None,
         threads,
-        timeout: 3600,
+        timeout: super::ENCODE_LIMIT.as_secs(),
         strict_safe,
     })
 }

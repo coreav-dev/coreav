@@ -119,7 +119,7 @@ pub(super) fn write(
     use coreav_transcode::encoder::{EncoderChoice, find_encoder};
     use coreav_worker::{EXEC_ARG, ExecLauncher, WorkerCommand};
     use std::path::Path;
-    use std::time::{Duration, Instant};
+    use std::time::Instant;
 
     super::encode::authorize_audio(encoder, strict_safe)?;
     let this = std::env::current_exe()
@@ -197,7 +197,7 @@ pub(super) fn write(
             args: strict_safe.entry(EXEC_ARG),
         },
     };
-    let deadline = Instant::now() + Duration::from_secs(3600);
+    let deadline = Instant::now() + super::ENCODE_LIMIT;
     output::to_file(path, force, |out| {
         let source = BufferedSource::new(FileSource::open(input).map_err(WriteFailure::from)?);
         let limits = coreav_audio::Limits::default();
