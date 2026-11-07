@@ -16,7 +16,7 @@ const SHIFT: u32 = 40;
 const INTRA_OFFSET: u64 = 5;
 const INTER_OFFSET: u64 = 2;
 const CHROMA_INTRA_OFFSET: u64 = 5;
-const CHROMA_INTER_OFFSET: u64 = 2;
+const CHROMA_INTER_OFFSET: u64 = 5;
 const OFFSET_DENOMINATOR: u64 = 12;
 static QUANT: LazyLock<[Quant; 52]> =
     LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, INTER_OFFSET)));
@@ -694,9 +694,14 @@ mod tests {
     }
 
     #[test]
-    fn intra_chroma_dc_matches_direct_division_and_differs_from_inter() {
+    fn intra_chroma_dc_and_prediction_offsets_match_direct_division() {
         let mut split_witnesses = [false; 52];
         for qp in 0..=51 {
+            assert!((0..=MAX_COEFFICIENT).any(|value| {
+                let block = Forward([value; 16]);
+                Quant::intra(qp).unwrap().levels(&block, false)
+                    != Quant::of(qp).unwrap().levels(&block, false)
+            }));
             for value in -4080..=4080 {
                 for sums in [[value, 0, 0, 0], [value, -value, value, -value]] {
                     let intra = Quant::chroma_intra(qp).unwrap().chroma_dc(sums, qp);
