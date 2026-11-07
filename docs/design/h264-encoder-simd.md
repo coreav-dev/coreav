@@ -30,6 +30,8 @@ Alternatives were a new public kernel crate or threading a function table throug
 
 ## Batched Hadamard sums
 
+Forward transformation, quantization and inverse arithmetic are covered separately by the [transform SIMD design](h264-encoder-transform-simd.md).
+
 The next arithmetic change keeps the existing row SAD and its per-row early rejection unchanged. SATD gains a checked square-block interface for widths 4, 8 and 16. These are sums of independent 4x4 Hadamard costs, not an 8x8 transform. Mode decision submits the whole square so dispatch and extent validation happen once, including its single-block decisions. The scalar transform remains the reference and fallback.
 
 The AVX2 implementation widens exact-width byte loads to sixteen signed 16-bit lanes, computes four horizontal transforms independently per row and then transforms four rows vertically. Narrow blocks zero the unused lanes. Residuals are in [-255, 255], horizontal coefficients in [-1020, 1020] and final coefficients in [-4080, 4080], so every butterfly and absolute value fits signed 16-bit arithmetic. Wide accumulation preserves the scalar sum and its division by two for every 4x4 block. Each block's sum is even, so dividing the accumulated sum once is exact. Runtime detection, the forced-scalar feature and the existing private unsafe boundary are unchanged.
