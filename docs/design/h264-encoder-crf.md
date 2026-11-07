@@ -1,6 +1,6 @@
 # H.264 encoder constant-quality rate mode
 
-Status: implementation plan. This is an opt-in library API, not a product command.
+Status: implemented behind the crate's `full` feature. This is a library API, not a product command.
 
 ## Quality scale
 
