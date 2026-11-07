@@ -29,8 +29,8 @@ def syntax_record(item, source, directory, oracle, parser):
     try:
         code, _, _ = conformance.child([oracle.ffmpeg, '-nostdin', '-v', 'error', '-i', source,
             '-map', '0:v:0', '-c:v', 'copy', '-bsf:v', 'hevc_mp4toannexb', '-f', 'hevc', '-y', elementary],
-            directory, 'extract', file_limit=256 << 20)
-        conformance.require(code == 0 and 0 < elementary.stat().st_size < 256 << 20, 'syntax_extraction_failed')
+            directory, 'extract', file_limit=4 << 30)
+        conformance.require(code == 0 and 0 < elementary.stat().st_size < 4 << 30, 'syntax_extraction_failed')
         code, stdout, _ = conformance.child([parser, elementary], directory, 'headers')
         conformance.require(code == 0, 'syntax_inspection_failed')
         rows = [json.loads(line) for line in stdout.read_text().splitlines()]
