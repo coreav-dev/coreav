@@ -68,7 +68,7 @@ pub(crate) struct Quant {
     zero: [u32; 16],
     bias: [u64; 16],
     reciprocal: [u64; 16],
-    scale: [i64; 16],
+    scale: [i32; 16],
 }
 
 impl Quant {
@@ -86,7 +86,7 @@ impl Quant {
                     .checked_div(2 * divisor(p))
                     .unwrap_or(0)
             }),
-            scale: std::array::from_fn(scale),
+            scale: std::array::from_fn(|p| i32::try_from(scale(p)).unwrap_or(i32::MAX)),
         }
     }
 
@@ -105,19 +105,19 @@ impl Quant {
 
     pub(crate) fn levels(&self, coefficients: &Forward, separate_dc: bool) -> [i32; 16] {
         let mut out = [0; 16];
-        for ((((level, &c), &zero), &bias), &reciprocal) in out
+        for (((level, &c), &bias), &reciprocal) in out
             .iter_mut()
             .zip(&coefficients.0)
-            .zip(&self.zero)
             .zip(&self.bias)
             .zip(&self.reciprocal)
-            .skip(usize::from(separate_dc))
         {
-            let a = c.unsigned_abs();
-            if a > zero {
-                let magnitude = (((128 * u64::from(a) + bias) * reciprocal) >> SHIFT) as i32;
-                *level = if c < 0 { -magnitude } else { magnitude };
-            }
+            let magnitude =
+                (((128 * u64::from(c.unsigned_abs()) + bias) * reciprocal) >> SHIFT) as i32;
+            let sign = c >> 31;
+            *level = (magnitude ^ sign) - sign;
+        }
+        if separate_dc && let Some(dc) = out.first_mut() {
+            *dc = 0;
         }
         out
     }
@@ -133,7 +133,10 @@ impl Quant {
         let mut coefficients = [0; 16];
         if levels.iter().any(|&level| level != 0) {
             for ((out, &level), &scale) in coefficients.iter_mut().zip(levels).zip(&self.scale) {
-                *out = range(i64::from(level) * scale)?;
+                *out = level.wrapping_mul(scale);
+            }
+            if !coefficients.iter().all(|&c| fits(c)) {
+                return Err(Error::Coefficient);
             }
         }
         if let (Some(dc), Some(first)) = (dc, coefficients.first_mut()) {
