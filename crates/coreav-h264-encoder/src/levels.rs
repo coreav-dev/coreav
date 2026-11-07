@@ -2,7 +2,7 @@
 
 use super::*;
 
-const AC_COORDINATES: usize = 16;
+const AC_COORDINATES: usize = 1;
 const REFINE_DC: bool = true;
 
 fn coordinates(levels: [i32; 16], separate_dc: bool) -> impl Iterator<Item = usize> {
