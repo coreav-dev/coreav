@@ -89,7 +89,7 @@ pub struct Encoder {
     settings: Settings,
     limits: Limits,
     shifts: (u32, u32),
-    grid: u32,
+    grid: [u32; 2],
     configuration: Vec<u8>,
 }
 
@@ -121,14 +121,18 @@ impl Encoder {
                     "four slices require two rows and columns",
                 ));
             }
-            if (shifts.0 != 0 && settings.width % 4 != 0)
-                || (shifts.1 != 0 && settings.height % 4 != 0)
-            {
-                return Err(Error::Unsupported("unaligned chroma slice boundary"));
-            }
-            2
+            [(settings.width, shifts.0), (settings.height, shifts.1)].map(|(size, shift)| {
+                (2..=size)
+                    .find(|&count| {
+                        size % (1 << shift) == 0
+                            || (u64::from(size) * u64::from(count - 1) / u64::from(count))
+                                % (1 << shift)
+                                == 0
+                    })
+                    .unwrap_or(size)
+            })
         } else {
-            1
+            [1, 1]
         };
         let mut bytes = Buffer::new(usize::MAX, limits.max_alloc_bytes, WORKSPACE);
         let mut coder = Range::new(&mut bytes);
@@ -140,7 +144,7 @@ impl Encoder {
         coder.unsigned(&mut state, shifts.0)?;
         coder.unsigned(&mut state, shifts.1)?;
         coder.bit(state.first_mut().ok_or(Error::InvalidFrame)?, false)?;
-        for value in [grid - 1, grid - 1, 1] {
+        for value in [grid[0] - 1, grid[1] - 1, 1] {
             coder.unsigned(&mut state, value)?;
         }
         for _ in 0..3 {
@@ -189,8 +193,8 @@ impl Encoder {
             self.limits.max_alloc_bytes,
             base,
         );
-        for sy in 0..self.grid {
-            for sx in 0..self.grid {
+        for sy in 0..self.grid[1] {
+            for sx in 0..self.grid[0] {
                 let start = bytes.len();
                 let mut coder = Range::new(&mut bytes);
                 if sx == 0 && sy == 0 {
@@ -204,14 +208,14 @@ impl Encoder {
                 let mut banks = [[[128; 32]; CONTEXTS]; 2];
                 for p in 0..3 {
                     let (hs, vs) = if p == 0 { (0, 0) } else { self.shifts };
-                    let x0 = (u64::from(self.settings.width) * u64::from(sx) / u64::from(self.grid))
-                        as u32;
+                    let x0 = (u64::from(self.settings.width) * u64::from(sx)
+                        / u64::from(self.grid[0])) as u32;
                     let y0 = (u64::from(self.settings.height) * u64::from(sy)
-                        / u64::from(self.grid)) as u32;
+                        / u64::from(self.grid[1])) as u32;
                     let x1 = (u64::from(self.settings.width) * u64::from(sx + 1)
-                        / u64::from(self.grid)) as u32;
+                        / u64::from(self.grid[0])) as u32;
                     let y1 = (u64::from(self.settings.height) * u64::from(sy + 1)
-                        / u64::from(self.grid)) as u32;
+                        / u64::from(self.grid[1])) as u32;
                     let region = Region {
                         x: usize::try_from(x0 >> hs).map_err(|_| Error::Limit("dimensions"))?,
                         y: usize::try_from(y0 >> vs).map_err(|_| Error::Limit("dimensions"))?,

@@ -17,3 +17,4 @@ workspace = true
 
 [dev-dependencies]
 coreav-isobmff = { path = "../coreav-isobmff" }
+coreav-mkv = { path = "../coreav-mkv" }

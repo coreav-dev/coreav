@@ -315,6 +315,7 @@ jobs:
         run: |
           python3 -I -m unittest discover -s scripts/tests -p 'test_ffv1*.py'
           cargo run --locked -p coreav-ffv1 --example fixtures -- "$RUNNER_TEMP/ffv1-fixtures"
+          cargo test --locked -p coreav-backend-ffmpeg --test decode ffv1_odd_dimensions_match_source_bytes -- --ignored
           cargo build --locked -p coreav-cli --features native-h264
           python3 -I scripts/ffv1_check.py \
             --ffmpeg "$RUNNER_TEMP/coreav-encoders/ffmpeg" \
