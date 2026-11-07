@@ -151,7 +151,7 @@ fn decoded_audio(path: &Path) -> Vec<u8> {
     success(
         Command::new(test_oracle::require().ffmpeg())
             .args(["-nostdin", "-v", "error"])
-            .args(policy())
+            .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
             .arg("-i")
             .arg(path)
             .args(["-map", "0:a:0", "-f", "f32le", "pipe:1"])
