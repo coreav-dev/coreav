@@ -1074,7 +1074,7 @@ pub(crate) fn picture(
                 csources: &csources,
                 context,
                 qp: e.settings.qp,
-                pending_skip,
+                pending_skip: 0,
             };
             let mut best = None;
             let mut refusal = Error::Coefficient;
@@ -1087,7 +1087,11 @@ pub(crate) fn picture(
                     border,
                     mx,
                     my,
-                    previous: previous_mv_count,
+                    previous: if mx == 0 || mx + 1 == mb_width {
+                        previous_mv_count.max(8)
+                    } else {
+                        previous_mv_count
+                    },
                 }
                 .candidates(&mut best, &mut refusal)?
             };
