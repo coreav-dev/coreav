@@ -25,8 +25,15 @@ fn run(writer: &mut impl Write) -> Result<()> {
                 .and_then(|value| value.parse::<usize>().ok())
         })
         .unwrap_or(Some(1))
-        .filter(|value| (1..=16).contains(value))
+        .filter(|value| *value <= 16)
         .ok_or(Error::InvalidData("reference_arguments"))?;
+    let threads = if threads == 0 {
+        std::thread::available_parallelism()
+            .map_or(1, usize::from)
+            .min(16)
+    } else {
+        threads
+    };
     if args.next().is_some() || (mode != "check" && mode != "decode") {
         return Err(Error::InvalidData("reference_arguments"));
     }
@@ -40,7 +47,8 @@ fn run(writer: &mut impl Write) -> Result<()> {
         return Err(Error::Limit("reference_input"));
     }
     let limits = DecodeLimits {
-        max_memory_bytes: 1 << 30,
+        max_memory_bytes: usize::try_from(coreav_decode::Limits::default().max_memory_bytes)
+            .map_err(|_| Error::Limit("reference_memory"))?,
         ..DecodeLimits::default()
     };
     let mut decoder = PictureDecoder::new(limits);
@@ -70,7 +78,7 @@ fn run(writer: &mut impl Write) -> Result<()> {
     if mode == "check" {
         output.finish(summary, receipt, limits)
     } else {
-        let mut record = json!({"pictures":pictures,
+        let mut record = json!({"pictures":pictures,"thread_limit":threads,"max_memory_bytes":limits.max_memory_bytes,
             "decoded_pictures":summary.decoded_pictures,"bins":summary.reconstruction.bins});
         #[cfg(not(hevc_serial_baseline))]
         {

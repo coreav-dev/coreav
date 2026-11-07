@@ -19,7 +19,7 @@ import oracle_pin
 import round_files
 import test_oracle
 
-THREADS = (1, 4, 8, 16)
+THREADS = (0, 1, 4, 8, 16)
 
 
 def syntax_record(item, source, directory, oracle, parser):
@@ -115,7 +115,7 @@ def measure(args, oracle, source, identity):
         return row
     expected = signature(args.main, source, 1)
     row['status'] = 'checking_candidate'
-    for threads in (1, 2, 4, 8, 16):
+    for threads in (0, 1, 2, 4, 8, 16):
         if signature(args.native, source, threads) != expected:
             raise ValueError('thread_output_mismatch')
     commands = {f'{arm}_{threads}': [binary, source, 'decode', threads]
@@ -139,6 +139,7 @@ def measure(args, oracle, source, identity):
                 if work is not None and work != observed:
                     raise ValueError('thread_work_mismatch')
                 work = observed
+                receipt.update(thread_limit=data['thread_limit'], max_memory_bytes=data['max_memory_bytes'])
                 if name.startswith('candidate_'):
                     receipt.update(parallel_pictures=data['parallel_pictures'], max_workers=data['max_workers'])
             calls.append(dict(arm=name, repeat=repeat, **receipt))
@@ -171,7 +172,7 @@ def main():
                   baseline_sha256=conformance.digest(args.main), oracle=oracle_pin.load()['BUILD'],
                   host=dict(cpu=next(line.split(':', 1)[1].strip() for line in pathlib.Path('/proc/cpuinfo').read_text().splitlines() if line.startswith('model name')),
                             cores=os.cpu_count(), affinity=sorted(os.sched_getaffinity(0)), kernel=platform.release()),
-                  scope='whole-process Annex B decode-to-null; startup, framing and teardown included; main is serial at every requested count',
+                  scope='whole-process Annex B decode-to-null; startup, framing and teardown included; count 0 selects automatic workers with the backend memory budget; main is serial at every requested count',
                   selected_ids=sorted(args.only), frames_cap=args.frames, repeats=args.repeats, complete=False, passed=True, files=[])
     pool = round_files.pool()
     pool.limits.max_requests = 4000
