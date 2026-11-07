@@ -1,0 +1,96 @@
+name: h264-arm64-ceiling
+
+# workflow-check: not required
+
+on:
+  push:
+    branches: [work/h264-neon-ceiling]
+
+permissions:
+  contents: read
+
+env:
+  BASE: 43742ab7fed01adfc8713b39497a0bd5cebd89b9
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Prepare the existing five inputs
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet boto3==1.35.36 cryptography==44.0.2
+          "$RUNNER_TEMP/venv/bin/python" ab/prepare.py "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/oracle"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: encrypted-inputs
+          path: |
+            ${{ runner.temp }}/inputs/inputs.enc
+            ${{ runner.temp }}/inputs/preparation.json
+          retention-days: 1
+          if-no-files-found: error
+  ceiling:
+    needs: prepare
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        input: [A, B, C, D, E]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: encrypted-inputs
+          path: ${{ runner.temp }}/inputs
+      - name: Build both scalar arms and the native counter
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          sudo apt-get update -qq
+          sudo apt-get install -y valgrind
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet cryptography==44.0.2
+          mkdir -p "$RUNNER_TEMP/bins"
+          git diff --exit-code "$BASE" -- crates/coreav-h264-encoder/src
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/target" CARGO_PROFILE_RELEASE_DEBUG=1
+          cargo build --locked --release -p coreav-h264-encoder --features full,scalar --example ceiling
+          cp "$CARGO_TARGET_DIR/release/examples/ceiling" "$RUNNER_TEMP/bins/plain"
+          python3 ab/attribute.py
+          git diff > "$RUNNER_TEMP/bins/attribution.diff"
+          cargo build --locked --release -p coreav-h264-encoder --features full,scalar --example ceiling
+          cp "$CARGO_TARGET_DIR/release/examples/ceiling" "$RUNNER_TEMP/bins/attribute"
+      - name: Count QP22 and QP28 encoding only
+        env:
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          INPUT: ${{ matrix.input }}
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" ab/capture.py "$RUNNER_TEMP/results" "$RUNNER_TEMP/bins" "$INPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ceiling-${{ matrix.input }}
+          path: |
+            ${{ runner.temp }}/results/*.json
+            ${{ runner.temp }}/results/*.log
+            ${{ runner.temp }}/results/*.txt
+            ${{ runner.temp }}/results/*.callgrind
+            ${{ runner.temp }}/bins/attribution.diff
+          retention-days: 2
+          if-no-files-found: ignore
