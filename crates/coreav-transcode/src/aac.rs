@@ -134,19 +134,6 @@ pub fn encode_args(rate: u32, channels: u8, bitrate: Option<u32>) -> Vec<OsStrin
     args
 }
 
-/// The command line that asks the program about its `aac` encoder.
-pub fn probe_args() -> Vec<OsString> {
-    ["-hide_banner", "-loglevel", "error", "-h", "encoder=aac"]
-        .map(OsString::from)
-        .to_vec()
-}
-
-/// Whether the program's answer to [`probe_args`] describes the `aac`
-/// encoder; a program without it says it does not know the codec.
-pub fn has_encoder(answer: &[u8]) -> bool {
-    answer.starts_with(b"Encoder aac [")
-}
-
 /// The most output that `samples` samples per channel of `channels`
 /// make: as many frames as cover the largest delay and the samples, and
 /// one more, each of the largest size, with their Matroska.
@@ -421,9 +408,6 @@ mod tests {
              -map 0:a:0 -c:a aac -f matroska pipe:1"
         );
         assert!(args(Some(64_000)).contains(" -c:a aac -b:a 64000 -f matroska "));
-        assert!(has_encoder(b"Encoder aac [AAC (Advanced Audio Coding)]:\n"));
-        assert!(!has_encoder(b"Codec 'aac' is not recognized by FFmpeg.\n"));
-        assert!(!has_encoder(b""));
     }
 
     #[test]
