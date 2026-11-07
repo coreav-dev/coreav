@@ -200,7 +200,7 @@ impl Motions {
 struct Prepared {
     luma: Luma,
     chroma: [Tile; 2],
-    transformed: [[[i64; 16]; 4]; 2],
+    sums: [[i32; 4]; 2],
     levels: [[[i32; 16]; 4]; 2],
 }
 
@@ -380,7 +380,7 @@ impl Search<'_> {
                 tile: Tile::empty(),
             },
             chroma: [Tile::empty(), Tile::empty()],
-            transformed: [[[0; 16]; 4]; 2],
+            sums: [[0; 4]; 2],
             levels: [[[0; 16]; 4]; 2],
         };
         for (i, &part) in base.parts.iter().take(base.len).enumerate() {
@@ -406,35 +406,26 @@ impl Search<'_> {
                 )?;
             }
         }
+        let quant = t::Quant::of(self.decision.qp)?;
         for (k, levels) in prepared.luma.levels.iter_mut().enumerate() {
             let (x, y) = xy(k);
             if !overlaps(changed, x, y, 4) {
-                *levels = t::quantize(
-                    &t::forward(&prepared.luma.tile.residual(self.decision.source, x, y)?)?,
-                    self.decision.qp,
-                    false,
-                )?;
-                prepared
-                    .luma
-                    .tile
-                    .add(x, y, &t::scaled(levels, self.decision.qp, None)?)?;
+                *levels = prepared.luma.tile.code(self.decision.source, x, y, quant)?;
             }
         }
-        for (c, blocks) in prepared.transformed.iter_mut().enumerate() {
-            for (k, block) in blocks.iter_mut().enumerate() {
+        let quant = t::Quant::of(t::chroma_qp(self.decision.qp))?;
+        for (((tile, source), sums), blocks) in prepared
+            .chroma
+            .iter()
+            .zip(self.decision.csources)
+            .zip(&mut prepared.sums)
+            .zip(&mut prepared.levels)
+        {
+            for (k, (sum, levels)) in sums.iter_mut().zip(blocks).enumerate() {
                 if !overlaps(changed, k % 2 * 8, k / 2 * 8, 8) {
-                    *block =
-                        t::forward(&prepared.chroma.get(c).ok_or(Error::Internal)?.residual(
-                            self.decision.csources.get(c).ok_or(Error::Internal)?,
-                            k % 2 * 4,
-                            k / 2 * 4,
-                        )?)?;
-                    *prepared
-                        .levels
-                        .get_mut(c)
-                        .and_then(|blocks| blocks.get_mut(k))
-                        .ok_or(Error::Internal)? =
-                        t::quantize(block, t::chroma_qp(self.decision.qp), true)?;
+                    let coefficients = tile.forward(source, k % 2 * 4, k / 2 * 4)?;
+                    *sum = coefficients.dc();
+                    *levels = quant.levels(&coefficients, true);
                 }
             }
         }
@@ -457,22 +448,24 @@ impl Search<'_> {
             self.my,
             false,
         )?;
+        let quant = t::Quant::of(self.decision.qp)?;
         for (k, levels) in luma.levels.iter_mut().enumerate() {
             let (x, y) = xy(k);
             if overlaps(part, x, y, 4) {
-                *levels = t::quantize(
-                    &t::forward(&luma.tile.residual(self.decision.source, x, y)?)?,
-                    self.decision.qp,
-                    false,
-                )?;
-                luma.tile
-                    .add(x, y, &t::scaled(levels, self.decision.qp, None)?)?;
+                *levels = luma.tile.code(self.decision.source, x, y, quant)?;
             }
         }
         let mut chroma = base.chroma.clone();
-        let mut transformed = base.transformed;
+        let mut sums = base.sums;
         let mut levels = base.levels;
-        for (c, tile) in chroma.iter_mut().enumerate() {
+        let quant = t::Quant::of(t::chroma_qp(self.decision.qp))?;
+        for (c, (((tile, source), sums), blocks)) in chroma
+            .iter_mut()
+            .zip(self.decision.csources)
+            .zip(&mut sums)
+            .zip(&mut levels)
+            .enumerate()
+        {
             predict(
                 self.reference.get(c + 1).ok_or(Error::Internal)?,
                 tile,
@@ -481,32 +474,15 @@ impl Search<'_> {
                 self.my,
                 true,
             )?;
-            for (k, block) in transformed
-                .get_mut(c)
-                .ok_or(Error::Internal)?
-                .iter_mut()
-                .enumerate()
-            {
+            for (k, (sum, levels)) in sums.iter_mut().zip(blocks).enumerate() {
                 if overlaps(part, k % 2 * 8, k / 2 * 8, 8) {
-                    *block = t::forward(&tile.residual(
-                        self.decision.csources.get(c).ok_or(Error::Internal)?,
-                        k % 2 * 4,
-                        k / 2 * 4,
-                    )?)?;
-                    *levels
-                        .get_mut(c)
-                        .and_then(|blocks| blocks.get_mut(k))
-                        .ok_or(Error::Internal)? =
-                        t::quantize(block, t::chroma_qp(self.decision.qp), true)?;
+                    let coefficients = tile.forward(source, k % 2 * 4, k / 2 * 4)?;
+                    *sum = coefficients.dc();
+                    *levels = quant.levels(&coefficients, true);
                 }
             }
         }
-        let chroma = chroma_reconstruct(
-            &chroma,
-            &transformed,
-            levels,
-            t::chroma_qp(self.decision.qp),
-        )?;
+        let chroma = chroma_reconstruct(&chroma, &sums, levels, t::chroma_qp(self.decision.qp))?;
         self.decision.candidate(luma, chroma, Some(inter), 0)
     }
 
@@ -553,15 +529,10 @@ impl Search<'_> {
                 tiles: chroma_tiles,
             }
         } else {
+            let quant = t::Quant::of(self.decision.qp)?;
             for (k, levels) in luma.levels.iter_mut().enumerate() {
                 let (x, y) = xy(k);
-                *levels = t::quantize(
-                    &t::forward(&luma.tile.residual(self.decision.source, x, y)?)?,
-                    self.decision.qp,
-                    false,
-                )?;
-                luma.tile
-                    .add(x, y, &t::scaled(levels, self.decision.qp, None)?)?;
+                *levels = luma.tile.code(self.decision.source, x, y, quant)?;
             }
             chroma_residual(
                 &chroma_tiles,
@@ -800,21 +771,21 @@ impl Search<'_> {
     }
 
     fn quiet(&self, skip: &Candidate) -> Result<bool> {
-        let qp = self.decision.qp;
+        let quant = t::Quant::of(self.decision.qp)?;
         for k in 0..16 {
             let (x, y) = xy(k);
-            let residual = skip.luma.tile.residual(self.decision.source, x, y)?;
-            if !t::quantizes_to_zero(&t::forward(&residual)?, qp, false)? {
+            if !quant.zero(&skip.luma.tile.forward(self.decision.source, x, y)?, false) {
                 return Ok(false);
             }
         }
-        let qp = t::chroma_qp(qp);
+        let qp = t::chroma_qp(self.decision.qp);
+        let quant = t::Quant::of(qp)?;
         for (tile, source) in skip.chroma.tiles.iter().zip(self.decision.csources) {
             let mut sums = [0; 4];
             for (k, sum) in sums.iter_mut().enumerate() {
-                let block = t::forward(&tile.residual(source, k % 2 * 4, k / 2 * 4)?)?;
-                *sum = *block.first().ok_or(Error::Internal)?;
-                if !t::quantizes_to_zero(&block, qp, true)? {
+                let block = tile.forward(source, k % 2 * 4, k / 2 * 4)?;
+                *sum = block.dc();
+                if !quant.zero(&block, true) {
                     return Ok(false);
                 }
             }
