@@ -1238,7 +1238,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         ));
     }
     if let Some(option) = audio_encoders.first()
-        && command.muxer != Muxer::Mp3
+        && !matches!(command.muxer, Muxer::Mp3 | Muxer::Mp4 | Muxer::Ipod)
         && !command
             .codecs
             .iter()
@@ -1279,13 +1279,19 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 "it is not an option of native audio output",
             ));
         }
-    } else if command.sample_rate.is_some() {
+    } else if command.sample_rate.is_some()
+        && !matches!(command.muxer, Muxer::Mp4 | Muxer::Ipod | Muxer::Mp3)
+        && command.muxer.matroska().is_none()
+    {
         return Err(not_native(
             "-ar",
             None,
             "it is not supported on this output",
         ));
-    } else if command.channels.is_some() {
+    } else if command.channels.is_some()
+        && !matches!(command.muxer, Muxer::Mp4 | Muxer::Ipod | Muxer::Mp3)
+        && command.muxer.matroska().is_none()
+    {
         return Err(not_native(
             "-ac",
             None,
@@ -1973,14 +1979,15 @@ mod tests {
             ]
         );
         assert_eq!(c.encoding.audio_bitrate.as_deref(), Some("128k"));
-        assert!(matches!(
-            parse(&args("-i in.mkv -c:v libx264 -b:a 128k out.mp4")),
-            Err(Refusal::NotNative(_))
-        ));
+        let c = parse(&args("-i in.mkv -c:v libx264 -b:a 128k out.mp4")).unwrap();
+        assert_eq!(c.encoding.audio_bitrate.as_deref(), Some("128k"));
     }
 
     #[test]
     fn aac_and_its_bit_rate() {
+        let c = parse(&args("-i in.mkv -c:a aac -ar 44100 -ac 1 out.mp4")).unwrap();
+        assert_eq!(c.sample_rate, Some(44_100));
+        assert_eq!(c.channels, Some(1));
         for line in [
             "-i in.mkv -c:v libx264 -c:a aac -b:a 96k out.mp4",
             "-i in.mkv -c:v libx264 -acodec aac -b:a 96k out.mp4",
@@ -2009,8 +2016,6 @@ mod tests {
             ("-aac_coder twoloop", "-aac_coder", None),
             ("-q:a 2", "-q:a", None),
             ("-vbr 3", "-vbr", None),
-            ("-ar 44100", "-ar", None),
-            ("-ac 1", "-ac", None),
             ("-af volume=2", "-af", None),
             ("-strict experimental", "-strict", None),
             ("-c:a libfdk_aac", "-c:a", Some("libfdk_aac")),
@@ -2055,11 +2060,9 @@ mod tests {
         for (option, value) in [("-ar", "48000"), ("-ac", "1")] {
             for codec in ["copy", "aac"] {
                 let line = format!("-i in.mp4 -c:a {codec} -vn {option} {value} out.mp4");
-                assert_eq!(
-                    refused(&line),
-                    Reason::Option(option.to_owned(), None),
-                    "{line}"
-                );
+                let command = parse(&args(&line)).unwrap();
+                assert_eq!(command.sample_rate, (option == "-ar").then_some(48_000));
+                assert_eq!(command.channels, (option == "-ac").then_some(1));
             }
         }
         assert!(parse(&args("-i in.mp4 -c copy -movflags +faststart out.mp4")).is_ok());

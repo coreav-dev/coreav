@@ -4226,12 +4226,23 @@ fn ffmpeg_libopus_lines_encode_the_audio() {
         ),
         (
             vec!["-i", input, "-c:v", "libx264", "-b:a", "64k", out],
-            "-b:a",
+            "coreav ffmpeg: strict-safe mode never runs the ffmpeg program, so it cannot encode AAC audio: use -c:a copy or libopus, or run without --strict-safe and COREAV_STRICT_SAFE\n",
         ),
     ] {
         let (code, stderr) = ffmpeg(&args, true);
         assert_eq!(code, 4, "{args:?}: {stderr}");
-        assert!(stderr.contains(says), "{args:?}: {stderr}");
+        if !coreav_worker::enforces_memory_limit() {
+            assert_eq!(
+                stderr,
+                "coreav ffmpeg: strict-safe: no enforceable memory limit for the sandbox on this platform, so it starts no sandboxed decoder or encoder, or run without --strict-safe and COREAV_STRICT_SAFE\n"
+            );
+            continue;
+        }
+        if says.starts_with("coreav ffmpeg: ") {
+            assert_eq!(stderr, says, "{args:?}: {stderr}");
+        } else {
+            assert!(stderr.contains(says), "{args:?}: {stderr}");
+        }
     }
     nothing_left(&dir);
 }

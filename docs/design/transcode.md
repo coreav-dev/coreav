@@ -1151,6 +1151,21 @@ encoder is libx264.
 Explicit copy selection still refuses encoder options,
 and audio-only encoding still refuses video encoder options. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
 
+Audio bitrate `-b:a` also accepts the default AAC encoder for MP4 and M4A
+only when selected audio is actually encoded as AAC. Commands with an explicit
+audio encoder option retain their earlier admission, including overridden or
+unmatched choices. This does not add bitrate metadata overrides for copied
+audio; those declarations can differ from the pinned FFmpeg. Other encoder
+options retain their existing gates.
+
+On audio encode routes, output `-ar` and `-ac` may explicitly repeat the
+selected source audio's sample rate and channel count. Validation uses the
+effective codec after mapping and ordered codec overrides. Copy-only audio,
+absent audio, rate conversion and channel mixing remain unsupported here.
+Opus `-ar` is limited to a 48 kHz source because the existing Opus path
+always feeds its encoder at 48 kHz.
+The separate PCM output admission and multiple-input copy paths are unchanged.
+
 An Opus source can use default AAC encoding. Its current verification uses
 the separately registered [composed Opus-to-AAC check](composed-opus-aac-v2.md):
 existing decoder conformance, exact AAC output from the PCM actually written
@@ -1171,8 +1186,8 @@ explicit AAC, and default libx264 can use only the x264 program.
 | `-c:a`, `-acodec` `copy`, or `-c copy` for the other streams | the selected audio streams copied (`AudioMode::Streams`) |
 | `-c:v:N copy`, or `-c copy`, for a selected MP4/MOV cover picture | the cover picture kept in the output's item list, unchanged; a cover picture the selection leaves out (the default selection does) is left out (`TranscodeOptions::left_out_covers`, [`compat-cli.md`](compat-cli.md), "Cover pictures"), and one the command would encode with libx264 is refused (`ffmpeg` fails on it) |
 | `-c:a`, `-acodec` `libopus` | `--audio opus` for the one selected audio stream ("Opus audio"), beside a video encoded with libx264; refused when other audio is selected beside it, for audio this build does not decode (FLAC, MP3, Opus, or AAC-LC with `aac`), for more than two channels (`ffmpeg` writes a surround Opus stream), and without `-c:v libx264`. In a build without the `libopus` feature every `-c:a libopus` line is not native: FFmpeg runs it, or strict-safe mode refuses it and nothing runs |
-| `-c:a`, `-acodec` `aac` | `--audio aac` for the one selected audio stream ("AAC audio"), beside a video encoded with libx264, by FFmpeg's built-in `aac` encoder: the `ffmpeg` program `--audio aac` finds without `--ffmpeg` (`COREAV_FFMPEG`, else `PATH`), run as a process of its own. Every build has it. Refused when other audio is selected beside it, for audio this build does not decode (FLAC, MP3, Opus, or AAC-LC with `aac`), for more than two channels (`ffmpeg` writes a surround AAC stream), for a sample rate outside 8 to 64 kHz (nothing is resampled; `ffmpeg` encodes 88.2 and 96 kHz as they are), without `-c:v libx264`, when no `ffmpeg` program is found or it has no `aac` encoder (`--audio aac`'s refusals), and always in strict-safe mode. Its other options (`-profile:a`, `-aac_coder`, `-q:a`, `-ar`, `-ac`, `-af`, `-strict`) and other AAC encoders (`libfdk_aac`) are refused as unlisted |
-| `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k with `-c:a libopus` as libopus takes it, 16k to 512k with `-c:a aac`; without it, the encoder's default; only with `-c:a libopus` or `aac` |
+| `-c:a`, `-acodec` `aac` | `--audio aac` for the one selected audio stream ("AAC audio"), beside a video encoded with libx264, by FFmpeg's built-in `aac` encoder: the `ffmpeg` program `--audio aac` finds without `--ffmpeg` (`COREAV_FFMPEG`, else `PATH`), run as a process of its own. Every build has it. Refused when other audio is selected beside it, for audio this build does not decode (FLAC, MP3, Opus, or AAC-LC with `aac`), for more than two channels (`ffmpeg` writes a surround AAC stream), for a sample rate outside 8 to 64 kHz (nothing is resampled; `ffmpeg` encodes 88.2 and 96 kHz as they are), without `-c:v libx264`, when no `ffmpeg` program is found or it has no `aac` encoder (`--audio aac`'s refusals), and always in strict-safe mode. Output `-ar` and `-ac` may repeat the selected source values as described above. Its other options (`-profile:a`, `-aac_coder`, `-q:a`, `-af`, `-strict`) and other AAC encoders (`libfdk_aac`) are refused as unlisted |
+| `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k with `-c:a libopus` as libopus takes it, 16k to 512k with explicit or default AAC; without it, the encoder's default; audio encoding only |
 | `-an` | no audio |
 | `-crf Q` | `--crf`, 0 to 51, fractions as given |
 | `-q:v Q` | ignored on the effective libx264 video encode route, including MP4's default codec, as in the pinned FFmpeg; only finite decimal numbers, optionally with an exponent, are admitted, not expressions or nonfinite values. Other encoders, copy and audio-only outputs still refuse it |
