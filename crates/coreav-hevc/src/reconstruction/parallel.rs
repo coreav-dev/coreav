@@ -353,6 +353,7 @@ impl Frame {
                 .is_some_and(|n| n <= limit)
         });
         let Some(count) = count else { return Ok(None) };
+        let setup_started = std::time::Instant::now();
         let setup = (|| {
             let mut memory = Memory::new(fixed, limit)?;
             let mut rows = Vec::new();
@@ -389,6 +390,13 @@ impl Frame {
             Err(Error::Limit(_)) => return Ok(None),
             Err(error) => return Err(error),
         };
+        eprintln!(
+            "wpp-profile-setup {} {} {}",
+            input.index,
+            count,
+            setup_started.elapsed().as_nanos()
+        );
+        let reconstruction_started = std::time::Instant::now();
         let next = AtomicUsize::new(0);
         self.workers = std::thread::scope(|scope| {
             let mut started = 1;
@@ -407,6 +415,12 @@ impl Frame {
             work(self, input, dpb, ranges, &rows, &next);
             started
         });
+        eprintln!(
+            "wpp-profile-reconstruct {} {}",
+            input.index,
+            reconstruction_started.elapsed().as_nanos()
+        );
+        let merge_started = std::time::Instant::now();
         let mut summary = DecodeSummary::default();
         for row in rows {
             let mut band = row
@@ -433,6 +447,11 @@ impl Frame {
         }
         self.stats = summary.reconstruction;
         self.inter_stats = summary.inter;
+        eprintln!(
+            "wpp-profile-merge {} {}",
+            input.index,
+            merge_started.elapsed().as_nanos()
+        );
         Ok(Some(peak))
     }
 }
@@ -457,16 +476,36 @@ fn work(
         frame.inter_stats = InterStats::default();
         frame.wpp = None;
         let mut budget = allowance;
-        let result = caught(|| decode_row(frame, input, dpb, ranges, rows, index, &mut budget))
-            .map(|()| Continuation {
-                next_ctu: frame.next_ctu,
-                closed: frame.segment_closed,
-                contexts: frame.contexts,
-                checkpoint: frame.wpp,
-                qp: frame.qp,
-                stats: frame.stats,
-                inter: frame.inter_stats,
-            });
+        let mut phases = [std::time::Duration::ZERO; 3];
+        let result = caught(|| {
+            decode_row(
+                frame,
+                input,
+                dpb,
+                ranges,
+                rows,
+                index,
+                &mut budget,
+                &mut phases,
+            )
+        })
+        .map(|()| Continuation {
+            next_ctu: frame.next_ctu,
+            closed: frame.segment_closed,
+            contexts: frame.contexts,
+            checkpoint: frame.wpp,
+            qp: frame.qp,
+            stats: frame.stats,
+            inter: frame.inter_stats,
+        });
+        eprintln!(
+            "wpp-profile-row {} {} {} {} {}",
+            input.index,
+            index,
+            phases[0].as_nanos(),
+            phases[1].as_nanos(),
+            phases[2].as_nanos()
+        );
         row.lock().outcome = Some(Outcome {
             result,
             consumed: allowance - budget,
@@ -475,6 +514,7 @@ fn work(
     }
 }
 
+#[expect(clippy::too_many_arguments, reason = "temporary phase profile")]
 fn decode_row(
     frame: &mut Frame,
     input: &SliceInput<'_>,
@@ -483,6 +523,7 @@ fn decode_row(
     rows: &[Row],
     index: usize,
     budget: &mut u64,
+    phases: &mut [std::time::Duration; 3],
 ) -> Result<()> {
     let row = rows
         .get(index)
@@ -502,6 +543,7 @@ fn decode_row(
         .ok_or(Error::InvalidData("intra_slice_address"))?;
     let mut cabac = Cabac::new(bytes, budget)?;
     for x in 0..width {
+        let started = std::time::Instant::now();
         if let Some(above) = index.checked_sub(1).and_then(|index| rows.get(index)) {
             #[cfg(test)]
             if let Some(hook) = &frame.test_hook {
@@ -533,7 +575,11 @@ fn decode_row(
                 frame.wpp = band.checkpoint;
             }
         }
+        phases[0] += started.elapsed();
+        let started = std::time::Instant::now();
         frame.decode_ctu(input, dpb, slice, &mut cabac)?;
+        phases[1] += started.elapsed();
+        let started = std::time::Instant::now();
         #[cfg(test)]
         if let Some(hook) = &frame.test_hook {
             hook.publication(index, x);
@@ -544,6 +590,7 @@ fn decode_row(
             band.completed = x + 1;
             band.checkpoint = frame.wpp;
         }
+        phases[2] += started.elapsed();
         row.ready.notify_all();
         if cabac.terminate()? {
             if index + 1 != ranges.len() {

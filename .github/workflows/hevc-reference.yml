@@ -1,125 +1,80 @@
 name: hevc-reference
-run-name: HEVC reference ${{ inputs.candidate }} (${{ inputs.only || 'all' }}, cap ${{ inputs.frames }})
 # workflow-check: not required
-
 on:
   workflow_dispatch:
     inputs:
       candidate:
-        description: Exact decoder commit
         required: true
         type: string
-      baseline:
-        description: Optional full main SHA for the threading comparison
-        required: false
-        default: ''
-        type: string
-      sanitizer_only:
-        description: Run only the threading sanitizer stress check
-        required: false
-        default: false
-        type: boolean
-      only:
-        description: Optional comma-separated input IDs
-        required: false
-        default: ''
-        type: string
-      frames:
-        description: Maximum pictures per reference input
-        required: false
-        default: 32
-        type: number
-      diagnose_only:
-        description: Compare pixels without timing or profiling
-        required: false
-        default: false
-        type: boolean
-
 permissions:
   contents: read
-
 jobs:
-  reference:
-    if: inputs.baseline == '' && !inputs.sanitizer_only
+  profile:
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
-    env:
-      CANDIDATE: ${{ inputs.candidate }}
-      ONLY: ${{ inputs.only }}
-      DIAGNOSE_ONLY: ${{ inputs.diagnose_only }}
-      FRAMES: ${{ inputs.frames }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          path: driver
-      - name: Check reference process and comparison boundaries
-        run: python3 -m unittest discover -s driver/scripts/tests -p test_reference_hevc.py
+          fetch-depth: 0
+          path: candidate
+      - name: Admit the owned diagnostic branch
+        working-directory: candidate
+        env:
+          CANDIDATE: ${{ inputs.candidate }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/work/hevc-threading-profile
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$GITHUB_SHA" = "$CANDIDATE"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: ${{ env.CANDIDATE }}
-          path: candidate
-      - name: Admit only commits on this repository's branches
-        working-directory: candidate
-        run: |
-          set -euo pipefail
-          git fetch --quiet --unshallow --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
-          test -n "$(git branch -r --contains "$CANDIDATE")"
+          ref: 5f3aa0a4326cd20d52aac26b4947e23a36d463c0
+          fetch-depth: 0
+          path: baseline
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-      - name: Build the opt-in scalar driver
-        working-directory: candidate
+      - name: Build instrumentation and the unchanged serial baseline
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$CANDIDATE"
-          cp ../driver/bench/hevc-reference/decode.rs crates/coreav-hevc/examples/reference.rs
-          CARGO_PROFILE_RELEASE_DEBUG=1 cargo build --locked --release -p coreav-hevc --features native-hevc --example reference
-          rustc -Vv > "$RUNNER_TEMP/compiler.txt"
-      - name: Install profiling tools
-        run: sudo apt-get update -qq && sudo apt-get install -y valgrind
-      - name: Install the pinned binary oracle
+          cp candidate/bench/hevc-reference/decode.rs candidate/crates/coreav-hevc/examples/reference.rs
+          cp candidate/bench/hevc-reference/decode.rs baseline/crates/coreav-hevc/examples/reference.rs
+          (cd candidate && RUSTFLAGS='--check-cfg=cfg(hevc_serial_baseline)' cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+          (cd baseline && RUSTFLAGS='--cfg hevc_serial_baseline --check-cfg=cfg(hevc_serial_baseline)' cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+      - name: Install the qualified oracle
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
-        run: driver/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
-      - name: Compare pixels before decoder-only reference calls
+        run: candidate/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Record private scheduler phases and baseline geometry
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: |
-          EXTRA=()
-          if [ "$DIAGNOSE_ONLY" = true ]; then EXTRA+=(--diagnose-only); fi
-          python3 -I driver/scripts/hevc_reference.py \
-            --native "$PWD/candidate/target/release/examples/reference" \
-            --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/reference" \
-            --candidate "$CANDIDATE" --only "$ONLY" --frames "$FRAMES" "${EXTRA[@]}"
-      - name: Bind retained results to the dispatched decoder
+          umask 077
+          python3 candidate/scripts/hevc_wpp_profile.py --native "$PWD/candidate/target/release/examples/reference" --main "$PWD/baseline/target/release/examples/reference" --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/private" > "$RUNNER_TEMP/profile.log" 2>&1
+      - name: Seal diagnostic metadata
+        if: always()
         run: |
-          python3 -I driver/scripts/hevc_reference.py check-result \
-            "$RUNNER_TEMP/reference/results.json" --expected-candidate "$CANDIDATE"
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          [ -d private ] || exit 0
+          cp profile.log private/
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/candidate/bench/hevc-conformance/evidence-public.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: hevc-reference-${{ env.CANDIDATE }}
-          path: |
-            ${{ runner.temp }}/reference/results.json
-            ${{ runner.temp }}/compiler.txt
+          name: hevc-wpp-profile-${{ github.sha }}
+          path: ${{ runner.temp }}/sealed
           if-no-files-found: error
-          retention-days: 30
-
-  threading:
-    if: inputs.baseline != '' || inputs.sanitizer_only
-    uses: ./.github/workflows/hevc-threading.yml
-    with:
-      candidate: ${{ inputs.candidate }}
-      baseline: ${{ inputs.baseline }}
-      sanitizer_only: ${{ inputs.sanitizer_only }}
-      only: ${{ inputs.only }}
-      frames: ${{ fromJSON(inputs.frames) }}
-    secrets: inherit
+          retention-days: 7
