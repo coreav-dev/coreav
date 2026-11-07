@@ -14,6 +14,11 @@ import hevc_decode
 
 
 class ThreadingReference(unittest.TestCase):
+    def test_explicit_sanitizer_mode_overrides_reference_selection(self):
+        workflow = pathlib.Path(__file__).resolve().parents[2] / '.github/workflows/hevc-threading.yml'
+        job = workflow.read_text().split('  thread-sanitizer:', 1)[1]
+        self.assertIn("if: ${{ inputs.sanitizer_only || inputs.only == '' }}", job)
+
     def test_threaded_conformance_rejects_silent_serial_fallback(self):
         serial = dict(complete=True, summary=dict(decoded_pictures=3, parallel_pictures=0, max_workers=1,
                                                 stats=dict(wpp_restarts=2)))

@@ -172,7 +172,7 @@ jobs:
           retention-days: 7
 
   thread-sanitizer:
-    if: ${{ inputs.only == '' }}
+    if: ${{ inputs.sanitizer_only || inputs.only == '' }}
     name: hevc-threading-sanitizer
     runs-on: ubuntu-24.04
     timeout-minutes: 30
