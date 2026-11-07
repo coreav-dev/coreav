@@ -709,7 +709,7 @@ impl FramePlane {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CandidateKey {
     cost: u64,
     bits: usize,

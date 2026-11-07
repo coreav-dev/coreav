@@ -2,6 +2,23 @@
 
 use super::*;
 
+const AC_COORDINATES: usize = 16;
+const REFINE_DC: bool = true;
+
+fn coordinates(levels: [i32; 16], separate_dc: bool) -> impl Iterator<Item = usize> {
+    t::SCAN
+        .into_iter()
+        .rev()
+        .filter(move |&p| {
+            (!separate_dc || p != 0)
+                && (AC_COORDINATES == 16
+                    || levels
+                        .get(p)
+                        .is_some_and(|level| (1..=2).contains(&level.unsigned_abs())))
+        })
+        .take(AC_COORDINATES)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LumaPrediction {
     Inter,
@@ -502,6 +519,30 @@ impl Decision<'_> {
         if candidate.inter.as_ref().is_some_and(|i| i.skip) {
             return Ok(candidate);
         }
+        if AC_COORDINATES < 16
+            && candidate
+                .luma
+                .levels
+                .iter()
+                .flatten()
+                .all(|&level| level == 0)
+            && candidate
+                .chroma
+                .levels
+                .iter()
+                .flatten()
+                .flatten()
+                .all(|&level| level == 0)
+            && candidate.luma.dc.iter().all(|&level| level == 0)
+            && candidate
+                .chroma
+                .dc
+                .iter()
+                .flatten()
+                .all(|&level| level == 0)
+        {
+            return Ok(candidate);
+        }
         let prediction = Prediction::new(&candidate, base, cbases, available, reference, position)?;
         let mut refinement = Refinement {
             costs: ResidualCosts::new(&candidate)?,
@@ -511,7 +552,7 @@ impl Decision<'_> {
                 self.plane_error(&candidate, 2)?,
             ],
         };
-        if prediction.mode == LumaPrediction::Sixteen {
+        if REFINE_DC && prediction.mode == LumaPrediction::Sixteen {
             let mut sums = [0; 16];
             for k in 0..16 {
                 let (x, y) = xy(k);
@@ -529,37 +570,42 @@ impl Decision<'_> {
                 )?;
             }
         }
-        let quant = prediction.quant(self.qp)?;
-        for k in 0..16 {
-            let (x, y) = xy(k);
-            let mut tile = if prediction.mode == LumaPrediction::Four {
-                candidate.luma.tile.clone()
-            } else {
-                prediction.luma.clone()
-            };
-            if prediction.mode == LumaPrediction::Four {
-                tile.prediction(
-                    x,
-                    y,
-                    4,
-                    availability(k, prediction.available),
-                    *candidate
-                        .luma
-                        .modes
-                        .get(y / 4 * 4 + x / 4)
-                        .ok_or(Error::Internal)?,
-                )?;
-            }
-            let separate_dc = prediction.mode == LumaPrediction::Sixteen;
-            let nearest = quant.nearest_levels(&tile.forward(self.source, x, y)?, separate_dc);
-            for &p in t::SCAN.iter().rev().filter(|&&p| !separate_dc || p != 0) {
-                self.coordinate(
-                    &mut candidate,
-                    &prediction,
-                    Coefficient::Luma(k, p),
-                    *nearest.get(p).ok_or(Error::Internal)?,
-                    &mut refinement,
-                )?;
+        if AC_COORDINATES != 0 {
+            let quant = prediction.quant(self.qp)?;
+            for k in 0..16 {
+                let (x, y) = xy(k);
+                let mut tile = if prediction.mode == LumaPrediction::Four {
+                    candidate.luma.tile.clone()
+                } else {
+                    prediction.luma.clone()
+                };
+                if prediction.mode == LumaPrediction::Four {
+                    tile.prediction(
+                        x,
+                        y,
+                        4,
+                        availability(k, prediction.available),
+                        *candidate
+                            .luma
+                            .modes
+                            .get(y / 4 * 4 + x / 4)
+                            .ok_or(Error::Internal)?,
+                    )?;
+                }
+                let separate_dc = prediction.mode == LumaPrediction::Sixteen;
+                let nearest = quant.nearest_levels(&tile.forward(self.source, x, y)?, separate_dc);
+                for p in coordinates(
+                    *candidate.luma.levels.get(k).ok_or(Error::Internal)?,
+                    separate_dc,
+                ) {
+                    self.coordinate(
+                        &mut candidate,
+                        &prediction,
+                        Coefficient::Luma(k, p),
+                        *nearest.get(p).ok_or(Error::Internal)?,
+                        &mut refinement,
+                    )?;
+                }
             }
         }
         let qp = t::chroma_qp(self.qp);
@@ -567,31 +613,43 @@ impl Decision<'_> {
         for c in 0..2 {
             let tile = prediction.chroma.get(c).ok_or(Error::Internal)?;
             let source = self.csources.get(c).ok_or(Error::Internal)?;
-            let mut sums = [0; 4];
-            for (k, sum) in sums.iter_mut().enumerate() {
-                *sum = tile.forward(source, k % 2 * 4, k / 2 * 4)?.dc();
-            }
-            let nearest = t::chroma_dc_nearest(sums, qp)?;
-            for (p, &level) in nearest.iter().enumerate().rev() {
-                self.coordinate(
-                    &mut candidate,
-                    &prediction,
-                    Coefficient::ChromaDc(c, p),
-                    level,
-                    &mut refinement,
-                )?;
-            }
-            for k in 0..4 {
-                let nearest =
-                    quant.nearest_levels(&tile.forward(source, k % 2 * 4, k / 2 * 4)?, true);
-                for &p in t::SCAN.iter().rev().filter(|&&p| p != 0) {
+            if REFINE_DC {
+                let mut sums = [0; 4];
+                for (k, sum) in sums.iter_mut().enumerate() {
+                    *sum = tile.forward(source, k % 2 * 4, k / 2 * 4)?.dc();
+                }
+                let nearest = t::chroma_dc_nearest(sums, qp)?;
+                for (p, &level) in nearest.iter().enumerate().rev() {
                     self.coordinate(
                         &mut candidate,
                         &prediction,
-                        Coefficient::Chroma(c, k, p),
-                        *nearest.get(p).ok_or(Error::Internal)?,
+                        Coefficient::ChromaDc(c, p),
+                        level,
                         &mut refinement,
                     )?;
+                }
+            }
+            if AC_COORDINATES != 0 {
+                for k in 0..4 {
+                    let nearest =
+                        quant.nearest_levels(&tile.forward(source, k % 2 * 4, k / 2 * 4)?, true);
+                    for p in coordinates(
+                        *candidate
+                            .chroma
+                            .levels
+                            .get(c)
+                            .and_then(|blocks| blocks.get(k))
+                            .ok_or(Error::Internal)?,
+                        true,
+                    ) {
+                        self.coordinate(
+                            &mut candidate,
+                            &prediction,
+                            Coefficient::Chroma(c, k, p),
+                            *nearest.get(p).ok_or(Error::Internal)?,
+                            &mut refinement,
+                        )?;
+                    }
                 }
             }
         }
