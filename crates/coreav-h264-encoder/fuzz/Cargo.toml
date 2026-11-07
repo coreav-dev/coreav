@@ -11,7 +11,7 @@ cargo-fuzz = true
 [workspace]
 
 [features]
-scalar = []
+scalar = ["coreav-h264-encoder/scalar"]
 
 [dependencies]
 libfuzzer-sys = "0.4"

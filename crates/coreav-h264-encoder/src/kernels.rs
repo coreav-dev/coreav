@@ -80,6 +80,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn satd_matches_scalar_for_every_full_swing_4x4_pattern() -> Result<()> {
+        let b = [0; 16];
+        for bits in 0..=u16::MAX {
+            let a = std::array::from_fn::<_, 16, _>(|i| if bits & (1 << i) == 0 { 0 } else { 255 });
+            assert_eq!(satd(&a, &b, 0, 4, 4), crate::transform::satd(&a, &b, 0, 4));
+        }
+        Ok(())
+    }
+
+    #[test]
     fn satd_matches_scalar_for_square_sizes_strides_and_extents() -> Result<()> {
         let mut seed = 0xcad28563147e9b0fu64;
         for width in [4, 8, 16] {
@@ -178,6 +188,10 @@ mod tests {
                 satd(&[0; 256], &[0; 256], at, stride, width),
                 Err(Error::Internal)
             );
+            #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+            if let Some(simd) = arithmetic() {
+                assert_eq!(simd.satd(&[], &[], stride, width), None);
+            }
         }
         Ok(())
     }
