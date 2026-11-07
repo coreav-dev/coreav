@@ -48,7 +48,7 @@ fuzz_target!(|data: &[u8]| {
     let levels =
         std::array::from_fn(|i| i32::from_le_bytes(std::array::from_fn(|j| byte(300 + i * 4 + j))));
     let scaled = quant.scaled_scalar(&levels);
-    let inverse_input = std::array::from_fn(|i| {
+    let inverse_input: [i32; 16] = std::array::from_fn(|i| {
         i32::from(i16::from_le_bytes([byte(400 + i * 2), byte(401 + i * 2)]))
     });
     let wide_inverse_input =
