@@ -1026,41 +1026,68 @@ pub(crate) fn picture(
     let mb_width = e.coded_width / 16;
     let mut writer = Bits::new(e.limits.access_unit_bytes);
     syntax::slice(&mut writer, e, slice)?;
-    let candidates = rows::decide(e, input, slice)?;
+    let mut records = Vec::new();
+    if e.settings.deblocking == Deblocking::Enabled {
+        records
+            .try_reserve_exact(mb_width * (e.coded_height / 16))
+            .map_err(|_| Error::Allocation)?;
+    }
     let mut pending_skip = 0;
     let mut previous_mv_count = e.previous_mv_count;
-    for (address, slot) in candidates.iter().enumerate() {
-        let candidate = slot.get().ok_or(Error::Internal)?;
-        let Candidate {
-            luma,
-            chroma,
-            inter,
-            ..
-        } = candidate;
-        let (mx, my) = (address % mb_width, address / mb_width);
-        let context = rows::context(&candidates, address, mb_width, !slice.idr)?;
-        let skip = inter.as_ref().is_some_and(|i| i.skip);
-        if !slice.idr {
-            if skip {
-                pending_skip += 1;
-            } else {
-                writer.ue(pending_skip)?;
-                pending_skip = 0;
+    rows::stream(e, input, slice, |row, current, top| {
+        for (mx, slot) in current.iter().enumerate() {
+            let candidate = slot.get().ok_or(Error::Internal)?;
+            let Candidate {
+                luma,
+                chroma,
+                inter,
+                ..
+            } = candidate;
+            let my = row;
+            let context = rows::context(current, top, mx, !slice.idr)?;
+            let skip = inter.as_ref().is_some_and(|i| i.skip);
+            if !slice.idr {
+                if skip {
+                    pending_skip += 1;
+                } else {
+                    writer.ue(pending_skip)?;
+                    pending_skip = 0;
+                }
+            }
+            macroblock(&mut writer, luma, chroma, inter.as_ref(), context)?;
+            previous_mv_count = inter.as_ref().map_or(0, |i| i.len as u8);
+            planes
+                .first_mut()
+                .ok_or(Error::Internal)?
+                .commit(&luma.tile, mx * 16, my * 16, 16)?;
+            for (c, tile) in chroma.tiles.iter().enumerate() {
+                planes
+                    .get_mut(c + 1)
+                    .ok_or(Error::Internal)?
+                    .commit(tile, mx * 8, my * 8, 8)?;
+            }
+            if e.settings.deblocking == Deblocking::Enabled {
+                let mut nonzero = 0;
+                for (p, &count) in candidate
+                    .state
+                    .counts
+                    .first()
+                    .ok_or(Error::Internal)?
+                    .iter()
+                    .enumerate()
+                {
+                    if count != 0 {
+                        nonzero |= 1 << p;
+                    }
+                }
+                records.push(deblock::Record {
+                    motion: candidate.state.motion,
+                    nonzero,
+                });
             }
         }
-        macroblock(&mut writer, luma, chroma, inter.as_ref(), context)?;
-        previous_mv_count = inter.as_ref().map_or(0, |i| i.len as u8);
-        planes
-            .first_mut()
-            .ok_or(Error::Internal)?
-            .commit(&luma.tile, mx * 16, my * 16, 16)?;
-        for (c, tile) in chroma.tiles.iter().enumerate() {
-            planes
-                .get_mut(c + 1)
-                .ok_or(Error::Internal)?
-                .commit(tile, mx * 8, my * 8, 8)?;
-        }
-    }
+        Ok(())
+    })?;
     if pending_skip != 0 {
         writer.ue(pending_skip)?;
     }
@@ -1078,21 +1105,10 @@ pub(crate) fn picture(
                 qp,
                 c != 0,
                 |mx, my| {
-                    let n = &candidates
+                    records
                         .get(my * mb_width + mx)
-                        .and_then(std::sync::OnceLock::get)
-                        .ok_or(Error::Internal)?
-                        .state;
-                    let mut nonzero = 0;
-                    for (p, &count) in n.counts.first().ok_or(Error::Internal)?.iter().enumerate() {
-                        if count != 0 {
-                            nonzero |= 1 << p;
-                        }
-                    }
-                    Ok(deblock::Record {
-                        motion: n.motion,
-                        nonzero,
-                    })
+                        .copied()
+                        .ok_or(Error::Internal)
                 },
             )?;
         }

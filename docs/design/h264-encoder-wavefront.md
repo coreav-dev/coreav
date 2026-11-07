@@ -1,5 +1,7 @@
 # Deterministic H.264 encoder row wavefront
 
+The following describes the original picture-wide publication design. [Streaming row assembly](h264-encoder-row-streaming.md) replaces its retained workspace and assembly schedule while preserving its decision and output contract.
+
 ## Contract
 
 The encoder chooses the same macroblocks, writes the same stream and returns the same reconstruction for every positive thread count. The first change removes raster-order decision state; its quality cost is measured against main separately from parallel execution. There are no presets, new dependencies or unsafe code.

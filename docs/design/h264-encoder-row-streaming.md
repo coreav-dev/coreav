@@ -14,7 +14,9 @@ The caller emits row `r`, then retires `r - 1`: completion of `r` proves that al
 
 ## Workspace bound
 
-Candidate storage is `4976 * w * window_rows` bytes on the existing 64-bit layout, rather than `4976 * w * h`. When deblocking is enabled, compact records add `sizeof(deblock::Record) * w * h`; their size will be checked with the implementation. Progress channels and completion notices are bounded by the picture dimensions, and worker stacks remain bounded by `n`. Reconstruction and reference planes are unchanged.
+Candidate storage is `4976 * w * window_rows` bytes on the checked 64-bit layout, rather than `4976 * w * h`. When deblocking is enabled, compact records add `136 * w * h` bytes; disabled deblocking allocates none. At the maximum picture size, those records occupy 1,109,760 bytes, so combined candidate and record storage is 2,304,000 bytes at one worker, 4,095,360 at four, 6,483,840 at eight and 11,260,800 at sixteen. The layout test checks both component sizes and the retained-storage bound.
+
+Parallel coordination retains `h` progress channels with at most `w` messages each and `h` one-message completion channels, plus `window_rows` row locks, one retirement mutex/condition variable and at most `n` join handles. Progress payload storage is at most `w * h * sizeof(Result<usize>)`; standard-library channel metadata and allocation overhead are additional. Worker stacks and transient decision candidates remain bounded by `n`. Reconstruction and reference planes are unchanged. These formulas describe retained workspace, not total process memory.
 
 At the maximum coded size, 1920 by 1088 (`w = 120`, `h = 68`), candidate storage is 1,194,240 bytes with one worker, 2,985,600 with four, 5,374,080 with eight and 10,151,040 with sixteen, versus 40,604,160 bytes before streaming. These are allocation bounds, not measured peak resident memory. The implementation will record the compact-record and synchronization contributions separately.
 
