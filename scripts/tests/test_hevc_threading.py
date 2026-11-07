@@ -1,4 +1,5 @@
 import copy
+import json
 import pathlib
 import sys
 import tempfile
@@ -12,6 +13,42 @@ import hevc_decode
 
 
 class ThreadingReference(unittest.TestCase):
+    def test_threaded_conformance_rejects_silent_serial_fallback(self):
+        serial = dict(complete=True, summary=dict(decoded_pictures=3, parallel_pictures=0, max_workers=1,
+                                                stats=dict(wpp_restarts=2)))
+        self.assertEqual(hevc_decode.threading_coverage([serial], 1), dict(parallel_pictures=0, max_workers=1))
+        for threads in (2, 4, 8):
+            with self.assertRaisesRegex(ValueError, 'native_parallel_coverage_missing'):
+                hevc_decode.threading_coverage([serial], threads)
+        parallel = copy.deepcopy(serial)
+        parallel['summary'].update(parallel_pictures=2, max_workers=2)
+        self.assertEqual(hevc_decode.threading_coverage([serial, parallel], 4),
+                         dict(parallel_pictures=2, max_workers=2))
+        parallel['summary']['stats']['wpp_restarts'] = 0
+        with self.assertRaisesRegex(ValueError, 'native_parallel_wpp_work'):
+            hevc_decode.threading_coverage([parallel], 4)
+
+    def test_unverified_baseline_cannot_pass_or_continue_the_shard(self):
+        with tempfile.TemporaryDirectory() as temp:
+            out = pathlib.Path(temp) / 'out'
+            args = ['driver', '--native', '/native', '--main', '/main', '--oracle-bin', '/oracle', '--out', str(out),
+                    '--candidate', 'a' * 40, '--baseline', 'b' * 40]
+            pool = types.SimpleNamespace(limits=types.SimpleNamespace(requests=0), close=lambda: None)
+            with patch.object(sys, 'argv', args), \
+                    patch.object(threading.test_oracle, 'require', return_value=object()), \
+                    patch.object(threading.conformance, 'digest', return_value='c' * 64), \
+                    patch.object(threading.oracle_pin, 'load', return_value=dict(BUILD='qualified')), \
+                    patch.object(pathlib.Path, 'read_text', return_value='model name : fixture host\n'), \
+                    patch.object(threading.os, 'sched_getaffinity', return_value={0, 1}, create=True), \
+                    patch.object(threading.round_files, 'pool', return_value=pool), \
+                    patch.object(threading.reference, 'inputs', return_value=[('d00', pathlib.Path('/input'), 'd' * 64),
+                                                                             ('d01', pathlib.Path('/next'), 'e' * 64)]), \
+                    patch.object(threading, 'measure', return_value=dict(id='d00', status='baseline_not_verified')) as measure:
+                self.assertEqual(threading.main(), 1)
+                measure.assert_called_once()
+            report = json.loads((out / 'results.json').read_text())
+            self.assertFalse(report['passed'])
+
     def test_census_counts_only_complete_native_syntax_and_uses_qualified_extraction(self):
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)

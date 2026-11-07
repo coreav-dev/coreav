@@ -340,6 +340,7 @@ fn check_deadline(deadline: Instant) -> Result<(), Error> {
 
 fn codec_error(error: coreav_hevc::Error) -> Error {
     let kind = match error {
+        coreav_hevc::Error::Internal(_) => ErrorKind::Backend,
         coreav_hevc::Error::Limit("decode_deadline") => ErrorKind::Timeout,
         coreav_hevc::Error::Limit(_) => ErrorKind::Limit,
         coreav_hevc::Error::Unsupported(_) => ErrorKind::Unsupported,
