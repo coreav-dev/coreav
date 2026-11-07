@@ -51,6 +51,18 @@ class ThreadingReference(unittest.TestCase):
             self.assertFalse(report['passed'])
             self.assertEqual(report['selected_ids'], ['d00', 'd01'])
 
+    def test_baseline_failure_retains_only_closed_verification_reasons(self):
+        args = types.SimpleNamespace(native='/candidate', main=pathlib.Path('/main'))
+        for reason in ('incomplete_native', 'depth_change', 'oracle_geometry', 'oracle_pixel_format',
+                       'pixel_mismatch', 'untrusted diagnostic'):
+            with self.subTest(reason=reason), \
+                    patch.object(threading.conformance, 'digest', return_value='a' * 64), \
+                    patch.object(threading.reference, 'verify', side_effect=ValueError(reason)):
+                row = threading.measure(args, object(), pathlib.Path('/input'), 'd00')
+            self.assertEqual(row['status'], 'baseline_not_verified')
+            self.assertEqual(row['failure'], 'ValueError')
+            self.assertEqual(row.get('verification_failure'), None if reason == 'untrusted diagnostic' else reason)
+
     def test_baseline_timeout_records_the_failing_verification_step(self):
         args = types.SimpleNamespace(native='/candidate', main=pathlib.Path('/main'))
         oracle = types.SimpleNamespace(ffmpeg='/qualified-ffmpeg', ffprobe='/qualified-ffprobe')
