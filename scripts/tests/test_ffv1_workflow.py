@@ -23,6 +23,7 @@ class Ffv1Workflow(unittest.TestCase):
         self.assertNotIn('continue-on-error', step)
         self.assertIn('timeout-minutes:', step)
         for command in ("-p 'test_ffv1*.py'", 'cargo run --locked -p coreav-ffv1 --example fixtures --',
+                        'cargo test --locked -p coreav-backend-ffmpeg --test decode ffv1_odd_dimensions_match_source_bytes -- --ignored',
                         'cargo build --locked -p coreav-cli --features native-h264', 'scripts/ffv1_check.py',
                         '--ffmpeg', '--ffprobe', '--coreav', '--fixtures', '--work'):
             self.assertIn(command, step)

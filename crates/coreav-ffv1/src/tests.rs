@@ -209,8 +209,8 @@ fn configuration(encoder: &Encoder) {
     assert_eq!(r.symbol(&mut s, false), i64::from(encoder.shifts.0));
     assert_eq!(r.symbol(&mut s, false), i64::from(encoder.shifts.1));
     assert!(!r.bit(&mut s[0]));
-    assert_eq!(r.symbol(&mut s, false), i64::from(encoder.grid - 1));
-    assert_eq!(r.symbol(&mut s, false), i64::from(encoder.grid - 1));
+    assert_eq!(r.symbol(&mut s, false), i64::from(encoder.grid[0] - 1));
+    assert_eq!(r.symbol(&mut s, false), i64::from(encoder.grid[1] - 1));
     assert_eq!(r.symbol(&mut s, false), 1);
     let mut scale = 1;
     for table in 0..5 {
@@ -241,6 +241,10 @@ fn configuration(encoder: &Encoder) {
 }
 
 fn reconstruct(encoder: &Encoder, packet: &[u8], source: &Picture) {
+    let mut covered: [Vec<bool>; 3] = std::array::from_fn(|p| {
+        let (hs, vs) = if p == 0 { (0, 0) } else { encoder.shifts };
+        vec![false; (source.width().div_ceil(1 << hs) * source.height().div_ceil(1 << vs)) as usize]
+    });
     let mut slices = Vec::new();
     let mut end = packet.len();
     while end != 0 {
@@ -255,7 +259,7 @@ fn reconstruct(encoder: &Encoder, packet: &[u8], source: &Picture) {
         end = start;
     }
     slices.reverse();
-    assert_eq!(slices.len(), (encoder.grid * encoder.grid) as usize);
+    assert_eq!(slices.len(), (encoder.grid[0] * encoder.grid[1]) as usize);
     for (index, bytes) in slices.into_iter().enumerate() {
         let mut reader = Reader::new(bytes);
         if index == 0 {
@@ -266,7 +270,10 @@ fn reconstruct(encoder: &Encoder, packet: &[u8], source: &Picture) {
         let sy = reader.symbol(&mut header, false) as u32;
         assert_eq!(
             (sx, sy),
-            (index as u32 % encoder.grid, index as u32 / encoder.grid)
+            (
+                index as u32 % encoder.grid[0],
+                index as u32 / encoder.grid[0]
+            )
         );
         for _ in 0..4 {
             assert_eq!(reader.symbol(&mut header, false), 0);
@@ -279,10 +286,10 @@ fn reconstruct(encoder: &Encoder, packet: &[u8], source: &Picture) {
         for p in 0..3 {
             let hs = if p == 0 { 0 } else { encoder.shifts.0 };
             let vs = if p == 0 { 0 } else { encoder.shifts.1 };
-            let x0 = encoder.settings.width * sx / encoder.grid;
-            let y0 = encoder.settings.height * sy / encoder.grid;
-            let x1 = encoder.settings.width * (sx + 1) / encoder.grid;
-            let y1 = encoder.settings.height * (sy + 1) / encoder.grid;
+            let x0 = encoder.settings.width * sx / encoder.grid[0];
+            let y0 = encoder.settings.height * sy / encoder.grid[1];
+            let x1 = encoder.settings.width * (sx + 1) / encoder.grid[0];
+            let y1 = encoder.settings.height * (sy + 1) / encoder.grid[1];
             let w = (x1 - x0).div_ceil(1 << hs) as usize;
             let h = (y1 - y0).div_ceil(1 << vs) as usize;
             let mut raster = vec![vec![0i32; w + 2]; h + 2];
@@ -316,6 +323,9 @@ fn reconstruct(encoder: &Encoder, packet: &[u8], source: &Picture) {
                     let value =
                         (candidates[1] + if context < 0 { -residual } else { residual }) & 255;
                     raster[y + 2][x + 1] = value;
+                    let full_width = source.width().div_ceil(1 << hs) as usize;
+                    covered[p][((y0 >> vs) as usize + y) * full_width + (x0 >> hs) as usize + x] =
+                        true;
                     assert_eq!(
                         value as u8,
                         source.row(p, (y0 >> vs) as usize + y).unwrap()[(x0 >> hs) as usize + x]
@@ -330,6 +340,7 @@ fn reconstruct(encoder: &Encoder, packet: &[u8], source: &Picture) {
         assert!(!reader.bit(&mut 129));
         assert_eq!(reader.at, bytes.len() + 1);
     }
+    assert!(covered.iter().flatten().all(|sample| *sample));
 }
 
 #[test]
@@ -355,17 +366,24 @@ fn native_planes_borders_padding_and_independent_frames() {
 }
 
 #[test]
+fn subsampled_odd_dimensions_cover_all_planes() {
+    for chroma in [Chroma::Cs420, Chroma::Cs422] {
+        for (width, height) in [(854, 480), (640, 481), (855, 481), (859, 487), (642, 482)] {
+            let settings = settings(width, height, chroma);
+            let mut encoder = Encoder::new(settings, Limits::default()).unwrap();
+            assert!(encoder.grid.into_iter().all(|count| count >= 2));
+            let source = picture(settings, 7, 29);
+            let packet = encoder.encode(&source, deadline()).unwrap();
+            reconstruct(&encoder, &packet, &source);
+        }
+    }
+}
+
+#[test]
 fn threshold_and_four_slice_coverage() {
     for chroma in [Chroma::Cs420, Chroma::Cs422, Chroma::Cs444] {
-        for (width, height, grid) in [(352, 288, 1), (356, 288, 2), (321, 317, 2)] {
+        for (width, height, grid) in [(352, 288, [1, 1]), (356, 288, [2, 2]), (321, 317, [2, 2])] {
             let settings = settings(width, height, chroma);
-            if chroma != Chroma::Cs444 && width == 321 {
-                assert!(matches!(
-                    Encoder::new(settings, Limits::default()),
-                    Err(Error::Unsupported(_))
-                ));
-                continue;
-            }
             let mut encoder = Encoder::new(settings, Limits::default()).unwrap();
             assert_eq!(encoder.grid, grid);
             configuration(&encoder);
@@ -506,11 +524,6 @@ fn unsupported_settings_are_refused_before_allocation() {
     for settings in [
         Settings { width: 0, ..base },
         Settings { height: 0, ..base },
-        Settings { width: 642, ..base },
-        Settings {
-            height: 482,
-            ..base
-        },
         Settings {
             sample_aspect: Some((0, 1)),
             ..base
