@@ -84,25 +84,57 @@ impl Motion {
     }
 }
 
-pub(crate) struct Memory {
-    pub(crate) used: usize,
-    limit: usize,
+pub(crate) trait ReclaimMemory {
+    fn retained_bytes(&mut self, mandatory: usize, limit: usize) -> Result<usize>;
 }
 
-impl Memory {
+pub(crate) struct Memory<'a> {
+    pub(crate) used: usize,
+    limit: usize,
+    peak: usize,
+    reclaim: Option<&'a mut dyn ReclaimMemory>,
+}
+
+impl<'a> Memory<'a> {
     pub(crate) fn new(used: usize, limit: usize) -> Result<Self> {
-        if used > limit {
-            return Err(Error::Limit("reconstruction_memory"));
-        }
-        Ok(Self { used, limit })
+        Self::with_reclaim(used, limit, None)
+    }
+
+    pub(crate) fn with_reclaim(
+        used: usize,
+        limit: usize,
+        reclaim: Option<&'a mut dyn ReclaimMemory>,
+    ) -> Result<Self> {
+        let mut memory = Self {
+            used: 0,
+            limit,
+            peak: 0,
+            reclaim,
+        };
+        memory.charge(used)?;
+        Ok(memory)
+    }
+
+    pub(crate) fn peak(&self) -> usize {
+        self.peak
     }
 
     pub(crate) fn charge(&mut self, bytes: usize) -> Result<()> {
-        self.used = self
+        let mandatory = self
             .used
             .checked_add(bytes)
             .filter(|n| *n <= self.limit)
             .ok_or(Error::Limit("reconstruction_memory"))?;
+        let retained = match &mut self.reclaim {
+            Some(reclaim) => reclaim.retained_bytes(mandatory, self.limit)?,
+            None => 0,
+        };
+        let physical = mandatory
+            .checked_add(retained)
+            .filter(|n| *n <= self.limit)
+            .ok_or(Error::Limit("reconstruction_memory"))?;
+        self.used = mandatory;
+        self.peak = self.peak.max(physical);
         Ok(())
     }
 

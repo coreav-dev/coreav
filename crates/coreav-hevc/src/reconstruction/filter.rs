@@ -1,4 +1,4 @@
-use super::{Cell, Frame, Memory, Motion, MotionReference};
+use super::{Cell, Frame, Memory, Motion, MotionReference, ReclaimMemory};
 use crate::{Error, Result, dpb::References};
 use coreav_kernels_hevc::{self as kernels, BoundaryStrength, SaoBand, SaoEdge};
 
@@ -93,6 +93,15 @@ pub(super) struct Ctu {
 
 impl Frame {
     pub(crate) fn finalize(&mut self, fixed: usize, limit: usize) -> Result<usize> {
+        self.finalize_reclaiming(fixed, limit, None)
+    }
+
+    pub(crate) fn finalize_reclaiming(
+        &mut self,
+        fixed: usize,
+        limit: usize,
+        mut reclaim: Option<&mut dyn ReclaimMemory>,
+    ) -> Result<usize> {
         if !self.complete() || self.filter_ctus.iter().any(|c| !c.seen) {
             return Err(Error::InvalidData("selected_picture_incomplete"));
         }
@@ -118,7 +127,14 @@ impl Frame {
                 .iter()
                 .any(|ctu| ctu.sao.get(component).is_some_and(|s| s.kind > 1))
             {
-                let mut memory = Memory::new(fixed, limit)?;
+                let mut memory = Memory::with_reclaim(
+                    fixed,
+                    limit,
+                    match &mut reclaim {
+                        Some(reclaim) => Some(&mut **reclaim),
+                        None => None,
+                    },
+                )?;
                 memory.charge(self.heap_bytes()?)?;
                 let plane = self
                     .planes
@@ -126,7 +142,7 @@ impl Frame {
                     .ok_or(Error::InvalidData("filter_component"))?;
                 let mut source = memory.allocate(plane.len(), 0u16)?;
                 source.copy_from_slice(plane);
-                peak = peak.max(memory.used);
+                peak = peak.max(memory.peak());
                 Some(source)
             } else {
                 None

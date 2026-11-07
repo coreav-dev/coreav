@@ -3865,6 +3865,56 @@ mod tests {
     }
 
     #[test]
+    fn sao_evicts_idle_storage_at_the_source_allocation() -> Result<()> {
+        struct Idle(Vec<u8>);
+        impl crate::reconstruction::ReclaimMemory for Idle {
+            fn retained_bytes(&mut self, mandatory: usize, limit: usize) -> Result<usize> {
+                if mandatory
+                    .checked_add(self.0.capacity())
+                    .is_none_or(|bytes| bytes > limit)
+                {
+                    self.0 = Vec::new();
+                }
+                Ok(self.0.capacity())
+            }
+        }
+        for component in 0..3 {
+            let build = || -> Result<Frame> {
+                let mut frame = filter_frame([33, 33])?;
+                for ctu in &mut frame.filter_ctus {
+                    ctu.sao[component] = Sao {
+                        kind: 2,
+                        offsets: [3, 1, -1, -3],
+                        class: 0,
+                        band: 0,
+                    };
+                }
+                Ok(frame)
+            };
+            let mut cold = build()?;
+            let mut warm = build()?;
+            let live = cold.heap_bytes()? + cold.planes[component].len() * 2;
+            let mut idle = Idle(vec![0; 16]);
+            assert_eq!(cold.finalize(0, live)?, live);
+            assert_eq!(warm.finalize_reclaiming(0, live, Some(&mut idle))?, live);
+            assert_eq!(idle.0.capacity(), 0);
+            assert_eq!(warm.planes, cold.planes);
+            assert_eq!(warm.stats, cold.stats);
+            let mut cold = build()?;
+            let mut warm = build()?;
+            assert_eq!(
+                cold.finalize(0, live - 1),
+                Err(Error::Limit("reconstruction_memory"))
+            );
+            assert_eq!(
+                warm.finalize_reclaiming(0, live - 1, Some(&mut idle)),
+                Err(Error::Limit("reconstruction_memory"))
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
     fn sao_reads_deblocked_source_once_and_charges_its_live_copy() -> Result<()> {
         let mut frame = filter_frame([33, 33])?;
         frame.planes[0][7] = 34;
