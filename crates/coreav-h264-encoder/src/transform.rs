@@ -196,23 +196,16 @@ impl Quant {
         self.scaled_scalar(levels)
     }
 
-    pub(crate) fn nearest_levels(&self, coefficients: &Forward, separate_dc: bool) -> [i32; 16] {
-        let mut levels = [0; 16];
-        for (p, (((level, &coefficient), &scale), &reciprocal)) in levels
-            .iter_mut()
-            .zip(&coefficients.0)
-            .zip(&self.scale)
-            .zip(&self.reciprocal)
-            .enumerate()
-            .skip(usize::from(separate_dc))
-        {
-            let weight = (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
-            let divisor = (weight * scale) as u64;
-            let magnitude =
-                ((128 * u64::from(coefficient.unsigned_abs()) + divisor) * reciprocal) >> SHIFT;
-            *level = magnitude as i32 * coefficient.signum();
-        }
-        levels
+    #[inline]
+    pub(crate) fn nearest_level(&self, coefficients: &Forward, p: usize) -> Result<i32> {
+        let coefficient = *coefficients.0.get(p).ok_or(Error::Internal)?;
+        let scale = *self.scale.get(p).ok_or(Error::Internal)?;
+        let reciprocal = *self.reciprocal.get(p).ok_or(Error::Internal)?;
+        let weight = (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
+        let divisor = (weight * scale) as u64;
+        let magnitude =
+            ((128 * u64::from(coefficient.unsigned_abs()) + divisor) * reciprocal) >> SHIFT;
+        Ok(magnitude as i32 * coefficient.signum())
     }
 
     pub(crate) fn reconstruct(
@@ -922,7 +915,11 @@ mod tests {
                 let forward = Forward([c; 16]);
                 for separate_dc in [false, true] {
                     assert_eq!(
-                        Quant::of(qp).unwrap().nearest_levels(&forward, separate_dc),
+                        std::array::from_fn(|p| if separate_dc && p == 0 {
+                            0
+                        } else {
+                            Quant::of(qp).unwrap().nearest_level(&forward, p).unwrap()
+                        }),
                         reference::quantize(&[i64::from(c); 16], qp, separate_dc, 6).unwrap(),
                         "{qp} {c} {separate_dc}"
                     );
@@ -945,6 +942,10 @@ mod tests {
         assert_eq!(luma_dc_scaled([i32::MAX; 16], 28), Err(Error::Coefficient));
         assert_eq!(luma_dc_scaled([i32::MIN; 16], 28), Err(Error::Coefficient));
         assert_eq!(chroma_dc_scaled([i32::MAX; 4], 28), Err(Error::Coefficient));
+        assert_eq!(
+            Quant::of(28).unwrap().nearest_level(&Forward([0; 16]), 16),
+            Err(Error::Internal)
+        );
     }
 
     #[test]

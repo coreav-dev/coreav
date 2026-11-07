@@ -721,7 +721,7 @@ impl Decision<'_> {
                     )?;
                 }
                 let separate_dc = prediction.mode == LumaPrediction::Sixteen;
-                let nearest = quant.nearest_levels(&tile.forward(self.source, x, y)?, separate_dc);
+                let coefficients = tile.forward(self.source, x, y)?;
                 for p in coordinates(
                     *candidate.luma.levels.get(k).ok_or(Error::Internal)?,
                     separate_dc,
@@ -730,7 +730,7 @@ impl Decision<'_> {
                         &mut candidate,
                         &prediction,
                         Coefficient::Luma(k, p),
-                        *nearest.get(p).ok_or(Error::Internal)?,
+                        quant.nearest_level(&coefficients, p)?,
                         &mut refinement,
                     )?;
                 }
@@ -759,8 +759,7 @@ impl Decision<'_> {
             }
             if AC_COORDINATES != 0 {
                 for k in 0..4 {
-                    let nearest =
-                        quant.nearest_levels(&tile.forward(source, k % 2 * 4, k / 2 * 4)?, true);
+                    let coefficients = tile.forward(source, k % 2 * 4, k / 2 * 4)?;
                     for p in coordinates(
                         *candidate
                             .chroma
@@ -774,7 +773,7 @@ impl Decision<'_> {
                             &mut candidate,
                             &prediction,
                             Coefficient::Chroma(c, k, p),
-                            *nearest.get(p).ok_or(Error::Internal)?,
+                            quant.nearest_level(&coefficients, p)?,
                             &mut refinement,
                         )?;
                     }

@@ -301,6 +301,7 @@ fn macroblock(
     macroblock_syntax(w, luma, chroma, prediction, context, None)
 }
 
+#[inline(always)]
 fn macroblock_syntax(
     w: &mut Bits,
     luma: &Luma,
