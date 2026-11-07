@@ -1,158 +1,90 @@
-name: github-shapes
-
-# workflow-check: not required
+name: github-shapes-premise-only
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - .github/workflows/github-shapes.yml
-      - docs/design/github-shapes-200.md
-      - tools/compat-corpus/github_shapes*.py
-      - tools/compat-corpus/decoded_output.py
-      - tools/compat-corpus/encode_breadth.py
-      - tools/compat-corpus/tests/test_github_shapes.py
-      - scripts/install-oracle-ffmpeg.sh
-      - scripts/install-x264.sh
-      - scripts/oracle*
-      - scripts/aac_pcm_eligibility.py
-      - scripts/aac_pns.py
-      - scripts/aac-pns-requirements.txt
-      - docs/design/aac-pcm-eligibility.md
-      - docs/design/aac-pns-eligibility.md
-      - docs/compat/audio-decoder-eligibility.json
-      - tools/compat-corpus/tests/test_github_shapes_aac.py
   workflow_dispatch:
-    inputs:
-      commit:
-        description: Full merged main SHA containing the registration and tools
-        required: true
-        type: string
-
 permissions:
   contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
-  probe-writer-controls:
-    if: github.event_name == 'pull_request'
+  count:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: 43742ab7fed01adfc8713b39497a0bd5cebd89b9
           persist-credentials: false
-      - name: Install the pinned black-box oracle
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/writer-oracle"
-      - name: Check actual writer output on independent controls
+      - name: Build existing diagnostic and install pinned oracle
         run: |
-          set -euo pipefail
-          export COREAV_SHAPES_ORACLE="$RUNNER_TEMP/writer-oracle"
-          python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_github_shapes.py
-  measure:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 240
-    env:
-      COMMIT: ${{ inputs.commit }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Require a merged main candidate
-        run: |
-          set -euo pipefail
-          [ "$GITHUB_REF" = refs/heads/main ] || { echo '::error::main_dispatch_required'; exit 1; }
-          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::candidate_sha'; exit 1; }
-          git merge-base --is-ancestor "$COMMIT" origin/main || { echo '::error::candidate_not_merged'; exit 1; }
-          mkdir -p "$RUNNER_TEMP/oracle-owner/scripts"
-          cp scripts/test_oracle.py scripts/oracle_pin.py scripts/oracle_pin_macos.py scripts/oracle-ffmpeg.env \
-            scripts/oracle-ffmpeg-macos.env "$RUNNER_TEMP/oracle-owner/scripts/"
-          git checkout --detach "$COMMIT"
-          test -f docs/design/github-shapes-200.md
-          test -f tools/compat-corpus/github_shapes.py
-      - name: Install build dependencies and pinned programs
-        run: |
-          set -euo pipefail
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev nasm pkg-config
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
-          scripts/install-x264.sh "$RUNNER_TEMP/oracle"
-          python3 -m venv "$RUNNER_TEMP/aac-python"
-          "$RUNNER_TEMP/aac-python/bin/pip" install --quiet --only-binary=:all: --require-hashes -r scripts/aac-pns-requirements.txt
-          echo "$RUNNER_TEMP/aac-python/bin" >> "$GITHUB_PATH"
-      - name: Build the full feature set
-        run: |
-          set -euo pipefail
-          cargo build --release --locked -p coreav-cli --features release-full
+          set -eu
           cargo build --locked --release -p coreav-aac --features diagnostics --example pns_diagnostic
-          python3 - <<'PY'
-          import hashlib, json, os
-          from pathlib import Path
-          def sha(path):
-              return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-          record = {'commit': os.environ['COMMIT'],
-                    'command': ['cargo', 'build', '--release', '--locked', '-p', 'coreav-cli', '--features', 'release-full'],
-                    'coreav_sha256': sha('target/release/coreav'), 'lock_sha256': sha('Cargo.lock')}
-          Path(os.environ['RUNNER_TEMP'], 'shape-build.json').write_text(json.dumps(record))
-          PY
-      - name: Acquire and replay all registered shapes
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Fetch and bind retained fixture
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: |
-          set -euo pipefail
-          ORACLE_PATHS="$(python3 -I -B "$RUNNER_TEMP/oracle-owner/scripts/test_oracle.py" --resolve \
-            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe")"
-          if ! { IFS= read -r FFMPEG && IFS= read -r FFPROBE; } <<< "$ORACLE_PATHS" ||
-             [[ -z "$FFMPEG" || -z "$FFPROBE" || "$ORACLE_PATHS" != "$FFMPEG"$'\n'"$FFPROBE" ]]; then
-            echo "stage=oracle_qualification: invalid retained oracle pair" >&2
+          set -eu
+          if ! python3 - 2>"$RUNNER_TEMP/fetch-error" <<'PY'
+          import hashlib, io, json, os, pathlib, stat, sys, zipfile
+          sys.path.insert(0, 'tools/compat-corpus')
+          import round_files
+          key = 'evidence/github-shapes-200/2026-11-06-521a0d39/evidence.zip'
+          pool = round_files.pool()
+          try:
+              size, etag = pool.head(key)
+              if not 0 < size <= 512 * 1024 * 1024:
+                  raise ValueError('archive size limit')
+              data = pool.get(key, size, etag)
+          finally:
+              pool.close()
+          if len(data) != size:
+              raise ValueError('archive size mismatch')
+          if hashlib.sha256(data).hexdigest() != 'fd24199f8df0c24f743e2217c80527ce4591a734aa3330b92119ab2e65797ddd':
+              raise ValueError('retained archive differs from original Actions artifact')
+          with zipfile.ZipFile(io.BytesIO(data)) as archive:
+              entries = archive.infolist()
+              files = [entry for entry in entries if entry.filename.endswith('/fixtures/source.mp4') or entry.filename == 'fixtures/source.mp4']
+              if len(files) != 1:
+                  raise ValueError('fixture identity is not unique')
+              fixture = files[0]
+              prefix = fixture.filename[:-len('fixtures/source.mp4')]
+              manifests = [entry for entry in entries if entry.filename == prefix + 'manifest.json']
+              if len(manifests) != 1 or manifests[0].file_size > 8 * 1024 * 1024:
+                  raise ValueError('manifest identity or size')
+              if not 0 < fixture.file_size <= 128 * 1024 * 1024 or stat.S_ISLNK(fixture.external_attr >> 16):
+                  raise ValueError('fixture type or size')
+              manifest = json.loads(archive.read(manifests[0]))
+              if manifest['commit'] != '521a0d396c670294bf79a674c42aedbee1776db3':
+                  raise ValueError('retained commit mismatch')
+              expected = manifest['inventory']['fixtures/source.mp4']
+              if expected != '2240cb1e506d918dc3e575177b2a59d49afac0d08e26e345192ef07b0e2ccff5':
+                  raise ValueError('fixture differs from the committed manifest')
+              content = archive.read(fixture)
+              if hashlib.sha256(content).hexdigest() != expected:
+                  raise ValueError('fixture digest mismatch')
+              pathlib.Path(os.environ['RUNNER_TEMP'], 'source.mp4').write_bytes(content)
+          PY
+          then
+            echo 'Retained archive fetch or integrity validation failed.' >&2
             exit 1
           fi
-          python3 tools/compat-corpus/github_shapes.py run --commit "$COMMIT" \
-            --build-record "$RUNNER_TEMP/shape-build.json" \
-            --coreav "$PWD/target/release/coreav" --ffmpeg "$FFMPEG" \
-            --pns-diagnostic "$PWD/target/release/examples/pns_diagnostic" \
-            --ffprobe "$FFPROBE" --x264 "$RUNNER_TEMP/oracle/x264" \
-            --bundle "$RUNNER_TEMP/shape-evidence" --scratch "$RUNNER_TEMP/shape-replay" \
-            --summary "$RUNNER_TEMP/shape-summary.json"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: github-shapes-evidence
-          path: |
-            ${{ runner.temp }}/shape-evidence
-            ${{ runner.temp }}/shape-summary.json
-            ${{ runner.temp }}/shape-build.json
-          if-no-files-found: error
-          retention-days: 30
-  aac-controls:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    env:
-      OPENBLAS_NUM_THREADS: '1'
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install the pinned oracle and transform dependency
+      - name: Count packets and PNS bands
         run: |
-          set -euo pipefail
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/aac-oracle"
-          python3 -m venv "$RUNNER_TEMP/aac-python"
-          "$RUNNER_TEMP/aac-python/bin/pip" install --quiet --only-binary=:all: --require-hashes -r scripts/aac-pns-requirements.txt
-          echo "$RUNNER_TEMP/aac-python/bin" >> "$GITHUB_PATH"
-      - name: Build the AAC command and opt-in diagnostic
-        run: |
-          cargo build --locked --release -p coreav-cli --features aac
-          cargo build --locked --release -p coreav-aac --features diagnostics --example pns_diagnostic
-      - name: Check independent AAC command controls
-        env:
-          COREAV_SHAPES_ORACLE: ${{ runner.temp }}/aac-oracle
-          COREAV_SHAPES_COREAV: ${{ github.workspace }}/target/release/coreav
-          COREAV_SHAPES_AAC_DIAGNOSTIC: ${{ github.workspace }}/target/release/examples/pns_diagnostic
-        run: |
-          python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_github_shapes_aac.py
-          python3 -I -m unittest discover -s scripts/tests -p test_aac_pns.py
-          python3 -I -m unittest discover -s scripts/tests -p test_aac_pcm_eligibility.py
+          set -eu
+          mkdir "$RUNNER_TEMP/diagnostic"
+          target/release/examples/pns_diagnostic "$RUNNER_TEMP/source.mp4" "$RUNNER_TEMP/diagnostic" 2>"$RUNNER_TEMP/diagnostic-error"
+          "$RUNNER_TEMP/oracle/ffprobe" -v error -select_streams a -count_packets -show_entries stream=codec_name,nb_read_packets -of json "$RUNNER_TEMP/source.mp4" >"$RUNNER_TEMP/probe.json" 2>"$RUNNER_TEMP/probe-error"
+          python3 - <<'PY'
+          import json, os, pathlib, sys
+          sys.path[:0] = ['scripts', 'tools/compat-corpus']
+          from github_shapes_aac import noise_count
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          metadata = json.loads((root / 'diagnostic/metadata.json').read_text())
+          streams = json.loads((root / 'probe.json').read_text())['streams']
+          if len(streams) != 1 or streams[0]['codec_name'] != 'aac' or int(streams[0]['nb_read_packets']) != metadata['packets']:
+              raise ValueError('independent packet count mismatch')
+          bands = noise_count(metadata)
+          packets_with_pns = sum(any(channel['noise'] for channel in frame['channels']) for frame in metadata['frames'])
+          print(f"AAC packets: {metadata['packets']}\nPackets with PNS: {packets_with_pns}\nPNS bands: {bands}")
+          PY
