@@ -801,6 +801,36 @@ fn matroska_copy_bitrate_keeps_complete_native_files() {
                 "-c:a",
                 "copy",
             ];
+            let input = if container == "mp4" {
+                let bytes = std::fs::read(dir.0.join("source.mp4")).unwrap();
+                let moov = boxes(&bytes, b"moov")[0];
+                let movie = child(moov, b"mvhd");
+                assert_eq!(movie[8], 0);
+                let clock = u64::from(u32::from_be_bytes(movie[20..24].try_into().unwrap()));
+                let tracks: Vec<_> = boxes(&moov[8..], b"trak")
+                    .into_iter()
+                    .filter(|track| &child(child(track, b"mdia"), b"hdlr")[16..20] == b"soun")
+                    .collect();
+                assert_eq!(tracks.len(), 2);
+                let mut input = Vec::new();
+                for (stream, channels) in [(0, 1), (1, 2)] {
+                    let edit = child(child(tracks[stream], b"edts"), b"elst");
+                    assert_eq!(&edit[8..16], &[0, 0, 0, 0, 0, 0, 0, 1]);
+                    assert_eq!(&edit[24..28], &[0, 1, 0, 0]);
+                    let duration = u64::from(u32::from_be_bytes(edit[16..20].try_into().unwrap()));
+                    assert_eq!(duration * 48_000 % clock, 0);
+                    let samples = usize::try_from(duration * 48_000 / clock).unwrap();
+                    assert_eq!(samples, 12_000);
+                    let mut pcm = decoded_audio(&dir.0.join("source.mp4"), stream);
+                    let tail = if encoder == "libopus" { 168 } else { 0 };
+                    assert_eq!(pcm.len(), (samples + tail) * channels * 4);
+                    pcm.truncate(samples * channels * 4);
+                    input.push(pcm);
+                }
+                Some(input)
+            } else {
+                None
+            };
             if container == "mp4" {
                 let matroska = dir.0.join("source.mkv");
                 success(native(&dir.0, &matroska, &options, false));
@@ -809,9 +839,7 @@ fn matroska_copy_bitrate_keeps_complete_native_files() {
             let control = dir.0.join("control.mp4");
             success(native(&dir.0, &control, &options, false));
             let reference = dir.0.join("presentation-reference.mp4");
-            if container == "mp4" {
-                oracle(&dir.0, &reference, &options);
-            }
+            oracle(&dir.0, &reference, &options);
             for (stream, channels) in [(0, 1), (1, 2)] {
                 let source = decoded_audio(&dir.0.join("source.mp4"), stream);
                 let samples = if encoder == "aac" && container == "mkv" {
@@ -824,6 +852,12 @@ fn matroska_copy_bitrate_keeps_complete_native_files() {
                     samples * channels * 4,
                     "{encoder} {container} {stream}"
                 );
+                if let Some(input) = &input {
+                    assert!(
+                        source == input[stream],
+                        "Matroska intermediate: {encoder} {stream}"
+                    );
+                }
                 let actual = decoded_audio(&control, stream);
                 assert!(
                     actual == source,
@@ -832,14 +866,17 @@ fn matroska_copy_bitrate_keeps_complete_native_files() {
                     source.len(),
                     actual.iter().zip(&source).position(|(a, b)| a != b)
                 );
-                if container == "mp4" {
+                {
                     let reference = decoded_audio(&reference, stream);
                     let stride = channels * 4;
                     if encoder == "aac" {
-                        assert_eq!(reference.len(), source.len());
-                        assert!(reference != source, "AAC oracle displacement disappeared");
+                        assert_eq!(reference.len(), 12_000 * stride);
                         assert!(
-                            reference[16 * stride..] == source[..source.len() - 16 * stride],
+                            reference != source,
+                            "AAC oracle displacement disappeared; update the divergence record"
+                        );
+                        assert!(
+                            reference[16 * stride..] == source[..reference.len() - 16 * stride],
                             "AAC oracle displacement is not 16 samples: {stream}"
                         );
                     } else {
