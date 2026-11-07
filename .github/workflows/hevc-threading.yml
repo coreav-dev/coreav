@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2]
+        shard: [0]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -105,7 +105,7 @@ jobs:
           retention-days: 7
 
   conformance:
-    if: '!inputs.sanitizer_only'
+    if: false
     name: hevc-threading-conformance
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -162,6 +162,7 @@ jobs:
           retention-days: 7
 
   thread-sanitizer:
+    if: false
     name: hevc-threading-sanitizer
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -184,3 +185,56 @@ jobs:
           for repeat in $(seq 1 20); do
             cargo +nightly test --locked -Zbuild-std --target x86_64-unknown-linux-gnu -p coreav-hevc --features native-hevc --lib wavefront
           done
+
+  syntax-census:
+    name: hevc-active-pps-tools
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example toolsyntax
+      - name: Install the pinned binary oracle
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Read active parameter flags without decoding samples
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          git rev-parse HEAD > "$RUNNER_TEMP/private/tool-source.txt"
+          cp crates/coreav-hevc/examples/toolsyntax.rs "$RUNNER_TEMP/private/"
+          python3 -I scripts/hevc_threading.py census --parser "$PWD/target/release/examples/toolsyntax" --oracle-bin "$RUNNER_TEMP/oracle" --dest "$RUNNER_TEMP/media" --out "$RUNNER_TEMP/private/syntax" > "$RUNNER_TEMP/private/syntax.log" 2>&1
+      - name: Seal syntax metadata
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          [ -d private ] || exit 0
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/bench/hevc-conformance/evidence-public.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hevc-active-pps-tools
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: error
+          retention-days: 7

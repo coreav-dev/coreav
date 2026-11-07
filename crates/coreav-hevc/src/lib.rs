@@ -40,6 +40,51 @@ pub use sei::{PictureHash, SeiInfo};
 pub use slice::{LongTermRef, SliceHeader};
 pub use vui::{Timing, Vui};
 
+#[allow(unused_variables)]
+pub fn census_tool_prefix(bytes: &[u8]) -> Result<Option<(u8, u32, Option<(bool, bool)>)>> {
+    let header = NalHeader::parse(bytes)?;
+    if header.unit_type > 31 && header.unit_type != 34 {
+        return Ok(None);
+    }
+    let rbsp = nal::rbsp(
+        bytes,
+        &Limits {
+            max_nal_bytes: 64 << 20,
+            ..Limits::default()
+        },
+    )?;
+    let mut bits = bits::Bits::new(&rbsp);
+    if header.unit_type == 34 {
+        let id = bits.ue(63)?;
+        let sps_id = bits.ue(15)?;
+        let dependent_segments = bits.flag()?;
+        let output_flag = bits.flag()?;
+        let extra_header_bits = bits.u(3)?;
+        let sign_data_hiding = bits.flag()?;
+        let cabac_init = bits.flag()?;
+        let ref_l0 = bits.ue(14)? + 1;
+        let ref_l1 = bits.ue(14)? + 1;
+        let init_qp = bits.se(-74, 25)? + 26;
+        let constrained_intra = bits.flag()?;
+        let transform_skip = bits.flag()?;
+        let qp_delta_enabled = bits.flag()?;
+        let qp_delta_depth = if qp_delta_enabled { bits.ue(3)? } else { 0 };
+        let cb_qp_offset = bits.se(-12, 12)?;
+        let cr_qp_offset = bits.se(-12, 12)?;
+        let chroma_offsets = bits.flag()?;
+        let weighted_pred = bits.flag()?;
+        let weighted_bipred = bits.flag()?;
+        let transquant_bypass = bits.flag()?;
+        let tiles = bits.flag()?;
+        let wpp = bits.flag()?;
+
+        Ok(Some((header.layer_id, id, Some((wpp, tiles)))))
+    } else {
+        let prefix = slice::prefix(&mut bits, header)?;
+        Ok(Some((header.layer_id, prefix.pps_id, None)))
+    }
+}
+
 #[cfg(test)]
 mod tests;
 
