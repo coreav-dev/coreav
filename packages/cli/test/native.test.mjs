@@ -5,7 +5,8 @@
 // of this package's version); the fixture cases also COREAV_FIXTURE_DIRS.
 
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -79,6 +80,42 @@ function installed(scratch, binary) {
   return copy;
 }
 
+function replaceBinary(binary, contents) {
+  const replacement = `${binary}.replacement`;
+  writeFileSync(replacement, contents);
+  chmodSync(replacement, 0o755);
+  renameSync(replacement, binary);
+}
+
+test("binary replacement retains a running executable's inode", { skip: process.platform !== "linux" && "Linux executable write protection", timeout: 10000 }, async (t) => {
+  const scratch = mkdtempSync(join(tmpdir(), "coreav-running-inode-"));
+  const binary = join(scratch, "binary");
+  cpSync(process.execPath, binary);
+  const child = spawn(binary, ["-e", 'process.on("message", () => process.send("alive")); process.send("ready");'], { stdio: ["ignore", "ignore", "pipe", "ipc"] });
+  const closed = once(child, "close");
+  const nextMessage = () => Promise.race([
+    once(child, "message", { signal: t.signal }),
+    closed.then(() => assert.fail("the original executable exited before responding")),
+  ]);
+  try {
+    const [ready] = await nextMessage();
+    assert.equal(ready, "ready");
+    assert.throws(() => writeFileSync(binary, "replacement"), { code: "ETXTBSY" });
+    replaceBinary(binary, "#!/bin/sh\necho replacement\n");
+    const done = run(binary, ["--version"]);
+    assert.equal(done.status, 0, done.stderr.toString());
+    assert.equal(done.stdout.toString(), "replacement\n");
+    const response = nextMessage();
+    child.send("ping");
+    const [alive] = await response;
+    assert.equal(alive, "alive");
+  } finally {
+    child.kill("SIGKILL");
+    await closed;
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
 test("the install script makes the command the native binary", { skip: needsBin || (process.platform === "win32" && "the launcher stays on Windows") }, () => {
   const scratch = mkdtempSync(join(tmpdir(), "coreav-install-"));
   try {
@@ -145,9 +182,9 @@ test("reinstall restores the WASI launcher after the optional binary is removed 
       assert.equal(run(process.execPath, [join(copy, "install.js")]).status, 0);
       assert.equal(realpathSync(command), realpathSync(binary));
       if (failure === "removed") rmSync(dirname(dirname(binary)), { recursive: true, force: true });
-      else if (failure === "wrong version") writeFileSync(binary, "#!/bin/sh\necho coreav 9.9.9\n");
+      else if (failure === "wrong version") replaceBinary(binary, "#!/bin/sh\necho coreav 9.9.9\n");
       else if (failure === "cannot execute") chmodSync(binary, 0o644);
-      else writeFileSync(binary, `#!/bin/sh\necho coreav ${pkg.version}\necho rejected-native-binary >&2\nexit 1\n`);
+      else replaceBinary(binary, `#!/bin/sh\necho coreav ${pkg.version}\necho rejected-native-binary >&2\nexit 1\n`);
       const done = run(process.execPath, [join(copy, "install.js")]);
       assert.equal(done.status, 0, done.stderr.toString());
       assert.equal(realpathSync(command), realpathSync(join(copy, "lib", "main.js")));
