@@ -49,6 +49,11 @@ pub(crate) fn norm(qp: u8, position: usize) -> Result<i64> {
         .ok_or(Error::Internal)
 }
 
+pub(crate) fn rate_weight(qp: u8) -> Result<u64> {
+    let step = norm(qp, 0)?.unsigned_abs() << (qp / 6);
+    Ok(step * step / 4)
+}
+
 fn rounded(numerator: i64, denominator: i64, offset: u64) -> Result<i32> {
     let magnitude = (numerator.unsigned_abs()
         + denominator.unsigned_abs() * offset / OFFSET_DENOMINATOR)
@@ -189,6 +194,23 @@ impl Quant {
             return simd.scaled(levels, &self.scale);
         }
         self.scaled_scalar(levels)
+    }
+
+    pub(crate) fn nearest_levels(&self, coefficients: &Forward, separate_dc: bool) -> [i32; 16] {
+        let mut levels = [0; 16];
+        for (p, ((level, &coefficient), &scale)) in levels
+            .iter_mut()
+            .zip(&coefficients.0)
+            .zip(&self.scale)
+            .enumerate()
+            .skip(usize::from(separate_dc))
+        {
+            let weight = (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
+            let divisor = (weight * scale) as u64;
+            let magnitude = (64 * u64::from(coefficient.unsigned_abs()) + divisor / 2) / divisor;
+            *level = magnitude as i32 * coefficient.signum();
+        }
+        levels
     }
 
     pub(crate) fn reconstruct(
@@ -391,17 +413,34 @@ pub(crate) fn chroma_dc_quantizes_to_zero(sums: [i32; 4], qp: u8) -> Result<bool
 }
 
 pub(crate) fn luma_dc(sums: [i32; 16], qp: u8) -> Result<([i32; 16], [i32; 16])> {
+    let levels = luma_dc_levels(sums, qp, INTRA_OFFSET)?;
+    Ok((levels, luma_dc_scaled(levels, qp)?))
+}
+
+pub(crate) fn luma_dc_nearest(sums: [i32; 16], qp: u8) -> Result<[i32; 16]> {
+    luma_dc_levels(sums, qp, OFFSET_DENOMINATOR / 2)
+}
+
+fn luma_dc_levels(sums: [i32; 16], qp: u8, offset: u64) -> Result<[i32; 16]> {
     let step = norm(qp, 0)? * (1i64 << (qp / 6));
     let mut levels = [0i32; 16];
     for (out, v) in levels.iter_mut().zip(transform::<true>(sums)) {
-        *out = rounded(i64::from(v), step, INTRA_OFFSET)?;
+        *out = rounded(i64::from(v), step, offset)?;
     }
+    Ok(levels)
+}
+
+pub(crate) fn luma_dc_scaled(levels: [i32; 16], qp: u8) -> Result<[i32; 16]> {
+    if !levels.iter().all(|&level| fits(level)) {
+        return Err(Error::Coefficient);
+    }
+    let step = norm(qp, 0)? * (1i64 << (qp / 6));
     let mut dc = [0i32; 16];
     for (out, v) in dc.iter_mut().zip(transform::<true>(levels)) {
         let v = i64::from(range(i64::from(v))?);
         *out = range((v * step + 2) >> 2)?;
     }
-    Ok((levels, dc))
+    Ok(dc)
 }
 
 #[cfg(test)]
@@ -410,19 +449,33 @@ pub(crate) fn chroma_dc(sums: [i32; 4], qp: u8) -> Result<([i32; 4], [i32; 4])> 
 }
 
 fn chroma_dc_offset(sums: [i32; 4], qp: u8, offset: u64) -> Result<([i32; 4], [i32; 4])> {
-    fn h([a, b, c, d]: [i64; 4]) -> [i64; 4] {
-        [a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
-    }
+    let levels = chroma_dc_levels(sums, qp, offset)?;
+    Ok((levels, chroma_dc_scaled(levels, qp)?))
+}
+
+pub(crate) fn chroma_dc_nearest(sums: [i32; 4], qp: u8) -> Result<[i32; 4]> {
+    chroma_dc_levels(sums, qp, OFFSET_DENOMINATOR / 2)
+}
+
+fn hadamard2([a, b, c, d]: [i64; 4]) -> [i64; 4] {
+    [a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
+}
+
+fn chroma_dc_levels(sums: [i32; 4], qp: u8, offset: u64) -> Result<[i32; 4]> {
     let mut levels = [0i32; 4];
-    for (out, v) in levels.iter_mut().zip(h(sums.map(i64::from))) {
+    for (out, v) in levels.iter_mut().zip(hadamard2(sums.map(i64::from))) {
         *out = rounded(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)), offset)?;
     }
+    Ok(levels)
+}
+
+pub(crate) fn chroma_dc_scaled(levels: [i32; 4], qp: u8) -> Result<[i32; 4]> {
     let mut dc = [0i32; 4];
-    for (out, v) in dc.iter_mut().zip(h(levels.map(i64::from))) {
+    for (out, v) in dc.iter_mut().zip(hadamard2(levels.map(i64::from))) {
         range(v)?;
         *out = range((v * norm(qp, 0)? * (1i64 << (qp / 6))) >> 1)?;
     }
-    Ok((levels, dc))
+    Ok(dc)
 }
 
 fn range(v: i64) -> Result<i32> {
@@ -858,6 +911,38 @@ mod tests {
                 .into_iter()
                 .all(|found| found == (CHROMA_INTRA_OFFSET != CHROMA_INTER_OFFSET))
         );
+    }
+
+    #[test]
+    fn nearest_targets_match_direct_half_bias_and_dc_scaling_rejects_extreme_levels() {
+        for qp in 0..=51 {
+            for c in -9180..=9180 {
+                let forward = Forward([c; 16]);
+                for separate_dc in [false, true] {
+                    assert_eq!(
+                        Quant::of(qp).unwrap().nearest_levels(&forward, separate_dc),
+                        reference::quantize(&[i64::from(c); 16], qp, separate_dc, 6).unwrap(),
+                        "{qp} {c} {separate_dc}"
+                    );
+                }
+            }
+            for sums in [
+                [0; 16],
+                [4080; 16],
+                [-4080; 16],
+                std::array::from_fn(|p| p as i32 * 511 - 4080),
+            ] {
+                let (levels, dc) = luma_dc(sums, qp).unwrap();
+                assert_eq!(luma_dc_scaled(levels, qp), Ok(dc));
+            }
+            for sums in [[0; 4], [4080; 4], [-4080; 4], [4080, -4080, 4080, -4080]] {
+                let (levels, dc) = chroma_dc(sums, qp).unwrap();
+                assert_eq!(chroma_dc_scaled(levels, qp), Ok(dc));
+            }
+        }
+        assert_eq!(luma_dc_scaled([i32::MAX; 16], 28), Err(Error::Coefficient));
+        assert_eq!(luma_dc_scaled([i32::MIN; 16], 28), Err(Error::Coefficient));
+        assert_eq!(chroma_dc_scaled([i32::MAX; 4], 28), Err(Error::Coefficient));
     }
 
     #[test]

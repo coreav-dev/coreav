@@ -67,7 +67,7 @@ impl Inter {
     }
 }
 
-fn predict(
+pub(super) fn predict(
     reference: &FramePlane,
     tile: &mut Tile,
     part: Part,
