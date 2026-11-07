@@ -142,7 +142,7 @@ pub(super) fn decide(
             source: &source,
             csources: &csources,
             context,
-            qp: e.settings.qp,
+            qp: slice.qp,
             pending_skip: 0,
         };
         let previous = if address == 0 {

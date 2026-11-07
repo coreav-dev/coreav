@@ -2076,7 +2076,7 @@ mod tests {
         Settings {
             width: 16,
             height: 16,
-            qp: 28,
+            rate_mode: crate::RateMode::FixedQp(28),
             deblocking,
             gop: Gop::Fixed { idr_interval: 32 },
             colour: Colour {
@@ -2244,7 +2244,7 @@ mod tests {
             for deblocking in [Deblocking::Disabled, Deblocking::Enabled] {
                 for (layout_index, layout) in layouts.into_iter().enumerate() {
                     let mut s = settings(deblocking);
-                    s.qp = qp;
+                    s.rate_mode = crate::RateMode::FixedQp(qp);
                     let mut encoder = Encoder::new(s, Limits::default()).unwrap();
                     let y: Vec<_> = (0..256)
                         .map(|p| (32 + p % 16 * 5 + p / 16 * 3) as u8)
@@ -2303,6 +2303,7 @@ mod tests {
                             idr: false,
                             id: 0,
                             frame_num: 1,
+                            qp,
                         },
                     )
                     .unwrap();

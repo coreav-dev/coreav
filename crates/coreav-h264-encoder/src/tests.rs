@@ -8,7 +8,7 @@ fn settings(width: usize, height: usize, qp: u8) -> Settings {
     Settings {
         width,
         height,
-        qp,
+        rate_mode: RateMode::FixedQp(qp),
         deblocking: Deblocking::Disabled,
         gop: Gop::AllIntra,
         colour: Colour {
@@ -881,4 +881,173 @@ fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
             }
         }
     }
+}
+
+fn slice_qp(nal: &[u8]) -> u8 {
+    let mut r = nal_reader(nal);
+    r.ue();
+    r.ue();
+    r.ue();
+    r.u(4);
+    if nal[0] == 0x65 {
+        r.ue();
+        r.u(2);
+    } else {
+        r.u(3);
+    }
+    let code = r.ue();
+    let delta = if code % 2 == 0 {
+        -(code as i32 / 2)
+    } else {
+        (code as i32 + 1) / 2
+    };
+    (26 + delta) as u8
+}
+
+fn raw_picture(raw: &[u8], width: usize, height: usize) -> Picture<'_> {
+    let (y, uv) = raw.split_at(width * height);
+    let (cb, cr) = uv.split_at(width * height / 4);
+    Picture {
+        y: Plane::new(y, width, width, height).unwrap(),
+        cb: Plane::new(cb, width / 2, width / 2, height / 2).unwrap(),
+        cr: Plane::new(cr, width / 2, width / 2, height / 2).unwrap(),
+    }
+}
+
+#[test]
+fn rate_modes_validate_quality_at_the_boundary() {
+    assert_eq!(RateMode::default(), RateMode::FixedQp(26));
+    for value in 0..=255 {
+        for mode in [RateMode::FixedQp(value), RateMode::Crf(value)] {
+            let mut s = settings(16, 16, 26);
+            s.rate_mode = mode;
+            let result = Encoder::with_threads(s, Limits::default(), 1);
+            if (10..=51).contains(&value) {
+                assert!(result.is_ok());
+            } else {
+                assert!(matches!(result, Err(Error::Settings)));
+            }
+        }
+    }
+}
+
+#[test]
+fn crf_activity_bands_offsets_clamps_and_quality_order() {
+    for (amplitude, correction) in [
+        (0, -2),
+        (7, -2),
+        (8, -1),
+        (11, -1),
+        (12, 0),
+        (23, 0),
+        (24, 1),
+        (47, 1),
+        (48, 2),
+        (127, 2),
+    ] {
+        let mut raw = vec![0; 19 * 18 - 1];
+        for y in 0..18 {
+            for x in 0..18 {
+                raw[y * 19 + x] = if x % 2 == 0 {
+                    128 - amplitude
+                } else {
+                    128 + amplitude
+                };
+            }
+        }
+        let plane = Plane::new(&raw, 19, 18, 18).unwrap();
+        for idr in [false, true] {
+            let mut previous = 0;
+            for crf in 10..=51 {
+                let qp = crate::rate::picture_qp(RateMode::Crf(crf), plane, idr).unwrap();
+                let expected = (i16::from(crf) + correction - i16::from(idr)).clamp(10, 51) as u8;
+                assert_eq!(qp, expected);
+                assert!(qp >= previous);
+                previous = qp;
+                assert_eq!(
+                    crate::rate::picture_qp(RateMode::FixedQp(crf), plane, idr).unwrap(),
+                    crf
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn crf_streams_preserve_worker_identity_and_failed_call_state() {
+    for (width, height) in [(16, 80), (18, 34), (64, 80)] {
+        for deblocking in [Deblocking::Disabled, Deblocking::Enabled] {
+            for crf in [10, 23, 51] {
+                let mut s = settings(width, height, 26);
+                s.rate_mode = RateMode::Crf(crf);
+                s.gop = Gop::Fixed { idr_interval: 3 };
+                s.deblocking = deblocking;
+                let mut encoders: Vec<_> = [1, 2, 8]
+                    .into_iter()
+                    .map(|n| Encoder::with_threads(s, Limits::default(), n).unwrap())
+                    .collect();
+                let mut control = Encoder::with_threads(s, Limits::default(), 1).unwrap();
+                for frame in 0..5 {
+                    let amplitude = [0, 9, 18, 30, 50][frame];
+                    let mut raw = vec![128; width * height * 3 / 2];
+                    for (at, value) in raw.iter_mut().enumerate() {
+                        *value = if at % 2 == 0 {
+                            128 - amplitude
+                        } else {
+                            128 + amplitude
+                        };
+                    }
+                    let picture = raw_picture(&raw, width, height);
+                    let mut outputs = Vec::new();
+                    for encoder in &mut encoders {
+                        let old = encoder.limits.total_bytes;
+                        encoder.limits.total_bytes = 0;
+                        assert!(matches!(encoder.encode(picture), Err(Error::Limit)));
+                        encoder.limits.total_bytes = old;
+                        outputs.push(encoder.encode(picture).unwrap());
+                    }
+                    let correction = [-2, -1, 0, 1, 2][frame];
+                    let expected_qp = (i16::from(crf) + correction - i16::from(frame % 3 == 0))
+                        .clamp(10, 51) as u8;
+                    assert_eq!(slice_qp(&outputs[0].nals[2]), expected_qp);
+                    let expected = control.encode(picture).unwrap();
+                    assert_eq!(outputs[0].nals, expected.nals);
+                    assert_eq!(outputs[0].reconstruction, expected.reconstruction);
+                    for other in &outputs[1..] {
+                        assert_eq!(other.nals, outputs[0].nals);
+                        assert_eq!(other.reconstruction, outputs[0].reconstruction);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn crf_widely_separated_values_have_expected_sequence_trends() {
+    let (width, height) = (32, 48);
+    let mut totals = Vec::new();
+    for crf in [16, 40] {
+        let mut s = settings(width, height, 26);
+        s.rate_mode = RateMode::Crf(crf);
+        s.gop = Gop::Fixed { idr_interval: 3 };
+        s.deblocking = Deblocking::Enabled;
+        let mut encoder = Encoder::with_threads(s, Limits::default(), 1).unwrap();
+        let (mut bytes, mut sse) = (0usize, 0u64);
+        for frame in 0..6 {
+            let raw: Vec<_> = (0..width * height * 3 / 2)
+                .map(|p| (32 + (p % width * 3 + p / width * 5 + frame * 7) % 190) as u8)
+                .collect();
+            let au = encoder.encode(raw_picture(&raw, width, height)).unwrap();
+            bytes += au.nals.iter().map(Vec::len).sum::<usize>();
+            sse += raw
+                .iter()
+                .zip(&au.reconstruction)
+                .map(|(&a, &b)| i64::from(a).abs_diff(i64::from(b)).pow(2))
+                .sum::<u64>();
+        }
+        totals.push((bytes, sse));
+    }
+    assert!(totals[0].0 > totals[1].0);
+    assert!(totals[0].1 < totals[1].1);
 }
