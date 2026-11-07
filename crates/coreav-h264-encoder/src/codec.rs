@@ -55,20 +55,23 @@ impl Tile {
         }
         Ok(())
     }
-    fn residual(&self, source: &Self, x: usize, y: usize) -> Result<[i32; 16]> {
-        let mut out = [0; 16];
-        for (p, v) in out.iter_mut().enumerate() {
-            let at = Self::at(x + p % 4, y + p / 4);
-            *v = i32::from(*source.0.get(at).ok_or(Error::Internal)?)
-                - i32::from(*self.0.get(at).ok_or(Error::Internal)?);
-        }
-        Ok(out)
+    fn forward(&self, source: &Self, x: usize, y: usize) -> Result<t::Forward> {
+        t::forward(&source.0, &self.0, Self::at(x, y), STRIDE)
     }
-    fn add(&mut self, x: usize, y: usize, scaled: &[i32; 16]) -> Result<()> {
-        let view = BlockMut::new(&mut self.0, Self::at(x, y), STRIDE, 4, 4)
-            .map_err(|_| Error::Internal)?;
-        Scalar.idct4x4_add(view, scaled);
-        Ok(())
+    fn reconstruct(
+        &mut self,
+        x: usize,
+        y: usize,
+        levels: &[i32; 16],
+        quant: &t::Quant,
+        dc: Option<i32>,
+    ) -> Result<()> {
+        quant.reconstruct(levels, dc, &mut self.0, Self::at(x, y), STRIDE)
+    }
+    fn code(&mut self, source: &Self, x: usize, y: usize, quant: &t::Quant) -> Result<[i32; 16]> {
+        let levels = quant.levels(&self.forward(source, x, y)?, false);
+        self.reconstruct(x, y, &levels, quant, None)?;
+        Ok(levels)
     }
     fn error(&self, source: &Self, x: usize, y: usize, n: usize) -> Result<u64> {
         let mut sum = 0;
@@ -87,7 +90,7 @@ impl Tile {
         let mut sum = 0;
         for j in (y..y + n).step_by(4) {
             for i in (x..x + n).step_by(4) {
-                sum += t::satd(&self.residual(source, i, j)?)?;
+                sum += t::satd(&source.0, &self.0, Self::at(i, j), STRIDE)?;
             }
         }
         Ok(sum)
@@ -392,24 +395,20 @@ fn intra16(base: &Tile, source: &Tile, a: IntraAvail, mode: u8, qp: u8) -> Resul
         tile: base.clone(),
     };
     out.tile.prediction(0, 0, 16, a, mode)?;
+    let quant = t::Quant::of(qp)?;
     let mut sums = [0; 16];
     for (k, levels) in out.levels.iter_mut().enumerate() {
         let (x, y) = xy(k);
-        let transformed = t::forward(&out.tile.residual(source, x, y)?)?;
-        *sums.get_mut(y / 4 * 4 + x / 4).ok_or(Error::Internal)? =
-            *transformed.first().ok_or(Error::Internal)?;
-        *levels = t::quantize(&transformed, qp, true)?;
+        let coefficients = out.tile.forward(source, x, y)?;
+        *sums.get_mut(y / 4 * 4 + x / 4).ok_or(Error::Internal)? = coefficients.dc();
+        *levels = quant.levels(&coefficients, true);
     }
     let (levels, dc) = t::luma_dc(sums, qp)?;
     out.dc = levels;
     for (k, levels) in out.levels.iter().enumerate() {
         let (x, y) = xy(k);
-        let coefficients = t::scaled(
-            levels,
-            qp,
-            Some(*dc.get(y / 4 * 4 + x / 4).ok_or(Error::Internal)?),
-        )?;
-        out.tile.add(x, y, &coefficients)?;
+        let dc = *dc.get(y / 4 * 4 + x / 4).ok_or(Error::Internal)?;
+        out.tile.reconstruct(x, y, levels, quant, Some(dc))?;
     }
     Ok(out)
 }
@@ -425,50 +424,45 @@ fn chroma(base: &[Tile; 2], source: &[Tile; 2], a: IntraAvail, mode: u8, qp: u8)
 }
 
 fn chroma_residual(base: &[Tile; 2], source: &[Tile; 2], qp: u8) -> Result<Chroma> {
-    let mut transformed = [[[0; 16]; 4]; 2];
+    let quant = t::Quant::of(qp)?;
+    let mut sums = [[0; 4]; 2];
     let mut levels = [[[0; 16]; 4]; 2];
-    for (c, blocks) in transformed.iter_mut().enumerate() {
-        let tile = base.get(c).ok_or(Error::Internal)?;
-        let original = source.get(c).ok_or(Error::Internal)?;
-        for (k, block) in blocks.iter_mut().enumerate() {
-            *block = t::forward(&tile.residual(original, k % 2 * 4, k / 2 * 4)?)?;
-            *levels
-                .get_mut(c)
-                .and_then(|blocks| blocks.get_mut(k))
-                .ok_or(Error::Internal)? = t::quantize(block, qp, true)?;
+    for (((tile, original), sums), levels) in
+        base.iter().zip(source).zip(&mut sums).zip(&mut levels)
+    {
+        for (k, (sum, levels)) in sums.iter_mut().zip(levels).enumerate() {
+            let coefficients = tile.forward(original, k % 2 * 4, k / 2 * 4)?;
+            *sum = coefficients.dc();
+            *levels = quant.levels(&coefficients, true);
         }
     }
-    chroma_reconstruct(base, &transformed, levels, qp)
+    chroma_reconstruct(base, &sums, levels, qp)
 }
 
 fn chroma_reconstruct(
     base: &[Tile; 2],
-    transformed: &[[[i64; 16]; 4]; 2],
+    sums: &[[i32; 4]; 2],
     levels: [[[i32; 16]; 4]; 2],
     qp: u8,
 ) -> Result<Chroma> {
+    let quant = t::Quant::of(qp)?;
     let mut out = Chroma {
         mode: 0,
         levels,
         dc: [[0; 4]; 2],
         tiles: base.clone(),
     };
-    for (c, tile) in out.tiles.iter_mut().enumerate() {
-        let mut sums = [0; 4];
-        for (sum, block) in sums
-            .iter_mut()
-            .zip(transformed.get(c).ok_or(Error::Internal)?)
-        {
-            *sum = *block.first().ok_or(Error::Internal)?;
-        }
+    for (((tile, &sums), dc_levels), blocks) in out
+        .tiles
+        .iter_mut()
+        .zip(sums)
+        .zip(&mut out.dc)
+        .zip(&out.levels)
+    {
         let (levels, dc) = t::chroma_dc(sums, qp)?;
-        *out.dc.get_mut(c).ok_or(Error::Internal)? = levels;
-        for (k, levels) in out.levels.get(c).ok_or(Error::Internal)?.iter().enumerate() {
-            tile.add(
-                k % 2 * 4,
-                k / 2 * 4,
-                &t::scaled(levels, qp, Some(*dc.get(k).ok_or(Error::Internal)?))?,
-            )?;
+        *dc_levels = levels;
+        for (k, (levels, &dc)) in blocks.iter().zip(&dc).enumerate() {
+            tile.reconstruct(k % 2 * 4, k / 2 * 4, levels, quant, Some(dc))?;
         }
     }
     Ok(out)
@@ -491,6 +485,7 @@ fn intra4(
         tile: base.clone(),
     };
     let mut counts = [0; 16];
+    let quant = t::Quant::of(qp)?;
     let lambda = 1u64 << (qp / 3);
     let mut cheap_score = 0;
     for k in 0..16 {
@@ -520,8 +515,7 @@ fn intra4(
                 .ok_or(Error::Internal)?;
             cheap_score += score;
             out.tile.prediction(x, y, 4, a, mode)?;
-            let levels = t::quantize(&t::forward(&out.tile.residual(source, x, y)?)?, qp, false)?;
-            out.tile.add(x, y, &t::scaled(&levels, qp, None)?)?;
+            let levels = out.tile.code(source, x, y, quant)?;
             let count = cavlc::residual(
                 &mut Bits::count(),
                 &t::scan(&levels)?,
@@ -540,9 +534,7 @@ fn intra4(
             }
             let result = (|| {
                 tile.prediction(x, y, 4, a, mode)?;
-                let transformed = t::forward(&tile.residual(source, x, y)?)?;
-                let levels = t::quantize(&transformed, qp, false)?;
-                tile.add(x, y, &t::scaled(&levels, qp, None)?)?;
+                let levels = tile.code(source, x, y, quant)?;
                 let mut bits = Bits::count();
                 mode_bits(&mut bits, mode, predicted)?;
                 let count =
@@ -1290,7 +1282,7 @@ mod tests {
                 expected_score += cost;
                 replay.prediction(x, y, 4, available, mode).unwrap();
                 replay
-                    .add(x, y, &t::scaled(&luma.levels[k], 28, None).unwrap())
+                    .reconstruct(x, y, &luma.levels[k], t::Quant::of(28).unwrap(), None)
                     .unwrap();
                 modes[p] = mode;
             }

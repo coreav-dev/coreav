@@ -279,23 +279,26 @@ fn forward_basis_and_dc_paths_have_explicit_scales() {
     for p in 0..16 {
         let mut impulse = [0; 16];
         impulse[p] = 1;
-        let f = transform::forward(&impulse).unwrap();
-        assert_eq!(f[0], 1);
-        assert_eq!(f.iter().map(|v| v.abs()).max(), Some(4));
+        let f = transform::forward(&impulse, &[0; 16], 0, 4).unwrap();
+        assert_eq!(f.dc(), 1);
+        assert_eq!(f.coefficients().iter().map(|v| v.abs()).max(), Some(4));
     }
     for qp in 10..=51 {
-        for sign in [-1, 1] {
-            let f = transform::forward(&[sign * 255; 16]).unwrap();
-            assert_eq!(f[0], i64::from(sign) * 4080);
-            assert!(f.iter().skip(1).all(|&v| v == 0));
-            let q = transform::quantize(&f, qp, false).unwrap();
-            let d = transform::scaled(&q, qp, None).unwrap();
-            assert!(d.iter().skip(1).all(|&v| v == 0));
-            let (levels, dc) = transform::luma_dc([i64::from(sign) * 16; 16], qp).unwrap();
+        for (sign, source, prediction) in [(-1, [0; 16], [255; 16]), (1, [255; 16], [0; 16])] {
+            let f = transform::forward(&source, &prediction, 0, 4).unwrap();
+            assert_eq!(f.dc(), sign * 4080);
+            assert!(f.coefficients().iter().skip(1).all(|&v| v == 0));
+            let quant = transform::Quant::of(qp).unwrap();
+            let q = quant.levels(&f, false);
+            assert!(q.iter().skip(1).all(|&v| v == 0));
+            let mut block = prediction.to_vec();
+            quant.reconstruct(&q, None, &mut block, 0, 4).unwrap();
+            assert!(block.iter().all(|&v| v == block[0]));
+            let (levels, dc) = transform::luma_dc([sign * 16; 16], qp).unwrap();
             assert!(levels.iter().skip(1).all(|&v| v == 0));
             assert!(dc.iter().all(|&v| v == dc[0]));
             let (levels, dc) =
-                transform::chroma_dc([i64::from(sign) * 16; 4], transform::chroma_qp(qp)).unwrap();
+                transform::chroma_dc([sign * 16; 4], transform::chroma_qp(qp)).unwrap();
             assert!(levels.iter().skip(1).all(|&v| v == 0));
             assert!(dc.iter().all(|&v| v == dc[0]));
         }
