@@ -271,6 +271,9 @@ pub enum OnUnsupported {
 /// What [`remux_mp4`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemuxOptions {
+    /// Recompute copied AAC and Opus bitrate metadata, with this requested
+    /// maximum in bits per second. Other codecs and replacements are unchanged.
+    pub copied_audio_bit_rate: Option<u32>,
     /// Store copied packets in edited decode-time order, with output track
     /// order breaking ties. Uses one sample per chunk under the existing
     /// table budget. Unsupported edit clocks fail before writing; native

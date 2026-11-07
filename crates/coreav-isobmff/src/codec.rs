@@ -1738,20 +1738,34 @@ fn frame_length(object_type: u8, short: bool) -> Option<u32> {
 /// `AudioSpecificConfig` a decoder needs. The information is `None` when
 /// the descriptor is truncated or lacks it.
 pub fn esds_decoder_specific_info(esds: &[u8]) -> Option<(u8, Option<&[u8]>)> {
-    esds_parts(esds).map(|(object_type, _, specific)| (object_type, specific))
+    esds_parts(esds).map(|parts| (parts.object_type, parts.specific))
+}
+
+/// Offset of the complete eleven-byte buffer-size and bitrate fields in an
+/// AAC `esds` payload. Other object types and incomplete fields return `None`.
+pub fn aac_esds_bit_rate_offset(esds: &[u8]) -> Option<usize> {
+    let parts = esds_parts(esds)?;
+    (parts.object_type == 0x40)
+        .then_some(parts.rate_offset)
+        .flatten()
 }
 
 fn parse_esds(payload: &[u8]) -> Option<Esds> {
-    let (object_type, rates, specific) = esds_parts(payload)?;
+    let parts = esds_parts(payload)?;
     Some(Esds {
-        object_type,
-        rates,
-        aac: specific.and_then(aac_profile),
-        layout: specific.and_then(aac_layout),
+        object_type: parts.object_type,
+        rates: parts.rates,
+        aac: parts.specific.and_then(aac_profile),
+        layout: parts.specific.and_then(aac_layout),
     })
 }
 
-type EsdsParts<'a> = (u8, Option<(u32, u32, u32)>, Option<&'a [u8]>);
+struct EsdsParts<'a> {
+    object_type: u8,
+    rates: Option<(u32, u32, u32)>,
+    specific: Option<&'a [u8]>,
+    rate_offset: Option<usize>,
+}
 
 /// The object type, rates and decoder-specific information of an `esds`
 /// payload.
@@ -1761,7 +1775,8 @@ fn esds_parts(payload: &[u8]) -> Option<EsdsParts<'_>> {
     if tag != 3 {
         return None;
     }
-    let end = at.checked_add(len)?.min(payload.len());
+    let declared_end = at.checked_add(len)?;
+    let end = declared_end.min(payload.len());
     let flags = *payload.get(at.checked_add(2)?)?;
     at = at.checked_add(3)?;
     if flags & 0x80 != 0 {
@@ -1806,7 +1821,14 @@ fn esds_parts(payload: &[u8]) -> Option<EsdsParts<'_>> {
                 }
                 inner = stop;
             }
-            return Some((object_type, rates, specific));
+            return Some(EsdsParts {
+                object_type,
+                rates,
+                specific,
+                rate_offset: rates
+                    .filter(|_| declared_end <= payload.len())
+                    .map(|_| at + 2),
+            });
         }
         at = body_end;
     }
@@ -1832,6 +1854,34 @@ fn descriptor(data: &[u8], at: &mut usize) -> Option<(u8, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aac_rate_offsets_require_complete_descriptors() {
+        let mut payload = vec![0, 0, 0, 0, 3, 25, 0, 1, 0, 4, 17, 0x40, 0x15];
+        payload.extend_from_slice(&[0; 11]);
+        payload.extend_from_slice(&[5, 2, 0x11, 0x90, 6, 1, 2]);
+        assert_eq!(aac_esds_bit_rate_offset(&payload), Some(13));
+        assert_eq!(
+            esds_decoder_specific_info(&payload),
+            Some((0x40, Some(&[0x11, 0x90][..])))
+        );
+        for end in 0..payload.len() {
+            assert_eq!(aac_esds_bit_rate_offset(&payload[..end]), None, "{end}");
+        }
+        let mut flags = payload.clone();
+        flags[5] += 8;
+        flags[8] = 0xE0;
+        flags.splice(9..9, [0, 2, 3, b'u', b'r', b'l', 0, 3]);
+        assert_eq!(aac_esds_bit_rate_offset(&flags), Some(21));
+        payload[11] = 0x6B;
+        assert_eq!(aac_esds_bit_rate_offset(&payload), None);
+        let mut expanded = vec![
+            0, 0, 0, 0, 3, 0x80, 0x80, 0x80, 28, 0, 1, 0, 4, 0x80, 0x80, 0x80, 17, 0x40, 0x15,
+        ];
+        expanded.extend_from_slice(&[0; 11]);
+        expanded.extend_from_slice(&[5, 2, 0x11, 0x90, 6, 1, 2]);
+        assert_eq!(aac_esds_bit_rate_offset(&expanded), Some(19));
+    }
 
     #[test]
     fn child_walk_completeness_preserves_the_existing_visits() {
