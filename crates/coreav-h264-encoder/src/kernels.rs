@@ -32,7 +32,7 @@ pub(crate) fn sad(a: &[u8], b: &[u8]) -> Result<u64> {
 }
 
 #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
-fn arithmetic() -> Option<crate::simd::Avx2> {
+pub(crate) fn arithmetic() -> Option<crate::simd::Avx2> {
     static SIMD: std::sync::OnceLock<Option<crate::simd::Avx2>> = std::sync::OnceLock::new();
     *SIMD.get_or_init(crate::simd::Avx2::detect)
 }
@@ -242,6 +242,12 @@ mod tests {
         #[cfg(feature = "scalar")]
         assert!(!pixels().uses_simd());
         #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
-        assert_eq!(pixels().uses_simd(), std::is_x86_feature_detected!("avx2"));
+        {
+            assert_eq!(pixels().uses_simd(), std::is_x86_feature_detected!("avx2"));
+            assert_eq!(
+                arithmetic().is_some(),
+                std::is_x86_feature_detected!("avx2")
+            );
+        }
     }
 }

@@ -2,6 +2,9 @@
 
 use std::arch::x86_64::*;
 
+#[path = "simd/transform.rs"]
+mod transform;
+
 #[derive(Clone, Copy)]
 pub(crate) struct Avx2(());
 
