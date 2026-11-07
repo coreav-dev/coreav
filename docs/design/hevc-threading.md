@@ -22,7 +22,9 @@ The codec exposes `PictureDecoder::with_threads`. The backend follows the existi
 
 Charge worker picture buffers, row publications, synchronization records and bounded thread stacks before starting work. Preserve the existing serial path when extra storage does not fit. Workers never call user callbacks or mutate the DPB.
 
-Each row records its entropy consumption and outcome. Reconcile rows in bitstream order against the stream and picture bin budgets, so scheduling does not choose the reported syntax or budget failure. A failed row wakes dependent rows. Every worker is joined before returning, including after a spawn failure, decode error or panic. Convert a caught reconstruction panic to the same terminal codec failure at every thread count. Deadline checks remain inside CTU work and dependency waits. Failure publishes no partial picture and the session remains failed.
+Reserve a conservative complete-substream bin bound for every row before dispatch. CABAC's normalized range is at most 510, and a decision or zero termination reduces it by at least two. At most 128 such bins can occur before another input bit is required. Bypass bins consume a bit each, and PCM restarts consume nine initialization bits. `128 * (8 * bytes + 1)` also covers a final failed read. Each row receives only its own bound. If their sum exceeds the remaining stream or picture budget, use serial decoding instead. This keeps actual entropy work within the caller's limit rather than discovering overspending after workers finish.
+
+Each row records its entropy consumption and outcome. Reconcile rows in bitstream order, so scheduling does not choose the reported syntax failure. A failed row wakes dependent rows. Every worker is joined before returning, including after a spawn failure, decode error or panic. Convert a caught reconstruction panic to the same terminal codec failure at every thread count. Deadline checks remain inside CTU work and dependency waits. Failure publishes no partial picture and the session remains failed.
 
 ## Verification
 

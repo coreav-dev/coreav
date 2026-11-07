@@ -1235,7 +1235,7 @@ def corpus_shard(files, index, count):
     return sorted(files, key=lambda item: (-item['size'], item['sha256']))[index::count]
 
 
-def fetch_corpus(args, inspect=False):
+def fetch_corpus(args, inspect=False, inspector=None):
     require(sys.platform == 'linux', 'hostile corpus files require Linux')
     sys.path.insert(0, str(ROOT / 'tools/compat-corpus'))
     import round_files
@@ -1307,7 +1307,7 @@ def fetch_corpus(args, inspect=False):
                         if getattr(args, 'boundary_native', None):
                             require(complete is not None and args.boundary_native.is_file(), 'boundary_requires_packet_native')
                             complete['boundary'] = args.boundary_native
-                        records[index] = corpus_record(item, path, args.out, qualified, intra=options, complete=complete)
+                        records[index] = (inspector or corpus_record)(item, path, args.out, qualified, intra=options, complete=complete)
                         write_json(args.out / 'corpus-census.json', corpus_result(records, expected, scope))
                     finally:
                         path.unlink(missing_ok=True)

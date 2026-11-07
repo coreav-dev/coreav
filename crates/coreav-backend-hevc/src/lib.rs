@@ -23,12 +23,27 @@ const DECODER_NAME: &str = "coreav hevc, scalar Main/Main10";
 
 /// Scalar native eight-bit Main and eight- or ten-bit Main10 decoding.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct NativeHevc;
+pub struct NativeHevc {
+    options: NativeOptions,
+}
+
+/// Reconstruction options for the opt-in native decoder.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeOptions {
+    /// Reconstruction workers; `None` selects available host parallelism.
+    /// Counts are bounded to one through sixteen and reduced to fit memory.
+    pub threads: Option<usize>,
+}
 
 impl NativeHevc {
     /// Creates the opt-in backend without activating any decoder session.
     pub fn new() -> Self {
-        Self
+        Self::default()
+    }
+
+    /// Creates a backend with caller-selected reconstruction options.
+    pub fn with_options(options: NativeOptions) -> Self {
+        Self { options }
     }
 }
 
@@ -59,6 +74,10 @@ impl Backend for NativeHevc {
         }
         let defaults = coreav_hevc::Limits::default();
         let deadline = limits.deadline();
+        let threads = self
+            .options
+            .threads
+            .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, usize::from));
         let mut decoder = PictureDecoder::new(DecodeLimits {
             headers: coreav_hevc::Limits {
                 max_width: limits.max_width.min(defaults.max_width),
@@ -76,7 +95,8 @@ impl Backend for NativeHevc {
             max_frame_bytes: limits.max_frame_bytes,
             deadline: Some(deadline),
             ..DecodeLimits::default()
-        });
+        })
+        .with_threads(threads);
         if (core::mem::size_of::<NativeDecoder>() as u64).saturating_add(DECODER_NAME.len() as u64)
             > limits.max_memory_bytes
         {
