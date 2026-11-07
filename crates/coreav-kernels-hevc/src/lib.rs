@@ -60,6 +60,9 @@ pub use inter::{
     InterPrediction, MotionVector, PredictionWeight, RefPlane, interpolate_inter, predict_bi,
     predict_uni, weight_bi, weight_uni,
 };
+#[cfg(all(feature = "native-hevc", feature = "test-support"))]
+#[doc(hidden)]
+pub use intra::predict_intra_reference;
 #[cfg(feature = "native-hevc")]
 pub use intra::{IntraPrediction, predict_intra};
 #[cfg(feature = "native-hevc")]
