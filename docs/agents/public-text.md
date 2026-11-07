@@ -4,6 +4,7 @@ Pull request title, body, and issue-reference text.
 
 | Rule | Enforced by |
 |---|---|
+| H.264 coefficient-level reference text publishes per-input Y, U and V changes and the five-input weighted mean, not per-input weighted deltas | Not enforced: review judgment. The individual plane limits and aggregate improvement govern the decision; a generic text checker cannot infer which numerical column is a weighted delta |
 | Public reference-host records and profile descriptions use a neutral provider label, while supplier receipts stay private behind the allocation digest | `test_macos_host_profile.py` checks the same fixed neutral label in the registration owner, frozen profile and host record, and checks the hardware-only wording at each reference-profile introduction. A type cannot govern Markdown text; supplier disclosures elsewhere in prose remain private-term-check and review judgment |
 | A pull request's title and its commit subjects are Conventional Commits, `type(scope): summary` with the template's types (merge commits excepted); the title's summary is at most 50 characters and the title under 72; commit subjects are at most 72 characters | `scripts/pr_shape_check.py` (`pr-text.yml`) |
 | No Korean text, run identifiers or spend details in a pull request's text | `scripts/pr_text_check.py` (`pr-text.yml`; the private list only on the agent's machine before opening) |
