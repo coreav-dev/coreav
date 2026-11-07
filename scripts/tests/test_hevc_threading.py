@@ -93,8 +93,9 @@ class ThreadingReference(unittest.TestCase):
 
     def test_signature_requires_completion_and_supplies_threads(self):
         with patch.object(threading.reference, 'command', return_value=(b'{"type":"summary","complete":true}', {})) as child:
-            threading.signature('/native', '/input', 4)
-            self.assertEqual(child.call_args.args[0], ['/native', '/input', 'check', 4])
+            for threads in (0, 4):
+                threading.signature('/native', '/input', threads)
+                self.assertEqual(child.call_args.args[0], ['/native', '/input', 'check', threads])
         with patch.object(threading.reference, 'command', return_value=(b'{"complete":false}', {})):
             with self.assertRaisesRegex(ValueError, 'incomplete_native'):
                 threading.signature('/native', '/input', 4)
@@ -112,10 +113,11 @@ class ThreadingReference(unittest.TestCase):
     def test_ratio_direction_and_every_requested_count(self):
         calls = []
         for threads in threading.THREADS:
-            calls += [dict(arm=f'main_{threads}', wall=12), dict(arm=f'candidate_{threads}', wall=6 / threads)]
+            calls += [dict(arm=f'main_{threads}', wall=12), dict(arm=f'candidate_{threads}', wall=6 / (threads or 4))]
         calls += [dict(arm='ffmpeg_one', wall=2)]
         summary = threading.summarize([dict(status='timed', depth=8, calls=calls)])['8']
         self.assertEqual(summary['main_over_candidate']['4'], 8)
+        self.assertEqual(summary['main_over_candidate']['0'], 8)
         self.assertEqual(summary['candidate_one_over_threads']['4'], 4)
         self.assertEqual(summary['candidate_over_ffmpeg_one']['1'], 3)
 
