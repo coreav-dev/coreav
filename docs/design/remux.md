@@ -509,6 +509,7 @@ in an `mp4a` sample entry (ISO/IEC 14496-14), laid out the same way:
   when one fits 32 bits (as for
   the video replacement, and not when another stream's computed value would
   move), else each boundary rounds to the nearest movie tick.
+- **AAC terminal duration:** MP4 shortens a partially presented final sample to end at `priming + presented`, matching the pinned oracle. Earlier samples and wholly padded final samples keep their durations. ISO/IEC 14496-12 8.6.1.1 and 8.6.1.2 define the media clock separately from edit slicing (8.6.6.1); a full final frame with an edit is also valid. This choice changes neither the edits nor the encoded frames used by Matroska output.
 - **Roll group** (the spec's 4.3.6.2, ISO/IEC 14496-12 10.1): one `sgpd`
   of type `roll` (version 1, one `AudioRollRecoveryEntry` of
   `roll_distance` `-roll`) and an `sbgp` that leaves the first `roll`

@@ -110,6 +110,155 @@ fn audio_properties(path: &Path) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+fn boxes<'a>(mut bytes: &'a [u8], kind: &[u8; 4]) -> Vec<&'a [u8]> {
+    let mut found = Vec::new();
+    while !bytes.is_empty() {
+        let size = u32::from_be_bytes(bytes[..4].try_into().unwrap()) as usize;
+        assert!(size >= 8 && size <= bytes.len());
+        let (item, rest) = bytes.split_at(size);
+        if &item[4..8] == kind {
+            found.push(item);
+        }
+        bytes = rest;
+    }
+    found
+}
+
+fn child<'a>(bytes: &'a [u8], kind: &[u8; 4]) -> &'a [u8] {
+    let found = boxes(&bytes[8..], kind);
+    assert_eq!(found.len(), 1, "{kind:?}");
+    found[0]
+}
+
+fn audio_timing(path: &Path) -> Vec<Vec<u8>> {
+    let bytes = std::fs::read(path).unwrap();
+    let moov = boxes(&bytes, b"moov")[0];
+    let tracks: Vec<_> = boxes(&moov[8..], b"trak")
+        .into_iter()
+        .filter(|track| &child(child(track, b"mdia"), b"hdlr")[16..20] == b"soun")
+        .collect();
+    assert_eq!(tracks.len(), 1);
+    let track = tracks[0];
+    let media = child(track, b"mdia");
+    vec![
+        child(child(child(media, b"minf"), b"stbl"), b"stts").to_vec(),
+        child(media, b"mdhd").to_vec(),
+        child(child(track, b"edts"), b"elst").to_vec(),
+    ]
+}
+
+fn decoded_audio(path: &Path) -> Vec<u8> {
+    success(
+        Command::new(test_oracle::require().ffmpeg())
+            .args(["-nostdin", "-v", "error"])
+            .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+            .arg("-i")
+            .arg(path)
+            .args(["-map", "0:a:0", "-f", "f32le", "pipe:1"])
+            .output()
+            .unwrap(),
+    )
+}
+
+#[test]
+fn aac_terminal_timing_matches_the_complete_oracle_boxes() {
+    let dir = fixture("aac-timing");
+    let source = std::fs::read(dir.0.join("source.mp4")).unwrap();
+    let movie = boxes(&source, b"moov")[0];
+    let source_clock =
+        u32::from_be_bytes(child(movie, b"mvhd")[20..24].try_into().unwrap()).to_string();
+    for (stream, rate) in [("0:a:0", "48000"), ("0:a:1", "44100")] {
+        for video in [false, true] {
+            for explicit in [false, true] {
+                let name = format!("{rate}-{video}-{explicit}");
+                let actual = dir.0.join(format!("{name}-actual.mp4"));
+                let reference = dir.0.join(format!("{name}-reference.mp4"));
+                let mut args = if video {
+                    vec!["-map", "0:v", "-c:v", "libx264", "-threads", "1"]
+                } else {
+                    vec!["-vn"]
+                };
+                args.extend(["-map", stream, "-b:a", "96k"]);
+                if explicit {
+                    args.extend(["-c:a", "aac"]);
+                }
+                success(native(&dir.0, &actual, &args, false));
+                success(
+                    Command::new(test_oracle::require().ffmpeg())
+                        .args(["-nostdin", "-v", "error"])
+                        .args(policy())
+                        .arg("-i")
+                        .arg(dir.0.join("source.mp4"))
+                        .args(&args)
+                        .args(["-movie_timescale", if video { &source_clock } else { rate }])
+                        .arg(&reference)
+                        .output()
+                        .unwrap(),
+                );
+                assert_eq!(audio_timing(&actual), audio_timing(&reference), "{name}");
+                assert_eq!(decoded_audio(&actual), decoded_audio(&reference), "{name}");
+            }
+        }
+    }
+    let source = dir.0.join("source.mkv");
+    success(
+        Command::new(test_oracle::require().ffmpeg())
+            .args(["-nostdin", "-v", "error"])
+            .args(policy())
+            .arg("-i")
+            .arg(dir.0.join("source.mp4"))
+            .args(["-map", "0:v", "-map", "0:a:0", "-c", "copy"])
+            .arg(&source)
+            .output()
+            .unwrap(),
+    );
+    let actual = dir.0.join("matroska-actual.mp4");
+    let reference = dir.0.join("matroska-reference.mp4");
+    let args = [
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        "-threads",
+        "1",
+        "-b:a",
+        "96k",
+        "-fps_mode",
+        "passthrough",
+    ];
+    success(
+        Command::new(env!("CARGO_BIN_EXE_coreav"))
+            .args(["ffmpeg", "-i"])
+            .arg(&source)
+            .args(args)
+            .arg(&actual)
+            .env("COREAV_FFMPEG", test_oracle::require().ffmpeg())
+            .env("COREAV_FALLBACK", dir.0.join("no-whole-command-fallback"))
+            .env_remove("COREAV_FALLBACK_ACTIVE")
+            .env_remove("COREAV_STRICT_SAFE")
+            .output()
+            .unwrap(),
+    );
+    success(
+        Command::new(test_oracle::require().ffmpeg())
+            .args(["-nostdin", "-v", "error"])
+            .args(policy())
+            .arg("-i")
+            .arg(&source)
+            .args(args)
+            .args(["-movie_timescale", "48000"])
+            .arg(&reference)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(audio_timing(&actual), audio_timing(&reference), "Matroska");
+    assert_eq!(
+        decoded_audio(&actual),
+        decoded_audio(&reference),
+        "Matroska"
+    );
+}
+
 #[test]
 fn identity_audio_options_and_default_aac_bitrate_run_natively() {
     let dir = fixture("encode");
