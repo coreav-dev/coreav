@@ -11,7 +11,7 @@ cargo-fuzz = true
 [workspace]
 
 [features]
-scalar = []
+scalar = ["coreav-h264-encoder/scalar"]
 
 [dependencies]
 libfuzzer-sys = "0.4"
@@ -21,6 +21,13 @@ coreav-kernels-h264 = { path = "../../coreav-kernels-h264" }
 [[bin]]
 name = "sad"
 path = "fuzz_targets/sad.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "satd"
+path = "fuzz_targets/satd.rs"
 test = false
 doc = false
 bench = false

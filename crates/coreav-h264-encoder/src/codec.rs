@@ -87,13 +87,7 @@ impl Tile {
     }
 
     fn satd(&self, source: &Self, x: usize, y: usize, n: usize) -> Result<u64> {
-        let mut sum = 0;
-        for j in (y..y + n).step_by(4) {
-            for i in (x..x + n).step_by(4) {
-                sum += t::satd(&source.0, &self.0, Self::at(i, j), STRIDE)?;
-            }
-        }
-        Ok(sum)
+        crate::kernels::satd(&source.0, &self.0, Self::at(x, y), STRIDE, n)
     }
 }
 

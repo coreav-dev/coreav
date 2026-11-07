@@ -9,6 +9,8 @@ mod kernels;
 #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
 #[path = "../../src/simd.rs"]
 mod simd;
+#[path = "../../src/transform.rs"]
+mod transform;
 
 fuzz_target!(|data: &[u8]| {
     let len = usize::from(data.first().copied().unwrap_or(0) % 20);
