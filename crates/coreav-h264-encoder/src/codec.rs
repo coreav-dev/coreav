@@ -13,6 +13,8 @@ use coreav_kernels_h264::{BlockMut, IntraAvail, IntraMut, Kernels, Scalar};
 
 #[path = "inter.rs"]
 mod inter;
+#[path = "levels.rs"]
+mod levels;
 #[path = "rows.rs"]
 mod rows;
 
@@ -296,6 +298,18 @@ fn macroblock(
     prediction: Option<&inter::Inter>,
     context: MbContext<'_>,
 ) -> Result<Neighbour> {
+    macroblock_syntax(w, luma, chroma, prediction, context, None)
+}
+
+#[inline(always)]
+fn macroblock_syntax(
+    w: &mut Bits,
+    luma: &Luma,
+    chroma: &Chroma,
+    prediction: Option<&inter::Inter>,
+    context: MbContext<'_>,
+    costs: Option<&levels::ResidualCosts>,
+) -> Result<Neighbour> {
     let start = w.len;
     let MbContext { top, left, p_slice } = context;
     let mut state = Neighbour::default();
@@ -308,7 +322,10 @@ fn macroblock(
     }
     let intra16 = prediction.is_none() && luma.mode.is_some();
     let intra4 = prediction.is_none() && !intra16;
-    let (cbpy, cbpc) = patterns(luma, chroma, prediction.is_some());
+    let (cbpy, cbpc) = costs.map_or_else(
+        || patterns(luma, chroma, prediction.is_some()),
+        |costs| costs.patterns(intra16),
+    );
     if prediction.is_none() {
         w.ue(u32::from(p_slice) * P_INTRA_TYPE_BASE
             + luma.mode.map_or(0, |m| {
@@ -341,37 +358,52 @@ fn macroblock(
         w.se(0)?;
     }
     if intra16 {
-        cavlc::residual(w, &t::scan(&luma.dc)?, nc(&[0; 16], top, left, 0, 0))?;
+        let nc = nc(&[0; 16], top, left, 0, 0);
+        if let Some(costs) = costs {
+            costs.count(w, 0, nc)?;
+        } else {
+            cavlc::residual(w, &t::scan(&luma.dc)?, nc)?;
+        }
     }
     let counts = state.counts.first_mut().ok_or(Error::Internal)?;
     for (k, levels) in luma.levels.iter().enumerate() {
         let (x, y) = xy(k);
         let p = y / 4 * 4 + x / 4;
         if cbpy & (1 << (k / 4)) != 0 {
-            let scan = t::scan(levels)?;
-            let count = cavlc::residual(
-                w,
-                scan.get(usize::from(intra16)..).ok_or(Error::Internal)?,
-                nc(counts, top, left, 0, p),
-            )?;
+            let nc = nc(counts, top, left, 0, p);
+            let count = if let Some(costs) = costs {
+                costs.count(w, 1 + k, nc)?
+            } else {
+                let scan = t::scan(levels)?;
+                cavlc::residual(
+                    w,
+                    scan.get(usize::from(intra16)..).ok_or(Error::Internal)?,
+                    nc,
+                )?
+            };
             *counts.get_mut(p).ok_or(Error::Internal)? = count;
         }
     }
     if cbpc != 0 {
-        for dc in &chroma.dc {
-            cavlc::residual(w, dc, -1)?;
+        for (c, dc) in chroma.dc.iter().enumerate() {
+            if let Some(costs) = costs {
+                costs.count(w, 17 + c, -1)?;
+            } else {
+                cavlc::residual(w, dc, -1)?;
+            }
         }
     }
     if cbpc == 2 {
         for (c, blocks) in chroma.levels.iter().enumerate() {
             let counts = state.counts.get_mut(c + 1).ok_or(Error::Internal)?;
             for (k, levels) in blocks.iter().enumerate() {
-                let scan = t::scan(levels)?;
-                let count = cavlc::residual(
-                    w,
-                    scan.get(1..).ok_or(Error::Internal)?,
-                    nc(counts, top, left, c + 1, k),
-                )?;
+                let nc = nc(counts, top, left, c + 1, k);
+                let count = if let Some(costs) = costs {
+                    costs.count(w, 19 + c * 4 + k, nc)?
+                } else {
+                    let scan = t::scan(levels)?;
+                    cavlc::residual(w, scan.get(1..).ok_or(Error::Internal)?, nc)?
+                };
                 *counts.get_mut(k).ok_or(Error::Internal)? = count;
             }
         }
@@ -678,7 +710,7 @@ impl FramePlane {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CandidateKey {
     cost: u64,
     bits: usize,
@@ -691,6 +723,7 @@ struct CandidateKey {
     chroma_mode: u8,
 }
 
+#[derive(Clone)]
 struct Candidate {
     key: CandidateKey,
     luma: Luma,
@@ -710,8 +743,7 @@ struct Decision<'a> {
 impl Decision<'_> {
     fn cost(&self, distortion: u64, bits: usize) -> Result<u64> {
         let weight = if self.context.p_slice {
-            let step = t::norm(self.qp, 0)?.unsigned_abs() << (self.qp / 6);
-            step * step / 4
+            t::rate_weight(self.qp)?
         } else {
             512 * (1u64 << (self.qp / 3))
         };

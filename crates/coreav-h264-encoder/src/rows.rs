@@ -169,15 +169,17 @@ pub(super) fn decide(
             }
             .candidates(&mut best, &mut refusal)?
         };
-        decision.intra(
+        let cbases = [cb, cr];
+        let available = intra_availability(border);
+        decision.intra(&base, &cbases, available, scope, &mut best, &mut refusal)?;
+        decision.refine_levels(
+            best.ok_or(refusal)?,
             &base,
-            &[cb, cr],
-            intra_availability(border),
-            scope,
-            &mut best,
-            &mut refusal,
-        )?;
-        best.ok_or(refusal)
+            &cbases,
+            available,
+            e.reference.as_ref(),
+            (mx, my),
+        )
     })
 }
 
