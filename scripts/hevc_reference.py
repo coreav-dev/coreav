@@ -191,7 +191,7 @@ def profile(args, source, record, directory):
                             function=symbol))
     if not hot:
         raise ValueError('profile_symbols_missing')
-    record['hotspots'] = hot[:15]
+    record['hotspots'] = hot
 
 
 def fetch(entry, directory, budget):

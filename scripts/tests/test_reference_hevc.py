@@ -130,6 +130,24 @@ class Reference(unittest.TestCase):
             self.assertEqual(record['instructions'], 10000)
             self.assertEqual(record['hotspots'][0]['percent'], 1.0)
 
+    def test_profile_retains_functions_after_the_first_fifteen(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = pathlib.Path(temp)
+            record = dict(id='c00', frames=2)
+            args = type('Args', (), dict(native=pathlib.Path('/native')))()
+
+            def child(command, **kwargs):
+                if command[0] == 'valgrind':
+                    (directory / 'c00.callgrind').write_text('events: Ir\nsummary: 10000\n')
+                    return b'{"pictures":2,"decoded_pictures":2,"bins":42}', {}
+                return ''.join(f' 100 ( 1.00%) decoder.rs:coreav_hevc::function_{i}\n'
+                               for i in range(20)).encode(), {}
+
+            with patch.object(reference, 'command', side_effect=child):
+                reference.profile(args, pathlib.Path('/input'), record, directory)
+            self.assertEqual(len(record['hotspots']), 20)
+            self.assertEqual(record['hotspots'][-1]['function'], 'coreav_hevc::function_19')
+
     def test_summary_takes_per_file_medians_before_depth_median(self):
         rows = []
         for native, one, default in ((10, 2, 1), (6, 3, 2)):
