@@ -139,6 +139,9 @@ pub struct TranscodeOptions {
     pub one_size: bool,
     /// The source's audio.
     pub audio: AudioMode,
+    /// Use the FFmpeg-compatible terminal AAC delta in MP4 output.
+    /// The default retains complete frame durations and native transcode bytes.
+    pub aac_mp4_tail: bool,
     /// The cover pictures of an MP4 source to leave out, as
     /// `RemuxOptions::left_out_covers` names them; the others are copied
     /// with the movie's metadata.
@@ -188,6 +191,7 @@ impl Default for TranscodeOptions {
             pixel_format: None,
             one_size: false,
             audio: AudioMode::Copy,
+            aac_mp4_tail: false,
             left_out_covers: Vec::new(),
             encoder: EncoderChoice::Auto,
             x264: None,
@@ -709,6 +713,7 @@ fn execute<S: Source, W: Write>(
             start: encoded.start,
             priming: u32::from(encoded.summary.pre_skip),
             presented: encoded.summary.samples,
+            aac_mp4_tail: options.aac_mp4_tail,
             roll: encoded.mp4_description()?.1,
             data: BufferedSource::new(
                 FileSource::from_file(encoded.spool.handle()?).map_err(spool_read)?,

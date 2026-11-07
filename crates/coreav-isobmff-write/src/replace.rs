@@ -263,6 +263,30 @@ pub struct AudioSample {
     pub duration: u32,
 }
 
+/// Samples for an MP4 audio track. For AAC, `aac_end` is the media end
+/// (`priming + presented`); a partially presented final sample ends there.
+/// Wholly padded final samples and other codecs (`None`) keep their durations.
+pub fn mp4_audio_samples(
+    samples: &[AudioSample],
+    mut aac_end: Option<u64>,
+) -> impl Iterator<Item = AudioSample> + '_ {
+    samples.iter().enumerate().map(move |(index, sample)| {
+        let duration = if index + 1 == samples.len() {
+            aac_end
+                .and_then(|end| u32::try_from(end).ok())
+                .filter(|&end| end > 0 && end <= sample.duration)
+                .unwrap_or(sample.duration)
+        } else {
+            sample.duration
+        };
+        aac_end = aac_end.and_then(|end| end.checked_sub(u64::from(sample.duration)));
+        AudioSample {
+            duration,
+            ..*sample
+        }
+    })
+}
+
 /// Samples that replace one audio stream of a remuxed source: an encoded
 /// stream on a timeline of its own (Opus in ISOBMFF, opus-codec.org
 /// "Encapsulation of Opus in ISO Base Media File Format", 4.3 and 4.4; AAC
@@ -302,6 +326,9 @@ pub struct AudioReplacement<'a, R> {
     /// Media ticks presented from `priming` on; at least 1, and at most
     /// what the samples hold after `priming`.
     pub presented: u64,
+    /// Shorten a partially presented final AAC sample in MP4 to the media
+    /// end. Other codecs and Matroska output keep the supplied durations.
+    pub aac_mp4_tail: bool,
     /// The samples a decoder must decode before any one it starts at, at
     /// most 32,767: the `roll` group's distance (written negative).
     pub roll: u16,

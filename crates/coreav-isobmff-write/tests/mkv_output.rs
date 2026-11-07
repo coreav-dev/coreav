@@ -337,6 +337,7 @@ fn wholly_padded_replacement_packets_are_not_written() {
                 priming: 0,
                 roll: 0,
                 presented: 1536,
+                aac_mp4_tail: true,
                 data: SliceSource::new(&[1, 2, 3]),
             }),
         },

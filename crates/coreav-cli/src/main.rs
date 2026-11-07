@@ -1178,6 +1178,7 @@ fn run_transcode(
             stream: None,
             bitrate: args.audio_bitrate.map(|k| k * 1000),
         }),
+        aac_mp4_tail: false,
         #[cfg(feature = "input-capture")]
         input_capture: None,
         pixel_format: None,

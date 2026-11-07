@@ -879,7 +879,12 @@ terminal errors. The real encode retains its complete Matroska readback.
    entry (the stream's rate, 16-bit sample size) with an `esds` box
    (ISO/IEC 14496-1 7.2.6.5: object type 0x40, an audio stream, the
    `AudioSpecificConfig` as read), media timescale the sample rate, every
-   frame a 1,024-tick sync sample, an edit list that presents the decoded
+   frame a 1,024-tick sync sample by default. The `coreav ffmpeg` adapter
+   enables `TranscodeOptions::aac_mp4_tail`: a partially presented final
+   frame ends at the delay plus the submitted sample count. Native
+   `coreav transcode` retains complete frame durations and its existing
+   output bytes; both representations are valid. Wholly padded final
+   frames, stored encoder frames and Matroska output stay unchanged. An edit list presents the decoded
    samples from movie time 0 (from a Matroska stream's start, after an
    empty edit, as for Opus) and leaves out the delay and the padding (the
    edit's media time is the delay), and a `roll` group of distance −1,

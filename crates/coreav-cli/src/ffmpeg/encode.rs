@@ -312,6 +312,7 @@ pub fn request(
         left_out_covers: left_out_covers.clone(),
         opus,
         aac,
+        aac_mp4_tail: true,
         #[cfg(feature = "input-capture")]
         input_capture: None,
         pixel_format,
