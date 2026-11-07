@@ -1,0 +1,46 @@
+name: wavefront-ab
+on:
+  push:
+    branches: [gunwooterry/wavefront-ab]
+permissions:
+  contents: read
+jobs:
+  ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        input: [A, B, C, D, E]
+    env:
+      INPUT: ${{ matrix.input }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Build arms
+        run: |
+          set -euo pipefail
+          B="$RUNNER_TEMP/bin"; mkdir -p "$B"
+          for pair in main:79e6c8bc3fc4dd255ec5c7420702cd1b6c5ba5f0 cand:7f6ed3bea240c55848a11270fdece575fe289792; do
+            arm="${pair%%:*}"; sha="${pair#*:}"
+            git worktree add --detach "$RUNNER_TEMP/$arm" "$sha"
+            cp ab/abt.rs "$RUNNER_TEMP/$arm/crates/coreav-h264-encoder/examples/abt.rs"
+            printf '\n[[example]]\nname = "abt"\nrequired-features = ["full"]\n' >> "$RUNNER_TEMP/$arm/crates/coreav-h264-encoder/Cargo.toml"
+            (cd "$RUNNER_TEMP/$arm" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-$arm" cargo build --release -p coreav-h264-encoder --features full --example abt)
+            cp "$RUNNER_TEMP/target-$arm/release/examples/abt" "$B/$arm-abt"
+            echo "$arm $sha $(sha256sum "$B/$arm-abt" | cut -c1-16)"
+          done
+          scripts/install-oracle-ffmpeg.sh "$B"
+      - name: A/B
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet 'boto3==1.35.36' 'numpy==2.2.6'
+          "$RUNNER_TEMP/venv/bin/python" -I ab/ab.py "$RUNNER_TEMP/work" "$RUNNER_TEMP/bin"
