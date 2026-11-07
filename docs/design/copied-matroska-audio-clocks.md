@@ -2,7 +2,7 @@
 
 ## Plan and scope
 
-Lock presentation preservation when `coreav ffmpeg` encodes video and copies AAC or Opus from Matroska into MP4. Decode the complete input and output audio through the same checksum-verified FFmpeg 9.0.2 decoder and compare every F32 PCM byte, including the leading and terminal samples. Exercise both mono and stereo tracks and retain the existing complete-file controls across bitrate options. Refs #25.
+Lock presentation preservation when `coreav ffmpeg` encodes video and copies AAC or Opus from Matroska into MP4. Decode the complete input and output audio through the same checksum-verified FFmpeg 9.0.2 decoder and compare every F32 PCM byte, including the leading and terminal samples. Exercise both mono and stereo tracks and retain the existing complete-file controls across bitrate options. Refs coreav-dev/coreav#25.
 
 Production behavior does not change. MP4-sourced copies, native transcode and remux, and Matroska output remain unchanged. No command admission, decoder qualification, measurement registry, roster, judging rule, baseline or coverage count changes.
 
