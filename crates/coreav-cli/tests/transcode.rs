@@ -3124,26 +3124,48 @@ fn ffmpeg_mp3_information_headers_match_complete_oracle_files() {
     for frames in [
         2, 5, 85, 99, 100, 101, 399, 400, 401, 799, 800, 801, 1600, 1601,
     ] {
-        cases.push((48000, 1, frames));
+        cases.push((48000, 1, frames, false));
     }
     for (rate, channels) in [(44100, 2), (22050, 1), (8000, 2)] {
         for frames in [85, 100, 401] {
-            cases.push((rate, channels, frames));
+            cases.push((rate, channels, frames, false));
         }
     }
-    for (rate, channels, frames) in cases {
+    for (rate, channels) in [
+        (44100, 1),
+        (32000, 1),
+        (32000, 2),
+        (24000, 2),
+        (22050, 2),
+        (16000, 1),
+        (16000, 2),
+        (12000, 1),
+        (11025, 2),
+        (8000, 1),
+    ] {
+        cases.push((rate, channels, 100, false));
+    }
+    cases.extend([
+        (48000, 1, 100, true),
+        (32000, 2, 100, true),
+        (8000, 1, 100, true),
+    ]);
+    for (rate, channels, frames, silent) in cases {
         let samples = if rate >= 32000 {
             (frames - 1) * 1152
         } else {
             (frames - 2) * 576
         };
-        let source = dir.join(format!("source-{rate}-{channels}-{frames}.mp4"));
+        let source = dir.join(format!("source-{rate}-{channels}-{frames}-{silent}.mp4"));
+        let frequency = if silent { 0 } else { 701 };
         let run = Command::new(oracle.ffmpeg())
             .args(["-nostdin", "-v", "error", "-f", "lavfi"])
             .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
             .args([
                 "-i",
-                &format!("sine=frequency=701:sample_rate={rate},atrim=end_sample={samples}"),
+                &format!(
+                    "sine=frequency={frequency}:sample_rate={rate},atrim=end_sample={samples}"
+                ),
                 "-ac",
                 &channels.to_string(),
                 "-c:a",
@@ -3157,9 +3179,9 @@ fn ffmpeg_mp3_information_headers_match_complete_oracle_files() {
         assert!(run.status.success(), "{run:?}");
         for (mode, settings, tag) in [
             ("cbr", ["-b:a", "64k"], b"Info"),
-            ("vbr", ["-q:a", "2"], b"Xing"),
+            ("vbr", ["-q:a", "2"], if silent { b"Info" } else { b"Xing" }),
         ] {
-            let output = dir.join(format!("{rate}-{channels}-{frames}-{mode}.mp3"));
+            let output = dir.join(format!("{rate}-{channels}-{frames}-{mode}-{silent}.mp3"));
             let reference = output.with_extension("reference.mp3");
             let run = Command::new(bin())
                 .args(["ffmpeg", "-i"])
