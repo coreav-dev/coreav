@@ -423,6 +423,16 @@ key is one entry per job id, toolchain and `Cargo.lock`.
   script itself, so a new helper joins the key without an edit here) and
   `scripts/install-oracle-ffmpeg.sh`. A pull request that changes one of
   them generates the fixtures on every push.
+- **The comparator archive is cached by its digest on every branch**
+  (`comparator-archive-<sha256>`, the digest the composed-audio
+  registration pins). `ci-changes` restores it before generating the
+  composed-audio fixtures and answers the generator's download of the
+  registered address from it; the `opus` job of `audio-conformance.yml`
+  restores the same entry before compiling `opus_compare`. Only an archive
+  whose digest matched enters the entry, and the generator checks the
+  digest again on what it is served. A pull request that changes the
+  composed sources no longer downloads the archive from its publisher on
+  every push.
 - **The Matroska and transport stream oracles restore `isobmff-fixtures`'
   cache** (`shared-key: isobmff-fixtures`, `save-if: false`). That job
   builds every crate, profile and feature the other two build, so their

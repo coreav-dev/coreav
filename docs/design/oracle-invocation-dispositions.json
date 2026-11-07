@@ -1,9 +1,9 @@
 {
  "dependencies": {
-  ".github/actions/ci-fixtures/action.yml": "5d9e14cc90f259012d7b0c2be7a48f4458073734f56f1742c7c48dd308990d97",
+  ".github/actions/ci-fixtures/action.yml": "af2f2f64163519fb4e3282610f4c180a1d327e2e95ed8be0f06bb10378a27192",
   ".github/scripts/wasm-memory-failure.cjs": "75a688444375c7ec306718cb494d2235c9e418daa4211f88833961823a772614",
   ".github/workflows/aac-encode.yml": "922a43d86c9c29f5637f31611182f959011d974b727a3b5c16e4aa70f8d00105",
-  ".github/workflows/audio-conformance.yml": "4c093ef6fa807dc536a0e10006e0c0370460d5d253e8bf41dc58f3ee37eb0cbe",
+  ".github/workflows/audio-conformance.yml": "ad5c141b44a3984b801aeca6d17a6af68ec04e3bc368d8b4f53fb1ee1e012d67",
   ".github/workflows/ci.yml": "5f98113f86b38699e1efac1e2b8414918ff78e8c0a2c51d55dc195847f192b68",
   ".github/workflows/codec-coverage.yml": "141a7b5d078c18d85728b2d85f0a3cc7e4ba7753f02823a3eb0c4cfcf655e34a",
   ".github/workflows/compat-0.1.0.yml": "b979061433995d3a504edddac660216fefbdef556080967f7facf76c89eb1a80",
@@ -1623,6 +1623,7 @@
   "scripts/tests/test_av1_measurement.py": "e188bed6a77662db3bd86b285dff0be267fdcd87788e029ae1a0d99b3ba073f6",
   "scripts/tests/test_bar_sources.py": "7cf60c7f31475d1188bfe33fdf87671c166a505ed1b42bdc9c1c9467de1b5936",
   "scripts/tests/test_benchlib_oracle.py": "d19a0eddaaa405a2b4037a99604af90a6c1288b76e2b5ef3c6cf9517c0f843a1",
+  "scripts/tests/test_ci_fixtures.py": "121603c788ef77f07e226555d17bef86f6f1da751f0c6d62138119a27930eb82",
   "scripts/tests/test_codec_coverage_gcp.py": "7dc9311de22ac97a63c39af25b1890e7eeaa673c279c64ed9e7534de12d001ef",
   "scripts/tests/test_compat_sources.py": "932eee2a3ea0a2a98615d7acce880b745095845458cea6c89a6ae7285c867796",
   "scripts/tests/test_composed_audio.py": "923ab3ba8adc5d33055a743ebf922d65b37467d17250d583feec285938542cd0",
@@ -3104,16 +3105,16 @@
     "tools/stage3-report/report.py",
     "tools/stage3-report/run.py"
    ],
-   "sha256": "5d9e14cc90f259012d7b0c2be7a48f4458073734f56f1742c7c48dd308990d97",
+   "sha256": "af2f2f64163519fb4e3282610f4c180a1d327e2e95ed8be0f06bb10378a27192",
    "sites": [
     {
      "class": "reviewed-reference",
-     "evidence": ".github/actions/ci-fixtures/action.yml:58 (shell, occurrence 0). .github/actions/ci-fixtures/action.yml:55-69 retries the same fixture entry point at most three times, removing its output once before the loop at .github/actions/ci-fixtures/action.yml:56 and after each failed generator attempt at .github/actions/ci-fixtures/action.yml:62, including the final failure; .github/actions/ci-fixtures/action.yml:58-60 returns immediately on generator success, preserving its output. .github/actions/ci-fixtures/action.yml:58-59 supplies only the requested ffmpeg selector. scripts/composed_audio_fixtures.py:78-89 parses that selector, calls test_oracle.require(args.ffmpeg) at scripts/composed_audio_fixtures.py:86, and passes pair.ffmpeg unchanged to generate at scripts/composed_audio_fixtures.py:89. scripts/composed_audio_fixtures.py:53-75 uses that ffmpeg as argv[0] in every generation call; scripts/composed_audio.py:326-334 passes the same command through list(map(str, cmd)) into subprocess.Popen. scripts/test_oracle.py:18-21 defines the immutable pair; scripts/test_oracle.py:73-108 resolves both executable paths, verifies the complete selection with the platform pin owner and returns that pair. scripts/oracle_pin.py:108-121 verifies both pinned version banners; scripts/oracle_pin_macos.py:48-78 also checks binary digests, architecture and signing before accepting the pair. The failure diagnostic at .github/actions/ci-fixtures/action.yml:64-65 is a 0-1023 byte curl probe to the registration URL read at .github/actions/ci-fixtures/action.yml:55; docs/design/composed-opus-aac-v2.json:60-64 identifies an Opus source archive, not an FFmpeg executable. scripts/composed_audio_fixtures.py:16-40 downloads that digest-pinned archive and compiles the separate comparator; these curl/tar/cc commands are not reference FFmpeg executions.",
+     "evidence": ".github/actions/ci-fixtures/action.yml:97 (shell, occurrence 0). .github/actions/ci-fixtures/action.yml:96-108 retries the same fixture entry point at most three times, removing its output once before the loop at .github/actions/ci-fixtures/action.yml:95 and after each failed generator attempt at .github/actions/ci-fixtures/action.yml:101, including the final failure; .github/actions/ci-fixtures/action.yml:97-100 returns immediately on generator success, preserving its output. .github/actions/ci-fixtures/action.yml:97-98 supplies only the requested ffmpeg selector. The env prefix at .github/actions/ci-fixtures/action.yml:97 puts $RUNNER_TEMP/coreav-comparator-curl first on the generator's PATH; .github/actions/ci-fixtures/action.yml:84-88 fills that directory with .github/actions/ci-fixtures/comparator-curl.sh as curl only after .github/actions/ci-fixtures/action.yml:64-81 holds an archive whose SHA-256 equals the registration's, and that stand-in copies the cached archive for the registered URL, refuses any other request, and replaces curl only, never the ffmpeg selector or the ffprobe beside it. scripts/composed_audio_fixtures.py:78-89 parses that selector, calls test_oracle.require(args.ffmpeg) at scripts/composed_audio_fixtures.py:86, and passes pair.ffmpeg unchanged to generate at scripts/composed_audio_fixtures.py:89. scripts/composed_audio_fixtures.py:53-75 uses that ffmpeg as argv[0] in every generation call; scripts/composed_audio.py:326-334 passes the same command through list(map(str, cmd)) into subprocess.Popen. scripts/test_oracle.py:18-21 defines the immutable pair; scripts/test_oracle.py:73-108 resolves both executable paths, verifies the complete selection with the platform pin owner and returns that pair. scripts/oracle_pin.py:108-121 verifies both pinned version banners; scripts/oracle_pin_macos.py:48-78 also checks binary digests, architecture and signing before accepting the pair. The failure diagnostic at .github/actions/ci-fixtures/action.yml:103-105 is a 0-1023 byte curl probe to the registration URL read at .github/actions/ci-fixtures/action.yml:93, run outside the stand-in's PATH; docs/design/composed-opus-aac-v2.json:60-64 identifies an Opus source archive, not an FFmpeg executable. scripts/composed_audio_fixtures.py:16-40 downloads that digest-pinned archive, rejects it at scripts/composed_audio_fixtures.py:27-28 unless its digest is the registered one whatever served it, and compiles the separate comparator; these curl/tar/cc commands are not reference FFmpeg executions.",
      "site": [
-      58,
+      97,
       "shell",
       "<shell>",
-      "python3 -I scripts/composed_audio_fixtures.py \\\n      --ffmpeg \"$RUNNER_TEMP/coreav-oracle-bin/ffmpeg\" --out \"$RUNNER_TEMP/coreav-composed-fixtures\""
+      "env PATH=\"$RUNNER_TEMP/coreav-comparator-curl:$PATH\" python3 -I scripts/composed_audio_fixtures.py \\\n      --ffmpeg \"$RUNNER_TEMP/coreav-oracle-bin/ffmpeg\" --out \"$RUNNER_TEMP/coreav-composed-fixtures\""
      ],
      "verdict": "qualified-via-owner"
     }
@@ -4207,7 +4208,7 @@
     "tools/stage3-report/report.py",
     "tools/stage3-report/run.py"
    ],
-   "sha256": "4c093ef6fa807dc536a0e10006e0c0370460d5d253e8bf41dc58f3ee37eb0cbe",
+   "sha256": "ad5c141b44a3984b801aeca6d17a6af68ec04e3bc368d8b4f53fb1ee1e012d67",
    "sites": [
     {
      "class": "reviewed-reference",
@@ -163284,6 +163285,9 @@
     "collections": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "common": "27fa8792c0ae851d5df80b5f16f355b0e88e9d5d7af51edf2c3dc5d020319921",
     "compat_check": "d511b6e719efa9a1018e44c2fdf0a203d46b8692a53a831542e0a0e51dcedbf2",
+    "composed_audio": "d7238c7dd06b879baed8c1dc280034b4700094935b3c7d9b1b7d0a5ab325b5e7",
+    "composed_audio_fixtures": "9bc5d7a5747e9eb5019e740c1688c09aa32ba65e34163d75ef1e03c0619b5e2a",
+    "composed_audio_source": "3fe5f9b15505fc58ed65232f64280aed1ecabf9caeb320b5f30817e7c7e9b950",
     "concurrent": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "config": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "contextlib": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -163300,6 +163304,7 @@
     "dims_ff": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "download": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "evaluate": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "expected_encoder": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "extra_engines": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "extra_hostile": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "extract_check": "61b924249ee1662f38170ad1a82ac57670b2347b140dbe33fe8c47b894dc477f",
@@ -163368,6 +163373,7 @@
     "shutil": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "sig": "7be6eea02d417940e5cf6220ea9f0670810650f0e0dac01ed8192298ab6acfee",
     "signal": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "source_reference": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "speed": "24ea60aaa67dd8446935234ff3a7ac487c87bb5a45b7bb1d6e721aef51a71137",
     "split_check": "1864d4582c074700131633fbe966227536fd7e734a2361873c6004538d49979f",
     "ssl": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -163700,6 +163706,9 @@
     "docs/spikes/spike-a/h7-sidx/evidence/time/time-us-west-20261015T044716Z/status.json",
     "scripts/clip_check.py",
     "scripts/compat_check.py",
+    "scripts/composed_audio.py",
+    "scripts/composed_audio_fixtures.py",
+    "scripts/composed_audio_source.py",
     "scripts/extract_check.py",
     "scripts/hls_check.py",
     "scripts/oracle-audio-args.txt",
@@ -163775,13 +163784,13 @@
     "tools/stage3-report/report.py",
     "tools/stage3-report/run.py"
    ],
-   "sha256": "e64b1a75d207f2e83a598c6611e2b310ebbfe941717e4fe324caf3438484b18a",
+   "sha256": "121603c788ef77f07e226555d17bef86f6f1da751f0c6d62138119a27930eb82",
    "sites": [
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:22 (process, occurrence 0). read_yaml at scripts/tests/test_ci_fixtures.py:20-23 invokes only Ruby with Psych to parse YAML as JSON. Its workflow/action callers at scripts/tests/test_ci_fixtures.py:29-30 and scripts/tests/test_ci_fixtures.py:140 read configuration; no YAML run block is executed.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:65 (process, occurrence 0). read_yaml at scripts/tests/test_ci_fixtures.py:63-66 invokes only Ruby with Psych to parse YAML as JSON; its callers read workflow and action configuration, and no run block is executed by it.",
      "site": [
-      22,
+      65,
       "process",
       "<module>.read_yaml",
       "'ruby'"
@@ -163790,9 +163799,9 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:29 (delegated, occurrence 0). read_yaml at scripts/tests/test_ci_fixtures.py:20-23 invokes only Ruby with Psych to parse YAML as JSON. Its workflow/action callers at scripts/tests/test_ci_fixtures.py:29-30 and scripts/tests/test_ci_fixtures.py:140 read configuration; no YAML run block is executed.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:72 (delegated, occurrence 0). read_yaml at scripts/tests/test_ci_fixtures.py:63-66 invokes only Ruby with Psych to parse YAML as JSON; its callers read workflow and action configuration, and no run block is executed by it.",
      "site": [
-      29,
+      72,
       "delegated",
       "<delegated>",
       "read_yaml"
@@ -163801,9 +163810,9 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:30 (delegated, occurrence 0). read_yaml at scripts/tests/test_ci_fixtures.py:20-23 invokes only Ruby with Psych to parse YAML as JSON. Its workflow/action callers at scripts/tests/test_ci_fixtures.py:29-30 and scripts/tests/test_ci_fixtures.py:140 read configuration; no YAML run block is executed.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:73 (delegated, occurrence 0). read_yaml at scripts/tests/test_ci_fixtures.py:63-66 invokes only Ruby with Psych to parse YAML as JSON; its callers read workflow and action configuration, and no run block is executed by it.",
      "site": [
-      30,
+      73,
       "delegated",
       "<delegated>",
       "read_yaml"
@@ -163812,9 +163821,9 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:114 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:157 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:128-149 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text and a placeholder registration digest. scripts/tests/test_ci_fixtures.py:150-155 runs only key['run'] with bash and reads the resulting keys. .github/actions/ci-fixtures/action.yml:10-18 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, a Python JSON read of the registration digest, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the retry/probe block is selected.",
      "site": [
-      114,
+      157,
       "delegated",
       "<delegated>",
       "compute"
@@ -163823,9 +163832,9 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:115 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:158 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:128-149 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text and a placeholder registration digest. scripts/tests/test_ci_fixtures.py:150-155 runs only key['run'] with bash and reads the resulting keys. .github/actions/ci-fixtures/action.yml:10-18 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, a Python JSON read of the registration digest, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the retry/probe block is selected.",
      "site": [
-      115,
+      158,
       "delegated",
       "<delegated>",
       "compute"
@@ -163834,9 +163843,9 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:120 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:164 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:128-149 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text and a placeholder registration digest. scripts/tests/test_ci_fixtures.py:150-155 runs only key['run'] with bash and reads the resulting keys. .github/actions/ci-fixtures/action.yml:10-18 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, a Python JSON read of the registration digest, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the retry/probe block is selected.",
      "site": [
-      120,
+      164,
       "delegated",
       "<delegated>",
       "compute"
@@ -163845,9 +163854,9 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:129 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:173 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:128-149 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text and a placeholder registration digest. scripts/tests/test_ci_fixtures.py:150-155 runs only key['run'] with bash and reads the resulting keys. .github/actions/ci-fixtures/action.yml:10-18 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, a Python JSON read of the registration digest, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the retry/probe block is selected.",
      "site": [
-      129,
+      173,
       "delegated",
       "<delegated>",
       "compute"
@@ -163856,9 +163865,9 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:135 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:180 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:128-149 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text and a placeholder registration digest. scripts/tests/test_ci_fixtures.py:150-155 runs only key['run'] with bash and reads the resulting keys. .github/actions/ci-fixtures/action.yml:10-18 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, a Python JSON read of the registration digest, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the retry/probe block is selected.",
      "site": [
-      135,
+      180,
       "delegated",
       "<delegated>",
       "compute"
@@ -163867,9 +163876,9 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:137 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:85-105 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text. scripts/tests/test_ci_fixtures.py:107-112 runs only key['run'] with bash and reads the resulting key; scripts/tests/test_ci_fixtures.py:114-137 calls compute before and after byte mutations. .github/actions/ci-fixtures/action.yml:10-16 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the new retry/probe block is selected.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:184 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:128-149 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text and a placeholder registration digest. scripts/tests/test_ci_fixtures.py:150-155 runs only key['run'] with bash and reads the resulting keys. .github/actions/ci-fixtures/action.yml:10-18 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, a Python JSON read of the registration digest, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the retry/probe block is selected.",
      "site": [
-      137,
+      184,
       "delegated",
       "<delegated>",
       "compute"
@@ -163878,9 +163887,174 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:140 (delegated, occurrence 0). read_yaml at scripts/tests/test_ci_fixtures.py:20-23 invokes only Ruby with Psych to parse YAML as JSON. Its workflow/action callers at scripts/tests/test_ci_fixtures.py:29-30 and scripts/tests/test_ci_fixtures.py:140 read configuration; no YAML run block is executed.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:186 (delegated, occurrence 0). scripts/tests/test_ci_fixtures.py:128-149 selects only the action step whose id is key and constructs temporary cache inputs, including placeholder composed-generator source text and a placeholder registration digest. scripts/tests/test_ci_fixtures.py:150-155 runs only key['run'] with bash and reads the resulting keys. .github/actions/ci-fixtures/action.yml:10-18 consists of grep/sed/sort, a Python import of SUPPORT, cat/hash/cut, a Python JSON read of the registration digest, and echo. scripts/test_oracle.py:28-32 initializes metadata; its require function at scripts/test_oracle.py:73-108 and CLI at scripts/test_oracle.py:137-138 are not called by the SUPPORT import. The imported pin owners scripts/oracle_pin.py:27-47 and scripts/oracle_pin_macos.py:3-15 initialize definitions and metadata, not reference processes. Helper, installer, pin and composed source bytes are hashed, not executed. Neither fixture-generation step nor the retry/probe block is selected.",
      "site": [
-      140,
+      186,
+      "delegated",
+      "<delegated>",
+      "compute"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:220 (delegated, occurrence 0). read_yaml at scripts/tests/test_ci_fixtures.py:63-66 invokes only Ruby with Psych to parse YAML as JSON; its callers read workflow and action configuration, and no run block is executed by it.",
+     "site": [
+      220,
+      "delegated",
+      "<delegated>",
+      "read_yaml"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:249 (delegated, occurrence 0). run_block at scripts/tests/test_ci_fixtures.py:58-60 runs one workflow run block with bash in a stand-in checkout whose PATH starts with the stand-in curl that stand_in_curl at scripts/tests/test_ci_fixtures.py:44-55 writes (it copies a prepared body to the --output file and exits as told). The blocks run are the action's fetch step at .github/actions/ci-fixtures/action.yml:63-88 (a Python JSON read of the registration, sha256sum, curl, mkdir, mv, cp and chmod) and the Build opus_compare step at .github/workflows/audio-conformance.yml:543-560 (sha256sum, curl, tar and cc on the test's own crafted archive from comparator_archive at scripts/tests/test_ci_fixtures.py:30-41). Neither block names ffmpeg or ffprobe; the generator step is never selected.",
+     "site": [
+      249,
+      "delegated",
+      "<delegated>",
+      "run_block"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:257 (delegated, occurrence 0). self.fetch_step at scripts/tests/test_ci_fixtures.py:232-252 prepares the stand-in checkout, the placeholder registration and the stand-in curl, then delegates to run_block for the action's fetch step; see the run_block evidence.",
+     "site": [
+      257,
+      "delegated",
+      "<delegated>",
+      "self.fetch_step"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:266 (delegated, occurrence 0). self.fetch_step at scripts/tests/test_ci_fixtures.py:232-252 prepares the stand-in checkout, the placeholder registration and the stand-in curl, then delegates to run_block for the action's fetch step; see the run_block evidence.",
+     "site": [
+      266,
+      "delegated",
+      "<delegated>",
+      "self.fetch_step"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:271 (delegated, occurrence 0). self.fetch_step at scripts/tests/test_ci_fixtures.py:232-252 prepares the stand-in checkout, the placeholder registration and the stand-in curl, then delegates to run_block for the action's fetch step; see the run_block evidence.",
+     "site": [
+      271,
+      "delegated",
+      "<delegated>",
+      "self.fetch_step"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:277 (delegated, occurrence 0). self.fetch_step at scripts/tests/test_ci_fixtures.py:232-252 prepares the stand-in checkout, the placeholder registration and the stand-in curl, then delegates to run_block for the action's fetch step; see the run_block evidence.",
+     "site": [
+      277,
+      "delegated",
+      "<delegated>",
+      "self.fetch_step"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:301 (process, occurrence 0). The executable is .github/actions/ci-fixtures/comparator-curl.sh, a bash script that parses -o/--output, compares its last argument with COREAV_COMPARATOR_URL and either copies COREAV_COMPARATOR_ARCHIVE to the target or exits 2. It is run with the generator's curl arguments or deliberately wrong ones; its only child command is cp, which copies the prepared archive and invokes neither FFmpeg nor ffprobe.",
+     "site": [
+      301,
+      "process",
+      "<module>.SharedFixtures.test_stand_in_serves_only_the_generators_request_for_the_registered_archive.bounded",
+      "str(STAND_IN)"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:307 (delegated, occurrence 0). fixtures.build_comparator runs under patch.object of fixtures.composed.registration and fixtures.composed.bounded at scripts/tests/test_ci_fixtures.py:283-319; the replacement bounded at scripts/tests/test_ci_fixtures.py:298-302 runs only .github/actions/ci-fixtures/comparator-curl.sh for the curl command and raises for the tar command, so no curl, tar, cc, ffmpeg or ffprobe process starts. scripts/composed_audio_fixtures.py:16-40 contains no reference FFmpeg execution; its digest check at scripts/composed_audio_fixtures.py:27-28 is what the test exercises.",
+     "site": [
+      307,
+      "delegated",
+      "<delegated>",
+      "fixtures.build_comparator"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:312 (delegated, occurrence 0). fixtures.build_comparator runs under patch.object of fixtures.composed.registration and fixtures.composed.bounded at scripts/tests/test_ci_fixtures.py:283-319; the replacement bounded at scripts/tests/test_ci_fixtures.py:298-302 runs only .github/actions/ci-fixtures/comparator-curl.sh for the curl command and raises for the tar command, so no curl, tar, cc, ffmpeg or ffprobe process starts. scripts/composed_audio_fixtures.py:16-40 contains no reference FFmpeg execution; its digest check at scripts/composed_audio_fixtures.py:27-28 is what the test exercises.",
+     "site": [
+      312,
+      "delegated",
+      "<delegated>",
+      "fixtures.build_comparator"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:316 (process, occurrence 0). The executable is .github/actions/ci-fixtures/comparator-curl.sh, a bash script that parses -o/--output, compares its last argument with COREAV_COMPARATOR_URL and either copies COREAV_COMPARATOR_ARCHIVE to the target or exits 2. It is run with the generator's curl arguments or deliberately wrong ones; its only child command is cp, which copies the prepared archive and invokes neither FFmpeg nor ffprobe.",
+     "site": [
+      316,
+      "process",
+      "<module>.SharedFixtures.test_stand_in_serves_only_the_generators_request_for_the_registered_archive",
+      "str(STAND_IN)"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:322 (delegated, occurrence 0). read_yaml at scripts/tests/test_ci_fixtures.py:63-66 invokes only Ruby with Psych to parse YAML as JSON; its callers read workflow and action configuration, and no run block is executed by it.",
+     "site": [
+      322,
+      "delegated",
+      "<delegated>",
+      "read_yaml"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:339 (delegated, occurrence 0). run_block at scripts/tests/test_ci_fixtures.py:58-60 runs one workflow run block with bash in a stand-in checkout whose PATH starts with the stand-in curl that stand_in_curl at scripts/tests/test_ci_fixtures.py:44-55 writes (it copies a prepared body to the --output file and exits as told). The blocks run are the action's fetch step at .github/actions/ci-fixtures/action.yml:63-88 (a Python JSON read of the registration, sha256sum, curl, mkdir, mv, cp and chmod) and the Build opus_compare step at .github/workflows/audio-conformance.yml:543-560 (sha256sum, curl, tar and cc on the test's own crafted archive from comparator_archive at scripts/tests/test_ci_fixtures.py:30-41). Neither block names ffmpeg or ffprobe; the generator step is never selected.",
+     "site": [
+      339,
+      "delegated",
+      "<delegated>",
+      "run_block"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:345 (process, occurrence 0). The executable is the program that the delegated Build opus_compare block compiled with cc from the test's crafted source (comparator_archive at scripts/tests/test_ci_fixtures.py:30-41, a main returning 0), run to show the block built it from the cached archive. It is not an FFmpeg executable.",
+     "site": [
+      345,
+      "process",
+      "<module>.SharedFixtures.test_audio_conformance_builds_the_comparator_from_the_cached_archive",
+      "root / 'temp/opus-compare/opus_compare'"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:351 (delegated, occurrence 0). run_block at scripts/tests/test_ci_fixtures.py:58-60 runs one workflow run block with bash in a stand-in checkout whose PATH starts with the stand-in curl that stand_in_curl at scripts/tests/test_ci_fixtures.py:44-55 writes (it copies a prepared body to the --output file and exits as told). The blocks run are the action's fetch step at .github/actions/ci-fixtures/action.yml:63-88 (a Python JSON read of the registration, sha256sum, curl, mkdir, mv, cp and chmod) and the Build opus_compare step at .github/workflows/audio-conformance.yml:543-560 (sha256sum, curl, tar and cc on the test's own crafted archive from comparator_archive at scripts/tests/test_ci_fixtures.py:30-41). Neither block names ffmpeg or ffprobe; the generator step is never selected.",
+     "site": [
+      351,
+      "delegated",
+      "<delegated>",
+      "run_block"
+     ],
+     "verdict": "excluded"
+    },
+    {
+     "class": "reviewed-exclusion",
+     "evidence": "scripts/tests/test_ci_fixtures.py:358 (delegated, occurrence 0). read_yaml at scripts/tests/test_ci_fixtures.py:63-66 invokes only Ruby with Psych to parse YAML as JSON; its callers read workflow and action configuration, and no run block is executed by it.",
+     "site": [
+      358,
       "delegated",
       "<delegated>",
       "read_yaml"
@@ -263721,6 +263895,7 @@
   ".github/actions/changed-paths/tests/test_changed_paths.py": "source",
   ".github/actions/changed-paths/tests/test_package_filters.py": "source",
   ".github/actions/ci-fixtures/action.yml": "source",
+  ".github/actions/ci-fixtures/comparator-curl.sh": "source",
   ".github/actions/merge-group-result/action.yml": "source",
   ".github/labels.yml": "source",
   ".github/pull_request_template.md": "data",

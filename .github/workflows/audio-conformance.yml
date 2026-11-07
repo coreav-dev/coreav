@@ -505,7 +505,8 @@ jobs:
       OPUS_VECTORS_URL: https://www.ietf.org/proceedings/98/slides/materials-98-codec-opus-newvectors-00.tar.gz
       OPUS_VECTORS_SHA256: 6b26a22f9ba87b2b836906a9bb7afec5f8e54d49553b1200382520ee6fedfa55
       # opus_compare from libopus 1.6.1. Built and run as a black box: its
-      # source is compiled, never read, and deleted.
+      # source is compiled, never read, and deleted. The archive is cached by
+      # this digest, under the key the ci-fixtures action uses for the same file.
       LIBOPUS_URL: https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz
       LIBOPUS_SHA256: 6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
     steps:
@@ -534,16 +535,29 @@ jobs:
           echo "$OPUS_VECTORS_SHA256  vectors.tar.gz" | sha256sum -c -
           tar xzf vectors.tar.gz
           rm vectors.tar.gz
+      - name: Cache the pinned comparator archive
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-comparator-archive
+          key: comparator-archive-${{ env.LIBOPUS_SHA256 }}
       - name: Build opus_compare
         run: |
           set -euo pipefail
+          archive="$RUNNER_TEMP/coreav-comparator-archive/opus.tar.gz"
+          if [ -f "$archive" ] && ! echo "$LIBOPUS_SHA256  $archive" | sha256sum --check --status -; then
+            rm -f "$archive"
+          fi
+          if [ ! -f "$archive" ]; then
+            curl -sSfL --retry 3 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/libopus.tar.gz" "$LIBOPUS_URL"
+            echo "$LIBOPUS_SHA256  $RUNNER_TEMP/libopus.tar.gz" | sha256sum -c -
+            mkdir -p "${archive%/*}"
+            mv "$RUNNER_TEMP/libopus.tar.gz" "$archive"
+          fi
           mkdir -p "$RUNNER_TEMP/opus-compare"
           cd "$RUNNER_TEMP/opus-compare"
-          curl -sSfL --retry 3 --retry-all-errors --retry-delay 5 -o libopus.tar.gz "$LIBOPUS_URL"
-          echo "$LIBOPUS_SHA256  libopus.tar.gz" | sha256sum -c -
-          tar xzf libopus.tar.gz opus-1.6.1/src/opus_compare.c
+          tar xzf "$archive" opus-1.6.1/src/opus_compare.c
           cc -O2 -o opus_compare opus-1.6.1/src/opus_compare.c -lm
-          rm -rf libopus.tar.gz opus-1.6.1
+          rm -rf opus-1.6.1
       - name: The generated tables are what scripts/opus_tables.py makes from the RFC's code
         run: python3 -I scripts/opus_tables.py --check --cache "$RUNNER_TEMP/pinned-sources"
       - name: Read every packet and decode the twelve vectors (durations against the reference outputs, range state of every packet, opus_compare above 90)
