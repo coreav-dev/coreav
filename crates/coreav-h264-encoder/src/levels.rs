@@ -261,11 +261,17 @@ enum Coefficient {
     Chroma(usize, usize, usize),
 }
 
-pub(super) struct ResidualCosts([cavlc::Cost; 27]);
+pub(super) struct ResidualCosts {
+    blocks: [cavlc::Cost; 27],
+    active: u32,
+}
 
 impl ResidualCosts {
     fn new(candidate: &Candidate) -> Result<Self> {
-        let mut costs = Self([cavlc::Cost::default(); 27]);
+        let mut costs = Self {
+            blocks: [cavlc::Cost::default(); 27],
+            active: 0,
+        };
         costs.update(candidate, Coefficient::LumaDc(0))?;
         for k in 0..16 {
             costs.update(candidate, Coefficient::Luma(k, 0))?;
@@ -308,23 +314,29 @@ impl ResidualCosts {
                 )
             }
         };
-        *self.0.get_mut(index).ok_or(Error::Internal)? = cost;
+        self.put(index, cost)
+    }
+
+    fn put(&mut self, index: usize, cost: cavlc::Cost) -> Result<()> {
+        *self.blocks.get_mut(index).ok_or(Error::Internal)? = cost;
+        let bit = 1u32 << index;
+        self.active = (self.active & !bit) | if cost.total == 0 { 0 } else { bit };
         Ok(())
     }
 
     pub(super) fn patterns(&self, intra16: bool) -> (u8, u8) {
         let mut y = 0;
-        for (k, cost) in self.0.iter().skip(1).take(16).enumerate() {
-            if cost.total != 0 {
-                y |= 1 << (k / 4);
+        for group in 0..4 {
+            if self.active & (15 << (1 + 4 * group)) != 0 {
+                y |= 1 << group;
             }
         }
         if intra16 && y != 0 {
             y = 15;
         }
-        let c = if self.0.iter().skip(19).any(|cost| cost.total != 0) {
+        let c = if self.active & (255 << 19) != 0 {
             2
-        } else if self.0.iter().skip(17).take(2).any(|cost| cost.total != 0) {
+        } else if self.active & (3 << 17) != 0 {
             1
         } else {
             0
@@ -333,7 +345,7 @@ impl ResidualCosts {
     }
 
     pub(super) fn count(&self, w: &mut Bits, index: usize, nc: i32) -> Result<u8> {
-        let cost = self.0.get(index).ok_or(Error::Internal)?;
+        let cost = self.blocks.get(index).ok_or(Error::Internal)?;
         w.len = w.len.checked_add(cost.bits(nc)?).ok_or(Error::Limit)?;
         Ok(cost.total)
     }
@@ -431,7 +443,7 @@ impl Decision<'_> {
         old: cavlc::Cost,
     ) -> Result<(usize, [[u8; 16]; 3])> {
         let mut counts = candidate.state.counts;
-        let cost = *costs.0.get(position.index()).ok_or(Error::Internal)?;
+        let cost = *costs.blocks.get(position.index()).ok_or(Error::Internal)?;
         let (mut added, mut removed) = match position {
             Coefficient::LumaDc(_) => {
                 let nc = nc(&[0; 16], self.context.top, self.context.left, 0, 0);
@@ -483,7 +495,7 @@ impl Decision<'_> {
                     cbpc == 2
                 };
                 if coded {
-                    let cost = costs.0.get(index).ok_or(Error::Internal)?;
+                    let cost = costs.blocks.get(index).ok_or(Error::Internal)?;
                     added += cost.bits(context(after, neighbour))?;
                     removed += cost.bits(context(before, neighbour))?;
                 }
@@ -564,7 +576,7 @@ impl Decision<'_> {
             let old_level = *position.at(candidate)?;
             let old_cost = *refinement
                 .costs
-                .0
+                .blocks
                 .get(position.index())
                 .ok_or(Error::Internal)?;
             let intra16 = candidate.inter.is_none() && candidate.luma.mode.is_some();
@@ -618,11 +630,7 @@ impl Decision<'_> {
                 Err(error) => return Err(error),
             }
             *position.at(candidate)? = old_level;
-            *refinement
-                .costs
-                .0
-                .get_mut(position.index())
-                .ok_or(Error::Internal)? = old_cost;
+            refinement.costs.put(position.index(), old_cost)?;
         }
         Ok(())
     }
