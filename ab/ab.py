@@ -56,32 +56,37 @@ def decodes(arm, label):
 
 
 
-import numpy as np
+
+def call(arm, label, qp, threads=1):
+    _, _, w, h, _ = SOURCES[label]
+    stream, recon = WORK / f'{arm}.h264', WORK / f'{arm}.rec'
+    result = subprocess.run([str(BINS / f'{arm}-abt'), str(w), str(h), str(qp), '60',
+        str(WORK / f'{label}.yuv'), str(stream), str(recon), '32', str(threads)],
+        check=True, capture_output=True, text=True, timeout=600)
+    return float(result.stdout.strip()), digest(stream), digest(recon)
+
 label = os.environ['INPUT']
 SOURCES = {label: SOURCES[label]}
-ARMS = ['main', 'cand']
 WORK.mkdir(parents=True, exist_ok=True)
-assert len({digest(BINS / f'{arm}-abt') for arm in ARMS}) == len(ARMS), 'arms must have distinct binaries'
 fetch()
-_, _, w, h, _ = SOURCES[label]
-source=np.fromfile(WORK / f'{label}.yuv',dtype=np.uint8).reshape(60,w*h*3//2)
-record={}
+expected=json.loads(Path('ab/expected.json').read_text())[label]
+record={'cpus':len(os.sched_getaffinity(0)), 'identity':{}, 'times':{}}
 for qp in QPS:
-    cell={}
-    for arm in ARMS:
-        _, sd, rd=call(arm,label,qp)
-        assert decodes(arm,label)
-        recon=np.fromfile(WORK / f'{arm}.rec',dtype=np.uint8).reshape(source.shape)
-        psnr=[]
-        for start,end in [(0,w*h),(w*h,w*h*5//4),(w*h*5//4,w*h*3//2)]:
-            diff=source[:,start:end].astype(np.float64)-recon[:,start:end].astype(np.float64)
-            mse=float(np.mean(diff*diff)); psnr.append(10*np.log10(255**2/mse) if mse else 99.)
-        cell[arm]={'stream':sd,'recon':rd,'bytes':(WORK / f'{arm}.h264').stat().st_size,'psnr':psnr,'times':[]}
-    for rep in range(7):
-        for arm in ARMS if rep%2==0 else ARMS[::-1]:
-            seconds,sd,rd=call(arm,label,qp)
-            assert sd==cell[arm]['stream'] and rd==cell[arm]['recon']
-            cell[arm]['times'].append(seconds)
-    record[str(qp)]=cell
-print(label+' RESULT '+json.dumps(record),flush=True)
+    _, stream, recon=call('cand', label, qp, 1)
+    assert [stream,recon] == expected[str(qp)], 'raster-independent serial identity changed'
+    for arm in ['cand','scalar']:
+        for threads in [1,2,3,8]:
+            _, sd, rd=call(arm,label,qp,threads)
+            assert (sd,rd)==(stream,recon), f'{arm} {threads} output differs'
+            assert decodes(arm,label)
+    record['identity'][str(qp)]=[stream,recon]
+arms=[('main',1),('cand',1),('cand',2),('cand',4)]
+for arm,threads in arms:
+    call(arm,label,27,threads)
+    record['times'][f'{arm}{threads}']=[]
+for rep in range(7):
+    for arm,threads in arms[rep%4:]+arms[:rep%4]:
+        seconds,_,_=call(arm,label,27,threads)
+        record['times'][f'{arm}{threads}'].append(seconds)
+print(label+' RESULT '+json.dumps(record), flush=True)
 Path(os.environ['GITHUB_STEP_SUMMARY']).write_text(label+' RESULT '+json.dumps(record))

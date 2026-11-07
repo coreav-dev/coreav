@@ -23,12 +23,19 @@ jobs:
         run: |
           set -euo pipefail
           B="$RUNNER_TEMP/bin"; mkdir -p "$B"
-          for pair in main:79e6c8bc3fc4dd255ec5c7420702cd1b6c5ba5f0 cand:7f6ed3bea240c55848a11270fdece575fe289792; do
+          for pair in main:79e6c8bc3fc4dd255ec5c7420702cd1b6c5ba5f0 cand:9ac751c85d244b49b837cb4a5c8ee7210c3d6699 scalar:9ac751c85d244b49b837cb4a5c8ee7210c3d6699; do
             arm="${pair%%:*}"; sha="${pair#*:}"
             git worktree add --detach "$RUNNER_TEMP/$arm" "$sha"
             cp ab/abt.rs "$RUNNER_TEMP/$arm/crates/coreav-h264-encoder/examples/abt.rs"
+            if [ "$arm" != main ]; then
+              python3 - "$RUNNER_TEMP/$arm/crates/coreav-h264-encoder/examples/abt.rs" <<'PYDRIVER'
+          import pathlib, sys
+          p=pathlib.Path(sys.argv[1]); s=p.read_text().replace('Encoder::new(settings, Limits { frames: n as u64, ..Limits::default() })?', 'Encoder::with_threads(settings, Limits { frames: n as u64, ..Limits::default() }, a[8].parse()?)?'); p.write_text(s)
+          PYDRIVER
+            fi
+            FEATURES=full; [ "$arm" != scalar ] || FEATURES=full,scalar
             printf '\n[[example]]\nname = "abt"\nrequired-features = ["full"]\n' >> "$RUNNER_TEMP/$arm/crates/coreav-h264-encoder/Cargo.toml"
-            (cd "$RUNNER_TEMP/$arm" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-$arm" cargo build --release -p coreav-h264-encoder --features full --example abt)
+            (cd "$RUNNER_TEMP/$arm" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-$arm" cargo build --release -p coreav-h264-encoder --features "$FEATURES" --example abt)
             cp "$RUNNER_TEMP/target-$arm/release/examples/abt" "$B/$arm-abt"
             echo "$arm $sha $(sha256sum "$B/$arm-abt" | cut -c1-16)"
           done
@@ -42,5 +49,5 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/venv"
-          "$RUNNER_TEMP/venv/bin/pip" install --quiet 'boto3==1.35.36' 'numpy==2.2.6'
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet 'boto3==1.35.36'
           "$RUNNER_TEMP/venv/bin/python" -I ab/ab.py "$RUNNER_TEMP/work" "$RUNNER_TEMP/bin"
