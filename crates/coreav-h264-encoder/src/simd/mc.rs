@@ -48,51 +48,29 @@ unsafe fn store<const W: usize>(p: *mut u8, v: __m256i) {
 }
 
 #[target_feature(enable = "avx2")]
-unsafe fn chroma<const W: usize>(dst: BlockMut<'_>, src: Block<'_>, xf: u8, yf: u8) {
-    unsafe {
-        match (xf != 0, yf != 0) {
-            (false, false) => bilinear::<W, false, false>(dst, src, xf, yf),
-            (true, false) => bilinear::<W, true, false>(dst, src, xf, yf),
-            (false, true) => bilinear::<W, false, true>(dst, src, xf, yf),
-            (true, true) => bilinear::<W, true, true>(dst, src, xf, yf),
-        }
-    }
-}
-
-#[target_feature(enable = "avx2")]
-unsafe fn bilinear<const W: usize, const X: bool, const Y: bool>(
-    mut dst: BlockMut<'_>,
-    src: Block<'_>,
-    xf: u8,
-    yf: u8,
-) {
+unsafe fn chroma<const W: usize>(mut dst: BlockMut<'_>, src: Block<'_>, xf: u8, yf: u8) {
     let (stride, out_stride, h) = (src.stride(), dst.stride(), dst.h());
     let (from, to) = (src.samples().as_ptr(), dst.samples_mut().as_mut_ptr());
     let (x, y) = (i16::from(xf), i16::from(yf));
-    let a = _mm256_set1_epi16((if X { 8 - x } else { 1 }) * (if Y { 8 - y } else { 1 }));
-    let b = _mm256_set1_epi16(x * (if Y { 8 - y } else { 1 }));
-    let c = _mm256_set1_epi16((if X { 8 - x } else { 1 }) * y);
+    let a = _mm256_set1_epi16((8 - x) * (8 - y));
+    let b = _mm256_set1_epi16(x * (8 - y));
+    let c = _mm256_set1_epi16((8 - x) * y);
     let d = _mm256_set1_epi16(x * y);
     unsafe {
         for row in 0..h {
             let p = from.add(row * stride);
-            let mut v = if X || Y {
-                _mm256_mullo_epi16(load::<W>(p), a)
-            } else {
-                load::<W>(p)
-            };
-            if X {
-                v = _mm256_add_epi16(v, _mm256_mullo_epi16(load::<W>(p.add(1)), b));
-            }
-            if Y {
-                v = _mm256_add_epi16(v, _mm256_mullo_epi16(load::<W>(p.add(stride)), c));
-            }
-            if X && Y {
-                v = _mm256_add_epi16(v, _mm256_mullo_epi16(load::<W>(p.add(stride + 1)), d));
-                v = _mm256_srli_epi16::<6>(_mm256_add_epi16(v, _mm256_set1_epi16(32)));
-            } else if X || Y {
-                v = _mm256_srli_epi16::<3>(_mm256_add_epi16(v, _mm256_set1_epi16(4)));
-            }
+            let upper = _mm256_add_epi16(
+                _mm256_mullo_epi16(load::<W>(p), a),
+                _mm256_mullo_epi16(load::<W>(p.add(1)), b),
+            );
+            let lower = _mm256_add_epi16(
+                _mm256_mullo_epi16(load::<W>(p.add(stride)), c),
+                _mm256_mullo_epi16(load::<W>(p.add(stride + 1)), d),
+            );
+            let v = _mm256_srli_epi16::<6>(_mm256_add_epi16(
+                _mm256_add_epi16(upper, lower),
+                _mm256_set1_epi16(32),
+            ));
             store::<W>(to.add(row * out_stride), v);
         }
     }
