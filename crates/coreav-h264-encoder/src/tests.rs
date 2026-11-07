@@ -834,6 +834,7 @@ fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
                         Encoder::with_threads(settings, Limits::default(), threads).unwrap()
                     })
                     .collect();
+                let mut control = Encoder::with_threads(settings, Limits::default(), 1).unwrap();
                 assert!(Encoder::with_threads(settings, Limits::default(), 0).is_err());
                 for frame in 0..5 {
                     let mut seed = 0x81f259a3u32 + frame;
@@ -856,6 +857,9 @@ fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
                         .iter_mut()
                         .map(|encoder| encoder.encode(picture).unwrap())
                         .collect();
+                    let expected = control.encode(picture).unwrap();
+                    assert_eq!(outputs[0].nals, expected.nals);
+                    assert_eq!(outputs[0].reconstruction, expected.reconstruction);
                     for other in &outputs[1..] {
                         assert_eq!(outputs[0].nals, other.nals);
                         assert_eq!(outputs[0].reconstruction, other.reconstruction);
@@ -867,6 +871,11 @@ fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
                         assert!(matches!(encoder.encode(picture), Err(Error::Limit)));
                         assert_eq!(encoder.previous_mv_count, previous);
                         encoder.limits.access_unit_bytes = old;
+                        let old = encoder.limits.total_bytes;
+                        encoder.limits.total_bytes = 0;
+                        assert!(matches!(encoder.encode(picture), Err(Error::Limit)));
+                        assert_eq!(encoder.previous_mv_count, previous);
+                        encoder.limits.total_bytes = old;
                     }
                 }
             }
