@@ -163964,7 +163964,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:301 (process, occurrence 0). The executable is .github/actions/ci-fixtures/comparator-curl.sh, a bash script that parses -o/--output, compares its last argument with COREAV_COMPARATOR_URL and either copies COREAV_COMPARATOR_ARCHIVE to the target or exits 2. It is run with the generator's curl arguments or deliberately wrong ones; it starts no other program.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:301 (process, occurrence 0). The executable is .github/actions/ci-fixtures/comparator-curl.sh, a bash script that parses -o/--output, compares its last argument with COREAV_COMPARATOR_URL and either copies COREAV_COMPARATOR_ARCHIVE to the target or exits 2. It is run with the generator's curl arguments or deliberately wrong ones; its only child command is cp, which copies the prepared archive and invokes neither FFmpeg nor ffprobe.",
      "site": [
       301,
       "process",
@@ -163997,7 +163997,7 @@
     },
     {
      "class": "reviewed-exclusion",
-     "evidence": "scripts/tests/test_ci_fixtures.py:316 (process, occurrence 0). The executable is .github/actions/ci-fixtures/comparator-curl.sh, a bash script that parses -o/--output, compares its last argument with COREAV_COMPARATOR_URL and either copies COREAV_COMPARATOR_ARCHIVE to the target or exits 2. It is run with the generator's curl arguments or deliberately wrong ones; it starts no other program.",
+     "evidence": "scripts/tests/test_ci_fixtures.py:316 (process, occurrence 0). The executable is .github/actions/ci-fixtures/comparator-curl.sh, a bash script that parses -o/--output, compares its last argument with COREAV_COMPARATOR_URL and either copies COREAV_COMPARATOR_ARCHIVE to the target or exits 2. It is run with the generator's curl arguments or deliberately wrong ones; its only child command is cp, which copies the prepared archive and invokes neither FFmpeg nor ffprobe.",
      "site": [
       316,
       "process",
