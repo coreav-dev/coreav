@@ -25,5 +25,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "satd"
+path = "fuzz_targets/satd.rs"
+test = false
+doc = false
+bench = false
+
 [lints.rust]
 unsafe_code = "deny"
