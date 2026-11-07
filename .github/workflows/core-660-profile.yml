@@ -6,7 +6,7 @@ permissions:
   contents: read
 env:
   BASE: aff17330db351f39ca6f3c742951aa8e400fbbad
-  HARNESS_SHA256: 13586cd4388b2cce1a52b3da70ccf95d5904d5ed92fd9ce3bdb7b38150b9ace6
+  HARNESS_SHA256: b2533a5ddbb1bd88eeeb6ddf624954450849ab1dd5ec5b44305a84eeadf533be
 jobs:
   profile:
     runs-on: ubuntu-24.04
@@ -21,7 +21,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y valgrind linux-tools-generic
           sudo sysctl kernel.perf_event_paranoid=-1 || true
-          echo "PERF=$(find /usr/lib/linux-tools -name perf -type f | sort | tail -1)" >> "$GITHUB_ENV"
+          echo "PERF=$(find -L /usr/lib/linux-tools -name perf -type f | sort | tail -1)" >> "$GITHUB_ENV"
+          cargo install rustfilt --locked
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           python3 -m pip install --quiet boto3
       - name: Fetch private diagnostic harness
@@ -48,7 +49,7 @@ jobs:
             git worktree add --detach "$RUNNER_TEMP/$arm" "$BASE"
             cp ab/encode.rs "$RUNNER_TEMP/$arm/crates/coreav-h264-encoder/examples/encode.rs"
             if [ "$arm" = attribute ]; then python3 ab/instrument.py "$RUNNER_TEMP/$arm"; fi
-            RUSTFLAGS="-C force-frame-pointers=yes -C symbol-mangling-version=legacy -C debuginfo=1" CARGO_TARGET_DIR="$RUNNER_TEMP/target-$arm" cargo build --locked --release --manifest-path "$RUNNER_TEMP/$arm/Cargo.toml" -p coreav-h264-encoder --features full --example encode
+            RUSTFLAGS="-C force-frame-pointers=yes -C debuginfo=1" CARGO_TARGET_DIR="$RUNNER_TEMP/target-$arm" cargo build --locked --release --manifest-path "$RUNNER_TEMP/$arm/Cargo.toml" -p coreav-h264-encoder --features full --example encode
             cp "$RUNNER_TEMP/target-$arm/release/examples/encode" "$RUNNER_TEMP/bin/$arm-encode"
           done
       - name: Collect counts samples and scheduler traces
