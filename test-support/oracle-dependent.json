@@ -37,6 +37,9 @@
     "stated_sizes_are_the_decoded_sizes",
     "vp8_key_frames_state_the_decoded_size"
   ],
+  "crates/coreav-cli/tests/aac_worker.rs": [
+    "aac_worker_starts_and_output_pass_the_frozen_checks"
+  ],
   "crates/coreav-cli/tests/decode_audio.rs": [
     "decodes_an_mp4_aac_track_as_ffmpeg_does"
   ],

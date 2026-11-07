@@ -829,6 +829,14 @@ without it the encoder's own default applies, which the summary gives as
 
 **Pipeline.** As for Opus, the audio is encoded before the video:
 
+AAC availability is checked before source decoding with an empty 48 kHz
+mono raw-PCM encode through the same argument owner and sandbox as the
+real encode. Both starts are encoder-only invocations, never encoder-help
+queries. The probe retains at most 64 KiB and requires a successful exit
+with an EBML header. A normal nonzero exit naming the missing AAC encoder
+is unsupported; malformed output, resource failures and signals remain
+terminal errors. The real encode retains its complete Matroska readback.
+
 1. `coreav-audio`'s `decode` reads the stream as it does for Opus (the
    first audio stream this build decodes, with container trimming applied) to
    32-bit float at the stream's own rate: nothing is resampled. More than
