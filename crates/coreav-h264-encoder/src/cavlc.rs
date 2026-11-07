@@ -3,6 +3,59 @@
 use crate::vlc::{CHROMA_ZEROS, RUNS, TOKENS, ZEROS};
 use crate::{Error, Result, bits::Bits};
 
+fn column(nc: i32) -> Result<usize> {
+    match nc {
+        -1 => Ok(4),
+        0..=1 => Ok(0),
+        2..=3 => Ok(1),
+        4..=7 => Ok(2),
+        8.. => Ok(3),
+        _ => Err(Error::Internal),
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Cost {
+    fixed: usize,
+    token: u8,
+    pub(crate) total: u8,
+}
+
+impl Cost {
+    pub(crate) fn new(coefficients: &[i32], nc: i32) -> Result<Self> {
+        let mut counter = Bits::count();
+        let total = residual(&mut counter, coefficients, nc)?;
+        let trailing = coefficients
+            .iter()
+            .rev()
+            .filter(|&&level| level != 0)
+            .take(3)
+            .take_while(|level| level.unsigned_abs() == 1)
+            .count();
+        let tokens = TOKENS
+            .get(usize::from(total) * 4 + trailing)
+            .ok_or(Error::Internal)?;
+        let fixed = counter.len - (*tokens.get(column(nc)?).ok_or(Error::Internal)? & 31) as usize;
+        Ok(Self {
+            fixed,
+            token: (usize::from(total) * 4 + trailing) as u8,
+            total,
+        })
+    }
+
+    pub(crate) fn bits(self, nc: i32) -> Result<usize> {
+        let width = TOKENS
+            .get(usize::from(self.token))
+            .and_then(|tokens| tokens.get(column(nc).ok()?))
+            .ok_or(Error::Internal)?
+            & 31;
+        if width == 0 {
+            return Err(Error::Syntax);
+        }
+        Ok(self.fixed + width as usize)
+    }
+}
+
 pub(crate) fn residual(w: &mut Bits, coefficients: &[i32], nc: i32) -> Result<u8> {
     if !matches!(coefficients.len(), 4 | 15 | 16) {
         return Err(Error::Internal);
@@ -25,14 +78,7 @@ pub(crate) fn residual(w: &mut Bits, coefficients: &[i32], nc: i32) -> Result<u8
         }
         trailing += 1;
     }
-    let column = match nc {
-        -1 => 4,
-        0..=1 => 0,
-        2..=3 => 1,
-        4..=7 => 2,
-        8.. => 3,
-        _ => return Err(Error::Internal),
-    };
+    let column = column(nc)?;
     let token = TOKENS
         .get(total * 4 + trailing)
         .and_then(|row| row.get(column))
@@ -108,4 +154,38 @@ pub(crate) fn residual(w: &mut Bits, coefficients: &[i32], nc: i32) -> Result<u8
         }
     }
     Ok(total as u8)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod cost_tests {
+    use super::*;
+
+    #[test]
+    fn cached_cost_matches_the_writer_for_every_context_and_residual_shape() {
+        let mut state = 1u32;
+        for size in [4, 15, 16] {
+            for _ in 0..1024 {
+                let mut values = [0; 16];
+                for value in values.iter_mut().take(size) {
+                    state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+                    *value = match state % 5 {
+                        0 => (state % 63) as i32 - 31,
+                        1 => 1,
+                        2 => -1,
+                        _ => 0,
+                    };
+                }
+                let values = &values[..size];
+                let first = if size == 4 { -1 } else { 0 };
+                let cached = Cost::new(values, first).unwrap();
+                for nc in first..=16 {
+                    let mut writer = Bits::count();
+                    assert_eq!(residual(&mut writer, values, nc).unwrap(), cached.total);
+                    assert_eq!(writer.len, cached.bits(nc).unwrap());
+                }
+            }
+        }
+        assert!(Cost::new(&[i32::MAX; 16], 0).is_err());
+    }
 }
