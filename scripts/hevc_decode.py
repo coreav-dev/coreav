@@ -230,7 +230,8 @@ def streams(args, census):
 def command(args, source, *, memory=None, stream_bins=None, picture_bins=None):
     return [args.native, source, str(args.max_memory_bytes if memory is None else memory),
             str(args.max_stream_bins if stream_bins is None else stream_bins),
-            str(args.max_picture_bins if picture_bins is None else picture_bins)]
+            str(args.max_picture_bins if picture_bins is None else picture_bins),
+            *([str(args.threads)] if getattr(args, 'threads', None) is not None else [])]
 
 
 def controls(args, stream, directory, expected):
@@ -685,6 +686,7 @@ def main():
     parser.add_argument('--max-memory-bytes', type=int, default=1 << 30)
     parser.add_argument('--max-stream-bins', type=int, default=1 << 40)
     parser.add_argument('--max-picture-bins', type=int, default=1 << 28)
+    parser.add_argument('--threads', type=int, choices=range(1, 17))
     parser.add_argument('--select-test', action='append', default=[])
     args = parser.parse_args()
     try:

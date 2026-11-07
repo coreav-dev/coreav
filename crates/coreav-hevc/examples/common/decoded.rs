@@ -215,6 +215,7 @@ impl<'a, W: Write> Output<'a, W> {
                 "independent_slices":headers.independent_slices,"dependent_slices":headers.dependent_slices,
                 "picture_hashes":headers.picture_hashes,"reserved_hashes":headers.reserved_hashes},
             "decoded_pictures":summary.decoded_pictures,"skipped_pictures":summary.skipped_pictures,
+            "parallel_pictures":summary.parallel_pictures,"max_workers":summary.max_workers,
             "skipped_picture_hashes":summary.skipped_picture_hashes,"skipped_reserved_hashes":summary.skipped_reserved_hashes,
             "stats":common::reconstruction_stats(summary.reconstruction),"inter":inter_stats(summary.inter),
             "memory_bytes":summary.memory_bytes,"input_bytes":input.bytes,"input_capacity":input.capacity,

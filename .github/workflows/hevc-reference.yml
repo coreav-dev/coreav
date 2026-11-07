@@ -9,6 +9,11 @@ on:
         description: Exact decoder commit
         required: true
         type: string
+      baseline:
+        description: Optional full main SHA for the threading comparison
+        required: false
+        default: ''
+        type: string
       only:
         description: Optional comma-separated input IDs
         required: false
@@ -25,6 +30,7 @@ permissions:
 
 jobs:
   reference:
+    if: inputs.baseline == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
@@ -95,3 +101,11 @@ jobs:
             ${{ runner.temp }}/compiler.txt
           if-no-files-found: error
           retention-days: 30
+
+  threading:
+    if: inputs.baseline != ''
+    uses: ./.github/workflows/hevc-threading.yml
+    with:
+      candidate: ${{ inputs.candidate }}
+      baseline: ${{ inputs.baseline }}
+    secrets: inherit

@@ -16,6 +16,8 @@ fn run(writer: &mut impl Write) -> Result<()> {
     let mode = args
         .next()
         .ok_or(Error::InvalidData("reference_arguments"))?;
+    let threads = args.next().map(|value| value.into_string().ok().and_then(|value| value.parse::<usize>().ok()))
+        .unwrap_or(Some(1)).filter(|value| (1..=16).contains(value)).ok_or(Error::InvalidData("reference_arguments"))?;
     if args.next().is_some() || (mode != "check" && mode != "decode") {
         return Err(Error::InvalidData("reference_arguments"));
     }
@@ -33,6 +35,10 @@ fn run(writer: &mut impl Write) -> Result<()> {
         ..DecodeLimits::default()
     };
     let mut decoder = PictureDecoder::new(limits);
+    #[cfg(not(hevc_serial_baseline))]
+    { decoder = decoder.with_threads(threads); }
+    #[cfg(hevc_serial_baseline)]
+    { std::hint::black_box(threads); }
     let mut output = decoded::Output::new(writer);
     let mut pictures = 0u64;
     let mut callback = |picture: coreav_hevc::DecodedPicture<'_>| {
@@ -51,10 +57,16 @@ fn run(writer: &mut impl Write) -> Result<()> {
     if mode == "check" {
         output.finish(summary, receipt, limits)
     } else {
+        let mut record = json!({"pictures":pictures,
+            "decoded_pictures":summary.decoded_pictures,"bins":summary.reconstruction.bins});
+        #[cfg(not(hevc_serial_baseline))]
+        {
+            record["parallel_pictures"] = json!(summary.parallel_pictures);
+            record["max_workers"] = json!(summary.max_workers);
+        }
         serde_json::to_writer(
             &mut *writer,
-            &json!({"pictures":pictures,
-            "decoded_pictures":summary.decoded_pictures,"bins":summary.reconstruction.bins}),
+            &record,
         )
         .map_err(|_| Error::Limit("reference_output"))?;
         writer
