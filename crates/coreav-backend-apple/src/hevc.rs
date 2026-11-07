@@ -9,6 +9,8 @@ use coreav_hevc::{HeaderParser, LengthPrefixed, NalHeader, NalInfo};
 /// A refusal of the checked HEVC output contract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
+    /// An internal decoder or validator failure, not invalid output metadata.
+    Internal,
     /// Truncated or invalid syntax or framing.
     Malformed,
     /// A profile, coding tool, or NAL type outside the output contract.
@@ -32,6 +34,7 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
+            Self::Internal => "internal HEVC failure",
             Self::Malformed => "malformed HEVC output metadata",
             Self::Unsupported => "unsupported HEVC output metadata",
             Self::FormatMismatch => "HEVC output format changed",
@@ -50,6 +53,7 @@ impl std::error::Error for Error {}
 impl From<coreav_hevc::Error> for Error {
     fn from(error: coreav_hevc::Error) -> Self {
         match error {
+            coreav_hevc::Error::Internal(_) => Self::Internal,
             coreav_hevc::Error::InvalidData(_) => Self::Malformed,
             coreav_hevc::Error::Unsupported(_) => Self::Unsupported,
             coreav_hevc::Error::Limit(_) => Self::Limit,
