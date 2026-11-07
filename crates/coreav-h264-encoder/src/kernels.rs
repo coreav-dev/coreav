@@ -2,6 +2,29 @@
 
 use crate::{Error, Result};
 use coreav_kernels_h264::Auto;
+use coreav_kernels_h264::{Block, BlockMut, Kernels};
+
+#[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+pub(crate) fn arithmetic() -> Option<crate::simd::Avx2> {
+    static SIMD: std::sync::OnceLock<Option<crate::simd::Avx2>> = std::sync::OnceLock::new();
+    *SIMD.get_or_init(crate::simd::Avx2::detect)
+}
+
+pub(crate) fn luma_mc(dst: BlockMut<'_>, src: Block<'_>, xf: u8, yf: u8) {
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    if let Some(simd) = arithmetic() {
+        return simd.luma_mc(dst, src, xf, yf);
+    }
+    pixels().luma_mc(dst, src, xf, yf);
+}
+
+pub(crate) fn chroma_mc(dst: BlockMut<'_>, src: Block<'_>, xf: u8, yf: u8) {
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    if let Some(simd) = arithmetic() {
+        return simd.chroma_mc(dst, src, xf, yf);
+    }
+    pixels().chroma_mc(dst, src, xf, yf);
+}
 
 pub(crate) fn pixels() -> Auto {
     #[cfg(feature = "scalar")]
@@ -21,8 +44,7 @@ pub(crate) fn sad(a: &[u8], b: &[u8]) -> Result<u64> {
     }
     #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
     {
-        static SAD: std::sync::OnceLock<Option<crate::simd::Avx2>> = std::sync::OnceLock::new();
-        if let Some(simd) = SAD.get_or_init(crate::simd::Avx2::detect) {
+        if let Some(simd) = arithmetic() {
             return Ok(simd.sad(a, b));
         }
     }
@@ -84,5 +106,71 @@ mod tests {
         assert!(!pixels().uses_simd());
         #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
         assert_eq!(pixels().uses_simd(), std::is_x86_feature_detected!("avx2"));
+    }
+
+    #[test]
+    fn interpolation_matches_scalar_at_every_phase_shape_and_borrowed_boundary() {
+        use coreav_kernels_h264::Scalar;
+        let mut seed = 0x285d5ba9c13fu64;
+        for chroma in [false, true] {
+            let (phases, extra) = if chroma { (8, 1) } else { (4, 5) };
+            for w in [2, 4, 8, 16] {
+                for h in [1, 2, 4, 8, 16] {
+                    for offset in [0, 1, 15, 31] {
+                        for pattern in 0..6 {
+                            let stride = w + extra + offset % 3;
+                            let mut data = vec![0; offset + (h + extra - 1) * stride + w + extra];
+                            for (i, v) in data.iter_mut().enumerate() {
+                                seed ^= seed << 13;
+                                seed ^= seed >> 7;
+                                seed ^= seed << 17;
+                                *v = match pattern {
+                                    0 => 0,
+                                    1 => 255,
+                                    2 => {
+                                        if i % 2 == 0 {
+                                            0
+                                        } else {
+                                            255
+                                        }
+                                    }
+                                    3 => {
+                                        if i % stride < stride / 2 {
+                                            0
+                                        } else {
+                                            255
+                                        }
+                                    }
+                                    _ => seed as u8,
+                                };
+                            }
+                            let src =
+                                Block::new(&data, offset, stride, w + extra, h + extra).unwrap();
+                            for yf in 0..phases {
+                                for xf in 0..phases {
+                                    let mut actual = vec![93; offset + (h - 1) * (w + 3) + w];
+                                    let mut expected = actual.clone();
+                                    let dst =
+                                        BlockMut::new(&mut actual, offset, w + 3, w, h).unwrap();
+                                    let scalar =
+                                        BlockMut::new(&mut expected, offset, w + 3, w, h).unwrap();
+                                    if chroma {
+                                        chroma_mc(dst, src, xf, yf);
+                                        Scalar.chroma_mc(scalar, src, xf, yf);
+                                    } else {
+                                        luma_mc(dst, src, xf, yf);
+                                        Scalar.luma_mc(scalar, src, xf, yf);
+                                    }
+                                    assert_eq!(
+                                        actual, expected,
+                                        "chroma={chroma} {w}x{h} phase={xf},{yf} pattern={pattern}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

@@ -2,6 +2,8 @@
 
 use std::arch::x86_64::*;
 
+mod mc;
+
 #[derive(Clone, Copy)]
 pub(crate) struct Avx2(());
 

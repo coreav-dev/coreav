@@ -1,5 +1,9 @@
 # `unsafe` sites
 
+| File | Operations and safety preconditions |
+|---|---|
+| `crates/coreav-h264-encoder/src/simd/mc.rs` | Encoder-only AVX2 on-demand interpolation under policy 0044. The private `Avx2` capability proves runtime CPU and OS support. Safe entries admit only luma widths 4, 8 and 16, heights 1 to 16, and source views exactly five samples larger in each dimension; chroma widths 2, 4 and 8, heights 1 to 8, and source views exactly one larger. Other shapes use the safe scalar twin. `Block` and `BlockMut` constructors establish complete borrowed extents and nonoverlapping mutable ownership before pointers are formed. `load` reads exactly W unaligned bytes and `store` writes exactly W bytes, including the last row; horizontal taps reach columns 0 through W+4, vertical taps reach rows 0 through h+4 and columns 2 through W+2, and chroma reaches one adjacent row and column. Every pointer addition stays inside these checked views, with no padding read or escaping pointer. Target-feature helpers use 16-bit one-dimensional filter values in -2550..10710 and 32-bit diagonal multiply-adds before rounding and clipping; bilinear weights sum to 64, keeping the rounded result within 16 bits. Differential phase/shape/boundary tests and the `interpolation` fuzz target compare complete destination buffers to `Scalar`. |
+
 The HEVC interpolation family is confined by [its SIMD policy](design/hevc-simd.md).
 
 | File | Operations and safety preconditions |

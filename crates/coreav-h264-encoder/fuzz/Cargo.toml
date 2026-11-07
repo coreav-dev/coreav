@@ -19,6 +19,13 @@ coreav-h264-encoder = { path = "..", features = ["full"] }
 coreav-kernels-h264 = { path = "../../coreav-kernels-h264" }
 
 [[bin]]
+name = "interpolation"
+path = "fuzz_targets/interpolation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "sad"
 path = "fuzz_targets/sad.rs"
 test = false
