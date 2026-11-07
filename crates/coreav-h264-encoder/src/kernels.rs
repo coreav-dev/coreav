@@ -10,14 +10,6 @@ pub(crate) fn arithmetic() -> Option<crate::simd::Avx2> {
     *SIMD.get_or_init(crate::simd::Avx2::detect)
 }
 
-pub(crate) fn luma_mc(dst: BlockMut<'_>, src: Block<'_>, xf: u8, yf: u8) {
-    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
-    if let Some(simd) = arithmetic() {
-        return simd.luma_mc(dst, src, xf, yf);
-    }
-    pixels().luma_mc(dst, src, xf, yf);
-}
-
 pub(crate) fn chroma_mc(dst: BlockMut<'_>, src: Block<'_>, xf: u8, yf: u8) {
     #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
     if let Some(simd) = arithmetic() {
@@ -158,7 +150,7 @@ mod tests {
                                         chroma_mc(dst, src, xf, yf);
                                         Scalar.chroma_mc(scalar, src, xf, yf);
                                     } else {
-                                        luma_mc(dst, src, xf, yf);
+                                        pixels().luma_mc(dst, src, xf, yf);
                                         Scalar.luma_mc(scalar, src, xf, yf);
                                     }
                                     assert_eq!(

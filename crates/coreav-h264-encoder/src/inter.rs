@@ -118,7 +118,7 @@ fn predict(
     if chroma {
         crate::kernels::chroma_mc(dst, src, xf, yf);
     } else {
-        crate::kernels::luma_mc(dst, src, xf, yf);
+        crate::kernels::pixels().luma_mc(dst, src, xf, yf);
     }
     Ok(())
 }

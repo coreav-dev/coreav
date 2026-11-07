@@ -33,7 +33,7 @@ fuzz_target!(|data: &[u8]| {
         kernels::chroma_mc(dst, src, byte(6), byte(7));
         Scalar.chroma_mc(scalar, src, byte(6), byte(7));
     } else {
-        kernels::luma_mc(dst, src, byte(6), byte(7));
+        kernels::pixels().luma_mc(dst, src, byte(6), byte(7));
         Scalar.luma_mc(scalar, src, byte(6), byte(7));
     }
     assert_eq!(actual, expected);
