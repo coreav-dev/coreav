@@ -198,16 +198,18 @@ impl Quant {
 
     pub(crate) fn nearest_levels(&self, coefficients: &Forward, separate_dc: bool) -> [i32; 16] {
         let mut levels = [0; 16];
-        for (p, ((level, &coefficient), &scale)) in levels
+        for (p, (((level, &coefficient), &scale), &reciprocal)) in levels
             .iter_mut()
             .zip(&coefficients.0)
             .zip(&self.scale)
+            .zip(&self.reciprocal)
             .enumerate()
             .skip(usize::from(separate_dc))
         {
             let weight = (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
             let divisor = (weight * scale) as u64;
-            let magnitude = (64 * u64::from(coefficient.unsigned_abs()) + divisor / 2) / divisor;
+            let magnitude =
+                ((128 * u64::from(coefficient.unsigned_abs()) + divisor) * reciprocal) >> SHIFT;
             *level = magnitude as i32 * coefficient.signum();
         }
         levels
