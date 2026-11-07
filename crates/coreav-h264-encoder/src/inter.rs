@@ -1325,6 +1325,213 @@ mod tests {
     }
 
     #[test]
+    fn quiet_routes_match_fixed_division_and_coded_zero_levels() {
+        let zero = |numerator: i64, divisor: i64, offset: i64| {
+            12 * numerator.abs() + divisor * offset < 12 * divisor
+        };
+        let ac_zero = |block: &t::Forward, qp, offset, separate_dc| {
+            block
+                .coefficients()
+                .iter()
+                .enumerate()
+                .skip(usize::from(separate_dc))
+                .all(|(p, &value)| {
+                    let weight =
+                        (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
+                    zero(
+                        64 * i64::from(value),
+                        weight * t::norm(qp, p).unwrap() * (1i64 << (qp / 6)),
+                        offset,
+                    )
+                })
+        };
+        let mut reference = [
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+        ];
+        for plane in &mut reference {
+            plane.data.fill(128);
+        }
+        let base = Tile::empty();
+        let cbases = [base.clone(), base.clone()];
+        let available = IntraAvail {
+            top: false,
+            left: false,
+            top_left: false,
+            top_right: false,
+        };
+        let h = [[1, 1, 1, 1], [1, 1, -1, -1], [1, -1, -1, 1], [1, -1, 1, -1]];
+        for qp in 0..=51 {
+            for plane in 0..3 {
+                for pattern in 0..6 {
+                    for amplitude in 0..=32i32 {
+                        let mut source = base.clone();
+                        let mut csources = cbases.clone();
+                        let n = if plane == 0 { 16 } else { 8 };
+                        let changed = if plane == 0 {
+                            &mut source
+                        } else {
+                            &mut csources[plane - 1]
+                        };
+                        for y in 0..n {
+                            for x in 0..n {
+                                let delta = match pattern {
+                                    0 => amplitude,
+                                    1 => {
+                                        if (x / 4 + y / 4) % 2 == 0 {
+                                            amplitude
+                                        } else {
+                                            -amplitude
+                                        }
+                                    }
+                                    2 => {
+                                        if x % 4 < 2 {
+                                            amplitude
+                                        } else {
+                                            -amplitude
+                                        }
+                                    }
+                                    3 => {
+                                        if (x + y) % 2 == 0 {
+                                            amplitude
+                                        } else {
+                                            -amplitude
+                                        }
+                                    }
+                                    4 => {
+                                        if x % 4 == 0 && y % 4 == 0 {
+                                            amplitude
+                                        } else {
+                                            0
+                                        }
+                                    }
+                                    _ => {
+                                        if x < 4 && y < 4 {
+                                            amplitude
+                                        } else {
+                                            0
+                                        }
+                                    }
+                                };
+                                changed.0[Tile::at(x, y)] = (128 + delta) as u8;
+                            }
+                        }
+                        let mut inter_y = true;
+                        let mut intra_four = true;
+                        let mut intra_ac = true;
+                        let mut sums = [0i64; 16];
+                        for k in 0..16 {
+                            let (x, y) = xy(k);
+                            let block = base.forward(&source, x, y).unwrap();
+                            sums[y / 4 * 4 + x / 4] = i64::from(block.dc());
+                            inter_y &= ac_zero(&block, qp, 2, false);
+                            intra_four &= ac_zero(&block, qp, 5, false);
+                            intra_ac &= ac_zero(&block, qp, 5, true);
+                        }
+                        let step = t::norm(qp, 0).unwrap() << (qp / 6);
+                        let mut intra_dc = true;
+                        for row in &h {
+                            for column in &h {
+                                let mut dc = 0;
+                                for y in 0..4 {
+                                    for x in 0..4 {
+                                        dc += row[y] * sums[y * 4 + x] * column[x];
+                                    }
+                                }
+                                intra_dc &= zero(dc, step, 5);
+                            }
+                        }
+                        let cqp = t::chroma_qp(qp);
+                        let step = t::norm(cqp, 0).unwrap() << (cqp / 6);
+                        let mut chroma_quiet = true;
+                        for csource in &csources {
+                            let mut sums = [0; 4];
+                            for (k, sum) in sums.iter_mut().enumerate() {
+                                let block = base.forward(csource, k % 2 * 4, k / 2 * 4).unwrap();
+                                *sum = i64::from(block.dc());
+                                chroma_quiet &= ac_zero(&block, cqp, 5, true);
+                            }
+                            let [a, b, c, d] = sums;
+                            chroma_quiet &=
+                                [a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
+                                    .iter()
+                                    .all(|&dc| zero(2 * dc, step, 5));
+                        }
+                        let decision = Decision {
+                            source: &source,
+                            csources: &csources,
+                            context: MbContext {
+                                top: None,
+                                left: None,
+                                p_slice: true,
+                            },
+                            qp,
+                            pending_skip: 7,
+                        };
+                        let search = Search {
+                            reference: &reference,
+                            decision: &decision,
+                            border: Border::default(),
+                            mx: 0,
+                            my: 0,
+                            previous: 0,
+                        };
+                        let mut skip = Inter::new(Layout::Whole).unwrap();
+                        skip.skip = true;
+                        let skip = search.evaluate(skip).unwrap();
+                        let quiet = search.quiet(&skip).unwrap();
+                        assert_eq!(
+                            quiet,
+                            inter_y && chroma_quiet,
+                            "QP {qp}, plane {plane}, pattern {pattern}, amplitude {amplitude}"
+                        );
+                        if quiet {
+                            let coded =
+                                search.evaluate(Inter::new(Layout::Whole).unwrap()).unwrap();
+                            assert!(coded.luma.levels.iter().flatten().all(|&v| v == 0));
+                            assert!(
+                                coded
+                                    .chroma
+                                    .levels
+                                    .iter()
+                                    .flatten()
+                                    .flatten()
+                                    .all(|&v| v == 0)
+                            );
+                            assert!(coded.chroma.dc.iter().flatten().all(|&v| v == 0));
+                        }
+                        if intra_four {
+                            let coded = intra4(
+                                &base,
+                                &source,
+                                available,
+                                qp,
+                                None,
+                                None,
+                                Trials::Shortlist,
+                            )
+                            .unwrap()
+                            .1;
+                            assert!(coded.levels.iter().flatten().all(|&v| v == 0));
+                        }
+                        if intra_ac && intra_dc {
+                            let coded = intra16(&base, &source, available, 2, qp).unwrap();
+                            assert!(coded.levels.iter().flatten().all(|&v| v == 0));
+                            assert!(coded.dc.iter().all(|&v| v == 0));
+                        }
+                        if chroma_quiet {
+                            let coded = chroma(&cbases, &csources, available, 0, cqp).unwrap();
+                            assert!(coded.levels.iter().flatten().flatten().all(|&v| v == 0));
+                            assert!(coded.dc.iter().flatten().all(|&v| v == 0));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn quiet_skip_avoids_search_only_when_every_component_quantizes_to_zero() {
         let reference = [
             FramePlane::new(16, 16).unwrap(),

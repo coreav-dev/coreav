@@ -83,17 +83,18 @@ impl Prediction {
         Ok(prediction)
     }
 
-    fn quant(&self, qp: u8) -> Result<&'static t::Quant> {
-        if self.mode == LumaPrediction::Inter {
-            t::Quant::of(qp)
-        } else {
-            t::Quant::intra(qp)
+    fn quant(&self, qp: u8, chroma: bool) -> Result<&'static t::Quant> {
+        match (self.mode == LumaPrediction::Inter, chroma) {
+            (true, false) => t::Quant::of(qp),
+            (false, false) => t::Quant::intra(qp),
+            (true, true) => t::Quant::chroma_inter(qp),
+            (false, true) => t::Quant::chroma_intra(qp),
         }
     }
 
     fn luma(&self, candidate: &Candidate, qp: u8, blocks: usize) -> Result<Tile> {
         let mut tile = self.luma.clone();
-        let quant = self.quant(qp)?;
+        let quant = self.quant(qp, false)?;
         let dc = if self.mode == LumaPrediction::Sixteen {
             Some(t::luma_dc_scaled(candidate.luma.dc, qp)?)
         } else {
@@ -131,7 +132,7 @@ impl Prediction {
     fn chroma(&self, candidate: &Candidate, qp: u8, c: usize) -> Result<Tile> {
         let mut tile = self.chroma.get(c).ok_or(Error::Internal)?.clone();
         let dc = t::chroma_dc_scaled(*candidate.chroma.dc.get(c).ok_or(Error::Internal)?, qp)?;
-        let quant = self.quant(qp)?;
+        let quant = self.quant(qp, true)?;
         for (k, (levels, dc)) in candidate
             .chroma
             .levels
@@ -155,7 +156,7 @@ impl Prediction {
         };
         if plane == 0 && self.mode == LumaPrediction::Four {
             let mut tile = candidate.luma.tile.clone();
-            let quant = self.quant(qp)?;
+            let quant = self.quant(qp, false)?;
             for block in k..16 {
                 let (x, y) = xy(block);
                 let available = availability(block, self.available);
@@ -247,7 +248,7 @@ impl Prediction {
                 .ok_or(Error::Internal)?
                 .copy_from_slice(predicted.0.get(at..at + 4).ok_or(Error::Internal)?);
         }
-        tile.reconstruct(x, y, levels, self.quant(qp)?, dc)?;
+        tile.reconstruct(x, y, levels, self.quant(qp, plane != 0)?, dc)?;
         Ok(tile)
     }
 }
@@ -690,7 +691,7 @@ impl Decision<'_> {
             }
         }
         if AC_COORDINATES != 0 {
-            let quant = prediction.quant(self.qp)?;
+            let quant = prediction.quant(self.qp, false)?;
             for k in 0..16 {
                 let (x, y) = xy(k);
                 let mut tile = if prediction.mode == LumaPrediction::Four {
@@ -728,7 +729,7 @@ impl Decision<'_> {
             }
         }
         let qp = t::chroma_qp(self.qp);
-        let quant = prediction.quant(qp)?;
+        let quant = prediction.quant(qp, true)?;
         for c in 0..2 {
             let tile = prediction.chroma.get(c).ok_or(Error::Internal)?;
             let source = self.csources.get(c).ok_or(Error::Internal)?;
