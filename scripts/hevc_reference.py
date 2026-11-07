@@ -48,7 +48,8 @@ def command(args, timeout=180):
 
 def ffmpeg_command(binary, path, threads, output):
     return [binary, '-hide_banner', '-loglevel', 'error', '-nostdin', '-noautorotate',
-            '-flags', 'unaligned', '-c:v', 'hevc', *(['-threads', '1'] if threads else []),
+            '-flags', 'unaligned', '-c:v', 'hevc', '-export_side_data', '+enhancements',
+            *(['-threads', '1'] if threads else []),
             '-i', path, '-map', '0:v:0', '-an', '-sn', '-dn', '-noautoscale',
             '-fps_mode', 'passthrough', *output]
 

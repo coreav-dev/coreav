@@ -213,6 +213,27 @@ class Reference(unittest.TestCase):
                         reference.verify('/native', ORACLE, '/input')
                     self.assertEqual(child.call_count, 2)
 
+    def test_base_raster_verification_exports_enhancements_in_every_oracle_arm(self):
+        picture = dict(type='picture', bit_depth=8, output_bytes=6, output_md5='base', width=2, height=2)
+        native = ('\n'.join(json.dumps(row) for row in
+            (picture, dict(type='summary', complete=True, output_md5='base')))).encode()
+        def child(command, **unused):
+            if command[0] == '/native':
+                return native, {}
+            if command[0] == ORACLE.ffprobe:
+                return b'{"streams":[{"pix_fmt":"yuv420p","width":2,"height":2}]}', {}
+            if '-export_side_data' in command:
+                self.assertEqual(command[command.index('-export_side_data') + 1], '+enhancements')
+                self.assertLess(command.index('-export_side_data'), command.index('-i'))
+                return b'#dimensions 0: 2x2\n0, 0, 0, 1, 6, base\n', {}
+            return b'#dimensions 0: 4x2\n0, 0, 0, 1, 12, enhanced\n', {}
+        with patch.object(reference, 'command', side_effect=child):
+            self.assertEqual(reference.verify('/native', ORACLE, '/input')['frames'], 1)
+        for single in (True, False):
+            command = reference.ffmpeg_command(ORACLE.ffmpeg, '/input', single, ['-f', 'null', '-'])
+            self.assertIn('-export_side_data', command)
+            self.assertEqual(command[command.index('-export_side_data') + 1], '+enhancements')
+
     def test_oracle_arms_select_hevc_with_correct_thread_scope(self):
         one = reference.ffmpeg_command('ffmpeg', 'input', True, ['-f', 'null', '-'])
         default = reference.ffmpeg_command('ffmpeg', 'input', False, ['-f', 'null', '-'])
