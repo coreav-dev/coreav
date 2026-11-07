@@ -14,6 +14,11 @@ on:
         required: false
         default: ''
         type: string
+      sanitizer_only:
+        description: Run only the threading sanitizer stress check
+        required: false
+        default: false
+        type: boolean
       only:
         description: Optional comma-separated input IDs
         required: false
@@ -30,7 +35,7 @@ permissions:
 
 jobs:
   reference:
-    if: inputs.baseline == ''
+    if: inputs.baseline == '' && !inputs.sanitizer_only
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
@@ -103,9 +108,10 @@ jobs:
           retention-days: 30
 
   threading:
-    if: inputs.baseline != ''
+    if: inputs.baseline != '' || inputs.sanitizer_only
     uses: ./.github/workflows/hevc-threading.yml
     with:
       candidate: ${{ inputs.candidate }}
       baseline: ${{ inputs.baseline }}
+      sanitizer_only: ${{ inputs.sanitizer_only }}
     secrets: inherit
