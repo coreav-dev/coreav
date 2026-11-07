@@ -112,6 +112,9 @@ def measure(args, oracle, source, identity):
         row.update(reference.verify(args.main, oracle, source, timeout=600))
     except (ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         row.update(status='baseline_not_verified', failure=type(error).__name__)
+        if isinstance(error, ValueError) and str(error) in {
+                'incomplete_native', 'depth_change', 'oracle_geometry', 'oracle_pixel_format', 'pixel_mismatch'}:
+            row['verification_failure'] = str(error)
         if isinstance(error, subprocess.TimeoutExpired):
             program = error.cmd[0]
             row.update(timeout_seconds=error.timeout,
