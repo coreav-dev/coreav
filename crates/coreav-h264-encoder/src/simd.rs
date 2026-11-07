@@ -2,6 +2,7 @@
 
 use std::arch::x86_64::*;
 
+#[path = "simd/mc.rs"]
 mod mc;
 
 #[derive(Clone, Copy)]
