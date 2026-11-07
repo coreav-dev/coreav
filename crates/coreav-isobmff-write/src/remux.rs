@@ -896,6 +896,15 @@ fn remux<S: Source, R: Source, W: Write>(
         }
         .into());
     }
+    if let Some(rate) = options.copied_audio_bit_rate {
+        for (index, k) in kept.iter().enumerate() {
+            if k.replaced.is_none() && matches!(k.track.description.codec, Codec::Aac | Codec::Opus)
+            {
+                let growth = muxer.set_audio_bit_rate(index, rate, retained.left, limits)?;
+                retained.charge(growth, 0)?;
+            }
+        }
+    }
     let (dropped_boxes, not_listed) = report(&file, &movie_gone, &kept, &retained);
     let not_listed = kept
         .iter()

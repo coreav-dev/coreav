@@ -8,6 +8,92 @@
 
 use coreav_isobmff::{Codec, CodecConfig, FourCc, LosslessConfig, SampleDescription};
 
+pub(crate) fn set_bit_rate(
+    entry: &mut Vec<u8>,
+    average: u32,
+    maximum: u32,
+    room: u64,
+    box_limit: u64,
+) -> Option<u64> {
+    let aac = match entry.get(4..8) {
+        Some(b"mp4a") => true,
+        Some(b"Opus") => false,
+        _ => return None,
+    };
+    let original_size = u32::try_from(entry.len()).ok()?;
+    if entry.len() < 36
+        || entry.get(..4) != Some(original_size.to_be_bytes().as_slice())
+        || entry.get(16..18) != Some(&[0, 0])
+    {
+        return None;
+    }
+    let (mut esds, mut btrt) = (None, None);
+    let mut at = 36usize;
+    while at < entry.len() {
+        let Ok(coreav_isobmff::Parsed::Done(header)) = coreav_isobmff::parse_box_header(
+            entry.get(at..)?,
+            at as u64,
+            (entry.len() - at) as u64,
+        ) else {
+            return None;
+        };
+        let end = usize::try_from(header.size)
+            .ok()
+            .and_then(|n| at.checked_add(n))?;
+        let start = at + usize::from(header.header_len);
+        let body = entry.get(start..end)?;
+        match &header.kind.0 {
+            b"esds" if aac => {
+                if esds.is_some() {
+                    return None;
+                }
+                let offset = coreav_isobmff::aac_esds_bit_rate_offset(body)?;
+                esds = Some(start + offset);
+            }
+            b"btrt" => {
+                if btrt.is_some() || body.len() != 12 {
+                    return None;
+                }
+                btrt = Some(start);
+            }
+            _ => {}
+        }
+        at = end;
+    }
+    if aac && esds.is_none() {
+        return None;
+    }
+    let growth = if btrt.is_none() { 20 } else { 0 };
+    let size = entry
+        .len()
+        .checked_add(growth)
+        .and_then(|n| u32::try_from(n).ok())?;
+    if growth as u64 > room || u64::from(size) > box_limit {
+        return None;
+    }
+    if growth != 0 {
+        entry.try_reserve_exact(growth).ok()?;
+    }
+    let mut rates = [0u8; 12];
+    rates[4..8].copy_from_slice(&maximum.to_be_bytes());
+    rates[8..].copy_from_slice(&average.to_be_bytes());
+    if let Some(offset) = esds {
+        entry
+            .get_mut(offset..offset + 11)?
+            .copy_from_slice(&rates[1..]);
+    }
+    match btrt {
+        Some(offset) => entry.get_mut(offset..offset + 12)?.copy_from_slice(&rates),
+        None => {
+            entry.extend_from_slice(&20u32.to_be_bytes());
+            entry.extend_from_slice(b"btrt");
+            entry.extend_from_slice(&rates);
+            entry.get_mut(..4)?.copy_from_slice(&size.to_be_bytes());
+        }
+    }
+    Some(growth as u64)
+}
+
 /// FLAC's `STREAMINFO` body (RFC 9639 8.2): 34 bytes.
 const STREAMINFO: usize = 34;
 
@@ -609,6 +695,84 @@ fn mixing_metadata(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mux::{RawBox, audio_sample_entry};
+
+    fn bitrate_entry(kind: [u8; 4], btrt: bool) -> Vec<u8> {
+        let mut esds = vec![0, 0, 0, 0, 3, 25, 0, 1, 0, 4, 17, 0x40, 0x15];
+        esds.extend_from_slice(&[0; 11]);
+        esds.extend_from_slice(&[5, 2, 0x11, 0x90, 6, 1, 2]);
+        let mut children = vec![RawBox {
+            kind: FourCc(if kind == *b"mp4a" { *b"esds" } else { *b"dOps" }),
+            payload: if kind == *b"mp4a" { esds } else { vec![0; 11] },
+        }];
+        if btrt {
+            children.push(RawBox {
+                kind: FourCc(*b"btrt"),
+                payload: vec![0xAA; 12],
+            });
+        }
+        audio_sample_entry(FourCc(kind), 2, 16, 48_000, &children).unwrap()
+    }
+
+    #[test]
+    fn bitrate_growth_is_bounded_and_malformed_entries_stay_whole() {
+        for kind in [*b"mp4a", *b"Opus"] {
+            let entry = bitrate_entry(kind, false);
+            for (room, limit) in [(19, u64::MAX), (20, entry.len() as u64 + 19)] {
+                let mut actual = entry.clone();
+                assert_eq!(set_bit_rate(&mut actual, 72_000, 96_000, room, limit), None);
+                assert_eq!(actual, entry);
+            }
+            let mut actual = entry.clone();
+            assert_eq!(
+                set_bit_rate(&mut actual, 72_000, 96_000, 20, u64::MAX),
+                Some(20)
+            );
+            assert_eq!(actual.len(), entry.len() + 20);
+            assert_eq!(
+                &actual[actual.len() - 20..actual.len() - 12],
+                b"\0\0\0\x14btrt"
+            );
+            let rates: Vec<u8> = [0u32, 96_000, 72_000]
+                .into_iter()
+                .flat_map(u32::to_be_bytes)
+                .collect();
+            assert_eq!(&actual[actual.len() - 12..], &rates);
+            if kind == *b"mp4a" {
+                assert_eq!(&actual[57..68], &rates[1..]);
+            }
+            let mut malformed = bitrate_entry(kind, true);
+            malformed.push(0);
+            let size = (malformed.len() as u32).to_be_bytes();
+            malformed[..4].copy_from_slice(&size);
+            let mut actual = malformed.clone();
+            assert_eq!(
+                set_bit_rate(&mut actual, 72_000, 96_000, 20, u64::MAX),
+                None
+            );
+            assert_eq!(actual, malformed);
+            let mut duplicate = bitrate_entry(kind, true);
+            duplicate.extend_from_slice(&20u32.to_be_bytes());
+            duplicate.extend_from_slice(b"btrt");
+            duplicate.extend_from_slice(&[0; 12]);
+            let size = (duplicate.len() as u32).to_be_bytes();
+            duplicate[..4].copy_from_slice(&size);
+            let mut actual = duplicate.clone();
+            assert_eq!(
+                set_bit_rate(&mut actual, 72_000, 96_000, 20, u64::MAX),
+                None
+            );
+            assert_eq!(actual, duplicate);
+        }
+        let mut mp3 = bitrate_entry(*b"mp4a", true);
+        mp3[55] = 0x6B;
+        let mut actual = mp3.clone();
+        assert_eq!(
+            set_bit_rate(&mut actual, 72_000, 96_000, 20, u64::MAX),
+            None
+        );
+        assert_eq!(actual, mp3);
+    }
 
     fn pack(fields: &[(u32, u32)]) -> Vec<u8> {
         let mut packer = Packer::default();

@@ -417,6 +417,33 @@ impl Muxer {
         }
     }
 
+    pub(crate) fn set_audio_bit_rate(
+        &mut self,
+        track: usize,
+        requested: u32,
+        room: u64,
+        limits: &Limits,
+    ) -> Result<u64, Error> {
+        self.open()?;
+        let t = self.tracks.get_mut(track).ok_or(Error::NoSuchTrack)?;
+        if t.tables.duration == 0 {
+            return Ok(0);
+        }
+        let average = u128::from(t.tables.data_bytes) * 8 * u128::from(t.header.timescale)
+            / u128::from(t.tables.duration);
+        let Ok(average) = u32::try_from(average) else {
+            return Ok(0);
+        };
+        Ok(crate::audio::set_bit_rate(
+            &mut t.header.sample_entry,
+            average,
+            average.max(requested),
+            room,
+            limits.max_box_bytes,
+        )
+        .unwrap_or(0))
+    }
+
     /// Samples pushed to a track.
     pub fn samples(&self, track: usize) -> Option<u32> {
         self.tracks.get(track).map(|t| t.tables.samples())
@@ -880,6 +907,80 @@ mod tests {
             sample_table_boxes: Vec::new(),
             boxes: Vec::new(),
         }
+    }
+
+    #[test]
+    fn copied_bitrate_uses_complete_tables_and_keeps_unrepresentable_entries() {
+        let limits = Limits::default();
+        let mut muxer = Muxer::new(
+            FileType {
+                major: FourCc(*b"isom"),
+                minor: 0,
+                compatible: Vec::new(),
+            },
+            MovieHeader {
+                timescale: 1000,
+                creation_time: 0,
+                boxes: Vec::new(),
+            },
+            &limits,
+        )
+        .unwrap();
+        let entry = audio_sample_entry(FourCc(*b"Opus"), 2, 16, 48_000, &[]).unwrap();
+        let mut h = header(TrackMedia::Audio { volume: 0x100 }, entry.clone());
+        h.timescale = 48_000;
+        let index = muxer.add_track(h).unwrap();
+        assert_eq!(
+            muxer
+                .set_audio_bit_rate(index, 96_000, 20, &limits)
+                .unwrap(),
+            0
+        );
+        assert_eq!(muxer.tracks[index].header.sample_entry, entry);
+        muxer
+            .push_sample(
+                index,
+                Sample {
+                    size: 100,
+                    duration: 480,
+                    sync: true,
+                    composition_offset: 0,
+                },
+            )
+            .unwrap();
+        muxer
+            .push_sample(
+                index,
+                Sample {
+                    size: 200,
+                    duration: 480,
+                    sync: true,
+                    composition_offset: 0,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            muxer
+                .set_audio_bit_rate(index, 96_000, 20, &limits)
+                .unwrap(),
+            20
+        );
+        let actual = &muxer.tracks[index].header.sample_entry;
+        let expected: Vec<u8> = [0u32, 120_000, 120_000]
+            .into_iter()
+            .flat_map(u32::to_be_bytes)
+            .collect();
+        assert_eq!(&actual[actual.len() - 12..], &expected);
+        let before = actual.clone();
+        muxer.tracks[index].tables.data_bytes = u64::MAX;
+        muxer.tracks[index].tables.duration = 1;
+        assert_eq!(
+            muxer
+                .set_audio_bit_rate(index, 96_000, 20, &limits)
+                .unwrap(),
+            0
+        );
+        assert_eq!(muxer.tracks[index].header.sample_entry, before);
     }
 
     #[test]
