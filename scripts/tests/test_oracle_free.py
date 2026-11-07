@@ -39,6 +39,16 @@ class ExplicitSelection(unittest.TestCase):
         for name in names:
             self.assertIn(name, skipped, 'Register the oracle test in test-support/oracle-dependent.json')
 
+    def test_audio_options_fixture_tests_are_excluded_on_unregistered_platforms(self):
+        source = (ROOT / 'crates/coreav-cli/tests/ffmpeg_audio_options.rs').read_text()
+        names = re.findall(r'#\[test\]\s*fn\s+(\w+)', source)
+        self.assertTrue(names)
+        args = oracle_free.command(['cargo', 'test', '-p', 'coreav-cli',
+                                    '--test', 'ffmpeg_audio_options'])
+        skipped = {args[i + 1] for i, arg in enumerate(args[:-1]) if arg == '--skip'}
+        for name in names:
+            self.assertIn(name, skipped, 'Register the oracle test in test-support/oracle-dependent.json')
+
 
 if __name__ == '__main__':
     unittest.main()

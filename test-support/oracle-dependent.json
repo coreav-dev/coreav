@@ -74,8 +74,13 @@
     "aac_filter_is_an_exact_concat_identity_or_preserved_fallback"
   ],
   "crates/coreav-cli/tests/ffmpeg_audio_options.rs": [
+    "aac_terminal_timing_matches_the_complete_oracle_boxes",
+    "copied_aac_and_opus_match_oracle_metadata_without_other_file_changes",
+    "copied_bitrate_metadata_preserves_command_admission",
+    "copied_mp3_matches_oracle_metadata_with_and_without_bitrate",
     "identity_audio_options_and_default_aac_bitrate_run_natively",
-    "default_bitrate_admission_preserves_legacy_native_commands",
+    "ignored_copy_bitrates_match_the_native_default",
+    "matroska_copy_bitrate_keeps_complete_native_files",
     "nonidentity_and_copy_audio_options_preserve_destinations"
   ],
   "crates/coreav-cli/tests/ffmpeg_concat.rs": [

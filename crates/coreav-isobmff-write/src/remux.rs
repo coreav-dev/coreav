@@ -896,13 +896,35 @@ fn remux<S: Source, R: Source, W: Write>(
         }
         .into());
     }
-    if let Some(rate) = options.copied_audio_bit_rate {
+    if let Some(policy) = options.copied_audio_bit_rate {
+        let mut spare = limits
+            .max_sample_work
+            .saturating_sub(budget.used())
+            .saturating_sub(copy_work);
         for (index, k) in kept.iter().enumerate() {
-            if k.replaced.is_none() && matches!(k.track.description.codec, Codec::Aac | Codec::Opus)
-            {
-                let growth = muxer.set_audio_bit_rate(index, rate, retained.left, limits)?;
-                retained.charge(growth, 0)?;
+            if k.replaced.is_some() {
+                continue;
             }
+            let clock = match k.track.description.codec {
+                Codec::Aac | Codec::Opus => None,
+                Codec::Mp3 if k.input == 0 && k.work <= spare => {
+                    spare -= k.work;
+                    let Some(clock) = mp3_clock(
+                        &movie,
+                        k.track,
+                        &mut source,
+                        limits,
+                        k.work,
+                        muxer.samples(index).unwrap_or(0),
+                    ) else {
+                        continue;
+                    };
+                    Some(clock)
+                }
+                _ => continue,
+            };
+            let growth = muxer.set_audio_bit_rate(index, policy, clock, retained.left, limits)?;
+            retained.charge(growth, 0)?;
         }
     }
     let (dropped_boxes, not_listed) = report(&file, &movie_gone, &kept, &retained);
@@ -1048,6 +1070,49 @@ pub fn sanitize_mp4<S: Source, W: Write>(
         ..RemuxOptions::default()
     };
     remux_mp4(source, limits, allowlist, &options, out)
+}
+
+fn mp3_clock<S: Source>(
+    movie: &Movie,
+    track: &Track,
+    source: &mut S,
+    limits: &Limits,
+    work: u64,
+    expected: u32,
+) -> Option<(u64, u32)> {
+    let limits = Limits {
+        max_sample_work: work,
+        ..*limits
+    };
+    let mut budget = Budget::new(&limits);
+    let mut packets = movie
+        .packets(track.index, source, &limits, &mut budget)
+        .ok()?;
+    let (mut clock, mut samples, mut count) = (None, 0u64, 0u32);
+    while let Some(packet) = packets.next() {
+        let packet = packet.ok()?;
+        if packet.size < 4 || count >= expected {
+            return None;
+        }
+        let mut bytes = [0; 4];
+        packets
+            .source_mut()
+            .read_exact_at(packet.offset, &mut bytes)
+            .ok()?;
+        let header = coreav_audio::mp3::Header::parse(&bytes).ok()?;
+        if header.frame_bytes()? != usize::try_from(packet.size).ok()? {
+            return None;
+        }
+        let current = (header.version, header.sample_rate);
+        if clock.is_some_and(|previous| previous != current) {
+            return None;
+        }
+        clock = Some(current);
+        samples = samples.checked_add(u64::try_from(header.samples()).ok()?)?;
+        count = count.checked_add(1)?;
+    }
+    let (_, rate) = clock?;
+    (count == expected && samples != 0).then_some((samples, rate))
 }
 
 fn dropped(track: &Track, reason: TrackDropReason) -> DroppedTrack {

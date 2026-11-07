@@ -21,7 +21,6 @@
 //! [`Limits::max_table_bytes`] across all tracks, plus what the caller
 //! copies with; never the size of the media.
 
-use crate::ExtractError;
 use crate::boxes::Node;
 use crate::copy::{COPY_BUFFER, Window};
 use crate::moov::{
@@ -29,6 +28,7 @@ use crate::moov::{
     rescale, write_head,
 };
 use crate::tables::Tables;
+use crate::{CopiedAudioBitRate, ExtractError};
 use coreav_isobmff::{Error, FourCc, LimitKind, Limits, Source};
 use std::borrow::Cow;
 use std::io::Write;
@@ -420,24 +420,36 @@ impl Muxer {
     pub(crate) fn set_audio_bit_rate(
         &mut self,
         track: usize,
-        requested: u32,
+        policy: CopiedAudioBitRate,
+        clock: Option<(u64, u32)>,
         room: u64,
         limits: &Limits,
     ) -> Result<u64, Error> {
         self.open()?;
         let t = self.tracks.get_mut(track).ok_or(Error::NoSuchTrack)?;
-        if t.tables.duration == 0 {
+        let (duration, timescale) = clock.unwrap_or((t.tables.duration, t.header.timescale));
+        if duration == 0 {
             return Ok(0);
         }
-        let average = u128::from(t.tables.data_bytes) * 8 * u128::from(t.header.timescale)
-            / u128::from(t.tables.duration);
-        let Ok(average) = u32::try_from(average) else {
+        let bits = u128::from(t.tables.data_bytes) * 8;
+        let stored_average = if t.tables.duration == 0 {
+            0
+        } else {
+            bits * u128::from(t.header.timescale) / u128::from(t.tables.duration)
+        };
+        let average = bits * u128::from(timescale) / u128::from(duration);
+        let hint = match policy {
+            CopiedAudioBitRate::FromSource => stored_average,
+            CopiedAudioBitRate::Requested(rate) => u128::from(rate),
+        };
+        let maximum = average.max(hint);
+        let (Ok(average), Ok(maximum)) = (u32::try_from(average), u32::try_from(maximum)) else {
             return Ok(0);
         };
         Ok(crate::audio::set_bit_rate(
             &mut t.header.sample_entry,
             average,
-            average.max(requested),
+            maximum,
             room,
             limits.max_box_bytes,
         )
@@ -932,7 +944,13 @@ mod tests {
         let index = muxer.add_track(h).unwrap();
         assert_eq!(
             muxer
-                .set_audio_bit_rate(index, 96_000, 20, &limits)
+                .set_audio_bit_rate(
+                    index,
+                    CopiedAudioBitRate::Requested(96_000),
+                    None,
+                    20,
+                    &limits
+                )
                 .unwrap(),
             0
         );
@@ -961,7 +979,13 @@ mod tests {
             .unwrap();
         assert_eq!(
             muxer
-                .set_audio_bit_rate(index, 96_000, 20, &limits)
+                .set_audio_bit_rate(
+                    index,
+                    CopiedAudioBitRate::Requested(96_000),
+                    None,
+                    20,
+                    &limits
+                )
                 .unwrap(),
             20
         );
@@ -971,12 +995,36 @@ mod tests {
             .flat_map(u32::to_be_bytes)
             .collect();
         assert_eq!(&actual[actual.len() - 12..], &expected);
-        let before = actual.clone();
+        for (policy, samples, maximum, average) in [
+            (CopiedAudioBitRate::FromSource, 1200, 120_000, 96_000),
+            (CopiedAudioBitRate::Requested(0), 1200, 96_000, 96_000),
+            (CopiedAudioBitRate::FromSource, 480, 240_000, 240_000),
+        ] {
+            assert_eq!(
+                muxer
+                    .set_audio_bit_rate(index, policy, Some((samples, 48_000)), 0, &limits)
+                    .unwrap(),
+                0
+            );
+            let entry = &muxer.tracks[index].header.sample_entry;
+            let expected: Vec<u8> = [0u32, maximum, average]
+                .into_iter()
+                .flat_map(u32::to_be_bytes)
+                .collect();
+            assert_eq!(&entry[entry.len() - 12..], &expected);
+        }
+        let before = muxer.tracks[index].header.sample_entry.clone();
         muxer.tracks[index].tables.data_bytes = u64::MAX;
         muxer.tracks[index].tables.duration = 1;
         assert_eq!(
             muxer
-                .set_audio_bit_rate(index, 96_000, 20, &limits)
+                .set_audio_bit_rate(
+                    index,
+                    CopiedAudioBitRate::Requested(96_000),
+                    None,
+                    20,
+                    &limits
+                )
                 .unwrap(),
             0
         );

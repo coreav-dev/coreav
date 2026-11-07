@@ -9,6 +9,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+coreav-audio = { path = "../coreav-audio" }
 coreav-isobmff = { path = "../coreav-isobmff" }
 coreav-mkv = { path = "../coreav-mkv" }
 coreav-mpegts = { path = "../coreav-mpegts" }

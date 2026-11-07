@@ -268,12 +268,21 @@ pub enum OnUnsupported {
     Fail,
 }
 
+/// The maximum-bitrate hint used when normalizing copied audio metadata.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CopiedAudioBitRate {
+    /// Inherit the average from the source's stored sample clock.
+    FromSource,
+    /// Use an explicit request in bits per second, including zero.
+    Requested(u32),
+}
+
 /// What [`remux_mp4`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemuxOptions {
-    /// Recompute copied AAC and Opus bitrate metadata, with this requested
-    /// maximum in bits per second. Other codecs and replacements are unchanged.
-    pub copied_audio_bit_rate: Option<u32>,
+    /// Normalize copied AAC, MP3 and Opus bitrate metadata with this maximum
+    /// hint. `None` preserves metadata; other codecs and replacements are unchanged.
+    pub copied_audio_bit_rate: Option<CopiedAudioBitRate>,
     /// Store copied packets in edited decode-time order, with output track
     /// order breaking ties. Uses one sample per chunk under the existing
     /// table budget. Unsupported edit clocks fail before writing; native

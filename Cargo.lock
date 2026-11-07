@@ -451,6 +451,7 @@ dependencies = [
 name = "coreav-isobmff-write"
 version = "0.0.1"
 dependencies = [
+ "coreav-audio",
  "coreav-counting-alloc",
  "coreav-isobmff",
  "coreav-mkv",

@@ -313,15 +313,16 @@ pub fn request(
         opus,
         aac,
         aac_mp4_tail: true,
-        copied_audio_bit_rate: audio_encoder
-            .is_none()
-            .then(|| {
-                audio_bitrate
-                    .as_deref()
-                    .and_then(bits)
-                    .and_then(|b| u32::try_from(b).ok())
-            })
-            .flatten(),
+        copied_audio_bit_rate: audio_encoder.is_none().then(|| {
+            audio_bitrate
+                .as_deref()
+                .and_then(bits)
+                .and_then(|b| u32::try_from(b).ok())
+                .map_or(
+                    coreav_isobmff_write::CopiedAudioBitRate::FromSource,
+                    coreav_isobmff_write::CopiedAudioBitRate::Requested,
+                )
+        }),
         #[cfg(feature = "input-capture")]
         input_capture: None,
         pixel_format,
