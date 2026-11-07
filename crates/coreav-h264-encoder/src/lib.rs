@@ -30,6 +30,8 @@ mod transform;
 #[cfg(feature = "full")]
 mod vlc;
 #[cfg(feature = "full")]
+mod wavefront;
+#[cfg(feature = "full")]
 pub use api::*;
 
 #[cfg(all(test, feature = "full"))]

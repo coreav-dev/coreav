@@ -235,6 +235,14 @@ pub(crate) fn admitted(previous: u8, current: usize) -> bool {
     usize::from(previous) + current <= 16
 }
 
+pub(crate) fn row_previous(previous: u8, first: bool, last: bool) -> u8 {
+    if first || last {
+        previous.max(8)
+    } else {
+        previous
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
@@ -478,6 +486,29 @@ mod tests {
             let (_, count) = Layout::Sub([shape; 4]).parts().unwrap();
             assert!(admitted((16 - count) as u8, count));
             assert!(!admitted((17 - count) as u8, count));
+        }
+    }
+
+    #[test]
+    fn row_endpoints_split_the_pair_budget_without_losing_the_carried_limit() {
+        for previous in 0..=16 {
+            for current in 0..=16 {
+                for (first, last) in [(false, true), (true, false), (true, true)] {
+                    assert_eq!(
+                        admitted(row_previous(previous, first, last), current),
+                        current <= 8 && usize::from(previous) + current <= 16,
+                    );
+                }
+                assert_eq!(
+                    admitted(row_previous(previous, false, false), current),
+                    admitted(previous, current)
+                );
+            }
+        }
+        for last in 0..=8 {
+            for first in 0..=8 {
+                assert!(admitted(last, first));
+            }
         }
     }
 }

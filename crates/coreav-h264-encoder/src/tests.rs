@@ -819,3 +819,57 @@ fn p_intra_fallback_keeps_every_candidate() {
     );
     assert_eq!(p, expected);
 }
+
+#[test]
+fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
+    for (width, height) in [(16, 80), (18, 34), (32, 48), (80, 66), (96, 96)] {
+        for qp in [22, 37] {
+            for deblocking in [Deblocking::Disabled, Deblocking::Enabled] {
+                let mut settings = settings(width, height, qp);
+                settings.deblocking = deblocking;
+                settings.gop = Gop::Fixed { idr_interval: 3 };
+                let mut encoders: Vec<_> = [1, 2, 3, 8]
+                    .into_iter()
+                    .map(|threads| {
+                        Encoder::with_threads(settings, Limits::default(), threads).unwrap()
+                    })
+                    .collect();
+                assert!(Encoder::with_threads(settings, Limits::default(), 0).is_err());
+                for frame in 0..5 {
+                    let mut seed = 0x81f259a3u32 + frame;
+                    let raw: Vec<_> = (0..width * height * 3 / 2)
+                        .map(|p| {
+                            seed ^= seed << 13;
+                            seed ^= seed >> 17;
+                            seed ^= seed << 5;
+                            (80 + (p + frame as usize * 3) % 64 + (seed as usize % 16)) as u8
+                        })
+                        .collect();
+                    let (y, uv) = raw.split_at(width * height);
+                    let (cb, cr) = uv.split_at(width * height / 4);
+                    let picture = Picture {
+                        y: Plane::new(y, width, width, height).unwrap(),
+                        cb: Plane::new(cb, width / 2, width / 2, height / 2).unwrap(),
+                        cr: Plane::new(cr, width / 2, width / 2, height / 2).unwrap(),
+                    };
+                    let outputs: Vec<_> = encoders
+                        .iter_mut()
+                        .map(|encoder| encoder.encode(picture).unwrap())
+                        .collect();
+                    for other in &outputs[1..] {
+                        assert_eq!(outputs[0].nals, other.nals);
+                        assert_eq!(outputs[0].reconstruction, other.reconstruction);
+                    }
+                    for encoder in &mut encoders {
+                        let previous = encoder.previous_mv_count;
+                        let old = encoder.limits.access_unit_bytes;
+                        encoder.limits.access_unit_bytes = 1;
+                        assert!(matches!(encoder.encode(picture), Err(Error::Limit)));
+                        assert_eq!(encoder.previous_mv_count, previous);
+                        encoder.limits.access_unit_bytes = old;
+                    }
+                }
+            }
+        }
+    }
+}
