@@ -69,6 +69,7 @@ pub(crate) struct Slice {
     pub(crate) idr: bool,
     pub(crate) id: u32,
     pub(crate) frame_num: u8,
+    pub(crate) qp: u8,
 }
 
 pub(crate) fn slice(w: &mut Bits, e: &Encoder, slice: Slice) -> Result<()> {
@@ -85,7 +86,7 @@ pub(crate) fn slice(w: &mut Bits, e: &Encoder, slice: Slice) -> Result<()> {
         w.flag(false)?;
         w.flag(false)?;
     }
-    w.se(i32::from(e.settings.qp) - 26)?;
+    w.se(i32::from(slice.qp) - 26)?;
     match e.settings.deblocking {
         Deblocking::Disabled => w.ue(1),
         Deblocking::Enabled => {

@@ -21,6 +21,8 @@ mod deblock;
 mod kernels;
 #[cfg(feature = "full")]
 mod motion;
+#[cfg(feature = "full")]
+mod rate;
 #[cfg(all(feature = "full", target_arch = "x86_64", not(feature = "scalar")))]
 mod simd;
 #[cfg(feature = "full")]

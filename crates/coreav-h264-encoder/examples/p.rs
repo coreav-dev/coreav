@@ -24,7 +24,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     ] = args.as_slice()
     else {
         return Err(
-            "usage: p WIDTH HEIGHT QP FRAMES INPUT OUTPUT RECON DECODED DEBLOCKING INTERVAL".into(),
+            "usage: p WIDTH HEIGHT QP_OR_crf:N FRAMES INPUT OUTPUT RECON DECODED DEBLOCKING INTERVAL".into(),
         );
     };
     let deblocking = if deblocking.parse::<bool>()? {
@@ -38,7 +38,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let settings = Settings {
         width,
         height,
-        qp: qp.parse()?,
+        rate_mode: match qp.strip_prefix("crf:") {
+            Some(value) => coreav_h264_encoder::RateMode::Crf(value.parse()?),
+            None => coreav_h264_encoder::RateMode::FixedQp(qp.parse()?),
+        },
         deblocking,
         gop: Gop::Fixed {
             idr_interval: interval.parse()?,

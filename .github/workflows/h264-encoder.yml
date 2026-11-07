@@ -14,6 +14,8 @@ on:
       - scripts/h264_deblock_conformance.py
       - scripts/tests/test_h264_deblock.py
       - scripts/h264_p_conformance.py
+      - scripts/h264_crf_conformance.py
+      - scripts/tests/test_h264_crf.py
       - scripts/tests/test_h264_p.py
       - scripts/install-jm-decoder.sh
       - scripts/jm-decoder.env
@@ -35,6 +37,8 @@ on:
       - scripts/h264_deblock_conformance.py
       - scripts/tests/test_h264_deblock.py
       - scripts/h264_p_conformance.py
+      - scripts/h264_crf_conformance.py
+      - scripts/tests/test_h264_crf.py
       - scripts/tests/test_h264_p.py
       - scripts/install-jm-decoder.sh
       - scripts/jm-decoder.env
@@ -87,6 +91,7 @@ jobs:
           python3 -I -m unittest discover -s scripts/tests -p 'test_h264_g1*.py'
           python3 -I -m unittest discover -s scripts/tests -p 'test_h264_deblock.py'
           python3 -I -m unittest discover -s scripts/tests -p 'test_h264_p.py'
+          python3 -I -m unittest discover -s scripts/tests -p 'test_h264_crf.py'
       - name: Install black-box decoder oracles
         run: |
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/g1-oracles"
@@ -132,12 +137,21 @@ jobs:
             --ffmpeg "$RUNNER_TEMP/g1-oracles/ffmpeg" \
             --jm "$RUNNER_TEMP/g1-oracles/ldecod" \
             --output "$RUNNER_TEMP/p-conformance"
+      - name: Compare CRF pictures with all three decoders
+        run: |
+          python3 -I scripts/h264_crf_conformance.py \
+            --driver target/release/examples/p \
+            --decoder target/release/examples/decode \
+            --ffmpeg "$RUNNER_TEMP/g1-oracles/ffmpeg" \
+            --jm "$RUNNER_TEMP/g1-oracles/ldecod" \
+            --output "$RUNNER_TEMP/crf-conformance"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: h264-p-conformance
           path: |
             ${{ runner.temp }}/p-conformance
+            ${{ runner.temp }}/crf-conformance
             ${{ runner.temp }}/p-forced
             ${{ runner.temp }}/simd-identity/summary.json
           if-no-files-found: ignore

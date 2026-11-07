@@ -50,7 +50,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let settings = Settings {
         width,
         height,
-        qp: qp.parse()?,
+        rate_mode: coreav_h264_encoder::RateMode::FixedQp(qp.parse()?),
         deblocking,
         gop: Gop::AllIntra,
         colour: Colour {
