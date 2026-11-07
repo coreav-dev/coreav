@@ -1,7 +1,7 @@
 #![allow(unsafe_code)]
 
 use super::Avx2;
-use crate::transform::{Forward, Quant};
+use crate::transform::{Forward, Quant, inverse_input_valid};
 use std::arch::x86_64::*;
 
 impl Avx2 {
@@ -42,9 +42,12 @@ impl Avx2 {
     }
 
     pub(crate) fn inverse(self, coefficients: &[i32; 16]) -> Option<[i32; 16]> {
+        if !inverse_input_valid(coefficients) {
+            return None;
+        }
         let [dc, rest @ ..] = coefficients;
         if rest.iter().all(|&c| c == 0) {
-            return (-32768..=32735).contains(dc).then_some([*dc; 16]);
+            return (*dc <= 32735).then_some([*dc; 16]);
         }
         unsafe { inverse4(coefficients) }
     }
@@ -183,14 +186,6 @@ unsafe fn scaled4(levels: &[i32; 16], scale: &[i32; 16]) -> [i32; 16] {
 }
 
 #[target_feature(enable = "avx2")]
-fn outside(input: __m256i) -> __m256i {
-    _mm256_or_si256(
-        _mm256_cmpgt_epi32(input, _mm256_set1_epi32(32767)),
-        _mm256_cmpgt_epi32(_mm256_set1_epi32(-32768), input),
-    )
-}
-
-#[target_feature(enable = "avx2")]
 fn inverse_line(input: __m256i) -> (__m256i, __m256i) {
     let a = _mm256_shuffle_epi32::<0x00>(input);
     let b = _mm256_shuffle_epi32::<0x55>(input);
@@ -219,9 +214,6 @@ fn inverse_line(input: __m256i) -> (__m256i, __m256i) {
 unsafe fn inverse4(coefficients: &[i32; 16]) -> Option<[i32; 16]> {
     let a = unsafe { _mm256_loadu_si256(coefficients.as_ptr().cast()) };
     let b = unsafe { _mm256_loadu_si256(coefficients.as_ptr().add(8).cast()) };
-    if _mm256_movemask_epi8(_mm256_or_si256(outside(a), outside(b))) != 0 {
-        return None;
-    }
     let (a, invalid_a) = inverse_line(a);
     let (b, invalid_b) = inverse_line(b);
     let (a, b) = transpose(a, b);
