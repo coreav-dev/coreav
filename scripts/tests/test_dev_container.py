@@ -1,8 +1,11 @@
 """Check the local Linux wrapper without a Docker daemon."""
 import importlib.util
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -13,6 +16,28 @@ SPEC.loader.exec_module(DEV)
 
 
 class DevContainer(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == 'linux' and shutil.which('sha256sum'),
+                         'requires the Linux image checksum utility')
+    def test_corrupt_bootstrap_is_not_executed(self):
+        dockerfile = (ROOT / 'scripts/dev/Dockerfile').read_text()
+        bootstrap = 'case "$TARGETARCH" in' + dockerfile.split('RUN case "$TARGETARCH" in', 1)[1].split('\n\n', 1)[0]
+        with tempfile.TemporaryDirectory() as directory:
+            scratch = Path(directory)
+            installer = scratch / 'rustup-init'
+            marker = scratch / 'executed'
+            curl = scratch / 'curl'
+            curl.write_text('#!/bin/sh\nfor arg; do output=$arg; done\nprintf \'#!/bin/sh\\ntouch "%s"\\n\' "$MARKER" > "$output"\n')
+            curl.chmod(0o755)
+            for architecture in ('amd64', 'arm64'):
+                with self.subTest(architecture=architecture):
+                    result = subprocess.run(['sh', '-c', bootstrap.replace('/tmp/rustup-init', str(installer))],
+                                            env={**os.environ, 'PATH': str(scratch) + os.pathsep + os.environ['PATH'],
+                                                 'TARGETARCH': architecture, 'MARKER': str(marker)},
+                                            capture_output=True, text=True, timeout=10)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn('FAILED', result.stdout, result.stderr)
+                    self.assertFalse(marker.exists())
+
     def run_wrapper(self, arguments, status=0):
         with patch.object(sys, 'argv', ['dev-container.py', *arguments]), \
                 patch.object(DEV.shutil, 'which', return_value='/usr/local/bin/docker'), \
