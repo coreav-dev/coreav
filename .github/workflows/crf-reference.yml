@@ -1,0 +1,41 @@
+name: crf-reference
+on:
+  push:
+    branches: [gunwooterry/crf-reference]
+permissions:
+  contents: read
+jobs:
+  crf-reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      BASELINE: 43742ab7fed01adfc8713b39497a0bd5cebd89b9
+      CANDIDATE: 374b0ee2c0f2b11f781866556bc1d4c8a84cb214
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Build exact arms and pinned oracle
+        run: bash ab/build-crf.sh
+      - name: Prepare existing inputs
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install 'boto3==1.35.36' 'numpy==2.2.6' 'scipy==1.15.3'
+          "$RUNNER_TEMP/venv/bin/python" -I ab/prepare.py "$RUNNER_TEMP/crf/work" "$RUNNER_TEMP/crf/bin"
+      - name: Measure and verify every cell
+        run: "$RUNNER_TEMP/venv/bin/python -I ab/measure-crf.py"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: crf-reference
+          path: crf-result.json
+          if-no-files-found: warn
