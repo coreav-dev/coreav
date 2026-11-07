@@ -1054,6 +1054,27 @@ fn transcode_job(
             "encoding a stream other than video with libx264",
         ));
     }
+    if command.muxer == Muxer::Mp4
+        && !command
+            .codecs
+            .iter()
+            .any(|(_, codec)| *codec == Codec::Libx264)
+        && let Some(size) = command.encoding.size.as_deref()
+        && !output.iter().any(|(index, stream)| {
+            index == video
+                && size.split_once('x').is_some_and(|(width, height)| {
+                    width.parse::<i64>().ok() == Some(int(stream, "width"))
+                        && height.parse::<i64>().ok() == Some(int(stream, "height"))
+                })
+        })
+    {
+        return Err(Refusal::NotNative(NotNative::option(
+            "-s",
+            Some(size),
+            "'-s' with the default MP4 video encoder requires unchanged source dimensions"
+                .to_owned(),
+        )));
+    }
     if command.muxer != Muxer::Mp4 && command.muxer.matroska().is_none() {
         return Err(Refusal::not_native(
             "an encoded output other than one MP4 file",

@@ -274,7 +274,18 @@ pub fn request(
                         .all(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
                 })
                 .and_then(|(w, h)| transcode::scale(&format!("{w}:{h}")).ok());
-            Some(parsed.ok_or_else(|| refused("-s", s, "the size must be WxH in pixels"))?)
+            let parsed =
+                parsed.ok_or_else(|| refused("-s", s, "the size must be WxH in pixels"))?;
+            if command.muxer == super::args::Muxer::Mp4
+                && !command
+                    .codecs
+                    .iter()
+                    .any(|(_, codec)| *codec == Codec::Libx264)
+            {
+                None
+            } else {
+                Some(parsed)
+            }
         }
         (None, None) => None,
     };

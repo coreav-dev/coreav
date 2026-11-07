@@ -929,10 +929,7 @@ fn commands_outside_the_vocabulary_are_refused_by_name() {
     let i = input.as_str();
     for (args, named) in [
         (vec!["-i", i, "-c:v", "libx265", o], "libx265"),
-        (
-            vec!["-i", i, "-vf", "scale=320:-2", "-c:a", "copy", o],
-            "-vf",
-        ),
+        (vec!["-i", i, "-af", "anull", "-c:a", "copy", o], "-af"),
         (vec!["-f", "mpegts", "-i", i, "-c", "copy", o], "mpegts"),
         (vec!["-i", i, "-c", "copy", "-f", "hls", o], "hls"),
         (
