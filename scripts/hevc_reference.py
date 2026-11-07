@@ -53,8 +53,8 @@ def ffmpeg_command(binary, path, threads, output):
             '-fps_mode', 'passthrough', *output]
 
 
-def verify(native, oracle, source):
-    raw, _ = command([native, source, 'check'])
+def verify(native, oracle, source, *, timeout=180):
+    raw, _ = command([native, source, 'check'], timeout=timeout)
     rows = [json.loads(line) for line in raw.splitlines()]
     pictures = [row for row in rows if row.get('type') == 'picture']
     if not pictures or rows[-1].get('complete') is not True:
@@ -64,7 +64,7 @@ def verify(native, oracle, source):
             (depth, pictures[0]['width'], pictures[0]['height']) for p in pictures):
         raise ValueError('depth_change')
     metadata, _ = command([oracle.ffprobe, '-v', 'error',
-        '-select_streams', 'v:0', '-show_entries', 'stream=pix_fmt,width,height', '-of', 'json', source])
+        '-select_streams', 'v:0', '-show_entries', 'stream=pix_fmt,width,height', '-of', 'json', source], timeout=timeout)
     streams = json.loads(metadata)['streams']
     if len(streams) != 1 or (streams[0]['width'], streams[0]['height']) != (pictures[0]['width'], pictures[0]['height']):
         raise ValueError('oracle_geometry')
@@ -72,7 +72,7 @@ def verify(native, oracle, source):
     if pixel_format not in ({'yuv420p', 'yuvj420p'} if depth == 8 else {'yuv420p10le'}):
         raise ValueError('oracle_pixel_format')
     reference, _ = command(ffmpeg_command(oracle.ffmpeg, source, True,
-        ['-pix_fmt', '+' + pixel_format, '-f', 'framemd5', '-']))
+        ['-pix_fmt', '+' + pixel_format, '-f', 'framemd5', '-']), timeout=timeout)
     dimensions = re.findall(rb'^#dimensions\s+0:\s+(\d+)x(\d+)\s*$', reference, re.M)
     if dimensions != [(str(pictures[0]['width']).encode(), str(pictures[0]['height']).encode())]:
         raise ValueError('oracle_geometry')

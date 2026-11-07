@@ -109,9 +109,14 @@ def summarize(files):
 def measure(args, oracle, source, identity):
     row = dict(id=identity, input_sha256=conformance.digest(source), status='checking_main')
     try:
-        row.update(reference.verify(args.main, oracle, source))
+        row.update(reference.verify(args.main, oracle, source, timeout=600))
     except (ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         row.update(status='baseline_not_verified', failure=type(error).__name__)
+        if isinstance(error, subprocess.TimeoutExpired):
+            program = error.cmd[0]
+            row.update(timeout_seconds=error.timeout,
+                       verification_step='baseline_decode' if program == str(args.main)
+                       else 'oracle_probe' if program == str(oracle.ffprobe) else 'oracle_decode')
         return row
     expected = signature(args.main, source, 1)
     row['status'] = 'checking_candidate'
@@ -157,6 +162,7 @@ def main():
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--shard-index', type=int, default=0)
     parser.add_argument('--shard-count', type=int, default=1)
+    parser.add_argument('--only', default='')
     parser.add_argument('--repeats', type=int, choices=range(3, 10), default=5)
     parser.add_argument('--frames', type=int, choices=range(1, 65), default=32)
     args = parser.parse_args()
@@ -165,7 +171,13 @@ def main():
     if not 0 <= args.shard_index < args.shard_count <= 30:
         parser.error('invalid_shard')
     ids = [f'd{index:02}' for index in range(26)] + [f'c{index:02}' for index in range(4)]
-    args.only = {identity for index, identity in enumerate(ids) if index % args.shard_count == args.shard_index}
+    selected = set(args.only.split(',')) if args.only else set(ids)
+    if not selected <= set(ids):
+        parser.error('unknown_input_identity')
+    args.only = {identity for index, identity in enumerate(ids)
+                 if index % args.shard_count == args.shard_index and identity in selected}
+    if not args.only:
+        parser.error('empty_shard')
     oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
     args.out.mkdir(parents=True, exist_ok=True)
     report = dict(candidate=args.candidate, baseline=args.baseline, candidate_sha256=conformance.digest(args.native),

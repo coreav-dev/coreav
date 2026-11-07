@@ -1,6 +1,7 @@
 import copy
 import json
 import pathlib
+import subprocess
 import sys
 import tempfile
 import types
@@ -32,7 +33,7 @@ class ThreadingReference(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             out = pathlib.Path(temp) / 'out'
             args = ['driver', '--native', '/native', '--main', '/main', '--oracle-bin', '/oracle', '--out', str(out),
-                    '--candidate', 'a' * 40, '--baseline', 'b' * 40]
+                    '--candidate', 'a' * 40, '--baseline', 'b' * 40, '--only', 'd00,d01']
             pool = types.SimpleNamespace(limits=types.SimpleNamespace(requests=0), close=lambda: None)
             with patch.object(sys, 'argv', args), \
                     patch.object(threading.test_oracle, 'require', return_value=object()), \
@@ -48,6 +49,19 @@ class ThreadingReference(unittest.TestCase):
                 measure.assert_called_once()
             report = json.loads((out / 'results.json').read_text())
             self.assertFalse(report['passed'])
+            self.assertEqual(report['selected_ids'], ['d00', 'd01'])
+
+    def test_baseline_timeout_records_the_failing_verification_step(self):
+        args = types.SimpleNamespace(native='/candidate', main=pathlib.Path('/main'))
+        oracle = types.SimpleNamespace(ffmpeg='/qualified-ffmpeg', ffprobe='/qualified-ffprobe')
+        for program, step in [('/main', 'baseline_decode'), (oracle.ffprobe, 'oracle_probe'),
+                              (oracle.ffmpeg, 'oracle_decode')]:
+            with patch.object(threading.conformance, 'digest', return_value='a' * 64), \
+                    patch.object(threading.reference, 'verify', side_effect=subprocess.TimeoutExpired([program], 600)) as verify:
+                row = threading.measure(args, oracle, pathlib.Path('/input'), 'd00')
+            self.assertEqual((row['status'], row['verification_step'], row['timeout_seconds']),
+                             ('baseline_not_verified', step, 600))
+            verify.assert_called_once_with(args.main, oracle, pathlib.Path('/input'), timeout=600)
 
     def test_census_counts_only_complete_native_syntax_and_uses_qualified_extraction(self):
         with tempfile.TemporaryDirectory() as temp:
