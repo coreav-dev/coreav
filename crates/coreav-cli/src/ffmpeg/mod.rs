@@ -1604,6 +1604,24 @@ fn non_pcm_audio_options(
     output: &[(usize, &Stream)],
     decided: &[Option<Codec>],
 ) -> Result<(), Refusal> {
+    if command.encoding.audio_bitrate.is_some()
+        && matches!(command.muxer, Muxer::Mp4 | Muxer::Ipod)
+        && !command
+            .codecs
+            .iter()
+            .any(|(_, codec)| matches!(codec, Codec::Audio(_) | Codec::AviAudio(_)))
+        && !output.iter().zip(decided).any(|((_, stream), codec)| {
+            stream.kind == StreamKind::Audio
+                && *codec == Some(Codec::Audio(args::AudioEncoder::Aac))
+        })
+    {
+        return Err(Refusal::NotNative(NotNative::option(
+            "-b:a",
+            None,
+            "'-b:a' without an explicit audio encoder requires selected default AAC encoding"
+                .to_owned(),
+        )));
+    }
     for (option, asked) in [
         ("-ar", command.sample_rate.map(i64::from)),
         ("-ac", command.channels.map(i64::from)),

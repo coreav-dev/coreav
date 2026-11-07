@@ -282,6 +282,68 @@ fn identity_audio_options_and_default_aac_bitrate_run_natively() {
 }
 
 #[test]
+fn default_bitrate_admission_preserves_legacy_native_commands() {
+    let dir = fixture("bitrate");
+    let source = dir.0.join("aac-source.mp4");
+    success(
+        Command::new(test_oracle::require().ffmpeg())
+            .args(["-nostdin", "-v", "error"])
+            .args(policy())
+            .arg("-i")
+            .arg(dir.0.join("source.mp4"))
+            .args([
+                "-map", "0:v", "-map", "0:a:0", "-c:v", "copy", "-c:a", "aac",
+            ])
+            .arg(&source)
+            .output()
+            .unwrap(),
+    );
+    std::fs::rename(source, dir.0.join("source.mp4")).unwrap();
+    for options in [
+        "-c:a aac -c:a copy",
+        "-c:a:9 aac -c:a copy",
+        "-an -c:a aac",
+        "-an -c:a aac -c:a copy",
+    ] {
+        let mut args = vec!["-c:v", "libx264", "-threads", "1"];
+        args.extend(options.split_whitespace());
+        let control = dir.0.join("control.mp4");
+        success(native(&dir.0, &control, &args, false));
+        args.extend(["-b:a", "96k"]);
+        let actual = dir.0.join("actual.mp4");
+        success(native(&dir.0, &actual, &args, false));
+        assert_eq!(
+            std::fs::read(control).unwrap(),
+            std::fs::read(actual).unwrap(),
+            "{options}"
+        );
+    }
+    for options in ["-c:a copy", "-an", "-c:a:9 copy -an"] {
+        let mut args = vec!["-c:v", "libx264", "-b:a", "96k"];
+        args.extend(options.split_whitespace());
+        for existing in [false, true] {
+            let output = dir.0.join("refused.mp4");
+            if existing {
+                std::fs::write(&output, b"keep destination").unwrap();
+            }
+            let result = native(&dir.0, &output, &args, false);
+            assert_eq!(result.status.code(), Some(4), "{options}: {result:?}");
+            assert!(
+                String::from_utf8_lossy(&result.stderr)
+                    .contains("'-b:a' without an explicit audio encoder"),
+                "{result:?}"
+            );
+            if existing {
+                assert_eq!(std::fs::read(&output).unwrap(), b"keep destination");
+                std::fs::remove_file(output).unwrap();
+            } else {
+                assert!(!output.exists());
+            }
+        }
+    }
+}
+
+#[test]
 fn nonidentity_and_copy_audio_options_preserve_destinations() {
     let dir = fixture("refuse");
     let mut cases: Vec<Vec<_>> = [
@@ -344,6 +406,8 @@ fn nonidentity_and_copy_audio_options_preserve_destinations() {
                 let error = String::from_utf8_lossy(&result.stderr);
                 let option = if options.contains(&"-ar") {
                     "'-ar'"
+                } else if options.contains(&"-b:a") {
+                    "'-b:a'"
                 } else {
                     "'-ac'"
                 };

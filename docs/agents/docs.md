@@ -4,6 +4,7 @@ Documentation-site prose, schema wording, and design-note updates.
 
 | Rule | Enforced by |
 |---|---|
+| An audio-option admission change updates both its explanatory prose and the option table | Not enforced: review judgment. The generated CLI tests establish effective codec and identity behavior, but types cannot establish whether separate prose statements agree |
 | Final HEVC SIMD guidance requires separate scalar and automatic evidence rather than treating a newest-dispatch verifier as a two-mode check | The owning HEVC tier note defines both modes; the central CI procedure links it and requires independently checked run attempts. `test_manual_c3_failure_blocks_verification_but_scalar_skip_has_no_c3_credit` demonstrates the verifier's scalar limit. Operator verification of both runs remains review judgment |
 | A weekly full-run drift claim distinguishes re-executing jobs from re-fetching cached pinned inputs | Not enforced: review judgment. Existing acquisition conditions can skip remote downloads on cache hits, so a schedule alone cannot establish fresh remote-input availability |
 | The documented SVT verification command includes feature-gated process integration targets | `test_documented_checks_include_feature_gated_process_targets` derives required targets from Cargo metadata and checks the published command. Rust types cannot establish arguments in prose; the required AV1 CI job executes that same explicit test selection |

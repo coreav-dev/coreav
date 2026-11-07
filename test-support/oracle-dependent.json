@@ -75,6 +75,7 @@
   ],
   "crates/coreav-cli/tests/ffmpeg_audio_options.rs": [
     "identity_audio_options_and_default_aac_bitrate_run_natively",
+    "default_bitrate_admission_preserves_legacy_native_commands",
     "nonidentity_and_copy_audio_options_preserve_destinations"
   ],
   "crates/coreav-cli/tests/ffmpeg_concat.rs": [
