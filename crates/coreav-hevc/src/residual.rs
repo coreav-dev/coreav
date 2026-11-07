@@ -1,6 +1,8 @@
 use crate::cabac::{Cabac, Context, Initialization};
 use crate::{Error, Result};
 
+mod scan;
+
 const LAST_INIT: [u8; 18] = [
     110, 110, 124, 125, 140, 153, 125, 127, 140, 109, 111, 143, 127, 111, 79, 108, 123, 63,
 ];
@@ -208,12 +210,14 @@ fn decode_block(
         core::mem::swap(&mut last_x, &mut last_y);
     }
     let group_side = side / 4;
-    let last_group = scan_index(group_side, scan, (last_x / 4, last_y / 4))?;
-    let last_position = scan_index(4, scan, (last_x % 4, last_y % 4))?;
+    let group_scan = scan.order(group_side)?;
+    let coefficient_scan = scan.order(4)?;
+    let last_group = group_scan.index((last_x / 4, last_y / 4))?;
+    let last_position = coefficient_scan.index((last_x % 4, last_y % 4))?;
     let mut coded_groups = [false; 64];
     let mut level_state = LevelState::new(1);
     for group in (0..=last_group).rev() {
-        let (gx, gy) = scan_coordinate(group_side, scan, group)?;
+        let (gx, gy) = group_scan.coordinate(group)?;
         let neighbours = group_neighbours(&coded_groups, group_side, gx, gy)?;
         let coded = if group == last_group || group == 0 {
             true
@@ -242,7 +246,7 @@ fn decode_block(
         };
         let mut infer_dc = group != last_group && group != 0;
         for (position, coefficient) in coefficients.iter_mut().enumerate().take(end).rev() {
-            let (x, y) = scan_coordinate(4, scan, position)?;
+            let (x, y) = coefficient_scan.coordinate(position)?;
             coefficient.significant = if position == 0 && infer_dc {
                 true
             } else {
@@ -266,7 +270,7 @@ fn decode_block(
             &mut level_state,
         )?;
         for (position, level) in levels.into_iter().enumerate() {
-            let (x, y) = scan_coordinate(4, scan, position)?;
+            let (x, y) = coefficient_scan.coordinate(position)?;
             *output
                 .get_mut((gy * 4 + y) * side + gx * 4 + x)
                 .ok_or(Error::InvalidData("residual_output"))? = level;
@@ -286,7 +290,17 @@ fn decision(bins: &mut impl Bins, contexts: &mut [Context], index: usize) -> Res
     )
 }
 
-fn scan_coordinate(side: usize, scan: Scan, mut position: usize) -> Result<(usize, usize)> {
+#[cfg(test)]
+fn scan_coordinate(side: usize, scan: Scan, position: usize) -> Result<(usize, usize)> {
+    scan.order(side)?.coordinate(position)
+}
+
+#[cfg(test)]
+fn arithmetic_scan_coordinate(
+    side: usize,
+    scan: Scan,
+    mut position: usize,
+) -> Result<(usize, usize)> {
     if !matches!(side, 1 | 2 | 4 | 8) || position >= side * side {
         return Err(Error::InvalidData("residual_scan"));
     }
@@ -307,13 +321,9 @@ fn scan_coordinate(side: usize, scan: Scan, mut position: usize) -> Result<(usiz
     Err(Error::InvalidData("residual_scan"))
 }
 
+#[cfg(test)]
 fn scan_index(side: usize, scan: Scan, coordinate: (usize, usize)) -> Result<usize> {
-    for position in 0..side * side {
-        if scan_coordinate(side, scan, position)? == coordinate {
-            return Ok(position);
-        }
-    }
-    Err(Error::InvalidData("residual_last"))
+    scan.order(side)?.index(coordinate)
 }
 
 fn last_context(block: Block, bin_index: usize) -> usize {
@@ -813,6 +823,7 @@ mod tests {
                 let mut visited = [false; 64];
                 for position in 0..side * side {
                     let (x, y) = scan_coordinate(side, scan, position)?;
+                    assert_eq!((x, y), arithmetic_scan_coordinate(side, scan, position)?);
                     assert!(x < side && y < side);
                     assert_eq!(visited.get(y * side + x), Some(&false));
                     if let Some(entry) = visited.get_mut(y * side + x) {
