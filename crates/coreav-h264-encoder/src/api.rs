@@ -53,14 +53,31 @@ pub struct Settings {
     pub width: usize,
     /// Even visible height, 16 through 1080.
     pub height: usize,
-    /// Fixed luma QP, 10 through 51.
-    pub qp: u8,
+    /// Fixed QP or constant-quality picture quantization, 10 through 51.
+    pub rate_mode: RateMode,
     /// Preparation metadata written to VUI.
     pub colour: Colour,
     /// In-loop filtering of the reconstructed coded picture.
     pub deblocking: Deblocking,
     /// Independent pictures or a fixed interval between IDR pictures.
     pub gop: Gop,
+}
+
+/// Picture quantization policy. Neither mode promises a bitrate or size cap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RateMode {
+    /// Use this luma QP for every picture, from 10 through 51.
+    FixedQp(u8),
+    /// Use this quality value, from 10 through 51, as the neutral P-picture QP.
+    /// Lower values request finer quantization; 10 is not lossless.
+    /// Source activity and I-picture preference adjust QP from -1 through +2.
+    Crf(u8),
+}
+
+impl Default for RateMode {
+    fn default() -> Self {
+        Self::FixedQp(26)
+    }
 }
 
 /// Fixed sequence prediction structure.
@@ -163,7 +180,7 @@ pub struct AccessUnit {
     pub reconstruction: Vec<u8>,
 }
 
-/// Fixed-QP sequence accounting. A failed call changes no sequence state.
+/// Sequence accounting. A failed call changes no sequence state.
 pub struct Encoder {
     pub(crate) settings: Settings,
     pub(crate) limits: Limits,
@@ -191,16 +208,16 @@ impl Encoder {
         let Settings {
             width,
             height,
-            qp,
             colour: c,
             ..
         } = settings;
+        let (RateMode::FixedQp(value) | RateMode::Crf(value)) = settings.rate_mode;
         if threads == 0
             || !(16..=1920).contains(&width)
             || !(16..=1080).contains(&height)
             || width % 2 != 0
             || height % 2 != 0
-            || !(10..=51).contains(&qp)
+            || !(10..=51).contains(&value)
             || c.chroma_location > 5
             || !matches!(c.primaries, 1 | 2 | 4..=12 | 22)
             || !matches!(c.transfer, 1 | 2 | 4..=15 | 17)
@@ -262,6 +279,7 @@ impl Encoder {
             idr,
             id: self.next_idr_id,
             frame_num: if idr { 0 } else { self.next_frame_num },
+            qp: crate::rate::picture_qp(self.settings.rate_mode, picture.y, idr)?,
         };
         let encoded = codec::picture(self, picture, slice)?;
         let nals = [sps.nal(0x67)?, pps.nal(0x68)?, encoded.nal];

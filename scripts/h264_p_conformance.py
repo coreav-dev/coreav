@@ -261,7 +261,7 @@ class Picture:
         self.admit(count, mode, r.at - start, subtypes)
 
 
-def inspect(data, width, height, qp, frames, deblocking=False, interval=20):
+def inspect(data, width, height, qp, frames, deblocking=False, interval=20, *, picture_qps=None):
     if width % 2 or height % 2:
         raise ValueError('4:2:0 geometry must be even')
     bounded(width, 16, 1920, 'width')
@@ -269,6 +269,10 @@ def inspect(data, width, height, qp, frames, deblocking=False, interval=20):
     bounded(qp, 10, 51, 'QP')
     bounded(frames, 1, 120, 'frames')
     bounded(interval, 1, 120, 'IDR interval')
+    if picture_qps is not None:
+        g1.require(len(picture_qps), frames, 'picture QP count')
+        for value in picture_qps:
+            bounded(value, 10, 51, 'picture QP')
     if len(data) > frames * 1000012:
         raise ValueError('sequence exceeds NAL byte envelope')
     nals = g1.units(data)
@@ -291,7 +295,8 @@ def inspect(data, width, height, qp, frames, deblocking=False, interval=20):
             g1.require((r.ue(), r.u(1), r.u(1)), ((frame // interval) % 2, 0, 0), 'IDR identity and marking')
         else:
             g1.require((r.u(1), r.u(1), r.u(1)), (0, 0, 0), 'one reference, no list modification, sliding marking')
-        g1.require(r.se(), qp - 26, 'fixed slice QP')
+        selected_qp = qp if picture_qps is None else picture_qps[frame]
+        g1.require(r.se(), selected_qp - 26, 'fixed slice QP' if picture_qps is None else 'CRF slice QP')
         g1.require(r.ue(), 0 if deblocking else 1, 'deblocking control')
         if deblocking:
             g1.require((r.se(), r.se()), (0, 0), 'zero deblocking offsets')

@@ -142,7 +142,7 @@ pub(super) fn decide(
             source: &source,
             csources: &csources,
             context,
-            qp: e.settings.qp,
+            qp: slice.qp,
             pending_skip: 0,
         };
         let previous = if address == 0 {
@@ -193,7 +193,7 @@ mod tests {
         let settings = crate::Settings {
             width: 64,
             height: 48,
-            qp: 28,
+            rate_mode: crate::RateMode::FixedQp(28),
             deblocking: crate::Deblocking::Disabled,
             gop: crate::Gop::AllIntra,
             colour: crate::Colour {
@@ -219,6 +219,7 @@ mod tests {
                 idr: true,
                 id: 0,
                 frame_num: 0,
+                qp: 28,
             },
         )
         .unwrap();

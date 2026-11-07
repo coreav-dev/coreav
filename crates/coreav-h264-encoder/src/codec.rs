@@ -1099,9 +1099,9 @@ pub(crate) fn picture(
     if e.settings.deblocking == Deblocking::Enabled {
         for (c, plane) in planes.iter_mut().enumerate() {
             let qp = if c == 0 {
-                e.settings.qp
+                slice.qp
             } else {
-                t::chroma_qp(e.settings.qp)
+                t::chroma_qp(slice.qp)
             };
             deblock::picture(
                 &mut plane.data,

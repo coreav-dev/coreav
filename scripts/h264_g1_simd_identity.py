@@ -49,7 +49,7 @@ def main():
         for pattern in ("ramp", "edge"):
             raw = args.output / f"{width}x{height}-{pattern}.yuv"
             raw.write_bytes(pictures(width, height, frames, pattern))
-            for qp in (10, 28, 51):
+            for qp in (10, 28, 51, 'crf:10', 'crf:23', 'crf:51'):
                 for deblock in ("false", "true"):
                     for interval in (1, 3):
                         case = args.output / f"{width}x{height}-{pattern}-{qp}-{deblock}-{interval}"
