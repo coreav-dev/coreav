@@ -13,7 +13,7 @@ const ADJUST: [[i64; 3]; 6] = [
     [18, 29, 23],
 ];
 const SHIFT: u32 = 40;
-const INTRA_OFFSET: u64 = 4;
+const INTRA_OFFSET: u64 = 5;
 const INTER_OFFSET: u64 = 2;
 const OFFSET_DENOMINATOR: u64 = 12;
 static QUANT: LazyLock<[Quant; 52]> =
@@ -41,16 +41,6 @@ pub(crate) fn norm(qp: u8, position: usize) -> Result<i64> {
         .and_then(|r| r.get(column))
         .copied()
         .ok_or(Error::Internal)
-}
-
-#[cfg(test)]
-fn nearest(numerator: i64, denominator: i64) -> Result<i32> {
-    let a = numerator.abs();
-    if 2 * a <= denominator {
-        return Ok(0);
-    }
-    let level = a / denominator + i64::from((a % denominator) * 2 > denominator);
-    i32::try_from(if numerator < 0 { -level } else { level }).map_err(|_| Error::Coefficient)
 }
 
 fn rounded(numerator: i64, denominator: i64, offset: u64) -> Result<i32> {
@@ -390,7 +380,13 @@ mod tests {
 
     /// The 64-bit, per-call checked path the fused kernel replaced.
     mod reference {
-        use super::super::{Error, Result, nearest, norm, range};
+        use super::super::{Error, INTER_OFFSET, INTRA_OFFSET, Result, norm, range};
+
+        pub(super) fn round(n: i64, d: i64, offset: u64) -> Result<i32> {
+            let magnitude = (12 * n.abs() + d * offset as i64) / (12 * d);
+            i32::try_from(if n < 0 { -magnitude } else { magnitude })
+                .map_err(|_| Error::Coefficient)
+        }
 
         fn line<const DC: bool>([a, b, c, d]: [i64; 4]) -> [i64; 4] {
             if DC {
@@ -421,14 +417,16 @@ mod tests {
             transformed: &[i64; 16],
             qp: u8,
             separate_dc: bool,
+            offset: u64,
         ) -> Result<[i32; 16]> {
             let mut out = [0; 16];
             for (p, dst) in out.iter_mut().enumerate().skip(usize::from(separate_dc)) {
                 let weight =
                     (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
-                *dst = nearest(
+                *dst = round(
                     64 * transformed[p],
                     weight * norm(qp, p)? * (1i64 << (qp / 6)),
+                    offset,
                 )?;
             }
             Ok(out)
@@ -438,6 +436,7 @@ mod tests {
             transformed: &[i64; 16],
             qp: u8,
             separate_dc: bool,
+            offset: u64,
         ) -> bool {
             transformed
                 .iter()
@@ -446,7 +445,13 @@ mod tests {
                 .all(|(p, c)| {
                     let weight =
                         (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
-                    128 * c.abs() <= weight * norm(qp, p).unwrap() * (1i64 << (qp / 6))
+                    round(
+                        64 * c,
+                        weight * norm(qp, p).unwrap() * (1i64 << (qp / 6)),
+                        offset,
+                    )
+                    .unwrap()
+                        == 0
                 })
         }
 
@@ -501,7 +506,7 @@ mod tests {
             let transformed = matrix::<true>(sums);
             let mut levels = [0i32; 16];
             for (out, v) in levels.iter_mut().zip(transformed) {
-                *out = nearest(v, norm(qp, 0)? * (1i64 << (qp / 6)))?;
+                *out = round(v, norm(qp, 0)? * (1i64 << (qp / 6)), INTRA_OFFSET)?;
             }
             let inv = matrix::<true>(levels.map(i64::from));
             let mut dc = [0i32; 16];
@@ -519,7 +524,7 @@ mod tests {
             }
             let mut levels = [0i32; 4];
             for (out, v) in levels.iter_mut().zip(h(sums)) {
-                *out = nearest(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)))?;
+                *out = round(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)), INTER_OFFSET)?;
             }
             let mut dc = [0i32; 4];
             for (out, v) in dc.iter_mut().zip(h(levels.map(i64::from))) {
@@ -633,6 +638,37 @@ mod tests {
     }
 
     #[test]
+    fn offset_kernels_match_division_and_zero_decisions_for_both_prediction_types() {
+        for qp in 0..=51 {
+            for offset in [0, 2, 4, 5] {
+                let quant = Quant::new(qp, offset);
+                for coefficient in -MAX_COEFFICIENT..=MAX_COEFFICIENT {
+                    let input = Forward([coefficient; 16]);
+                    for separate_dc in [false, true] {
+                        let expected =
+                            reference::quantize(&input.0.map(i64::from), qp, separate_dc, offset)
+                                .unwrap();
+                        assert_eq!(quant.levels(&input, separate_dc), expected);
+                        assert_eq!(
+                            quant.zero(&input, separate_dc),
+                            expected.into_iter().all(|level| level == 0),
+                        );
+                    }
+                }
+            }
+            for quant in [Quant::of(qp).unwrap(), Quant::intra(qp).unwrap()] {
+                for numerator in [-130_560, -1, 0, 1, 130_560] {
+                    let divisor = norm(qp, 0).unwrap() << (qp / 6);
+                    assert_eq!(
+                        rounded(numerator, divisor, quant.offset),
+                        reference::round(numerator, divisor, quant.offset),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn levels_and_zero_match_exact_division_for_every_coefficient_and_qp() {
         for qp in 0..=51u8 {
             let quant = Quant::of(qp).unwrap();
@@ -642,12 +678,12 @@ mod tests {
                 for separate_dc in [false, true] {
                     assert_eq!(
                         quant.levels(&block, separate_dc),
-                        reference::quantize(&wide, qp, separate_dc).unwrap(),
+                        reference::quantize(&wide, qp, separate_dc, quant.offset).unwrap(),
                         "{qp} {c} {separate_dc}"
                     );
                     assert_eq!(
                         quant.zero(&block, separate_dc),
-                        reference::quantizes_to_zero(&wide, qp, separate_dc),
+                        reference::quantizes_to_zero(&wide, qp, separate_dc, quant.offset),
                         "{qp} {c} {separate_dc}"
                     );
                 }
@@ -666,9 +702,13 @@ mod tests {
                 let coefficients = forward(&place(source), &place(prediction), AT, STRIDE).unwrap();
                 for separate_dc in [false, true] {
                     let levels = quant.levels(&coefficients, separate_dc);
-                    let expected =
-                        reference::quantize(&reference::matrix::<false>(residual), qp, separate_dc)
-                            .unwrap();
+                    let expected = reference::quantize(
+                        &reference::matrix::<false>(residual),
+                        qp,
+                        separate_dc,
+                        quant.offset,
+                    )
+                    .unwrap();
                     assert_eq!(levels, expected);
                     let dcs: &[Option<i32>] = if separate_dc {
                         &[
@@ -791,8 +831,10 @@ mod tests {
             );
             for qp in 10..=51 {
                 let transformed = generic(input.map(i64::from), &HADAMARD);
-                let levels = transformed
-                    .map(|v| nearest(v, norm(qp, 0).unwrap() * (1i64 << (qp / 6))).unwrap());
+                let levels = transformed.map(|v| {
+                    reference::round(v, norm(qp, 0).unwrap() * (1i64 << (qp / 6)), INTRA_OFFSET)
+                        .unwrap()
+                });
                 let inv = generic(levels.map(i64::from), &HADAMARD);
                 let expected = (|| {
                     let mut dc = [0; 16];
