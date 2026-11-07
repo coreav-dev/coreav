@@ -91,17 +91,24 @@ test("binary replacement retains a running executable's inode", { skip: process.
   const scratch = mkdtempSync(join(tmpdir(), "coreav-running-inode-"));
   const binary = join(scratch, "binary");
   cpSync(process.execPath, binary);
-  const child = spawn(binary, ["-e", 'process.stdout.write("ready\\n"); setInterval(() => {}, 1000);'], { stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(binary, ["-e", 'process.on("message", () => process.send("alive")); process.send("ready");'], { stdio: ["ignore", "ignore", "pipe", "ipc"] });
   const closed = once(child, "close");
+  const nextMessage = () => Promise.race([
+    once(child, "message", { signal: t.signal }),
+    closed.then(() => assert.fail("the original executable exited before responding")),
+  ]);
   try {
-    const [ready] = await once(child.stdout, "data", { signal: t.signal });
-    assert.equal(ready.toString(), "ready\n");
+    const [ready] = await nextMessage();
+    assert.equal(ready, "ready");
     assert.throws(() => writeFileSync(binary, "replacement"), { code: "ETXTBSY" });
     replaceBinary(binary, "#!/bin/sh\necho replacement\n");
-    assert.equal(child.exitCode, null, "the original executable stopped during replacement");
     const done = run(binary, ["--version"]);
     assert.equal(done.status, 0, done.stderr.toString());
     assert.equal(done.stdout.toString(), "replacement\n");
+    const response = nextMessage();
+    child.send("ping");
+    const [alive] = await response;
+    assert.equal(alive, "alive");
   } finally {
     child.kill("SIGKILL");
     await closed;
