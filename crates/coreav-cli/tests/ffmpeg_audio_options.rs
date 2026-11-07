@@ -301,14 +301,16 @@ fn audio_timing(path: &Path) -> Vec<Vec<u8>> {
     ]
 }
 
-fn decoded_audio(path: &Path) -> Vec<u8> {
+fn decoded_audio(path: &Path, stream: usize) -> Vec<u8> {
     success(
         Command::new(test_oracle::require().ffmpeg())
             .args(["-nostdin", "-v", "error"])
             .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
             .arg("-i")
             .arg(path)
-            .args(["-map", "0:a:0", "-f", "f32le", "pipe:1"])
+            .arg("-map")
+            .arg(format!("0:a:{stream}"))
+            .args(["-f", "f32le", "pipe:1"])
             .output()
             .unwrap(),
     )
@@ -350,7 +352,11 @@ fn aac_terminal_timing_matches_the_complete_oracle_boxes() {
                         .unwrap(),
                 );
                 assert_eq!(audio_timing(&actual), audio_timing(&reference), "{name}");
-                assert_eq!(decoded_audio(&actual), decoded_audio(&reference), "{name}");
+                assert_eq!(
+                    decoded_audio(&actual, 0),
+                    decoded_audio(&reference, 0),
+                    "{name}"
+                );
             }
         }
     }
@@ -407,8 +413,8 @@ fn aac_terminal_timing_matches_the_complete_oracle_boxes() {
     );
     assert_eq!(audio_timing(&actual), audio_timing(&reference), "Matroska");
     assert_eq!(
-        decoded_audio(&actual),
-        decoded_audio(&reference),
+        decoded_audio(&actual, 0),
+        decoded_audio(&reference, 0),
         "Matroska"
     );
 }
@@ -755,55 +761,105 @@ fn copied_aac_and_opus_match_oracle_metadata_without_other_file_changes() {
 #[test]
 fn matroska_copy_bitrate_keeps_complete_native_files() {
     for encoder in ["aac", "libopus"] {
-        let dir = fixture(&format!("copied-matroska-{encoder}"));
-        let encoded = dir.0.join("encoded.mkv");
-        oracle(
-            &dir.0,
-            &encoded,
-            &[
+        for container in ["mkv", "mp4"] {
+            let dir = fixture(&format!("copied-matroska-{encoder}-{container}"));
+            let encoded = dir.0.join(format!("encoded.{container}"));
+            oracle(
+                &dir.0,
+                &encoded,
+                &[
+                    "-map",
+                    "0:v",
+                    "-map",
+                    "0:a",
+                    "-c:v",
+                    "copy",
+                    "-c:a",
+                    encoder,
+                    "-ar",
+                    "48000",
+                    "-b:a",
+                    "72k",
+                    "-disposition:a",
+                    "0",
+                ],
+            );
+            std::fs::rename(encoded, dir.0.join("source.mp4")).unwrap();
+            let options = [
                 "-map",
                 "0:v",
                 "-map",
                 "0:a",
                 "-c:v",
-                "copy",
+                "libx264",
+                "-threads",
+                "1",
+                "-fps_mode",
+                "passthrough",
                 "-c:a",
-                encoder,
-                "-ar",
-                "48000",
-                "-b:a",
-                "72k",
-                "-disposition:a",
-                "0",
-            ],
-        );
-        std::fs::rename(encoded, dir.0.join("source.mp4")).unwrap();
-        let options = [
-            "-map",
-            "0:v",
-            "-map",
-            "0:a",
-            "-c:v",
-            "libx264",
-            "-threads",
-            "1",
-            "-fps_mode",
-            "passthrough",
-            "-c:a",
-            "aac",
-            "-c:a",
-            "copy",
-        ];
-        let control = dir.0.join("control.mp4");
-        success(native(&dir.0, &control, &options, false));
-        let control = std::fs::read(control).unwrap();
-        assert_eq!(audio_entries(&control).len(), 2);
-        for rate in ["0", "16k", "96k", "128k", "garbage", "4294967296"] {
-            let mut args = options.to_vec();
-            args.extend(["-b:a", rate]);
-            let actual = dir.0.join("actual.mp4");
-            success(native(&dir.0, &actual, &args, false));
-            assert_eq!(std::fs::read(actual).unwrap(), control, "{encoder} {rate}");
+                "aac",
+                "-c:a",
+                "copy",
+            ];
+            if container == "mp4" {
+                let matroska = dir.0.join("source.mkv");
+                success(native(&dir.0, &matroska, &options, false));
+                std::fs::rename(matroska, dir.0.join("source.mp4")).unwrap();
+            }
+            let control = dir.0.join("control.mp4");
+            success(native(&dir.0, &control, &options, false));
+            let reference = dir.0.join("presentation-reference.mp4");
+            if container == "mp4" {
+                oracle(&dir.0, &reference, &options);
+            }
+            for (stream, channels) in [(0, 1), (1, 2)] {
+                let source = decoded_audio(&dir.0.join("source.mp4"), stream);
+                let samples = if encoder == "aac" && container == "mkv" {
+                    12_288
+                } else {
+                    12_000
+                };
+                assert_eq!(
+                    source.len(),
+                    samples * channels * 4,
+                    "{encoder} {container} {stream}"
+                );
+                let actual = decoded_audio(&control, stream);
+                assert!(
+                    actual == source,
+                    "Matroska copied presentation: {encoder} {container} {stream}; bytes {} vs {}; first mismatch {:?}",
+                    actual.len(),
+                    source.len(),
+                    actual.iter().zip(&source).position(|(a, b)| a != b)
+                );
+                if container == "mp4" {
+                    let reference = decoded_audio(&reference, stream);
+                    let stride = channels * 4;
+                    if encoder == "aac" {
+                        assert_eq!(reference.len(), source.len());
+                        assert!(reference != source, "AAC oracle displacement disappeared");
+                        assert!(
+                            reference[16 * stride..] == source[..source.len() - 16 * stride],
+                            "AAC oracle displacement is not 16 samples: {stream}"
+                        );
+                    } else {
+                        assert_eq!(reference.len(), source.len() + 144 * stride);
+                        assert!(
+                            reference[..source.len() - 24 * stride] == source[24 * stride..],
+                            "Opus oracle displacement is not 24 samples: {stream}"
+                        );
+                    }
+                }
+            }
+            let control = std::fs::read(control).unwrap();
+            assert_eq!(audio_entries(&control).len(), 2);
+            for rate in ["0", "16k", "96k", "128k", "garbage", "4294967296"] {
+                let mut args = options.to_vec();
+                args.extend(["-b:a", rate]);
+                let actual = dir.0.join("actual.mp4");
+                success(native(&dir.0, &actual, &args, false));
+                assert_eq!(std::fs::read(actual).unwrap(), control, "{encoder} {rate}");
+            }
         }
     }
 }
