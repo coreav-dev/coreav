@@ -51,6 +51,12 @@ fuzz_target!(|data: &[u8]| {
     let inverse_input = std::array::from_fn(|i| {
         i32::from(i16::from_le_bytes([byte(400 + i * 2), byte(401 + i * 2)]))
     });
+    let wide_inverse_input =
+        std::array::from_fn(|i| i32::from_le_bytes(std::array::from_fn(|j| byte(400 + i * 4 + j))));
+    let wide_inverse = transform::inverse_scalar(wide_inverse_input);
+    if wide_inverse_input.iter().any(|&c| i16::try_from(c).is_err()) {
+        assert!(wide_inverse.is_none());
+    }
     #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
     {
         let simd = simd::Avx2::detect();
@@ -66,6 +72,7 @@ fuzz_target!(|data: &[u8]| {
                 simd.inverse(&inverse_input),
                 transform::inverse_scalar(inverse_input)
             );
+            assert_eq!(simd.inverse(&wide_inverse_input), wide_inverse);
         }
     }
     let mut actual: [u8; 16] = std::array::from_fn(|i| byte(450 + i));

@@ -14,7 +14,7 @@ The safe transform owner continues to establish complete borrowed rows before an
 
 Quantization preserves the exact unsigned product and right shift: `(128 * abs(coefficient) + bias) * reciprocal >> 40`, followed by the original sign restoration and optional DC removal. The current table's multiplicands fit unsigned 32 bits, and their product fits unsigned 64 bits. The zero test preserves its inclusive threshold and DC exclusion. Tests cover every coefficient magnitude and QP, including exact ties, rather than using approximate reciprocal arithmetic.
 
-Inverse scaling retains wrapping 32-bit multiplication and the same signed-16-bit admission checks before the DC override. The inverse transform uses signed 32-bit lanes and checks every intermediate that the scalar butterfly checks, plus the final upper bound of 32735 before rounding. The DC-only shortcut, zero-block behavior, pixel rounding and clipping, and error ordering remain authoritative in the shared safe path. No saturated intermediate may turn a scalar refusal into success.
+Inverse scaling retains wrapping 32-bit multiplication and the same signed-16-bit admission checks before the DC override. `inverse_input_valid` owns initial coefficient admission for reconstruction and both inverse entry points: scalar and AVX2 refuse any coefficient outside -32768 through 32767 before a butterfly runs. The inverse transform uses signed 32-bit lanes and checks every intermediate that the scalar butterfly checks, plus the final upper bound of 32735 before rounding. The DC-only shortcut, zero-block behavior, pixel rounding and clipping, and error ordering remain authoritative in the shared safe path. No saturated intermediate may turn a scalar refusal into success.
 
 ## Verification and delivery
 
