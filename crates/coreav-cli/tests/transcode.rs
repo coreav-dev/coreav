@@ -3408,13 +3408,21 @@ fn audio_encodes_preserve_the_decoders_presented_samples() {
                 &dir,
                 "capture-ffmpeg",
                 &format!(
-                    "case \" $* \" in *' -h '*) exec '{}' \"$@\";; esac\n/usr/bin/cmp - '{}' || exit 1\nexec '{}' \"$@\" < '{}'",
-                    tools.ffmpeg.display(),
+                    "exec /usr/bin/python3 -I -B -c 'import pathlib, subprocess, sys\ndata = sys.stdin.buffer.read()\nif data and data != pathlib.Path(sys.argv[1]).read_bytes():\n    print(\"PCM mismatch\", file=sys.stderr)\n    sys.exit(1)\nsys.exit(subprocess.run([sys.argv[2], *sys.argv[3:]], input=data).returncode)' '{}' '{}' \"$@\"",
                     capture.display(),
-                    tools.ffmpeg.display(),
-                    capture.display()
+                    tools.ffmpeg.display()
                 ),
             );
+            let mut wrong = expected.0.clone();
+            wrong[0] ^= 1;
+            let rejected = bounded::output(
+                &mut Command::new(&wrapper),
+                Some(wrong),
+                std::time::Duration::from_secs(5),
+            )
+            .unwrap();
+            assert_eq!(rejected.status.code(), Some(1));
+            assert_eq!(rejected.stderr, b"PCM mismatch\n");
             let mut modes = vec![("aac", "aac")];
             if cfg!(feature = "libopus") {
                 modes.push(("opus", "libopus"));
@@ -3850,7 +3858,7 @@ fn audio_the_aac_encode_does_not_take_is_refused_first() {
     let without = script(
         &dir,
         "ffmpeg-without-aac",
-        "echo \"Codec 'aac' is not recognized by FFmpeg.\"",
+        "printf \"Unknown encoder 'aac'\\n\" >&2; exit 1",
     );
     let flac = made(&tools, &dir, "flac.mp4", &["-c:a", "flac"]);
     for (name, source, ffmpeg, says) in [
@@ -4126,7 +4134,7 @@ fn ffmpeg_aac_lines_encode_the_audio() {
     let without = script(
         &dir,
         "ffmpeg-without-aac",
-        "echo \"Codec 'aac' is not recognized by FFmpeg.\"",
+        "printf \"Unknown encoder 'aac'\\n\" >&2; exit 1",
     );
     let line = |source: &Path, extra: &[&'static str]| {
         let mut args = vec!["-i".to_owned(), source.to_str().unwrap().to_owned()];
