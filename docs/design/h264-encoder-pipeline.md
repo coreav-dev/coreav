@@ -55,7 +55,7 @@ The stage attribution suggests, without establishing a majority for any one stag
 | 7 | Multi-candidate SAD: one source row against several candidate rows per call | Identical | Step 6 | Small to medium; integer probes are already cheap | Obvious, under the kernel policy |
 | 8 | Step 9, deblocking fast path; a vector filter only if the fast path leaves a measurable share | Identical | None | Small; an earlier trial of the decoder's dispatched filter showed no clear benefit | Obvious |
 | 9 | Row wavefront, after the one-time removal of raster-order cost state; admission keeps the normative motion-vector limit for consecutive macroblocks (below) | Changes once, then identical for every thread count | None; the current reference planes are immutable | Scales with cores; needed for parity above one thread, with a measured one-thread ownership cost | Obvious: the threading model is decided |
-| 10 | New NEON arithmetic for items 1, 4, 5 and 7 | Identical | Those items | Arm hosts keep scalar SAD and SATD until then | Decided: the encoder kernel policy will be amended (approved) to allow new NEON kernels under the same rules before any new NEON kernel lands; x86-64 kernels come first |
+| 10 | New NEON arithmetic for items 1, 4, 5 and 7 | Identical | Those items | Arm hosts keep scalar SAD and SATD until then | Permitted by the encoder kernel policy, with x86-64 first; the first NEON implementation must add passing encoder verification on an arm64 CI runner |
 
 Step 10 completes the target pipeline for P pictures the way step 1 did for IDR. **P finalist shortlist (output change).** Skip is still built and counted exactly, because the quiet test reads it and it can be the best complete candidate. The other inter options (coded 16x16 at the skip vector, the 16x16 plan and, when step 2 searched them, the 8x8 plans) are deduplicated first, so identical complete representations occupy one slot. The remaining options are ranked by SATD plus known syntax lengths, and only the best two are built and counted exactly. When neither passes macroblock admission, the remaining options are evaluated as now, so the shortlist never refuses a macroblock the complete evaluation accepts.
 
@@ -108,7 +108,7 @@ Also decided for this roadmap:
 
 - Parity is judged first at the matched settings. A later phase widens the comparison to x264 medium's defaults, with the tools in compression item 6.
 - Rate-distortion levels (compression item 5) are enabled by default, even though they cost speed.
-- The encoder kernel policy will be amended (approved) to allow new NEON kernels under the same rules as the existing vector kernels, before any new NEON kernel lands. x86-64 kernels come first.
+- The encoder kernel policy permits new NEON kernels under the same safety and verification rules as the existing vector kernels. x86-64 kernels come first, and the first NEON implementation must add passing encoder verification on an arm64 CI runner.
 
 ## Correctness and delivery
 
