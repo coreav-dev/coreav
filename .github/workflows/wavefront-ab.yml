@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           B="$RUNNER_TEMP/bin"; mkdir -p "$B"
-          for pair in main:79e6c8bc3fc4dd255ec5c7420702cd1b6c5ba5f0 cand:9ac751c85d244b49b837cb4a5c8ee7210c3d6699 scalar:9ac751c85d244b49b837cb4a5c8ee7210c3d6699; do
+          for pair in main:79e6c8bc3fc4dd255ec5c7420702cd1b6c5ba5f0 cand:0d0d95ab9d752fb3536d0f9ebc530b55807eb0a0 scalar:0d0d95ab9d752fb3536d0f9ebc530b55807eb0a0; do
             arm="${pair%%:*}"; sha="${pair#*:}"
             git worktree add --detach "$RUNNER_TEMP/$arm" "$sha"
             cp ab/abt.rs "$RUNNER_TEMP/$arm/crates/coreav-h264-encoder/examples/abt.rs"
