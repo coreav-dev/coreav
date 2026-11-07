@@ -413,7 +413,7 @@ impl Search<'_> {
                 *levels = prepared.luma.tile.code(self.decision.source, x, y, quant)?;
             }
         }
-        let quant = t::Quant::of(t::chroma_qp(self.decision.qp))?;
+        let quant = t::Quant::chroma_inter(t::chroma_qp(self.decision.qp))?;
         for (((tile, source), sums), blocks) in prepared
             .chroma
             .iter()
@@ -458,7 +458,7 @@ impl Search<'_> {
         let mut chroma = base.chroma.clone();
         let mut sums = base.sums;
         let mut levels = base.levels;
-        let quant = t::Quant::of(t::chroma_qp(self.decision.qp))?;
+        let quant = t::Quant::chroma_inter(t::chroma_qp(self.decision.qp))?;
         for (c, (((tile, source), sums), blocks)) in chroma
             .iter_mut()
             .zip(self.decision.csources)
@@ -779,7 +779,7 @@ impl Search<'_> {
             }
         }
         let qp = t::chroma_qp(self.decision.qp);
-        let quant = t::Quant::of(qp)?;
+        let quant = t::Quant::chroma_inter(qp)?;
         for (tile, source) in skip.chroma.tiles.iter().zip(self.decision.csources) {
             let mut sums = [0; 4];
             for (k, sum) in sums.iter_mut().enumerate() {

@@ -15,11 +15,17 @@ const ADJUST: [[i64; 3]; 6] = [
 const SHIFT: u32 = 40;
 const INTRA_OFFSET: u64 = 5;
 const INTER_OFFSET: u64 = 2;
+const CHROMA_INTRA_OFFSET: u64 = 5;
+const CHROMA_INTER_OFFSET: u64 = 2;
 const OFFSET_DENOMINATOR: u64 = 12;
 static QUANT: LazyLock<[Quant; 52]> =
     LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, INTER_OFFSET)));
 static INTRA_QUANT: LazyLock<[Quant; 52]> =
     LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, INTRA_OFFSET)));
+static CHROMA_QUANT: LazyLock<[Quant; 52]> =
+    LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, CHROMA_INTER_OFFSET)));
+static INTRA_CHROMA_QUANT: LazyLock<[Quant; 52]> =
+    LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, CHROMA_INTRA_OFFSET)));
 
 pub(crate) fn chroma_qp(qp: u8) -> u8 {
     const HIGH: [u8; 22] = [
@@ -105,6 +111,16 @@ impl Quant {
 
     pub(crate) fn intra(qp: u8) -> Result<&'static Self> {
         INTRA_QUANT.get(usize::from(qp)).ok_or(Error::Internal)
+    }
+
+    pub(crate) fn chroma_inter(qp: u8) -> Result<&'static Self> {
+        CHROMA_QUANT.get(usize::from(qp)).ok_or(Error::Internal)
+    }
+
+    pub(crate) fn chroma_intra(qp: u8) -> Result<&'static Self> {
+        INTRA_CHROMA_QUANT
+            .get(usize::from(qp))
+            .ok_or(Error::Internal)
     }
 
     pub(crate) fn chroma_dc(&self, sums: [i32; 4], qp: u8) -> Result<([i32; 4], [i32; 4])> {
@@ -306,10 +322,11 @@ fn inverse(coefficients: [i32; 16]) -> Option<[i32; 16]> {
     (ra && rb && rc && rd && r0 && r1 && r2 && r3 && out.iter().all(|&x| x <= 32735)).then_some(out)
 }
 
+/// Tests only inter-predicted chroma DC, as used by the quiet-skip path.
 pub(crate) fn chroma_dc_quantizes_to_zero(sums: [i32; 4], qp: u8) -> Result<bool> {
     let [a, b, c, d] = sums.map(i64::from);
     let step = norm(qp, 0)? * (1i64 << (qp / 6));
-    let limit = step - 1 - (step * INTER_OFFSET as i64 / OFFSET_DENOMINATOR as i64);
+    let limit = step - 1 - (step * CHROMA_INTER_OFFSET as i64 / OFFSET_DENOMINATOR as i64);
     Ok([a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
         .iter()
         .all(|v| 2 * v.abs() <= limit))
@@ -331,7 +348,7 @@ pub(crate) fn luma_dc(sums: [i32; 16], qp: u8) -> Result<([i32; 16], [i32; 16])>
 
 #[cfg(test)]
 pub(crate) fn chroma_dc(sums: [i32; 4], qp: u8) -> Result<([i32; 4], [i32; 4])> {
-    chroma_dc_offset(sums, qp, INTER_OFFSET)
+    chroma_dc_offset(sums, qp, CHROMA_INTER_OFFSET)
 }
 
 fn chroma_dc_offset(sums: [i32; 4], qp: u8, offset: u64) -> Result<([i32; 4], [i32; 4])> {
@@ -380,7 +397,7 @@ mod tests {
 
     /// The 64-bit, per-call checked path the fused kernel replaced.
     mod reference {
-        use super::super::{Error, INTER_OFFSET, INTRA_OFFSET, Result, norm, range};
+        use super::super::{CHROMA_INTER_OFFSET, Error, INTRA_OFFSET, Result, norm, range};
 
         pub(super) fn round(n: i64, d: i64, offset: u64) -> Result<i32> {
             let magnitude = (12 * n.abs() + d * offset as i64) / (12 * d);
@@ -519,12 +536,20 @@ mod tests {
         }
 
         pub(super) fn chroma_dc(sums: [i64; 4], qp: u8) -> Result<([i32; 4], [i32; 4])> {
+            chroma_dc_with_offset(sums, qp, CHROMA_INTER_OFFSET)
+        }
+
+        pub(super) fn chroma_dc_with_offset(
+            sums: [i64; 4],
+            qp: u8,
+            offset: u64,
+        ) -> Result<([i32; 4], [i32; 4])> {
             fn h([a, b, c, d]: [i64; 4]) -> [i64; 4] {
                 [a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
             }
             let mut levels = [0i32; 4];
             for (out, v) in levels.iter_mut().zip(h(sums)) {
-                *out = round(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)), INTER_OFFSET)?;
+                *out = round(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)), offset)?;
             }
             let mut dc = [0i32; 4];
             for (out, v) in dc.iter_mut().zip(h(levels.map(i64::from))) {
@@ -640,7 +665,7 @@ mod tests {
     #[test]
     fn offset_kernels_match_division_and_zero_decisions_for_both_prediction_types() {
         for qp in 0..=51 {
-            for offset in [0, 2, 4, 5] {
+            for offset in [0, 2, 3, 4, 5, 6] {
                 let quant = Quant::new(qp, offset);
                 for coefficient in -MAX_COEFFICIENT..=MAX_COEFFICIENT {
                     let input = Forward([coefficient; 16]);
@@ -666,6 +691,49 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn intra_chroma_dc_matches_direct_division_and_differs_from_inter() {
+        let mut split_witnesses = [false; 52];
+        for qp in 0..=51 {
+            for value in -4080..=4080 {
+                for sums in [[value, 0, 0, 0], [value, -value, value, -value]] {
+                    let intra = Quant::chroma_intra(qp).unwrap().chroma_dc(sums, qp);
+                    let inter = Quant::chroma_inter(qp).unwrap().chroma_dc(sums, qp);
+                    assert_eq!(
+                        intra,
+                        reference::chroma_dc_with_offset(
+                            sums.map(i64::from),
+                            qp,
+                            CHROMA_INTRA_OFFSET
+                        ),
+                        "intra QP {qp}, {sums:?}",
+                    );
+                    assert_eq!(
+                        inter,
+                        reference::chroma_dc_with_offset(
+                            sums.map(i64::from),
+                            qp,
+                            CHROMA_INTER_OFFSET
+                        ),
+                        "inter QP {qp}, {sums:?}",
+                    );
+                    if let (Ok((intra_levels, _)), Ok((inter_levels, _))) = (intra, inter) {
+                        split_witnesses[usize::from(qp)] |= intra_levels != inter_levels;
+                        assert_eq!(
+                            chroma_dc_quantizes_to_zero(sums, qp).unwrap(),
+                            inter_levels.into_iter().all(|level| level == 0),
+                        );
+                    }
+                }
+            }
+        }
+        assert!(
+            split_witnesses
+                .into_iter()
+                .all(|found| found == (CHROMA_INTRA_OFFSET != CHROMA_INTER_OFFSET))
+        );
     }
 
     #[test]

@@ -412,13 +412,13 @@ fn chroma(base: &[Tile; 2], source: &[Tile; 2], a: IntraAvail, mode: u8, qp: u8)
     for tile in &mut predicted {
         tile.prediction(0, 0, 8, a, mode)?;
     }
-    let mut out = chroma_code(&predicted, source, qp, t::Quant::intra(qp)?)?;
+    let mut out = chroma_code(&predicted, source, qp, t::Quant::chroma_intra(qp)?)?;
     out.mode = mode;
     Ok(out)
 }
 
 fn chroma_residual(base: &[Tile; 2], source: &[Tile; 2], qp: u8) -> Result<Chroma> {
-    chroma_code(base, source, qp, t::Quant::of(qp)?)
+    chroma_code(base, source, qp, t::Quant::chroma_inter(qp)?)
 }
 
 fn chroma_code(base: &[Tile; 2], source: &[Tile; 2], qp: u8, quant: &t::Quant) -> Result<Chroma> {
@@ -443,7 +443,7 @@ fn chroma_reconstruct(
     levels: [[[i32; 16]; 4]; 2],
     qp: u8,
 ) -> Result<Chroma> {
-    chroma_finish(base, sums, levels, qp, t::Quant::of(qp)?)
+    chroma_finish(base, sums, levels, qp, t::Quant::chroma_inter(qp)?)
 }
 
 fn chroma_finish(
