@@ -15,14 +15,14 @@ parser = argparse.ArgumentParser()
 for name in ('native', 'main', 'oracle-bin', 'out'):
     parser.add_argument('--' + name, type=pathlib.Path, required=True)
 args = parser.parse_args()
-args.only = {'d06', 'd07'}
-args.frames = 4
+args.only = {'d14'}
+args.frames = 1
 args.out.mkdir(parents=True, exist_ok=True)
 oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
 pool = round_files.pool()
 pool.limits.max_requests = 4000
 pool.limits.max_bytes = 32 << 30
-report = dict(scope='fixed-format full-reset worker reuse ceiling under a 2-GiB process address-space cap; not a shippable cache or speed verdict', files=[])
+report = dict(scope='base-layer oracle geometry diagnosis under a 2-GiB process address-space cap; no timing claim', files=[])
 try:
     with tempfile.TemporaryDirectory() as temp:
         for identity, source, sha in reference.inputs(args, oracle, pathlib.Path(temp), pool):
@@ -49,6 +49,11 @@ try:
                 child = subprocess.run(list(map(str, cmd)), capture_output=True, check=True,
                     timeout=600, env=reference.CHILD_ENV)
                 row['oracle_diagnostic'] = child.stderr.decode()
+                cmd = reference.ffmpeg_command(oracle.ffmpeg, source, True,
+                    ['-pix_fmt', '+yuv420p', '-f', 'framemd5', '-'])
+                cmd[1:1] = ['-export_side_data', '+enhancements']
+                stdout, _ = reference.command(cmd, timeout=600)
+                row['base_oracle_frames'] = stdout.decode()
                 row['status'] = 'geometry_diagnosis_only'
                 continue
             row.update(reference.verify(args.native, oracle, source, timeout=600))
