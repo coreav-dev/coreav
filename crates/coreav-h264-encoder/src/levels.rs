@@ -158,11 +158,28 @@ impl Prediction {
             let quant = self.quant(qp)?;
             for block in k..16 {
                 let (x, y) = xy(block);
+                let available = availability(block, self.available);
+                if block != k {
+                    let at = Tile::at(x, y);
+                    let differs = |index| -> Result<bool> {
+                        Ok(tile.0.get(index).ok_or(Error::Internal)?
+                            != candidate.luma.tile.0.get(index).ok_or(Error::Internal)?)
+                    };
+                    let mut dirty = available.top_left && differs(at - STRIDE - 1)?;
+                    for p in 0..4 {
+                        dirty |= available.top && differs(at - STRIDE + p)?;
+                        dirty |= available.top_right && differs(at - STRIDE + 4 + p)?;
+                        dirty |= available.left && differs(at - 1 + p * STRIDE)?;
+                    }
+                    if !dirty {
+                        continue;
+                    }
+                }
                 tile.prediction(
                     x,
                     y,
                     4,
-                    availability(block, self.available),
+                    available,
                     *candidate
                         .luma
                         .modes
@@ -405,6 +422,100 @@ impl Decision<'_> {
         }
     }
 
+    fn changed_bits(
+        &self,
+        candidate: &Candidate,
+        costs: &ResidualCosts,
+        position: Coefficient,
+        old: cavlc::Cost,
+    ) -> Result<(usize, [[u8; 16]; 3])> {
+        let mut counts = candidate.state.counts;
+        let cost = *costs.0.get(position.index()).ok_or(Error::Internal)?;
+        let (mut added, mut removed) = match position {
+            Coefficient::LumaDc(_) => {
+                let nc = nc(&[0; 16], self.context.top, self.context.left, 0, 0);
+                (cost.bits(nc)?, old.bits(nc)?)
+            }
+            Coefficient::ChromaDc(..) => (cost.bits(-1)?, old.bits(-1)?),
+            Coefficient::Luma(..) | Coefficient::Chroma(..) => (0, 0),
+        };
+        if let Coefficient::Luma(k, _) | Coefficient::Chroma(_, k, _) = position {
+            let plane = position.plane();
+            let (p, width) = if plane == 0 {
+                let (x, y) = xy(k);
+                (y / 4 * 4 + x / 4, 4)
+            } else {
+                (k, 2)
+            };
+            let before = candidate.state.counts.get(plane).ok_or(Error::Internal)?;
+            let after = counts.get_mut(plane).ok_or(Error::Internal)?;
+            *after.get_mut(p).ok_or(Error::Internal)? = cost.total;
+            let context =
+                |values: &[u8; 16], p| nc(values, self.context.top, self.context.left, plane, p);
+            added += cost.bits(context(after, p))?;
+            removed += old.bits(context(before, p))?;
+            let (cbpy, cbpc) =
+                costs.patterns(candidate.inter.is_none() && candidate.luma.mode.is_some());
+            for neighbour in [
+                if p % width + 1 < width {
+                    Some(p + 1)
+                } else {
+                    None
+                },
+                if p + width < width * width {
+                    Some(p + width)
+                } else {
+                    None
+                },
+            ]
+            .into_iter()
+            .flatten()
+            {
+                let index = if plane == 0 {
+                    1 + order(neighbour % 4, neighbour / 4)
+                } else {
+                    19 + (plane - 1) * 4 + neighbour
+                };
+                let coded = if plane == 0 {
+                    cbpy & (1 << ((index - 1) / 4)) != 0
+                } else {
+                    cbpc == 2
+                };
+                if coded {
+                    let cost = costs.0.get(index).ok_or(Error::Internal)?;
+                    added += cost.bits(context(after, neighbour))?;
+                    removed += cost.bits(context(before, neighbour))?;
+                }
+            }
+        }
+        let bits = candidate
+            .key
+            .bits
+            .checked_add(added)
+            .and_then(|bits| bits.checked_sub(removed))
+            .ok_or(Error::Internal)?;
+        let mut prefix = Bits::count();
+        if self.context.p_slice {
+            prefix.ue(self.pending_skip)?;
+        }
+        if bits.checked_sub(prefix.len).ok_or(Error::Internal)? > 3200 {
+            return Err(Error::MacroblockLimit);
+        }
+        #[cfg(test)]
+        {
+            let state = macroblock(
+                &mut prefix,
+                &candidate.luma,
+                &candidate.chroma,
+                candidate.inter.as_ref(),
+                self.context,
+            )?;
+            assert_eq!(bits, prefix.len);
+            assert_eq!(counts, state.counts);
+        }
+        Ok((bits, counts))
+    }
+
     fn coordinate(
         &self,
         candidate: &mut Candidate,
@@ -455,32 +566,40 @@ impl Decision<'_> {
                 .0
                 .get(position.index())
                 .ok_or(Error::Internal)?;
+            let intra16 = candidate.inter.is_none() && candidate.luma.mode.is_some();
+            let patterns = refinement.costs.patterns(intra16);
             *position.at(candidate)? = level;
             let attempt = (|| {
                 refinement.costs.update(candidate, position)?;
-                let mut counter = Bits::count();
-                if self.context.p_slice {
-                    counter.ue(self.pending_skip)?;
-                }
-                macroblock_syntax(
-                    &mut counter,
-                    &candidate.luma,
-                    &candidate.chroma,
-                    candidate.inter.as_ref(),
-                    self.context,
-                    Some(&refinement.costs),
-                )?;
+                let (bits, counts) = if patterns == refinement.costs.patterns(intra16) {
+                    self.changed_bits(candidate, &refinement.costs, position, old_cost)?
+                } else {
+                    let mut counter = Bits::count();
+                    if self.context.p_slice {
+                        counter.ue(self.pending_skip)?;
+                    }
+                    let state = macroblock_syntax(
+                        &mut counter,
+                        &candidate.luma,
+                        &candidate.chroma,
+                        candidate.inter.as_ref(),
+                        self.context,
+                        Some(&refinement.costs),
+                    )?;
+                    (counter.len, state.counts)
+                };
                 let tile = prediction.changed(candidate, self.qp, position)?;
                 let error = tile.error(source, x, y, n)?;
                 let total =
                     refinement.errors.get(plane).ok_or(Error::Internal)? - old_error + error;
-                let score = distortion_scale * total + weight * counter.len as u64;
-                Ok::<_, Error>((score, counter.len, tile, error, total))
+                let score = distortion_scale * total + weight * bits as u64;
+                Ok::<_, Error>((score, bits, tile, error, total, counts))
             })();
             match attempt {
-                Ok((score, bits, tile, error, total)) if score < best => {
+                Ok((score, bits, tile, error, total, counts)) if score < best => {
                     best = score;
                     candidate.key.bits = bits;
+                    candidate.state.counts = counts;
                     *refinement.errors.get_mut(plane).ok_or(Error::Internal)? = total;
                     old_error = error;
                     if plane == 0 {
@@ -654,14 +773,6 @@ impl Decision<'_> {
             }
         }
         candidate.key.cost = self.cost(refinement.errors.iter().sum(), candidate.key.bits)?;
-        candidate.state = macroblock_syntax(
-            &mut Bits::count(),
-            &candidate.luma,
-            &candidate.chroma,
-            candidate.inter.as_ref(),
-            self.context,
-            Some(&refinement.costs),
-        )?;
         Ok(candidate)
     }
 }
