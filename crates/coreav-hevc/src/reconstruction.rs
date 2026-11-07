@@ -8,6 +8,8 @@ mod inter;
 mod parallel;
 mod syntax;
 
+pub(crate) use parallel::Cache;
+
 pub(crate) fn caught<T>(work: impl FnOnce() -> Result<T>) -> Result<T> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
         .unwrap_or(Err(Error::Internal("reconstruction_panic")))
@@ -334,7 +336,7 @@ fn sample_bytes(planes: &[Vec<u16>; 3], cells: usize) -> Result<usize> {
 impl Frame {
     pub(crate) fn new(input: &SliceInput<'_>, fixed: usize, limit: usize) -> Result<Self> {
         Self::admit(input)?;
-        Self::allocate(input, None, fixed, limit)
+        Self::allocate(input, None, fixed, limit, None)
     }
 
     pub(crate) fn new_full(
@@ -343,12 +345,14 @@ impl Frame {
         references: References,
         fixed: usize,
         limit: usize,
+        reclaim: Option<&mut dyn ReclaimMemory>,
     ) -> Result<Self> {
         Self::allocate(
             input,
             Some(ReferenceState { poc, references }),
             fixed,
             limit,
+            reclaim,
         )
     }
 
@@ -357,11 +361,12 @@ impl Frame {
         reference: Option<ReferenceState>,
         fixed: usize,
         limit: usize,
+        reclaim: Option<&mut dyn ReclaimMemory>,
     ) -> Result<Self> {
         if !input.header.first || input.header.address != 0 {
             return Err(Error::InvalidData("selected_picture_start"));
         }
-        let mut memory = Memory::new(fixed, limit)?;
+        let mut memory = Memory::with_reclaim(fixed, limit, reclaim)?;
         memory.charge(input.scratch_bytes)?;
         let width = input.picture.width as usize;
         let height = input.picture.height as usize;
@@ -469,10 +474,20 @@ impl Frame {
     }
 
     pub(crate) fn hash(&mut self, sei: SeiInfo, fixed: usize, limit: usize) -> Result<usize> {
+        self.hash_reclaiming(sei, fixed, limit, None)
+    }
+
+    pub(crate) fn hash_reclaiming(
+        &mut self,
+        sei: SeiInfo,
+        fixed: usize,
+        limit: usize,
+        reclaim: Option<&mut dyn ReclaimMemory>,
+    ) -> Result<usize> {
         if sei.picture_hash.is_none() && sei.reserved_hashes == 0 {
             return Ok(0);
         }
-        let peak = self.finalize(fixed, limit)?;
+        let peak = self.finalize_reclaiming(fixed, limit, reclaim)?;
         if !self.complete() || self.hash_seen {
             return Err(Error::InvalidData("selected_picture_hash_placement"));
         }

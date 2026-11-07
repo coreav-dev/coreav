@@ -2,7 +2,7 @@ use crate::{
     Error, InterStats, IntraPlane, IntraStats, Limits, PictureInfo, Result, SeiInfo, Summary,
     dpb::{Dpb, Emission},
     parser::{PictureObserver, SliceInput, StreamCore},
-    reconstruction::{Frame, Memory},
+    reconstruction::{Cache, Frame, Memory, ReclaimMemory},
 };
 
 /// Independent admission, live-memory and entropy-work limits for a complete stream.
@@ -64,6 +64,7 @@ pub struct OutputMemory<'a> {
     codec_bytes: usize,
     reserved: &'a mut usize,
     limit: usize,
+    reclaim: Option<&'a mut dyn ReclaimMemory>,
 }
 
 impl OutputMemory<'_> {
@@ -73,7 +74,14 @@ impl OutputMemory<'_> {
             .reserved
             .checked_add(bytes)
             .ok_or(Error::Limit("reconstruction_memory"))?;
-        let mut memory = Memory::new(self.codec_bytes, self.limit)?;
+        let mut memory = Memory::with_reclaim(
+            self.codec_bytes,
+            self.limit,
+            match &mut self.reclaim {
+                Some(reclaim) => Some(&mut **reclaim),
+                None => None,
+            },
+        )?;
         memory.charge(reserved)?;
         *self.reserved = reserved;
         Ok(())
@@ -122,9 +130,44 @@ enum State {
     Failed,
 }
 
-struct Pictures {
+#[derive(Default)]
+struct Slots {
+    active: Vec<Frame>,
+    cache: Cache,
+}
+
+impl Slots {
+    fn as_ref(&self) -> Option<&Frame> {
+        self.active.first()
+    }
+    fn is_none(&self) -> bool {
+        self.active.is_empty()
+    }
+    fn take(&mut self) -> Option<Frame> {
+        self.active.pop()
+    }
+
+    fn prepare(&mut self) -> Result<()> {
+        if self.active.capacity() == 0 {
+            self.active
+                .try_reserve_exact(1)
+                .map_err(|_| Error::Limit("picture_allocation"))?;
+        }
+        Ok(())
+    }
+
+    fn put(&mut self, frame: Frame) -> Result<()> {
+        if !self.active.is_empty() || self.active.capacity() == 0 {
+            return Err(Error::Internal("working_picture_storage"));
+        }
+        self.active.push(frame);
+        Ok(())
+    }
+}
+
+struct Pictures<Storage = Slots> {
     limits: DecodeLimits,
-    frame: Option<Frame>,
+    frame: Storage,
     timestamp: Option<i64>,
     origin: Option<u64>,
     external_memory: usize,
@@ -134,9 +177,9 @@ struct Pictures {
     summary: DecodeSummary,
 }
 
-struct Session {
+struct Session<Storage = Slots> {
     core: StreamCore,
-    pictures: Pictures,
+    pictures: Pictures<Storage>,
 }
 
 /// Sans-IO Main/Main10 scalar decoder with one DPB and borrowed output callbacks.
@@ -152,6 +195,7 @@ impl PictureDecoder {
         self.limits.threads = threads.clamp(1, 16);
         for session in &mut self.session {
             session.pictures.limits.threads = self.limits.threads;
+            session.pictures.frame.cache.clear();
         }
         self
     }
@@ -168,7 +212,7 @@ impl PictureDecoder {
     fn fixed_memory(&self) -> Result<usize> {
         core::mem::size_of::<Self>()
             .checked_add(
-                core::mem::size_of::<Session>()
+                core::mem::size_of::<Session<Option<Frame>>>()
                     .checked_mul(self.session.capacity().max(1) + 1)
                     .ok_or(Error::Limit("reconstruction_memory"))?,
             )
@@ -197,7 +241,7 @@ impl PictureDecoder {
             core: StreamCore::new_reconstruction(limits.headers),
             pictures: Pictures {
                 limits,
-                frame: None,
+                frame: Slots::default(),
                 timestamp: None,
                 origin: None,
                 external_memory: 0,
@@ -264,10 +308,14 @@ impl PictureDecoder {
                 .and_then(|n| n.checked_add(frame_bytes))
                 .and_then(|n| n.checked_add(session.pictures.external_memory))
                 .ok_or(Error::Limit("reconstruction_memory"))?;
-            let mut memory = Memory::new(live, session.pictures.limits.max_memory_bytes)?;
+            let mut memory = Memory::with_reclaim(
+                live,
+                session.pictures.limits.max_memory_bytes,
+                Some(&mut session.pictures.frame.cache),
+            )?;
             memory.charge(bytes.len().saturating_sub(2))?;
             session.pictures.summary.memory_bytes =
-                session.pictures.summary.memory_bytes.max(memory.used);
+                session.pictures.summary.memory_bytes.max(memory.peak());
             let available = session
                 .pictures
                 .limits
@@ -285,6 +333,11 @@ impl PictureDecoder {
                     emit: &mut emit,
                 },
             )?;
+            session.pictures.summary.memory_bytes = session
+                .pictures
+                .summary
+                .memory_bytes
+                .max(session.pictures.frame.cache.peak());
             Ok(())
         })();
         if result.is_err() {
@@ -324,6 +377,12 @@ impl PictureDecoder {
                 emit: &mut emit,
             })?;
             session.pictures.summary.headers = headers;
+            session.pictures.summary.memory_bytes = session
+                .pictures
+                .summary
+                .memory_bytes
+                .max(session.pictures.frame.cache.peak());
+            session.pictures.frame.cache.clear();
             Ok(session.pictures.summary)
         })();
         if result.is_err() {
@@ -356,11 +415,15 @@ impl PictureDecoder {
                 .checked_add(session.core.heap_bytes()?)
                 .and_then(|n| n.checked_add(frame))
                 .ok_or(Error::Limit("reconstruction_memory"))?;
-            let mut memory = Memory::new(live, self.limits.max_memory_bytes)?;
+            let mut memory = Memory::with_reclaim(
+                live,
+                self.limits.max_memory_bytes,
+                Some(&mut session.pictures.frame.cache),
+            )?;
             memory.charge(bytes)?;
             session.pictures.external_memory = bytes;
             session.pictures.summary.memory_bytes =
-                session.pictures.summary.memory_bytes.max(memory.used);
+                session.pictures.summary.memory_bytes.max(memory.peak());
             Ok(())
         })();
         if result.is_err() {
@@ -381,6 +444,28 @@ struct Observer<'a, F> {
 impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureObserver
     for Observer<'_, F>
 {
+    fn reserve_scratch(&mut self, scratch_bytes: usize, dpb: &Dpb) -> Result<()> {
+        let frame = self
+            .pictures
+            .frame
+            .as_ref()
+            .map_or(Ok(0), Frame::heap_bytes)?;
+        let fixed = self
+            .fixed
+            .checked_add(dpb.heap_bytes()?)
+            .and_then(|n| n.checked_add(frame))
+            .and_then(|n| n.checked_add(self.pictures.external_memory))
+            .ok_or(Error::Limit("reconstruction_memory"))?;
+        let mut memory = Memory::with_reclaim(
+            fixed,
+            self.pictures.limits.max_memory_bytes,
+            Some(&mut self.pictures.frame.cache),
+        )?;
+        memory.charge(scratch_bytes)?;
+        self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(memory.peak());
+        Ok(())
+    }
+
     fn boundary(&mut self, dpb: &mut Dpb, scratch_bytes: usize) -> Result<()> {
         self.pictures.skipped = None;
         let Some(mut frame) = self.pictures.frame.take() else {
@@ -392,8 +477,17 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
             .and_then(|n| n.checked_add(scratch_bytes))
             .and_then(|n| n.checked_add(self.pictures.external_memory))
             .ok_or(Error::Limit("reconstruction_memory"))?;
-        let peak = frame.finalize(fixed, self.pictures.limits.max_memory_bytes)?;
-        self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(peak);
+        let peak = frame.finalize_reclaiming(
+            fixed,
+            self.pictures.limits.max_memory_bytes,
+            Some(&mut self.pictures.frame.cache),
+        )?;
+        self.pictures.summary.memory_bytes = self
+            .pictures
+            .summary
+            .memory_bytes
+            .max(peak)
+            .max(self.pictures.frame.cache.peak());
         self.pictures.summary.parallel_pictures += u64::from(frame.workers > 1);
         self.pictures.summary.max_workers = self.pictures.summary.max_workers.max(frame.workers);
         frame.stats.bins = self.pictures.limits.max_picture_bins - self.pictures.picture_remaining;
@@ -449,21 +543,22 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
                 return Err(Error::Limit("output_frame_bytes"));
             }
             let identity = dpb.current_identity(input.index)?;
+            self.pictures.frame.prepare()?;
             let mut frame = Frame::new_full(
                 &input,
                 identity.poc,
                 dpb.current_references(),
                 fixed,
                 self.pictures.limits.max_memory_bytes,
+                Some(&mut self.pictures.frame.cache),
             )?;
             frame.deadline = self.pictures.limits.deadline;
-            self.pictures.frame = Some(frame);
+            self.pictures.frame.put(frame)?;
             self.pictures.picture_remaining = self.pictures.limits.max_picture_bins;
         }
-        let frame = self
-            .pictures
-            .frame
-            .as_mut()
+        let Slots { active, cache } = &mut self.pictures.frame;
+        let frame = active
+            .first_mut()
             .ok_or(Error::InvalidData("missing_working_picture"))?;
         let allowance = self
             .pictures
@@ -478,6 +573,7 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
                 fixed,
                 self.pictures.limits.max_memory_bytes,
                 self.pictures.limits.threads,
+                Some(cache),
             )
         });
         let consumed = allowance - budget;
@@ -485,7 +581,12 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
         self.pictures.picture_remaining -= consumed;
         match result {
             Ok(peak) => {
-                self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(peak);
+                self.pictures.summary.memory_bytes = self
+                    .pictures
+                    .summary
+                    .memory_bytes
+                    .max(peak)
+                    .max(self.pictures.frame.cache.peak());
                 Ok(())
             }
             Err(Error::Limit("cabac_bin_budget")) if self.pictures.stream_remaining == 0 => {
@@ -496,15 +597,26 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
     }
 
     fn sei(&mut self, info: SeiInfo, dpb: &Dpb, scratch_bytes: usize) -> Result<()> {
-        if let Some(frame) = self.pictures.frame.as_mut() {
+        let Slots { active, cache } = &mut self.pictures.frame;
+        if let Some(frame) = active.first_mut() {
             let fixed = self
                 .fixed
                 .checked_add(dpb.heap_bytes()?)
                 .and_then(|n| n.checked_add(scratch_bytes))
                 .and_then(|n| n.checked_add(self.pictures.external_memory))
                 .ok_or(Error::Limit("reconstruction_memory"))?;
-            let peak = frame.hash(info, fixed, self.pictures.limits.max_memory_bytes)?;
-            self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(peak);
+            let peak = frame.hash_reclaiming(
+                info,
+                fixed,
+                self.pictures.limits.max_memory_bytes,
+                Some(cache),
+            )?;
+            self.pictures.summary.memory_bytes = self
+                .pictures
+                .summary
+                .memory_bytes
+                .max(peak)
+                .max(cache.peak());
         } else if self.pictures.skipped.is_some() {
             self.pictures.summary.skipped_picture_hashes = self
                 .pictures
@@ -544,6 +656,7 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
             codec_bytes,
             reserved: &mut self.pictures.external_memory,
             limit: self.pictures.limits.max_memory_bytes,
+            reclaim: Some(&mut self.pictures.frame.cache),
         };
         (self.emit)(
             DecodedPicture {
@@ -558,9 +671,18 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
             },
             &mut memory,
         )?;
-        let mut used = Memory::new(codec_bytes, self.pictures.limits.max_memory_bytes)?;
+        let mut used = Memory::with_reclaim(
+            codec_bytes,
+            self.pictures.limits.max_memory_bytes,
+            Some(&mut self.pictures.frame.cache),
+        )?;
         used.charge(self.pictures.external_memory)?;
-        self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(used.used);
+        self.pictures.summary.memory_bytes = self
+            .pictures
+            .summary
+            .memory_bytes
+            .max(used.peak())
+            .max(self.pictures.frame.cache.peak());
         Ok(())
     }
 }
@@ -684,6 +806,72 @@ fn add_counts<const N: usize>(target: &mut [u64; N], source: [u64; N]) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cached_storage_fits_the_unchanged_cold_state_envelope() -> Result<()> {
+        let mut decoder = PictureDecoder::new(DecodeLimits::default());
+        let cold = decoder.fixed_memory()?;
+        for stage in 0..3 {
+            let capacity = decoder.session.capacity().max(1);
+            let reserved = (capacity + 1) * core::mem::size_of::<Session<Option<Frame>>>();
+            let physical = capacity * core::mem::size_of::<Session>();
+            let active = decoder
+                .session
+                .first()
+                .map_or(0, |session| session.pictures.frame.active.capacity());
+            assert!((capacity + 1) * core::mem::size_of::<Session>() <= reserved);
+            assert!(physical + (active + 1) * core::mem::size_of::<Frame>() <= reserved);
+            assert_eq!(decoder.fixed_memory()?, cold);
+            if stage == 0 {
+                decoder.initialize()?;
+            }
+            if stage == 1 {
+                decoder
+                    .session
+                    .first_mut()
+                    .ok_or(Error::Internal("test_session"))?
+                    .pictures
+                    .frame
+                    .prepare()?;
+            }
+        }
+        assert_eq!(
+            core::mem::size_of::<Vec<Session>>(),
+            core::mem::size_of::<Vec<Session<Option<Frame>>>>()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn output_capacity_evicts_idle_memory_without_shifting_the_cold_limit() -> Result<()> {
+        struct Idle(Vec<u8>);
+        impl ReclaimMemory for Idle {
+            fn retained_bytes(&mut self, mandatory: usize, limit: usize) -> Result<usize> {
+                if mandatory + self.0.capacity() > limit {
+                    self.0 = Vec::new();
+                }
+                Ok(self.0.capacity())
+            }
+        }
+        let mut idle = Idle(vec![0; 128]);
+        let mut reserved = 0;
+        {
+            let mut memory = OutputMemory {
+                codec_bytes: 128,
+                reserved: &mut reserved,
+                limit: 256,
+                reclaim: Some(&mut idle),
+            };
+            memory.reserve(128)?;
+            assert_eq!(
+                memory.reserve(1),
+                Err(Error::Limit("reconstruction_memory"))
+            );
+        }
+        assert_eq!(reserved, 128);
+        assert_eq!(idle.0.capacity(), 0);
+        Ok(())
+    }
 
     #[test]
     fn skipped_hash_messages_never_receive_checked_sample_credit() -> Result<()> {

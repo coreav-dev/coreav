@@ -873,6 +873,122 @@ fn selected_observer_failure_and_retained_scratch_limit_end_the_core() -> Result
     Ok(())
 }
 
+#[test]
+fn reconstruction_scratch_reservations_cover_rbsp_allocation_and_actual_capacity() -> Result<()> {
+    struct Probe {
+        calls: Vec<usize>,
+        refuse: Option<usize>,
+    }
+    impl parser::PictureObserver for Probe {
+        fn reserve_scratch(&mut self, bytes: usize, _: &dpb::Dpb) -> Result<()> {
+            self.calls.push(bytes);
+            if self.refuse == Some(self.calls.len()) {
+                return Err(Error::Limit("fixture_scratch"));
+            }
+            Ok(())
+        }
+        fn boundary(&mut self, _: &mut dpb::Dpb, _: usize) -> Result<()> {
+            Ok(())
+        }
+        fn slice(&mut self, _: parser::SliceInput<'_>, _: &dpb::Dpb) -> Result<()> {
+            Ok(())
+        }
+        fn sei(&mut self, _: SeiInfo, _: &dpb::Dpb, _: usize) -> Result<()> {
+            Ok(())
+        }
+        fn output(&mut self, _: dpb::Emission<'_>, _: usize) -> Result<()> {
+            Ok(())
+        }
+    }
+    let nal = &synthetic_parameter_nals()[0];
+    let expected = [
+        nal.len() - 2,
+        nal::rbsp(nal, &Limits::default())?.capacity(),
+    ];
+    for refuse in [None, Some(1), Some(2)] {
+        let mut core = parser::StreamCore::new_reconstruction(Limits::default());
+        let mut probe = Probe {
+            calls: Vec::new(),
+            refuse,
+        };
+        let result = core.read_reconstructed(nal, usize::MAX, &mut probe);
+        if let Some(at) = refuse {
+            assert_eq!(result, Err(Error::Limit("fixture_scratch")));
+            assert_eq!(probe.calls, expected[..at]);
+            assert_eq!(
+                core.read_reconstructed(nal, usize::MAX, &mut probe),
+                Err(Error::InvalidData("parser_failed"))
+            );
+        } else {
+            result?;
+            assert_eq!(probe.calls, expected);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn entry_storage_reserves_requested_and_actual_capacity_before_slice_delivery() -> Result<()> {
+    let sets = two_ctu_parameter_nals();
+    let sps = nal::rbsp(&sets[1], &Limits::default())?;
+    let sps = params::sps(&mut Bits::new(&sps), &Limits::default())?;
+    let pps = nal::rbsp(&sets[2], &Limits::default())?;
+    let mut pps = params::pps(&mut Bits::new(&pps), &Limits::default())?;
+    pps.wpp = true;
+    let mut w = params::tests::Writer::default();
+    w.flag(true);
+    w.flag(false);
+    w.ue(0);
+    w.ue(2);
+    w.flag(true);
+    w.flag(false);
+    w.flag(false);
+    w.se(0);
+    w.flag(false);
+    w.ue(1);
+    w.ue(0);
+    w.u(1, 0);
+    let rbsp = padded(w);
+    let nal = NalHeader::parse(&[19 << 1, 1])?;
+    for refuse in [None, Some(1), Some(2)] {
+        let mut bits = Bits::new(&rbsp);
+        let prefix = slice::prefix(&mut bits, nal)?;
+        let mut calls = Vec::new();
+        let result = slice::parse(
+            &mut bits,
+            nal,
+            prefix,
+            &sps,
+            &pps,
+            &Limits::default(),
+            Some(usize::MAX),
+            &mut |bytes| {
+                calls.push(bytes);
+                if refuse == Some(calls.len()) {
+                    Err(Error::Limit("fixture_entries"))
+                } else {
+                    Ok(())
+                }
+            },
+        );
+        if let Some(at) = refuse {
+            assert!(matches!(result, Err(Error::Limit("fixture_entries"))));
+            assert_eq!(calls.len(), at);
+        } else {
+            let parsed = result?;
+            assert_eq!(parsed.entry_lengths, [1]);
+            assert_eq!(
+                calls,
+                [
+                    core::mem::size_of::<u64>(),
+                    parsed.entry_lengths.capacity() * core::mem::size_of::<u64>()
+                ]
+            );
+        }
+    }
+    Ok(())
+}
+
 fn idr_segment(first: bool) -> Vec<u8> {
     let mut w = params::tests::Writer::default();
     w.flag(first);
@@ -1415,9 +1531,18 @@ fn equal_derived_long_term_references_do_not_hide_different_syntax() {
     let sps = params::sps(&mut Bits::new(&sps), &Limits::default()).unwrap();
     let pps = nal::rbsp(&sets[2], &Limits::default()).unwrap();
     let pps = params::pps(&mut Bits::new(&pps), &Limits::default()).unwrap();
-    let second = slice::parse(&mut bits, nal, prefix, &sps, &pps, &Limits::default(), None)
-        .unwrap()
-        .header;
+    let second = slice::parse(
+        &mut bits,
+        nal,
+        prefix,
+        &sps,
+        &pps,
+        &Limits::default(),
+        None,
+        &mut |_| Ok(()),
+    )
+    .unwrap()
+    .header;
     assert_eq!(first.long_term_count, second.long_term_count);
     assert_eq!(first.long_term, second.long_term);
     assert_eq!(

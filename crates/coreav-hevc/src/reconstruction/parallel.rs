@@ -1,5 +1,5 @@
 use super::{
-    Cell, Frame, InterStats, Memory, caught,
+    Cell, Frame, InterStats, Memory, ReclaimMemory, caught,
     filter::Ctu,
     syntax::{Checkpoint, Contexts, Qp},
 };
@@ -11,6 +11,84 @@ use std::sync::{
 };
 
 const STACK_BYTES: usize = 2 << 20;
+
+#[derive(Default)]
+pub(crate) struct Cache {
+    frames: Vec<Frame>,
+    peak: usize,
+    #[cfg(test)]
+    hits: usize,
+}
+
+impl Cache {
+    #[cfg(test)]
+    pub(crate) fn hits(&self) -> usize {
+        self.hits
+    }
+    pub(crate) fn clear(&mut self) {
+        self.frames = Vec::new();
+    }
+
+    pub(crate) fn peak(&self) -> usize {
+        self.peak
+    }
+
+    fn bytes(&self) -> Result<usize> {
+        self.frames
+            .iter()
+            .try_fold(super::allocation_bytes(&self.frames)?, |total, frame| {
+                total
+                    .checked_add(frame.heap_bytes()?)
+                    .ok_or(Error::Limit("reconstruction_memory"))
+            })
+    }
+
+    fn take(&mut self, template: &Frame, count: usize) -> Result<Option<Vec<Frame>>> {
+        let heap = template.heap_bytes()?;
+        let reusable = self.frames.len() == count - 1
+            && self.frames.capacity() == count - 1
+            && self.frames.iter().all(|frame| {
+                frame.info.width == template.info.width
+                    && frame.info.height == template.info.height
+                    && frame.info.bit_depth == template.info.bit_depth
+                    && frame.info.ctb_log2 == template.info.ctb_log2
+                    && frame.reference.is_some() == template.reference.is_some()
+                    && frame.storage_lengths() == template.storage_lengths()
+                    && frame.heap_bytes().is_ok_and(|bytes| bytes == heap)
+            });
+        if reusable {
+            #[cfg(test)]
+            {
+                self.hits += 1;
+            }
+            Ok(Some(core::mem::take(&mut self.frames)))
+        } else {
+            self.clear();
+            Ok(None)
+        }
+    }
+}
+
+impl ReclaimMemory for Cache {
+    fn retained_bytes(&mut self, mandatory: usize, limit: usize) -> Result<usize> {
+        let retained = self.bytes().unwrap_or(usize::MAX);
+        let retained = if mandatory
+            .checked_add(retained)
+            .is_some_and(|bytes| bytes <= limit)
+        {
+            retained
+        } else {
+            self.clear();
+            0
+        };
+        let physical = mandatory
+            .checked_add(retained)
+            .filter(|bytes| *bytes <= limit)
+            .ok_or(Error::Limit("reconstruction_memory"))?;
+        self.peak = self.peak.max(physical);
+        Ok(retained)
+    }
+}
 
 #[cfg(test)]
 #[derive(Clone, Copy)]
@@ -308,6 +386,97 @@ impl Band {
 }
 
 impl Frame {
+    fn storage_lengths(&self) -> [usize; 14] {
+        let [y, cb, cr] = self.planes.each_ref().map(Vec::len);
+        let [first, second] = self.scratch.predictors.each_ref().map(Vec::len);
+        [
+            y,
+            cb,
+            cr,
+            self.cells.len(),
+            self.filter_ctus.len(),
+            self.scratch.coefficients.len(),
+            self.scratch.residual.len(),
+            self.scratch.prediction.len(),
+            self.scratch.output.len(),
+            self.scratch.scaling.len(),
+            self.scratch.references.len(),
+            first,
+            second,
+            self.scratch.inter_output.len(),
+        ]
+    }
+
+    fn reset_private(&mut self, source: &Frame) {
+        let Self {
+            #[cfg(test)]
+            test_hook,
+            workers,
+            deadline,
+            index,
+            info,
+            depth,
+            planes,
+            cells,
+            filter_ctus,
+            filtered,
+            next_ctu,
+            segment_closed,
+            contexts,
+            wpp,
+            qp,
+            stats,
+            inter_stats,
+            reference,
+            hash_seen,
+            scratch,
+        } = self;
+        #[cfg(test)]
+        {
+            *test_hook = source.test_hook.clone();
+        }
+        *workers = 1;
+        *deadline = source.deadline;
+        *index = source.index;
+        *info = source.info;
+        *depth = source.depth;
+        for (target, source) in planes.iter_mut().zip(&source.planes) {
+            target.copy_from_slice(source);
+        }
+        cells.copy_from_slice(&source.cells);
+        filter_ctus.copy_from_slice(&source.filter_ctus);
+        *filtered = source.filtered;
+        *next_ctu = source.next_ctu;
+        *segment_closed = source.segment_closed;
+        *contexts = source.contexts;
+        *wpp = source.wpp;
+        *qp = source.qp;
+        *stats = source.stats;
+        *inter_stats = source.inter_stats;
+        *reference = source.reference;
+        *hash_seen = source.hash_seen;
+        let super::Scratch {
+            coefficients,
+            residual,
+            prediction,
+            output,
+            scaling,
+            references,
+            predictors,
+            inter_output,
+        } = scratch;
+        coefficients.copy_from_slice(&source.scratch.coefficients);
+        residual.copy_from_slice(&source.scratch.residual);
+        prediction.copy_from_slice(&source.scratch.prediction);
+        output.copy_from_slice(&source.scratch.output);
+        scaling.copy_from_slice(&source.scratch.scaling);
+        references.copy_from_slice(&source.scratch.references);
+        for (target, source) in predictors.iter_mut().zip(&source.scratch.predictors) {
+            target.copy_from_slice(source);
+        }
+        inter_output.copy_from_slice(&source.scratch.inter_output);
+    }
+
     #[expect(
         clippy::too_many_arguments,
         reason = "same slice and resource boundary as serial reconstruction"
@@ -321,6 +490,7 @@ impl Frame {
         fixed: usize,
         limit: usize,
         threads: usize,
+        mut cache: Option<&mut Cache>,
     ) -> Result<Option<usize>> {
         if threads <= 1
             || cfg!(target_family = "wasm")
@@ -353,8 +523,21 @@ impl Frame {
                 .is_some_and(|n| n <= limit)
         });
         let Some(count) = count else { return Ok(None) };
+        let mut reusable = match &mut cache {
+            Some(cache) => cache.take(self, count)?,
+            None => None,
+        };
         let setup = (|| {
             let mut memory = Memory::new(fixed, limit)?;
+            let warm = reusable.is_some();
+            let mut workers = reusable.take().unwrap_or_default();
+            if warm {
+                memory.charge(super::allocation_bytes(&workers)?)?;
+                for frame in &workers {
+                    memory.charge(STACK_BYTES)?;
+                    memory.charge(frame.heap_bytes()?)?;
+                }
+            }
             let mut rows = Vec::new();
             reserve(&mut rows, ranges.len(), &mut memory)?;
             for y in 0..ranges.len() {
@@ -369,22 +552,30 @@ impl Frame {
                     ready: Condvar::new(),
                 });
             }
-            let mut workers = Vec::new();
-            reserve(&mut workers, count - 1, &mut memory)?;
-            for _ in 1..count {
-                memory.charge(STACK_BYTES)?;
-                let mut frame = Self::allocate(input, self.reference, memory.used, limit)?;
-                frame.deadline = self.deadline;
-                #[cfg(test)]
-                {
-                    frame.test_hook = self.test_hook.clone();
+            if warm {
+                let mut cold = Memory::new(memory.used, limit)?;
+                cold.charge(input.scratch_bytes)?;
+                for frame in &mut workers {
+                    frame.reset_private(self);
                 }
-                memory.charge(frame.heap_bytes()?)?;
-                workers.push(frame);
+            } else {
+                reserve(&mut workers, count - 1, &mut memory)?;
+                for _ in 1..count {
+                    memory.charge(STACK_BYTES)?;
+                    let mut frame =
+                        Self::allocate(input, self.reference, memory.used, limit, None)?;
+                    frame.deadline = self.deadline;
+                    #[cfg(test)]
+                    {
+                        frame.test_hook = self.test_hook.clone();
+                    }
+                    memory.charge(frame.heap_bytes()?)?;
+                    workers.push(frame);
+                }
             }
             Ok((rows, workers, memory.used))
         })();
-        let (rows, workers, peak) = match setup {
+        let (rows, mut workers, peak) = match setup {
             Ok(setup) => setup,
             Err(Error::Limit(_)) => return Ok(None),
             Err(error) => return Err(error),
@@ -392,12 +583,12 @@ impl Frame {
         let next = AtomicUsize::new(0);
         self.workers = std::thread::scope(|scope| {
             let mut started = 1;
-            for mut frame in workers {
+            for frame in &mut workers {
                 let (rows, next) = (&rows, &next);
                 if std::thread::Builder::new()
                     .stack_size(STACK_BYTES)
                     .spawn_scoped(scope, move || {
-                        work(&mut frame, input, dpb, ranges, rows, next);
+                        work(frame, input, dpb, ranges, rows, next);
                     })
                     .is_ok()
                 {
@@ -433,6 +624,9 @@ impl Frame {
         }
         self.stats = summary.reconstruction;
         self.inter_stats = summary.inter;
+        if let Some(cache) = cache {
+            cache.frames = workers;
+        }
         Ok(Some(peak))
     }
 }
@@ -566,6 +760,26 @@ fn decode_row(
     if index + 1 == ranges.len() {
         Err(Error::InvalidData("intra_missing_substream"))
     } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    #[test]
+    fn empty_allocated_worker_slots_are_charged_and_revocable() -> Result<()> {
+        let mut cache = Cache::default();
+        cache
+            .frames
+            .try_reserve_exact(3)
+            .map_err(|_| Error::Limit("picture_allocation"))?;
+        let bytes = cache.frames.capacity() * core::mem::size_of::<Frame>();
+        assert!(bytes > 0);
+        assert_eq!(cache.retained_bytes(0, bytes)?, bytes);
+        assert_eq!(cache.retained_bytes(0, bytes - 1)?, 0);
+        assert_eq!(cache.frames.capacity(), 0);
         Ok(())
     }
 }

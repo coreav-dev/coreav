@@ -562,9 +562,13 @@ impl Frame {
         limit: usize,
     ) -> Result<usize> {
         Self::admit(&input)?;
-        self.decode_common(input, None, remaining, fixed, limit, 1)
+        self.decode_common(input, None, remaining, fixed, limit, 1, None)
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "shared slice and memory boundary"
+    )]
     pub(crate) fn decode_full(
         &mut self,
         input: SliceInput<'_>,
@@ -573,6 +577,7 @@ impl Frame {
         fixed: usize,
         limit: usize,
         threads: usize,
+        cache: Option<&mut super::Cache>,
     ) -> Result<usize> {
         if self.reference.is_none()
             || input.syntax.kind > 2
@@ -580,9 +585,13 @@ impl Frame {
         {
             return Err(Error::InvalidData("inter_segment_state"));
         }
-        self.decode_common(input, Some(dpb), remaining, fixed, limit, threads)
+        self.decode_common(input, Some(dpb), remaining, fixed, limit, threads, cache)
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "shared slice and memory boundary"
+    )]
     fn decode_common(
         &mut self,
         input: SliceInput<'_>,
@@ -591,6 +600,7 @@ impl Frame {
         fixed: usize,
         limit: usize,
         threads: usize,
+        mut cache: Option<&mut super::Cache>,
     ) -> Result<usize> {
         if self.index != input.index
             || self.info != input.picture
@@ -613,29 +623,39 @@ impl Frame {
         if count > (total_ctus - self.next_ctu) as usize {
             return Err(Error::InvalidData("intra_substream_count"));
         }
-        let mut memory = Memory::new(fixed, limit)?;
-        memory.charge(self.heap_bytes()?)?;
-        memory.charge(input.scratch_bytes)?;
-        memory.charge(
-            count
-                .checked_mul(core::mem::size_of::<Range<usize>>())
-                .ok_or(Error::Limit("reconstruction_memory"))?,
-        )?;
-        let ranges = substream::ranges(
-            input.original,
-            input.header.rbsp_header_bytes,
-            input.entry_lengths,
-            count,
-        )?;
-        memory.charge(
-            (ranges.capacity() - count)
-                .checked_mul(core::mem::size_of::<Range<usize>>())
-                .ok_or(Error::Limit("reconstruction_memory"))?,
-        )?;
-        if let Some(peak) =
-            self.decode_wpp(&input, dpb, remaining, &ranges, memory.used, limit, threads)?
-        {
-            return Ok(peak);
+        let (ranges, fixed, prior_peak) = {
+            let mut memory = Memory::with_reclaim(
+                fixed,
+                limit,
+                match &mut cache {
+                    Some(cache) => Some(&mut **cache),
+                    None => None,
+                },
+            )?;
+            memory.charge(self.heap_bytes()?)?;
+            memory.charge(input.scratch_bytes)?;
+            memory.charge(
+                count
+                    .checked_mul(core::mem::size_of::<Range<usize>>())
+                    .ok_or(Error::Limit("reconstruction_memory"))?,
+            )?;
+            let ranges = substream::ranges(
+                input.original,
+                input.header.rbsp_header_bytes,
+                input.entry_lengths,
+                count,
+            )?;
+            memory.charge(
+                (ranges.capacity() - count)
+                    .checked_mul(core::mem::size_of::<Range<usize>>())
+                    .ok_or(Error::Limit("reconstruction_memory"))?,
+            )?;
+            (ranges, memory.used, memory.peak())
+        };
+        if let Some(peak) = self.decode_wpp(
+            &input, dpb, remaining, &ranges, fixed, limit, threads, cache,
+        )? {
+            return Ok(peak.max(prior_peak));
         }
         if !input.header.dependent {
             self.contexts = Contexts::new(input.syntax.qp_y, input.syntax.initialization);
@@ -664,7 +684,7 @@ impl Frame {
                     }
                     end_range(&mut cabac, bytes.len(), true)?;
                     self.segment_closed = true;
-                    return Ok(memory.used);
+                    return Ok(prior_peak);
                 }
                 if self.next_ctu == total_ctus {
                     return Err(Error::InvalidData("intra_picture_termination"));
@@ -2360,9 +2380,9 @@ mod tests {
                 let input = inter_input(&fixture, &rbsp, &original, initialization);
                 let dpb = reference_dpb(&input)?;
                 let mut frame =
-                    Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
+                    Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX, None)?;
                 let mut budget = bins;
-                let decoded = frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1);
+                let decoded = frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1, None);
                 assert!(
                     decoded.is_ok(),
                     "{initialization:?} skip={skipped} depth={depth}: {decoded:?}"
@@ -2407,9 +2427,9 @@ mod tests {
                 let input = inter_input(&fixture, &rbsp, &original, initialization);
                 let dpb = reference_dpb(&input)?;
                 let mut frame =
-                    Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
+                    Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX, None)?;
                 let mut budget = 10;
-                frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1)?;
+                frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1, None)?;
                 assert_eq!(budget, 0);
                 assert!(frame.complete());
                 assert!(
@@ -2441,9 +2461,10 @@ mod tests {
             let original = escaped(&rbsp);
             let input = inter_input(&fixture, &rbsp, &original, initialization);
             let dpb = reference_dpb(&input)?;
-            let mut frame = Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
+            let mut frame =
+                Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX, None)?;
             let mut budget = 5;
-            frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1)?;
+            frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1, None)?;
             assert_eq!(budget, 0);
             assert!(frame.complete());
             assert!(
@@ -2602,9 +2623,10 @@ mod tests {
                 inter.mvd_l1_zero = zero;
             }
             let dpb = reference_dpb(&input)?;
-            let mut frame = Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
+            let mut frame =
+                Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX, None)?;
             let mut budget = 11;
-            let result = frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1);
+            let result = frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1, None);
             if !zero {
                 assert!(result.is_err());
                 continue;
@@ -3380,7 +3402,7 @@ mod tests {
         let input = fixture.input(segment(&rbsp, &original, &lengths));
         let mut serial = Frame::new(&input, 0, usize::MAX)?;
         let mut budget = 10_000_000;
-        serial.decode_common(input, None, &mut budget, 0, usize::MAX, 1)?;
+        serial.decode_common(input, None, &mut budget, 0, usize::MAX, 1, None)?;
         assert_eq!(serial.planes[0][16 * 48 + 30], 55);
         assert_eq!(serial.planes[0][16 * 48 + 31], 64);
         assert_eq!(serial.stats.pcm_units, 3);
@@ -3394,8 +3416,15 @@ mod tests {
             std::thread::scope(|scope| {
                 let controller =
                     scope.spawn(|| hook.release_after_wait(std::time::Duration::from_millis(20)));
-                let result =
-                    frame.decode_common(input, None, &mut parallel_budget, 0, usize::MAX, threads);
+                let result = frame.decode_common(
+                    input,
+                    None,
+                    &mut parallel_budget,
+                    0,
+                    usize::MAX,
+                    threads,
+                    None,
+                );
                 assert!(controller.join().unwrap());
                 result
             })?;
@@ -3412,32 +3441,7 @@ mod tests {
     #[test]
     fn wavefront_mid_row_errors_and_panics_join_every_worker() -> Result<()> {
         use super::super::parallel::{TestFault, TestHook};
-        let (_, mut rbsp, prefix_lengths) = above_right_wavefront()?;
-        let fixture = fixture(48, 128, 8, true, 1)?;
-        let mut lengths = vec![prefix_lengths[0], 5];
-        let last = rbsp.len() - 2;
-        rbsp[last] = 0xb0;
-        for (row, starts) in [
-            [0x9c, 0xa0, 0xa5],
-            [0xa6, 0xaa, 0xae],
-            [0xaf, 0xb2, 0xb6],
-            [0xb7, 0xb9, 0xbd],
-            [0xbe, 0xc0, 0xc3],
-            [0xc4, 0xc6, 0xc9],
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let body = pcm_body(
-                &starts.map(|byte| [byte, 0x80]),
-                [if row == 5 { 0xfe } else { 0xfd }, 0x80],
-                &[68; 3],
-            )?;
-            if row != 5 {
-                lengths.push(body.len() as u64);
-            }
-            rbsp.extend(body);
-        }
+        let (fixture, rbsp, lengths) = cached_wavefront(68, 8, 8)?;
         let original = escaped(&rbsp);
         let input = fixture.input(segment(&rbsp, &original, &lengths));
         let mut control = Frame::new(&input, 0, usize::MAX)?;
@@ -3465,7 +3469,8 @@ mod tests {
                         &mut budget,
                         0,
                         usize::MAX,
-                        threads
+                        threads,
+                        None
                     )),
                     Err(expected)
                 );
@@ -3476,6 +3481,240 @@ mod tests {
                     assert_eq!(budget, expected_budget);
                 } else {
                     serial_budget = Some(budget);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn cached_wavefront(value: u8, depth: u32, rows: u32) -> Result<(Fixture, Vec<u8>, Vec<u64>)> {
+        let (_, mut rbsp, prefix_lengths) = above_right_wavefront()?;
+        let mut fixture = fixture(48, rows * 16, depth, true, 1)?;
+        fixture.sps.pcm = Some(Pcm {
+            luma_depth: 8,
+            chroma_depth: 8,
+            min_log2: 4,
+            max_log2: 4,
+            loop_filter_disabled: false,
+        });
+        if rows == 2 {
+            return Ok((fixture, rbsp, prefix_lengths.to_vec()));
+        }
+        let mut lengths = vec![prefix_lengths[0], 5];
+        let last = rbsp.len() - 2;
+        rbsp[last] = 0xb0;
+        for (row, starts) in [
+            [0x9c, 0xa0, 0xa5],
+            [0xa6, 0xaa, 0xae],
+            [0xaf, 0xb2, 0xb6],
+            [0xb7, 0xb9, 0xbd],
+            [0xbe, 0xc0, 0xc3],
+            [0xc4, 0xc6, 0xc9],
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let body = pcm_body(
+                &starts.map(|byte| [byte, 0x80]),
+                [if row == 5 { 0xfe } else { 0xfd }, 0x80],
+                &[value; 3],
+            )?;
+            if row != 5 {
+                lengths.push(body.len() as u64);
+            }
+            rbsp.extend(body);
+        }
+        Ok((fixture, rbsp, lengths))
+    }
+
+    #[test]
+    fn wavefront_warm_workers_match_cold_and_serial_across_picture_changes() -> Result<()> {
+        use super::super::{Cache, ReclaimMemory};
+        for threads in [2, 4, 8] {
+            let mut cache = Cache::default();
+            for (index, (depth, rows)) in [
+                (8, 8),
+                (8, 8),
+                (8, 8),
+                (8, 8),
+                (10, 8),
+                (10, 8),
+                (8, 2),
+                (8, 2),
+                (8, 8),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let (fixture, rbsp, lengths) = cached_wavefront(41 + index as u8 * 7, depth, rows)?;
+                let original = escaped(&rbsp);
+                let mut input = fixture.input(segment(&rbsp, &original, &lengths));
+                input.index = index as u64;
+                let mut serial = Frame::new(&input, 0, usize::MAX)?;
+                let mut expected_budget = 10_000_000;
+                serial.decode(input, &mut expected_budget, 0, usize::MAX)?;
+                for warm in [false, true] {
+                    let mut cold = Cache::default();
+                    let pool = if warm { &mut cache } else { &mut cold };
+                    let mut frame = Frame::allocate(&input, None, 0, usize::MAX, Some(pool))?;
+                    let mut budget = 10_000_000;
+                    frame.decode_common(
+                        input,
+                        None,
+                        &mut budget,
+                        0,
+                        usize::MAX,
+                        threads,
+                        Some(pool),
+                    )?;
+                    assert_eq!(frame.workers, threads.min(rows as usize));
+                    assert!(frame.complete());
+                    assert_eq!(frame.planes, serial.planes);
+                    assert_eq!(frame.stats, serial.stats);
+                    assert_eq!(frame.inter_stats, serial.inter_stats);
+                    assert_eq!(budget, expected_budget);
+                    assert!(pool.retained_bytes(0, usize::MAX)? > 0);
+                }
+            }
+            assert!(cache.hits() >= 4);
+            cache.clear();
+            assert_eq!(cache.retained_bytes(0, usize::MAX)?, 0);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn wavefront_warm_errors_panics_and_deadlines_release_every_private_frame() -> Result<()> {
+        use super::super::{
+            Cache, ReclaimMemory,
+            parallel::{TestFault, TestHook},
+        };
+        let (fixture, rbsp, lengths) = cached_wavefront(68, 8, 8)?;
+        let original = escaped(&rbsp);
+        let input = fixture.input(segment(&rbsp, &original, &lengths));
+        for threads in [2, 4, 8] {
+            for (fault, expected) in [
+                (TestFault::Error, Error::InvalidData("injected_row_error")),
+                (TestFault::Panic, Error::Internal("reconstruction_panic")),
+                (TestFault::Deadline, Error::Limit("decode_deadline")),
+            ] {
+                let mut cache = Cache::default();
+                let mut first = Frame::new(&input, 0, usize::MAX)?;
+                first.decode_common(
+                    input,
+                    None,
+                    &mut 10_000_000,
+                    0,
+                    usize::MAX,
+                    threads,
+                    Some(&mut cache),
+                )?;
+                let mut next = Frame::new(&input, 0, usize::MAX)?;
+                if matches!(fault, TestFault::Deadline) {
+                    next.deadline = Some(std::time::Instant::now());
+                } else {
+                    next.test_hook = Some(std::sync::Arc::new(TestHook::new(fault, false)));
+                }
+                assert_eq!(
+                    super::super::caught(|| next.decode_common(
+                        input,
+                        None,
+                        &mut 10_000_000,
+                        0,
+                        usize::MAX,
+                        threads,
+                        Some(&mut cache)
+                    )),
+                    Err(expected)
+                );
+                assert_eq!(next.workers, threads);
+                assert!(!next.complete());
+                assert_eq!(cache.hits(), 1);
+                assert_eq!(cache.retained_bytes(0, usize::MAX)?, 0);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn wavefront_warm_memory_preserves_independent_cold_admission_boundaries() -> Result<()> {
+        use super::super::{Cache, ReclaimMemory};
+        fn cold_workers(input: SliceInput<'_>, threads: usize, limit: usize) -> Result<usize> {
+            let result = (|| {
+                let mut frame = Frame::new(&input, 0, limit)?;
+                frame.decode_common(input, None, &mut 10_000_000, 0, limit, threads, None)?;
+                Ok(frame.workers)
+            })();
+            match result {
+                Err(Error::Limit("reconstruction_memory")) => Ok(0),
+                other => other,
+            }
+        }
+        let (fixture, rbsp, lengths) = cached_wavefront(68, 8, 8)?;
+        let original = escaped(&rbsp);
+        let input = fixture.input(segment(&rbsp, &original, &lengths));
+        for extra in [0, 1 << 20] {
+            let mut input = input;
+            input.scratch_bytes += extra;
+            for threads in [2, 4, 8] {
+                let mut low = 0;
+                let mut high = 32 << 20;
+                assert_eq!(cold_workers(input, threads, high)?, threads);
+                while low < high {
+                    let middle = low + (high - low) / 2;
+                    if cold_workers(input, threads, middle)? == threads {
+                        high = middle;
+                    } else {
+                        low = middle + 1;
+                    }
+                }
+                for limit in [low - 1, low] {
+                    let expected = cold_workers(input, threads, limit)?;
+                    let mut cache = Cache::default();
+                    let mut seed = Frame::new(&input, 0, usize::MAX)?;
+                    seed.decode_common(
+                        input,
+                        None,
+                        &mut 10_000_000,
+                        0,
+                        usize::MAX,
+                        threads,
+                        Some(&mut cache),
+                    )?;
+                    drop(seed);
+                    let mut frame = Frame::allocate(&input, None, 0, limit, Some(&mut cache))?;
+                    frame.decode_common(
+                        input,
+                        None,
+                        &mut 10_000_000,
+                        0,
+                        limit,
+                        threads,
+                        Some(&mut cache),
+                    )?;
+                    assert_eq!(frame.workers, expected);
+                    assert!(frame.complete());
+                }
+                let frame = Frame::new(&input, 0, usize::MAX)?;
+                let constructor_limit = frame.heap_bytes()? + input.scratch_bytes;
+                drop(frame);
+                for limit in [constructor_limit - 1, constructor_limit] {
+                    let mut cache = Cache::default();
+                    let mut seed = Frame::new(&input, 0, usize::MAX)?;
+                    seed.decode_common(
+                        input,
+                        None,
+                        &mut 10_000_000,
+                        0,
+                        usize::MAX,
+                        threads,
+                        Some(&mut cache),
+                    )?;
+                    drop(seed);
+                    let cold = Frame::new(&input, 0, limit);
+                    let warm = Frame::allocate(&input, None, 0, limit, Some(&mut cache));
+                    assert_eq!(warm.map(|_| ()), cold.map(|_| ()));
+                    assert_eq!(cache.retained_bytes(0, usize::MAX)?, 0);
                 }
             }
         }
@@ -3496,7 +3735,7 @@ mod tests {
                 let controller =
                     scope.spawn(|| hook.release_after_wait(std::time::Duration::from_millis(150)));
                 assert_eq!(
-                    frame.decode_common(input, None, &mut 10_000_000, 0, usize::MAX, threads),
+                    frame.decode_common(input, None, &mut 10_000_000, 0, usize::MAX, threads, None),
                     Err(Error::Limit("decode_deadline"))
                 );
                 assert!(controller.join().unwrap());
@@ -3543,7 +3782,8 @@ mod tests {
                 for allowance in (0..=24).chain([10_000_000]) {
                     let mut serial = Frame::new(&input, 0, usize::MAX)?;
                     let mut budget = allowance;
-                    let expected = serial.decode_common(input, None, &mut budget, 0, usize::MAX, 1);
+                    let expected =
+                        serial.decode_common(input, None, &mut budget, 0, usize::MAX, 1, None);
                     for threads in [2, 4, 8] {
                         let mut frame = Frame::new(&input, 0, usize::MAX)?;
                         let mut parallel_budget = allowance;
@@ -3554,6 +3794,7 @@ mod tests {
                             0,
                             usize::MAX,
                             threads,
+                            None,
                         );
                         assert_eq!(actual.map(|_| ()), expected.map(|_| ()));
                         assert_eq!(parallel_budget, budget);
@@ -3588,13 +3829,13 @@ mod tests {
         for threads in [1, 2, 4, 8] {
             let mut frame = Frame::new(&input, 0, usize::MAX)?;
             let mut budget = 100;
-            frame.decode_common(input, None, &mut budget, 0, 1 << 20, threads)?;
+            frame.decode_common(input, None, &mut budget, 0, 1 << 20, threads, None)?;
             assert!(frame.complete());
             assert_eq!(frame.workers, 1);
             let mut frame = Frame::new(&input, 0, usize::MAX)?;
             frame.deadline = Some(std::time::Instant::now());
             assert_eq!(
-                frame.decode_common(input, None, &mut budget, 0, usize::MAX, threads),
+                frame.decode_common(input, None, &mut budget, 0, usize::MAX, threads, None),
                 Err(Error::Limit("decode_deadline"))
             );
         }
@@ -3629,12 +3870,19 @@ mod tests {
             let input = fixture.input(segment(&data, &original, &lengths));
             let mut serial = Frame::new(&input, 0, usize::MAX)?;
             let mut budget = 10_000_000;
-            let expected = serial.decode_common(input, None, &mut budget, 0, usize::MAX, 1);
+            let expected = serial.decode_common(input, None, &mut budget, 0, usize::MAX, 1, None);
             for threads in [2, 4, 8] {
                 let mut frame = Frame::new(&input, 0, usize::MAX)?;
                 let mut parallel_budget = 10_000_000;
-                let actual =
-                    frame.decode_common(input, None, &mut parallel_budget, 0, usize::MAX, threads);
+                let actual = frame.decode_common(
+                    input,
+                    None,
+                    &mut parallel_budget,
+                    0,
+                    usize::MAX,
+                    threads,
+                    None,
+                );
                 assert_eq!(actual.map(|_| ()), expected.map(|_| ()));
                 assert_eq!(parallel_budget, budget);
                 if actual.is_ok() {
@@ -3667,7 +3915,7 @@ mod tests {
         for threads in [1, 2, 4, 8] {
             let mut frame = Frame::new(&input, 0, usize::MAX)?;
             let mut budget = 10_000_000;
-            frame.decode_common(input, None, &mut budget, 0, usize::MAX, threads)?;
+            frame.decode_common(input, None, &mut budget, 0, usize::MAX, threads, None)?;
             assert_eq!(frame.next_ctu, 4);
             let mut tail = vec![0x80];
             tail.extend(pcm_body(
@@ -3686,6 +3934,7 @@ mod tests {
                 0,
                 usize::MAX,
                 threads,
+                None,
             )?;
             assert!(frame.complete());
             let actual = (frame.planes, frame.stats, budget);
