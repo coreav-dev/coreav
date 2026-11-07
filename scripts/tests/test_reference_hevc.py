@@ -140,6 +140,7 @@ class Reference(unittest.TestCase):
                 if command[0] == 'valgrind':
                     (directory / 'c00.callgrind').write_text('events: Ir\nsummary: 10000\n')
                     return b'{"pictures":2,"decoded_pictures":2,"bins":42}', {}
+                self.assertIn('--threshold=100', command)
                 return ''.join(f' 100 ( 1.00%) decoder.rs:coreav_hevc::function_{i}\n'
                                for i in range(20)).encode(), {}
 
