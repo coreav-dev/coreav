@@ -173,13 +173,21 @@ pub struct Encoder {
     pub(crate) coded_height: usize,
     pub(crate) reference: Option<[codec::FramePlane; 3]>,
     pub(crate) previous_mv_count: u8,
+    pub(crate) threads: usize,
     next_idr_id: u32,
     next_frame_num: u8,
 }
 
 impl Encoder {
     /// Validate the sequence envelope before any frame allocation.
-    pub fn new(settings: Settings, mut limits: Limits) -> Result<Self> {
+    pub fn new(settings: Settings, limits: Limits) -> Result<Self> {
+        let threads = std::thread::available_parallelism().map_or(1, usize::from);
+        Self::with_threads(settings, limits, threads)
+    }
+
+    /// Validate the sequence and use a positive worker count, capped at its row count.
+    /// Worker count never changes the encoded stream or reconstruction.
+    pub fn with_threads(settings: Settings, mut limits: Limits, threads: usize) -> Result<Self> {
         let Settings {
             width,
             height,
@@ -187,7 +195,8 @@ impl Encoder {
             colour: c,
             ..
         } = settings;
-        if !(16..=1920).contains(&width)
+        if threads == 0
+            || !(16..=1920).contains(&width)
             || !(16..=1080).contains(&height)
             || width % 2 != 0
             || height % 2 != 0
@@ -224,6 +233,7 @@ impl Encoder {
             coded_height,
             reference: None,
             previous_mv_count: 0,
+            threads,
             next_idr_id: 0,
             next_frame_num: 0,
         })
