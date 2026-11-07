@@ -4,7 +4,7 @@
 
 The encoder chooses the same macroblocks, writes the same stream and returns the same reconstruction for every positive thread count. The first change removes raster-order decision state; its quality cost is measured against main separately from parallel execution. There are no presets, new dependencies or unsafe code.
 
-`Encoder::new(settings, limits)` selects the available core count, falling back to one. `Encoder::with_threads(settings, limits, threads)` selects a positive count explicitly. Workers are capped at the coded macroblock-row count. These constructors do not change the CLI or the sequence settings written to the stream.
+`Encoder::new(settings, limits)` selects the available core count, falling back to one. `Encoder::with_threads(settings, limits, threads)` selects a positive count explicitly. Workers are capped at the coded macroblock-row count and the row's two-column dependency steps. These constructors do not change the CLI or the sequence settings written to the stream.
 
 ## Decisions before concurrency
 
@@ -43,3 +43,11 @@ Deblocking runs only after the raster assembly pass and retains its existing ord
 - Run the encoder tests, strict Clippy, workspace formatting and unsafe-site checks, public-text checks and exact-head similarity guard. Independent review covers publication order, all scheduler termination paths and the normative pair limit.
 
 This implements the row-wavefront decision and admission scheme in [the pipeline roadmap](h264-encoder-pipeline.md). SIMD changes remain separate.
+
+## Measured trade-offs
+
+The fixed local skip-run estimate and row-endpoint admission change the one-thread stream. Against the prior raster-dependent encoder, luma BD-rate changes on five prepared inputs over QP 22, 27, 32, 37 and 40 range from -0.543% to +0.002%. Every input stays below the +0.5% limit. This is a reference comparison on existing lossy media, not a general compression claim.
+
+On four-vCPU GitHub-hosted Ubuntu runners, seven alternating encode-only calls per input at QP 27 give 1.34–2.01 times the prior encoder's one-thread speed with four workers. One worker runs at 0.964–1.000 times the prior speed. The one-thread overhead retains immutable selected candidates and serially emits their syntax after all decisions, rather than immediately writing each macroblock. Two workers give 1.33–1.69 times the prior speed. These figures exclude loading input, writing files and decoder verification.
+
+All five inputs at the five QPs produce identical streams and reconstructions at one, two, three and eight workers in both scalar and dispatched builds. The eight-worker identity check on these runners is not an eight-core speed measurement. Every stream also decodes with the pinned oracle to its reconstruction.

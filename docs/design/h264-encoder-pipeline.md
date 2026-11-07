@@ -61,6 +61,8 @@ Step 10 completes the target pipeline for P pictures the way step 1 did for IDR.
 
 The wavefront removes the consecutive motion-vector count from costs, not from admission. Admission still enforces the limit on motion vectors in two consecutive macroblocks, and the count carried from the previous picture is kept as now. Within a row the predecessor is the left neighbour. Across a row boundary the predecessor belongs to another row, so the last macroblock of each row and the first macroblock of the next are each held to half the pair limit. The pair is then legal without waiting for the other row, and output does not depend on the thread count.
 
+The [row-wavefront implementation](h264-encoder-wavefront.md) separates immutable macroblock decisions from serial entropy coding and deblocking. Its explicit worker-count constructor and automatic available-core selection produce the same stream. Padding and half-sample planes are not prerequisites: workers share the existing immutable reference picture and retain the existing per-call interpolation.
+
 ### Compression efficiency
 
 | Rank | Item | Output | Depends on | Expected gain | Start |
