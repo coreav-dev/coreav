@@ -11,6 +11,7 @@ import tempfile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import hevc_reference as reference
+import test_oracle
 
 
 def compare(baseline, candidate, oracle, source, repeats):
@@ -54,7 +55,7 @@ def main():
     args.only = set(args.only.split(','))
     if not args.only or args.only - {f'd{i:02}' for i in range(26)} - {f'c{i:02}' for i in range(4)}:
         parser.error('unknown_reference_input')
-    oracle = reference.test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+    oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
     args.out.mkdir(parents=True, exist_ok=True)
     report = dict(complete=False, baseline=args.baseline_sha, candidate=args.candidate_sha,
                   baseline_binary_sha256=reference.conformance.digest(args.baseline),

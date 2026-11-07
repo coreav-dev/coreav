@@ -5,6 +5,11 @@ run-name: HEVC reference ${{ inputs.candidate }}
 on:
   workflow_dispatch:
     inputs:
+      baseline:
+        description: Optional exact baseline for a same-host inverse comparison
+        required: false
+        default: ''
+        type: string
       candidate:
         description: Exact decoder commit
         required: true
@@ -24,7 +29,17 @@ permissions:
   contents: read
 
 jobs:
+  inverse-comparison:
+    if: inputs.baseline != ''
+    uses: ./.github/workflows/hevc-inverse-reference.yml
+    with:
+      baseline: ${{ inputs.baseline }}
+      candidate: ${{ inputs.candidate }}
+      only: ${{ inputs.only }}
+    secrets: inherit
+
   reference:
+    if: inputs.baseline == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:

@@ -3,6 +3,17 @@ run-name: HEVC inverse reference ${{ inputs.candidate }}
 # workflow-check: not required
 
 on:
+  workflow_call:
+    inputs:
+      baseline:
+        required: true
+        type: string
+      candidate:
+        required: true
+        type: string
+      only:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       baseline:
