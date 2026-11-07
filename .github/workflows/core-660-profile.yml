@@ -5,8 +5,9 @@ on:
 permissions:
   contents: read
 env:
+  TRACE_ONLY: '1'
   BASE: aff17330db351f39ca6f3c742951aa8e400fbbad
-  HARNESS_SHA256: b2533a5ddbb1bd88eeeb6ddf624954450849ab1dd5ec5b44305a84eeadf533be
+  HARNESS_SHA256: 04bde7bb0df285c3e3b92496f550487506fb9a1383d1573e2e901515bad49fc7
 jobs:
   profile:
     runs-on: ubuntu-24.04
