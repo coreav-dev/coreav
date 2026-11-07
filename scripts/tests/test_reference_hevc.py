@@ -173,9 +173,10 @@ class Reference(unittest.TestCase):
                                (b'0, 0, 0, 1, 10, abcd\n', False), (b'', False)]:
             oracle = b'#dimensions 0: 2x2\n' + oracle
             metadata = json.dumps(dict(streams=[dict(pix_fmt='yuv420p10le', width=2, height=2)])).encode()
-            with self.subTest(oracle=oracle), patch.object(reference, 'command', side_effect=[(native, {}), (metadata, {}), (oracle, {})]):
+            with self.subTest(oracle=oracle), patch.object(reference, 'command', side_effect=[(native, {}), (metadata, {}), (oracle, {})]) as command:
                 if passes:
-                    self.assertEqual(reference.verify('/native', ORACLE, '/input')['frames'], 1)
+                    self.assertEqual(reference.verify('/native', ORACLE, '/input', timeout=600)['frames'], 1)
+                    self.assertEqual([call.kwargs['timeout'] for call in command.call_args_list], [600, 600, 600])
                 else:
                     with self.assertRaisesRegex(ValueError, 'pixel_mismatch'):
                         reference.verify('/native', ORACLE, '/input')

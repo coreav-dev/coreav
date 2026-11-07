@@ -266,7 +266,7 @@ impl Band {
         Ok(())
     }
 
-    fn import(&self, frame: &mut Frame, columns: Range<usize>) -> Result<()> {
+    fn import(&self, frame: &mut Frame, columns: Range<usize>, lines: Range<usize>) -> Result<()> {
         let ctb = 1usize << frame.info.ctb_log2;
         let width = frame.info.width as usize;
         for (component, (source, destination)) in
@@ -277,9 +277,9 @@ impl Band {
                 source,
                 destination,
                 width / divisor,
-                0,
-                self.y / divisor,
-                self.height / divisor,
+                lines.start / divisor,
+                (self.y + lines.start) / divisor,
+                lines.len() / divisor,
                 columns.start * ctb / divisor..(columns.end * ctb).min(width) / divisor,
             )?;
         }
@@ -287,9 +287,9 @@ impl Band {
             &self.cells,
             &mut frame.cells,
             width / 4,
-            0,
-            self.y / 4,
-            self.height / 4,
+            lines.start / 4,
+            (self.y + lines.start) / 4,
+            lines.len() / 4,
             columns.start * ctb / 4..(columns.end * ctb).min(width) / 4,
         )?;
         let row = self.y / ctb;
@@ -423,7 +423,7 @@ impl Frame {
             }
             *remaining -= outcome.consumed;
             let continuation = outcome.result?;
-            band.import(self, 0..band.completed)?;
+            band.import(self, 0..band.completed, 0..band.height)?;
             summary.add(continuation.stats, continuation.inter)?;
             self.next_ctu = continuation.next_ctu;
             self.segment_closed = continuation.closed;
@@ -522,8 +522,14 @@ fn decode_row(
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .0;
             }
-            band.import(frame, x.saturating_sub(1)..(x + 2).min(width))?;
+            let columns = x.saturating_sub(1)..(x + 2).min(width);
+            band.import(
+                frame,
+                columns.clone(),
+                band.height.saturating_sub(4)..band.height,
+            )?;
             if x == 0 {
+                band.import(frame, columns, 0..4.min(band.height))?;
                 frame.wpp = band.checkpoint;
             }
         }

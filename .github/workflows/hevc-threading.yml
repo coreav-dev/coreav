@@ -14,6 +14,14 @@ on:
         required: false
         default: false
         type: boolean
+      only:
+        required: false
+        default: ''
+        type: string
+      frames:
+        required: false
+        default: 32
+        type: number
 
 permissions:
   contents: read
@@ -21,6 +29,8 @@ permissions:
 env:
   CANDIDATE: ${{ inputs.candidate }}
   BASELINE: ${{ inputs.baseline }}
+  ONLY: ${{ inputs.only }}
+  FRAMES: ${{ inputs.frames }}
 
 jobs:
   reference:
@@ -31,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2]
+        shard: ${{ fromJSON(inputs.only != '' && '[0]' || '[0,1,2]') }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -83,7 +93,7 @@ jobs:
             --main "$PWD/baseline/target/release/examples/reference" \
             --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/private" \
             --candidate "$CANDIDATE" --baseline "$BASELINE" \
-            --shard-index '${{ matrix.shard }}' --shard-count 3
+            --shard-index '${{ matrix.shard }}' --shard-count '${{ inputs.only != '' && 1 || 3 }}' --only "$ONLY" --frames "$FRAMES"
       - name: Seal reference results
         if: always()
         run: |
@@ -105,7 +115,7 @@ jobs:
           retention-days: 7
 
   conformance:
-    if: '!inputs.sanitizer_only'
+    if: ${{ !inputs.sanitizer_only && inputs.only == '' }}
     name: hevc-threading-conformance
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -162,6 +172,7 @@ jobs:
           retention-days: 7
 
   thread-sanitizer:
+    if: ${{ inputs.only == '' }}
     name: hevc-threading-sanitizer
     runs-on: ubuntu-24.04
     timeout-minutes: 30
