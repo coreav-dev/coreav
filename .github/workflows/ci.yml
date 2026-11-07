@@ -1366,6 +1366,13 @@ jobs:
             --target-dir target/fallback
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test aac_worker \
             --target-dir target/fallback
+      - name: Identity audio options run without whole-command fallback
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
+        run: |
+          cargo test --locked --release -p coreav-cli --features native-h264,aac,libopus \
+            --test ffmpeg_audio_options --target-dir target/fallback
       - name: Copied video with AAC encoding preserves exact fallback
         env:
           COREAV_REQUIRE_FFMPEG: '1'

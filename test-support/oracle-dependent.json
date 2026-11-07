@@ -73,6 +73,10 @@
   "crates/coreav-cli/tests/ffmpeg_aac_filter.rs": [
     "aac_filter_is_an_exact_concat_identity_or_preserved_fallback"
   ],
+  "crates/coreav-cli/tests/ffmpeg_audio_options.rs": [
+    "identity_audio_options_and_default_aac_bitrate_run_natively",
+    "nonidentity_and_copy_audio_options_preserve_destinations"
+  ],
   "crates/coreav-cli/tests/ffmpeg_concat.rs": [
     "concat_audio_gaps_are_refused_with_exact_pinned_fallback",
     "lossless_audiovisual_concat_preserves_complete_native_output",

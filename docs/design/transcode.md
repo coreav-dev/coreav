@@ -1151,6 +1151,17 @@ encoder is libx264.
 Explicit copy selection still refuses encoder options,
 and audio-only encoding still refuses video encoder options. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
 
+Audio bitrate `-b:a` also accepts the default AAC
+encoder for MP4 and M4A. Other encoder options retain their existing gates.
+
+On audio encode routes, output `-ar` and `-ac` may explicitly repeat the
+selected source audio's sample rate and channel count. Validation uses the
+effective codec after mapping and ordered codec overrides. Copy-only audio,
+absent audio, rate conversion and channel mixing remain unsupported here.
+Opus `-ar` is limited to a 48 kHz source because the existing Opus path
+always feeds its encoder at 48 kHz.
+The separate PCM output admission and multiple-input copy paths are unchanged.
+
 An Opus source can use default AAC encoding. Its current verification uses
 the separately registered [composed Opus-to-AAC check](composed-opus-aac-v2.md):
 existing decoder conformance, exact AAC output from the PCM actually written

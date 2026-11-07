@@ -35,7 +35,7 @@ const ENCODE_LIMIT: std::time::Duration = std::time::Duration::from_secs(3600);
 use crate::error::Failure;
 use crate::fallback::NotNative;
 use crate::ffprobe::args::Kind2;
-use crate::ffprobe::model::Value;
+use crate::ffprobe::model::{Unit, Value};
 use crate::ffprobe::{Report, Stream, StreamKind};
 use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
@@ -730,7 +730,7 @@ pub fn plan(
             "pcm_s16le outside WAV or raw s16le output",
         ));
     }
-    non_pcm_audio_options(command)?;
+    non_pcm_audio_options(command, &output, &decided)?;
     if decided.contains(&Some(Codec::Flac)) {
         return Err(Refusal::not_native("FLAC encoding outside FLAC output"));
     }
@@ -1599,19 +1599,47 @@ fn select_sources(
     Ok(selected)
 }
 
-fn non_pcm_audio_options(command: &Command) -> Result<(), Refusal> {
-    if command.muxer == Muxer::Mp4 {
-        for (option, given) in [
-            ("-ar", command.sample_rate.is_some()),
-            ("-ac", command.channels.is_some()),
-        ] {
-            if given {
-                return Err(Refusal::NotNative(NotNative::option(
-                    option,
-                    None,
-                    format!("'{option}' is not supported: it is not supported on this output"),
-                )));
-            }
+fn non_pcm_audio_options(
+    command: &Command,
+    output: &[(usize, &Stream)],
+    decided: &[Option<Codec>],
+) -> Result<(), Refusal> {
+    for (option, asked) in [
+        ("-ar", command.sample_rate.map(i64::from)),
+        ("-ac", command.channels.map(i64::from)),
+    ] {
+        let Some(asked) = asked else { continue };
+        let mut audio = output
+            .iter()
+            .zip(decided)
+            .filter(|((_, stream), _)| stream.kind == StreamKind::Audio)
+            .peekable();
+        if audio.peek().is_none()
+            || !audio.all(|((_, stream), codec)| {
+                if !matches!(codec, Some(Codec::Audio(_))) {
+                    return false;
+                }
+                if option == "-ac" {
+                    return int(stream, "channels") == asked;
+                }
+                if matches!(codec, Some(Codec::Audio(args::AudioEncoder::Libopus)))
+                    && asked != 48_000
+                {
+                    return false;
+                }
+                stream.entries.iter().any(|(key, value)| {
+                    *key == "sample_rate"
+                        && matches!(value, Value::Unit(rate, Unit::Hertz) if *rate == asked)
+                })
+            })
+        {
+            return Err(Refusal::NotNative(NotNative::option(
+                option,
+                None,
+                format!(
+                    "'{option}' is not supported: native audio encoding requires unchanged sample rate and channels"
+                ),
+            )));
         }
     }
     Ok(())
@@ -1623,7 +1651,7 @@ fn plan_inputs(command: &Command, reports: &[Report]) -> Result<Job, Refusal> {
             "multiple-input output other than MP4 with default metadata",
         ));
     }
-    non_pcm_audio_options(command)?;
+    non_pcm_audio_options(command, &[], &[])?;
     if command.maps.is_empty() {
         return Err(Refusal::not_native(
             "automatic stream selection across several inputs",
