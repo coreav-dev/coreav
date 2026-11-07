@@ -40,7 +40,7 @@ The maintainer set the target as x264 medium at the same thread count, on both t
 
 On low-motion inputs, IDR coding, the quiet-skip test and the P intra proposal hold most encoder time. On real-motion inputs motion search dominates, and fractional refinement is the larger part of it. Leaf arithmetic (quantization, inverse scaling, transforms, residual extraction and sample copies) is spread across every stage. For compression, the encoder quantizes to the nearest level, eliminates no sparse coefficients and makes no rate-distortion choice between levels. These are standard techniques in the published literature and the largest remaining differences inside the matched settings.
 
-*Obvious* items follow decisions already made and start when their dependencies merge. *Maintainer* items need a decision first.
+*Obvious* items follow decisions already made and start when their dependencies merge. *Decided* items record a maintainer decision made for this roadmap.
 
 ### Speed
 
@@ -55,7 +55,7 @@ On low-motion inputs, IDR coding, the quiet-skip test and the P intra proposal h
 | 7 | Multi-candidate SAD: one source row against several candidate rows per call | Identical | Step 6 | Small to medium; integer probes are already cheap | Obvious, under the kernel policy |
 | 8 | Step 9, deblocking fast path; a vector filter only if the fast path leaves a measurable share | Identical | None | Small; an earlier trial of the decoder's dispatched filter showed no clear benefit | Obvious |
 | 9 | Row wavefront, after the one-time removal of raster-order cost state | Changes once, then identical for every thread count | Steps 6 and 8, so per-picture planes exist before rows start | Scales with cores; needed for parity above one thread and neutral at one thread | Obvious: the threading model is decided |
-| 10 | New NEON arithmetic for items 1, 4, 5 and 7 | Identical | Those items | Arm hosts keep scalar SAD and SATD until then | Maintainer: the kernel policy names AVX2 detection and reuse of existing NEON kernels, not new NEON arithmetic |
+| 10 | New NEON arithmetic for items 1, 4, 5 and 7 | Identical | Those items | Arm hosts keep scalar SAD and SATD until then | Decided: the encoder kernel policy is amended to allow new NEON kernels under the same rules; x86-64 kernels come first |
 
 Step 10 completes the target pipeline for P pictures the way step 1 did for IDR. **P finalist shortlist (output change).** Rank skip, 16x16 and, when step 2 searched them, 8x8 layouts by SATD plus known syntax lengths, and build and count exactly only the best two. When neither passes macroblock admission, the complete evaluation runs as now, so the shortlist never refuses a macroblock the complete evaluation accepts.
 
@@ -67,8 +67,8 @@ Step 10 completes the target pipeline for P pictures the way step 1 did for IDR.
 | 2 | Sparse-coefficient elimination: zero a 4x4 block, or a macroblock's luma, whose only levels are isolated ones scored by a fixed position cost | Changes | Item 1 | Medium on low motion; speed-neutral or better | Obvious |
 | 3 | Mode statistics against x264 output on the input with the largest gap: skip, intra and partition shares and vector lengths | None, diagnosis only | None | Locates decision losses for items 4 and 5 | Obvious: the encoder design allows output analysis |
 | 4 | More motion predictors (co-located and above-right vectors) and a search range that follows their spread | Changes | Item 3 | Medium on real motion | Obvious |
-| 5 | Rate-distortion levels for finalists: choose each level among the nearest value, one step smaller and zero by exact CAVLC bits and squared error | Changes | Item 1, steps 5 and 10 | Large, but slower; with no presets its cost counts against the same speed target | Maintainer: trades speed for rate |
-| 6 | Tools outside the matched settings: CABAC, B pictures, several reference pictures, the 8x8 transform, weighted prediction and adaptive quantization | Changes the profile | Rate control for some | Large; x264 medium uses them by default | Maintainer: changes the comparison basis and the configuration surface |
+| 5 | Rate-distortion levels for finalists: choose each level among the nearest value, one step smaller and zero by exact CAVLC bits and squared error | Changes | Item 1, steps 5 and 10 | Large, but slower; with no presets its cost counts against the same speed target | Decided: enabled by default, and it may cost speed |
+| 6 | Tools outside the matched settings: CABAC, B pictures, several reference pictures, the 8x8 transform, weighted prediction and adaptive quantization | Changes the profile | Rate control for some | Large; x264 medium uses them by default | Decided: a later phase, after parity at the matched settings |
 
 Compression items come from the specification and published literature, as the steps do. They are accepted when they lower BD-rate against current main without any input exceeding the bound.
 
@@ -80,11 +80,11 @@ Steps 5, 6 and 8 are in progress. Once they merge, speed items 1, 5 and 7 and co
 
 Decided by the maintainer: the target is x264 medium at the same thread count, at the matched settings. Rows are encoded in a wavefront after decisions stop depending on raster-order state (the pending skip-run length inside costs and the consecutive motion-vector count), a small one-time output change; after it, output is identical for every thread count. There are no presets.
 
-Still open:
+Also decided for this roadmap:
 
-- Whether parity is judged only at the matched settings, or also against x264 medium's defaults with the tools in compression item 6.
-- Whether rate-distortion levels (compression item 5) may cost speed.
-- Whether new NEON arithmetic needs an amendment to the encoder kernel policy.
+- Parity is judged first at the matched settings. A later phase widens the comparison to x264 medium's defaults, with the tools in compression item 6.
+- Rate-distortion levels (compression item 5) are enabled by default, even though they cost speed.
+- The encoder kernel policy is amended to allow new NEON kernels under the same rules as the existing vector kernels. x86-64 kernels come first.
 
 ## Correctness and delivery
 
