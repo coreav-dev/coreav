@@ -1742,10 +1742,11 @@ pub fn esds_decoder_specific_info(esds: &[u8]) -> Option<(u8, Option<&[u8]>)> {
 }
 
 /// Offset of the complete eleven-byte buffer-size and bitrate fields in an
-/// AAC `esds` payload. Other object types and incomplete fields return `None`.
-pub fn aac_esds_bit_rate_offset(esds: &[u8]) -> Option<usize> {
+/// MPEG-4 AAC or MPEG audio `esds` payload. Other object types and incomplete
+/// fields return `None`.
+pub fn esds_bit_rate_offset(esds: &[u8]) -> Option<usize> {
     let parts = esds_parts(esds)?;
-    (parts.object_type == 0x40)
+    matches!(parts.object_type, 0x40 | 0x69 | 0x6B)
         .then_some(parts.rate_offset)
         .flatten()
 }
@@ -1860,27 +1861,33 @@ mod tests {
         let mut payload = vec![0, 0, 0, 0, 3, 25, 0, 1, 0, 4, 17, 0x40, 0x15];
         payload.extend_from_slice(&[0; 11]);
         payload.extend_from_slice(&[5, 2, 0x11, 0x90, 6, 1, 2]);
-        assert_eq!(aac_esds_bit_rate_offset(&payload), Some(13));
+        assert_eq!(esds_bit_rate_offset(&payload), Some(13));
         assert_eq!(
             esds_decoder_specific_info(&payload),
             Some((0x40, Some(&[0x11, 0x90][..])))
         );
         for end in 0..payload.len() {
-            assert_eq!(aac_esds_bit_rate_offset(&payload[..end]), None, "{end}");
+            assert_eq!(esds_bit_rate_offset(&payload[..end]), None, "{end}");
         }
         let mut flags = payload.clone();
         flags[5] += 8;
         flags[8] = 0xE0;
         flags.splice(9..9, [0, 2, 3, b'u', b'r', b'l', 0, 3]);
-        assert_eq!(aac_esds_bit_rate_offset(&flags), Some(21));
-        payload[11] = 0x6B;
-        assert_eq!(aac_esds_bit_rate_offset(&payload), None);
+        assert_eq!(esds_bit_rate_offset(&flags), Some(21));
+        for kind in [0x69, 0x6B] {
+            payload[11] = kind;
+            assert_eq!(esds_bit_rate_offset(&payload), Some(13));
+        }
+        for kind in 0x66..=0x68 {
+            payload[11] = kind;
+            assert_eq!(esds_bit_rate_offset(&payload), None);
+        }
         let mut expanded = vec![
             0, 0, 0, 0, 3, 0x80, 0x80, 0x80, 28, 0, 1, 0, 4, 0x80, 0x80, 0x80, 17, 0x40, 0x15,
         ];
         expanded.extend_from_slice(&[0; 11]);
         expanded.extend_from_slice(&[5, 2, 0x11, 0x90, 6, 1, 2]);
-        assert_eq!(aac_esds_bit_rate_offset(&expanded), Some(19));
+        assert_eq!(esds_bit_rate_offset(&expanded), Some(19));
     }
 
     #[test]

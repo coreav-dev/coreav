@@ -105,6 +105,22 @@ fn oracle(dir: &Path, output: &Path, options: &[&str]) {
     );
 }
 
+fn native_transcode_control(dir: &Path) -> Vec<u8> {
+    let output = dir.join("native-control.mp4");
+    success(
+        Command::new(env!("CARGO_BIN_EXE_coreav"))
+            .arg("transcode")
+            .arg(dir.join("source.mp4"))
+            .arg(&output)
+            .args(["--threads", "1", "--encoder", "auto"])
+            .env("COREAV_FFMPEG", test_oracle::require().ffmpeg())
+            .env_remove("COREAV_STRICT_SAFE")
+            .output()
+            .unwrap(),
+    );
+    std::fs::read(output).unwrap()
+}
+
 fn audio_properties(path: &Path) -> serde_json::Value {
     let bytes = success(
         Command::new(test_oracle::require().ffprobe())
@@ -176,7 +192,7 @@ fn esds_rates(payload: &[u8]) -> usize {
             at += 3;
         }
     }
-    assert_eq!(payload[at], 0x40);
+    assert!(matches!(payload[at], 0x40 | 0x69 | 0x6B));
     at + 2
 }
 
@@ -569,7 +585,7 @@ fn identity_audio_options_and_default_aac_bitrate_run_natively() {
 }
 
 #[test]
-fn default_bitrate_admission_preserves_legacy_native_commands() {
+fn copied_bitrate_metadata_preserves_command_admission() {
     let dir = fixture("bitrate");
     let source = dir.0.join("aac-source.mp4");
     success(
@@ -709,13 +725,13 @@ fn copied_aac_and_opus_match_oracle_metadata_without_other_file_changes() {
             "-c:a",
             "copy",
         ];
-        let control = dir.0.join("control.mp4");
-        success(native(&dir.0, &control, &options, false));
-        let control = std::fs::read(control).unwrap();
+        let control = native_transcode_control(&dir.0);
         assert_eq!(audio_entries(&control).len(), 2);
-        for rate in ["0", "16k", "96k", "128k"] {
+        for rate in [None, Some("0"), Some("16k"), Some("96k"), Some("128k")] {
             let mut args = options.to_vec();
-            args.extend(["-b:a", rate]);
+            if let Some(rate) = rate {
+                args.extend(["-b:a", rate]);
+            }
             let actual = dir.0.join("actual.mp4");
             let reference = dir.0.join("reference.mp4");
             success(native(&dir.0, &actual, &args, false));
@@ -725,11 +741,11 @@ fn copied_aac_and_opus_match_oracle_metadata_without_other_file_changes() {
             assert_eq!(
                 actual.len(),
                 expected.len(),
-                "{encoder} {container} {variant} {rate}"
+                "{encoder} {container} {variant} {rate:?}"
             );
             assert!(
                 actual == expected,
-                "complete file differs: {encoder} {container} {variant} {rate}; first mismatch {:?}",
+                "complete file differs: {encoder} {container} {variant} {rate:?}; first mismatch {:?}",
                 actual.iter().zip(&expected).position(|(a, b)| a != b)
             );
         }
@@ -793,7 +809,7 @@ fn matroska_copy_bitrate_keeps_complete_native_files() {
 }
 
 #[test]
-fn ignored_copy_bitrates_and_copied_mp3_keep_complete_native_files() {
+fn ignored_copy_bitrates_match_the_native_default() {
     for encoder in ["aac", "libmp3lame"] {
         let dir = fixture(&format!("copied-preserved-{encoder}"));
         let encoded = dir.0.join("encoded.mp4");
@@ -812,16 +828,76 @@ fn ignored_copy_bitrates_and_copied_mp3_keep_complete_native_files() {
         let control = dir.0.join("control.mp4");
         success(native(&dir.0, &control, &options, false));
         let control = std::fs::read(control).unwrap();
-        let mut rates = vec!["garbage", "4294967296", "1e6", "-1"];
-        if encoder == "libmp3lame" {
-            rates.extend(["16k", "96k", "128k"]);
-        }
-        for rate in rates {
+        for rate in ["garbage", "4294967296", "1e6", "-1"] {
             let mut args = options.to_vec();
             args.extend(["-b:a", rate]);
             let actual = dir.0.join("actual.mp4");
             success(native(&dir.0, &actual, &args, false));
             assert_eq!(std::fs::read(actual).unwrap(), control, "{encoder} {rate}");
+        }
+    }
+}
+
+#[test]
+fn copied_mp3_matches_oracle_metadata_with_and_without_bitrate() {
+    for sample_rate in ["48000", "44100", "22050", "11025"] {
+        for mode in ["cbr", "vbr"] {
+            let dir = fixture(&format!("copied-mp3-{sample_rate}-{mode}"));
+            let encoded = dir.0.join("encoded.mp4");
+            let mut encode = vec![
+                "-map",
+                "0:v",
+                "-map",
+                "0:a",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "libmp3lame",
+                "-ar",
+                sample_rate,
+                "-disposition:a",
+                "0",
+            ];
+            encode.extend(if mode == "cbr" {
+                ["-b:a", "64k"]
+            } else {
+                ["-q:a", "4"]
+            });
+            if sample_rate == "11025" {
+                encode.extend(["-strict", "-1"]);
+            }
+            oracle(&dir.0, &encoded, &encode);
+            std::fs::rename(encoded, dir.0.join("source.mp4")).unwrap();
+            let control = native_transcode_control(&dir.0);
+            assert_eq!(audio_entries(&control).len(), 2);
+            for rate in [None, Some("16k"), Some("96k"), Some("128k")] {
+                let mut args = vec![
+                    "-map", "0:v", "-map", "0:a", "-c:v", "libx264", "-threads", "1", "-c:a",
+                    "aac", "-c:a", "copy",
+                ];
+                if let Some(rate) = rate {
+                    args.extend(["-b:a", rate]);
+                }
+                let actual = dir.0.join("actual.mp4");
+                success(native(&dir.0, &actual, &args, false));
+                if sample_rate == "11025" {
+                    args.extend(["-strict", "-1"]);
+                }
+                let reference = dir.0.join("reference.mp4");
+                oracle(&dir.0, &reference, &args);
+                let expected = bitrate_reference(&control, &std::fs::read(reference).unwrap());
+                let actual = std::fs::read(actual).unwrap();
+                assert_eq!(
+                    actual.len(),
+                    expected.len(),
+                    "{sample_rate} {mode} {rate:?}"
+                );
+                assert!(
+                    actual == expected,
+                    "complete MP3 file differs: {sample_rate} {mode} {rate:?}; first mismatch {:?}",
+                    actual.iter().zip(&expected).position(|(a, b)| a != b)
+                );
+            }
         }
     }
 }

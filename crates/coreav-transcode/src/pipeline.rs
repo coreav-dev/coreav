@@ -142,8 +142,9 @@ pub struct TranscodeOptions {
     /// Use the FFmpeg-compatible terminal AAC delta in MP4 output.
     /// The default retains complete frame durations and native transcode bytes.
     pub aac_mp4_tail: bool,
-    /// Optional metadata bitrate for copied AAC and Opus in MP4.
-    pub copied_audio_bit_rate: Option<u32>,
+    /// Optional metadata bitrate for MP4-sourced copied AAC, MP3 and Opus.
+    /// `None` preserves metadata rather than normalizing from the source clock.
+    pub copied_audio_bit_rate: Option<coreav_isobmff_write::CopiedAudioBitRate>,
     /// The cover pictures of an MP4 source to leave out, as
     /// `RemuxOptions::left_out_covers` names them; the others are copied
     /// with the movie's metadata.

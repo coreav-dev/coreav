@@ -103,8 +103,9 @@ pub struct Request {
     pub aac: Option<AacRequest>,
     /// Match the FFmpeg adapter's terminal AAC sample timing in MP4.
     pub aac_mp4_tail: bool,
-    /// Optional metadata bitrate for copied AAC and Opus in MP4.
-    pub copied_audio_bit_rate: Option<u32>,
+    /// Optional metadata bitrate for MP4-sourced copied AAC, MP3 and Opus.
+    /// `None` preserves metadata rather than normalizing from the source clock.
+    pub copied_audio_bit_rate: Option<coreav_isobmff_write::CopiedAudioBitRate>,
     /// Optional actual AAC-encoder stdin capture.
     #[cfg(feature = "input-capture")]
     pub input_capture: Option<coreav_transcode::capture::Target>,

@@ -15,7 +15,7 @@ pub(crate) fn set_bit_rate(
     room: u64,
     box_limit: u64,
 ) -> Option<u64> {
-    let aac = match entry.get(4..8) {
+    let mpeg_audio = match entry.get(4..8) {
         Some(b"mp4a") => true,
         Some(b"Opus") => false,
         _ => return None,
@@ -43,11 +43,11 @@ pub(crate) fn set_bit_rate(
         let start = at + usize::from(header.header_len);
         let body = entry.get(start..end)?;
         match &header.kind.0 {
-            b"esds" if aac => {
+            b"esds" if mpeg_audio => {
                 if esds.is_some() {
                     return None;
                 }
-                let offset = coreav_isobmff::aac_esds_bit_rate_offset(body)?;
+                let offset = coreav_isobmff::esds_bit_rate_offset(body)?;
                 esds = Some(start + offset);
             }
             b"btrt" => {
@@ -60,7 +60,7 @@ pub(crate) fn set_bit_rate(
         }
         at = end;
     }
-    if aac && esds.is_none() {
+    if mpeg_audio && esds.is_none() {
         return None;
     }
     let growth = if btrt.is_none() { 20 } else { 0 };
@@ -764,14 +764,39 @@ mod tests {
             );
             assert_eq!(actual, duplicate);
         }
-        let mut mp3 = bitrate_entry(*b"mp4a", true);
-        mp3[55] = 0x6B;
-        let mut actual = mp3.clone();
-        assert_eq!(
-            set_bit_rate(&mut actual, 72_000, 96_000, 20, u64::MAX),
-            None
-        );
-        assert_eq!(actual, mp3);
+        for kind in [0x69, 0x6B] {
+            let mut mp3 = bitrate_entry(*b"mp4a", true);
+            mp3[55] = kind;
+            assert_eq!(set_bit_rate(&mut mp3, 72_000, 96_000, 0, u64::MAX), Some(0));
+            let rates: Vec<u8> = [0u32, 96_000, 72_000]
+                .into_iter()
+                .flat_map(u32::to_be_bytes)
+                .collect();
+            assert_eq!(&mp3[57..68], &rates[1..]);
+            assert_eq!(&mp3[mp3.len() - 12..], &rates);
+        }
+    }
+
+    #[test]
+    fn unhandled_audio_descriptions_explicitly_preserve_bitrate_metadata() {
+        for kind in 0x66..=0x68 {
+            let mut entry = bitrate_entry(*b"mp4a", true);
+            entry[55] = kind;
+            let before = entry.clone();
+            assert_eq!(set_bit_rate(&mut entry, 72_000, 96_000, 20, u64::MAX), None);
+            assert_eq!(entry, before);
+        }
+        for version in [1u16, 2] {
+            let mut entry = bitrate_entry(*b"mp4a", true);
+            entry[16..18].copy_from_slice(&version.to_be_bytes());
+            let before = entry.clone();
+            assert_eq!(set_bit_rate(&mut entry, 72_000, 96_000, 20, u64::MAX), None);
+            assert_eq!(entry, before);
+        }
+        let mut entry = bitrate_entry(*b".mp3", true);
+        let before = entry.clone();
+        assert_eq!(set_bit_rate(&mut entry, 72_000, 96_000, 20, u64::MAX), None);
+        assert_eq!(entry, before);
     }
 
     fn pack(fields: &[(u32, u32)]) -> Vec<u8> {
