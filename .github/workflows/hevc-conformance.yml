@@ -11,6 +11,7 @@ on:
     paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "crates/coreav-backend-hevc/**", "crates/coreav-thumbnail/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-isobmff/**", "crates/coreav-cli/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_boundary.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
   schedule:
     - cron: "45 3 * * *"
+    - cron: "45 4 * * 0"
   workflow_dispatch:
     inputs:
       scalar:
@@ -26,7 +27,34 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  full-coverage:
+    name: hevc-conformance-coverage
+    if: github.event_name == 'schedule' && github.event.schedule == '45 3 * * *'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse: ${{ steps.result.outputs.reuse == 'true' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        continue-on-error: true
+        with:
+          persist-credentials: false
+      - id: result
+        uses: ./.github/actions/merge-group-result
+        continue-on-error: true
+        with:
+          workflow: hevc-conformance.yml
+      - name: Covered by run ${{ steps.result.outputs.run }} attempt ${{ steps.result.outputs.attempt }}
+        if: steps.result.outputs.reuse == 'true'
+        run: 'true'
+
   headers:
+    needs: full-coverage
+    if: >-
+      !cancelled() && needs.full-coverage.outputs.reuse != 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -63,6 +91,9 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -p 'test_hevc*.py'
 
   hevc-smoke:
+    needs: full-coverage
+    if: >-
+      !cancelled() && needs.full-coverage.outputs.reuse != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -96,7 +127,10 @@ jobs:
           retention-days: 30
 
   hevc-vectors:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: full-coverage
+    if: >-
+      !cancelled() && needs.full-coverage.outputs.reuse != 'true' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -160,7 +194,10 @@ jobs:
           retention-days: 30
 
   profile-census:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: full-coverage
+    if: >-
+      !cancelled() && needs.full-coverage.outputs.reuse != 'true' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:

@@ -1,16 +1,392 @@
 name: ci-full
-
 # workflow-check: not required
-
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/**'
+      - 'test-support/**'
+      - 'scripts/**'
+      - 'tools/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'clippy.toml'
+      - 'docs/schema/**'
+      - 'docs/known-divergences*'
+      - 'docs/design/composed-opus-aac-v2.json'
+      - '.github/workflows/ci*.yml'
+      - '.github/actions/**'
+  schedule:
+    - cron: '30 3 * * *'
+    - cron: '30 4 * * 0'
   workflow_dispatch:
-
-permissions: {}
-
+permissions:
+  contents: read
 jobs:
-  ci-full-registration:
+  full-coverage:
+    name: ci-full-coverage
+    if: github.event_name == 'schedule' && github.event.schedule == '30 3 * * *'
+    concurrency:
+      group: ${{ github.workflow }}-full-coverage-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 1
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse: ${{ steps.result.outputs.reuse == 'true' }}
     steps:
-      - name: Register manual full-suite execution
-        run: ':'
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        continue-on-error: true
+        with:
+          persist-credentials: false
+      - id: result
+        uses: ./.github/actions/merge-group-result
+        continue-on-error: true
+        with:
+          workflow: ci-full.yml
+      - name: Covered by run ${{ steps.result.outputs.run }} attempt ${{ steps.result.outputs.attempt }}
+        if: steps.result.outputs.reuse == 'true'
+        run: 'true'
+
+  full-fixtures:
+    needs: full-coverage
+    if: >-
+      !cancelled() && needs.full-coverage.outputs.reuse != 'true'
+    concurrency:
+      group: ${{ github.workflow }}-full-fixtures-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Publish the full fixture sets
+        uses: ./.github/actions/ci-fixtures
+        with:
+          fresh: 'true'
+          composed: 'true'
+
+  h264-full:
+    needs: full-fixtures
+    if: ${{ !cancelled() && needs.full-fixtures.result == 'success' }}
+    concurrency:
+      group: ${{ github.workflow }}-h264-full-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Restore the conformance zips
+        id: conformance-cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/h264-conformance
+          key: h264-conformance-v2-${{ hashFiles('crates/coreav-h264/tests/data/conformance-streams.json') }}
+          restore-keys: h264-conformance-v2-${{ hashFiles('crates/coreav-h264/tests/data/conformance-streams.json') }}-partial-
+      - name: Verify or download the conformance zips
+        id: conformance-acquisition
+        run: python3 -I scripts/h264_conformance.py --download-only --zips ~/.cache/h264-conformance
+      - name: Save the conformance zips before decoding
+        if: >-
+          ${{ !cancelled() && steps.conformance-cache.outputs.cache-hit != 'true' &&
+              (steps.conformance-acquisition.outcome == 'success' || steps.conformance-acquisition.outcome == 'failure') }}
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/h264-conformance
+          key: ${{ steps.conformance-cache.outputs.cache-primary-key }}${{ steps.conformance-acquisition.outcome == 'failure' && format('-partial-{0}-{1}-{2}', github.job, github.run_id, github.run_attempt) || '' }}
+      - name: Decode every in-scope stream
+        run: |
+          python3 -I scripts/h264_conformance.py \
+            --zips ~/.cache/h264-conformance \
+            --work "$RUNNER_TEMP/h264" \
+            --threads 1,2,8 \
+            --report "$RUNNER_TEMP/conformance.json"
+      # The same suite in safe mode, a build without the
+      # feature `fast`, which compiles no `unsafe` and runs the baseline
+      # instance of the hot paths. The step above ran the default build,
+      # and the x86-64-v3 instance where the runner's CPU has its features.
+      - name: Decode every in-scope stream in safe mode
+        if: ${{ !cancelled() && steps.conformance-acquisition.outcome == 'success' }}
+        run: |
+          python3 -I scripts/h264_conformance.py \
+            --zips ~/.cache/h264-conformance \
+            --work "$RUNNER_TEMP/h264" \
+            --threads 1,2,8 \
+            --mode safe \
+            --report "$RUNNER_TEMP/conformance-safe.json"
+      - name: Lint and test safe mode
+        if: ${{ !cancelled() }}
+        run: |
+          cargo clippy -p coreav-h264 --no-default-features --all-targets -- -D warnings
+          cargo test -p coreav-h264 --no-default-features --release
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: h264-full-results
+          path: |
+            ${{ runner.temp }}/conformance.json
+            ${{ runner.temp }}/conformance-safe.json
+          if-no-files-found: ignore
+
+  conformance-arm64:
+    needs: full-fixtures
+    if: ${{ !cancelled() && needs.full-fixtures.result == 'success' }}
+    concurrency:
+      group: ${{ github.workflow }}-conformance-arm64-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Restore the conformance zips
+        id: conformance-cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/h264-conformance
+          key: h264-conformance-v2-${{ hashFiles('crates/coreav-h264/tests/data/conformance-streams.json') }}
+          restore-keys: h264-conformance-v2-${{ hashFiles('crates/coreav-h264/tests/data/conformance-streams.json') }}-partial-
+      - name: Verify or download the conformance zips
+        id: conformance-acquisition
+        run: python3 -I scripts/h264_conformance.py --download-only --zips ~/.cache/h264-conformance
+      - name: Save the conformance zips before decoding
+        if: >-
+          ${{ !cancelled() && steps.conformance-cache.outputs.cache-hit != 'true' &&
+              (steps.conformance-acquisition.outcome == 'success' || steps.conformance-acquisition.outcome == 'failure') }}
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/h264-conformance
+          key: ${{ steps.conformance-cache.outputs.cache-primary-key }}${{ steps.conformance-acquisition.outcome == 'failure' && format('-partial-{0}-{1}-{2}', github.job, github.run_id, github.run_attempt) || '' }}
+      - name: Decode every in-scope stream
+        run: |
+          python3 -I scripts/h264_conformance.py \
+            --zips ~/.cache/h264-conformance \
+            --work "$RUNNER_TEMP/h264" \
+            --threads 1,2,8 \
+            --report "$RUNNER_TEMP/conformance-arm64.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: h264-conformance-arm64
+          path: ${{ runner.temp }}/conformance-arm64.json
+          if-no-files-found: ignore
+
+  # The CI benchmark guard (docs/design/benchmarks.md):
+  # instruction counts of the coreav command on generated fixtures.
+  # - Pushes to main that change what the binary or the fixtures are built
+  #   from, and manual runs: against bench/guard/baseline.json.
+  # - Ready pull requests that change the crates or the lock file: the pull
+  #   request's merge commit against its base commit, both built and counted
+  #   in this job, so a regression shows before it merges. Drafts skip it.
+  # A manual run with `update` keeps the counts as an artifact for a pull
+  # request that replaces the baseline. ci-changes' `bench-guard` is the
+  # filter, one list for both events: a pull request that changes the
+  # fixture generator, the pinned FFmpeg installer or the web-upload policy
+  # measures too, which is the safe direction.
+  transcode-compat-shard:
+    needs: full-fixtures
+    if: ${{ !cancelled() && needs.full-fixtures.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    concurrency:
+      group: ${{ github.workflow }}-transcode-compat-shard-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: isobmff-fixtures
+          save-if: false
+      - name: Cache pinned black-box binaries
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      # MediaInfo is a gating oracle for extracted M4A files only; elsewhere it stays informational.
+      - name: Install pinned FFmpeg, ffprobe and MediaInfo
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Use pinned binaries
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: isobmff-fixture-set
+          path: ${{ runner.temp }}/coreav-fixtures
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: composed-audio-fixture-set
+          path: ${{ runner.temp }}/coreav-fixtures
+      - name: Use the registered comparator
+        run: chmod +x "$RUNNER_TEMP/coreav-fixtures/tools/opus_compare"
+      # The same build as isobmff-decode's.
+      - name: Install libdav1d and libvpx
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
+      - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle
+        run: |
+          cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
+            --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-cli/input-capture,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
+            --target-dir target/fallback
+      - name: Check actual-stdin capture transport
+        run: cargo test --locked --release -p coreav-transcode --features input-capture --lib --target-dir target/fallback
+      - name: Cache the x264 program
+        id: x264-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-x264
+          key: linux-x64-x264-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-x264.sh') }}
+      - name: Build x264
+        if: steps.x264-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends nasm
+          scripts/install-x264.sh "$RUNNER_TEMP/coreav-x264"
+      # docs/design/transcode.md, bar B9: the coreav ffmpeg command lines that
+      # encode with libx264, on the fixtures, each arm against FFmpeg running
+      # the same command line. The ffmpeg arm names no x264 program, so the
+      # pipeline falls back to the pinned FFmpeg's libx264.
+      - name: Prove composed output identity and semantic mutations
+        run: |
+          python3 -I scripts/composed_audio_selftest.py \
+            --coreav target/fallback/release/coreav --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
+            --opus-compare "$RUNNER_TEMP/coreav-fixtures/tools/opus_compare" --fixtures "$RUNNER_TEMP/coreav-fixtures"
+      - name: Run the registered composed compatibility check
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python3 -I scripts/transcode_check.py --compat --coreav target/fallback/release/coreav \
+            --compat-check composed-opus-aac-v2 --opus-compare "$RUNNER_TEMP/coreav-fixtures/tools/opus_compare" \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
+            --preflight "$RUNNER_TEMP/coreav-fixtures/basic.mp4" --fixtures "$RUNNER_TEMP/coreav-fixtures" \
+            --arm "x264=COREAV_X264=$RUNNER_TEMP/coreav-x264/x264" --arm ffmpeg=COREAV_X264=none \
+            --jobs 4 --shard "$SHARD/3" --out "$RUNNER_TEMP/coreav-transcode-compat"
+      - name: Keep the shard's evidence for transcode-compat
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: transcode-compat-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/coreav-transcode-compat/evidence
+          retention-days: 1
+
+  # B9's bars over the three shards' results, judged as one run judges
+  # them (scripts/transcode_check.py --merge).
+  transcode-compat:
+    needs: [full-fixtures, transcode-compat-shard]
+    if: ${{ !cancelled() && needs.full-fixtures.result == 'success' && needs.transcode-compat-shard.result == 'success' }}
+    concurrency:
+      group: ${{ github.workflow }}-transcode-compat-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Cache the pinned oracle
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      - name: Install the pinned oracle
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Use pinned binaries
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: transcode-compat-shard-*
+          path: ${{ runner.temp }}/transcode-compat-shards
+      - name: Judge the registered compatibility check over every shard
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I scripts/transcode_check.py --compat-check composed-opus-aac-v2 --out "$RUNNER_TEMP/coreav-transcode-compat" --merge \
+            "$RUNNER_TEMP/transcode-compat-shards/transcode-compat-shard-1" "$RUNNER_TEMP/transcode-compat-shards/transcode-compat-shard-2" "$RUNNER_TEMP/transcode-compat-shards/transcode-compat-shard-3"
+      - name: Check the registered version and pinned oracle
+        run: |
+          python3 -I - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          run = json.loads((root / 'coreav-transcode-compat/run.json').read_text())
+          registration = pathlib.Path('docs/design/composed-opus-aac-v2.json').read_bytes()
+          expected = {'version': 'composed-opus-aac-v2', 'registration_sha256': hashlib.sha256(registration).hexdigest()}
+          if run.get('compat_check') != expected:
+              raise SystemExit('the compatibility evidence has the wrong registered version')
+          tools = run['tools'] if isinstance(run['tools'], list) else [run['tools']]
+          for name in ('ffmpeg', 'ffprobe'):
+              binary = root / 'coreav-oracle-bin' / name
+              digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+              if not tools or any(t[name]['sha256'] != digest for t in tools):
+                  raise SystemExit(f'B9 did not use the pinned {name}')
+          version = subprocess.check_output([str(root / 'coreav-oracle-bin/ffmpeg'), '-version']).decode().splitlines()[:1]
+          if run['ffmpeg_version'] != version:
+              raise SystemExit('B9 did not record the pinned FFmpeg version')
+          PY
+      - name: Preserve the registered compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: transcode-compat-evidence
+          path: ${{ runner.temp }}/coreav-transcode-compat/evidence
+          if-no-files-found: ignore
+  # docs/design/mkv.md: the Matroska and WebM fixtures through coreav-mkv and
+  # the coreav binary, against the pinned ffprobe on every change (100% after
+  # the documented divergences of docs/known-divergences-mkv.md), and against
+  # MediaInfo as the informational second oracle; and every
+  # fixture remuxed to MP4 (docs/design/mkv-remux.md).
+  # It follows ci-changes' `run`.
+  ci-full-report:
+    needs: [full-coverage, full-fixtures, h264-full, conformance-arm64, transcode-compat-shard, transcode-compat]
+    if: always() && needs.full-coverage.outputs.reuse != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every full-suite job to succeed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS" >> "$GITHUB_STEP_SUMMARY"
+          jq -e 'del(."full-coverage") | length == 5 and all(.[]; .result == "success")' <<< "$RESULTS"

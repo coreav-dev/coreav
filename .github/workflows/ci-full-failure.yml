@@ -4,7 +4,7 @@ name: ci-full-failure
 
 on:
   workflow_run:
-    workflows: [hevc-conformance]
+    workflows: [ci-full, vp9-corpus, vp9-conformance, hevc-conformance]
     types: [completed]
 
 permissions:

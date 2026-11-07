@@ -133,6 +133,22 @@ class Repository(unittest.TestCase):
     def test_the_repository_passes(self):
         self.assertEqual(check.check(self.root), [])
 
+    def test_nonrequired_workflows_do_not_repeat_work_in_the_merge_queue(self):
+        for events in ('  merge_group:\n    types: [checks_requested]\n',
+                       '  "merge_group" : {types: [checks_requested]}\n'):
+            with self.subTest(events=events):
+                self.write('.github/workflows/probe.yml', '# workflow-check: not required\non:\n' + events
+                           + 'jobs:\n  probe:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo ok\n')
+                self.assertEqual(check.check(self.root),
+                                 ['probe.yml: remove `merge_group:` from a workflow marked not required; '
+                                  'keep its PR, main and full-tier triggers'])
+        for events in ('merge_group', '[push, merge_group]'):
+            self.write('.github/workflows/probe.yml', '# workflow-check: not required\non: ' + events
+                       + '\njobs:\n  probe:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo ok\n')
+            self.assertEqual(check.check(self.root),
+                             ['probe.yml: remove `merge_group:` from a workflow marked not required; '
+                              'keep its PR, main and full-tier triggers'])
+
     def test_a_comment_is_not_a_step(self):
         self.labels.write_text(self.labels.read_text() + '# Example: {uses: actions/checkout@v4}\n')
         self.assertEqual(check.check(self.root), [])
@@ -198,8 +214,13 @@ class Repository(unittest.TestCase):
         self.assertTrue(any(p.startswith('ci.yml: give `check` exactly') for p in found), found)
 
     def test_matrix_legs_sharing_a_group_are_reported(self):
-        found = self.ci('-transcode-compat-shard-${{ strategy.job-index }}-', '-transcode-compat-shard-')
-        self.assertTrue(any(p.startswith('ci.yml: give `transcode-compat-shard` exactly') for p in found), found)
+        path = self.root / '.github/workflows/ci-full.yml'
+        text = path.read_text()
+        original = '-transcode-compat-shard-${{ strategy.job-index }}-'
+        self.assertIn(original, text)
+        path.write_text(text.replace(original, '-transcode-compat-shard-'))
+        found = check.check(self.root)
+        self.assertTrue(any(p.startswith('ci-full.yml: give `transcode-compat-shard` exactly') for p in found), found)
 
     def test_a_report_job_with_a_group_is_reported(self):
         found = self.ci('  ci-report:\n', '  ci-report:\n    concurrency:\n      group: x\n')

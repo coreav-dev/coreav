@@ -46,6 +46,12 @@ on:
     # Every binary once a week (Monday 04:30 UTC), on main.
     - cron: '30 4 * * 1'
   workflow_dispatch:
+    inputs:
+      parity_comparison:
+        description: Compare complete npm tests with one and four parity workers
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -114,7 +120,7 @@ jobs:
       needs.npm-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.parity_comparison && 90 || 40 }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -192,7 +198,22 @@ jobs:
         env:
           COREAV_BIN: ${{ github.workspace }}/packages/cli/npm/linux-x64/bin/coreav
           COREAV_FIXTURE_DIRS: ${{ runner.temp }}/coreav-fixtures,${{ runner.temp }}/coreav-mkv-fixtures
-        run: npm test
+          PARITY_COMPARISON: ${{ github.event_name == 'workflow_dispatch' && inputs.parity_comparison }}
+          COREAV_PARITY_COMPARISON_REPORT: ${{ runner.temp }}/parity-comparison.json
+        run: |
+          if [ "$PARITY_COMPARISON" = true ]; then
+            node test/parity-comparison.mjs
+          else
+            npm test
+          fi
+      - name: Retain CI harness comparison identities and timings
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.parity_comparison
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-parity-comparison
+          path: ${{ runner.temp }}/parity-comparison.json
+          if-no-files-found: error
+          retention-days: 3
       - name: Cache the x264 program
         id: x264-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3

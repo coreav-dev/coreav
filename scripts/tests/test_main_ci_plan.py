@@ -21,10 +21,11 @@ def evaluate(expression, context):
         return repr(item)
 
     expression = expression.strip().removeprefix('${{').removesuffix('}}').strip()
-    expression = re.sub(r'\b(?:github|steps|needs|strategy)\.[\w.*-]+', value, expression)
+    expression = re.sub(r'\b(?:github|steps|needs|strategy|inputs)\.[\w.*-]+', value, expression)
     expression = re.sub(r'!(?!=)', ' not ', expression.replace('&&', ' and ').replace('||', ' or '))
     return eval(expression, {'__builtins__': {}},
-                {'always': lambda: True, 'contains': lambda values, entry: entry in values,
+                {'always': lambda: True, 'cancelled': lambda: context.get('cancelled', False),
+                 'contains': lambda values, entry: entry in values,
                  'startsWith': lambda value, prefix: value.startswith(prefix),
                  'true': True, 'false': False})
 
@@ -33,7 +34,7 @@ class MainPlan(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.workflows = {}
-        for name in ('ci', 'deny', 'python', 'npm'):
+        for name in ('ci', 'ci-full', 'deny', 'python', 'npm'):
             text = subprocess.check_output(['ruby', '-rjson', '-rpsych', '-e',
                                             'puts JSON.generate(Psych.load_file(ARGV[0]))',
                                             str(ROOT / '.github/workflows' / (name + '.yml'))], text=True)
@@ -45,6 +46,84 @@ class MainPlan(unittest.TestCase):
         pieces = re.split(r'(\$\{\{.*?\}\})', setting['group'])
         key = ''.join(str(evaluate(piece, context)) if piece.startswith('${{') else piece for piece in pieces)
         return key, bool(evaluate(setting['cancel-in-progress'], context))
+
+    def test_reused_groups_skip_fixtures_cache_and_the_already_proved_base_guard(self):
+        gate = self.workflows['ci']['jobs']['ci-changes']
+        publish, = [s for s in gate['steps'] if s.get('name') == 'Publish the shared fixtures before fan-out']
+        for event in ('pull_request', 'merge_group', 'push'):
+            for reused in (False, True):
+                context = {'github': {'event_name': event, 'event': {'pull_request': {'draft': False}}},
+                           'steps': {'result': {'outputs': {'reuse': str(reused).lower()}},
+                                     'filter': {'outputs': {'run': 'true'}},
+                                     'bench-guard': {'outputs': {'run': 'true'}}}}
+                with self.subTest(event=event, reused=reused):
+                    self.assertEqual(bool(evaluate(publish['if'], context)),
+                                     not (event == 'merge_group' and reused))
+                    self.assertEqual(bool(evaluate(gate['outputs']['main-cache'], context)),
+                                     event == 'push' and reused)
+                    self.assertEqual(bool(evaluate(gate['outputs']['bench-guard'], context)),
+                                     not (event == 'merge_group' and reused))
+                    self.assertEqual(bool(evaluate(gate['outputs']['run'], context)), not reused)
+
+    def test_every_required_workflow_records_or_checks_reuse_before_work(self):
+        for workflow, job in [('ci', 'ci-changes'), ('deny', 'deny-checks'),
+                              ('python', 'python-changes'), ('npm', 'npm-changes')]:
+            steps = self.workflows[workflow]['jobs'][job]['steps']
+            self.assertTrue(steps[0]['uses'].startswith('actions/checkout@'))
+            self.assertEqual(steps[1]['uses'], './.github/actions/merge-group-result')
+            self.assertEqual(steps[1]['with'], {'workflow': workflow + '.yml'})
+        text = subprocess.check_output(['ruby', '-rjson', '-rpsych', '-e',
+                                        'puts JSON.generate(Psych.load_file(ARGV[0]))',
+                                        str(ROOT / '.github/actions/merge-group-result/action.yml')], text=True)
+        action = json.loads(text)
+        upload, = [s for s in action['runs']['steps'] if s.get('uses', '').startswith('actions/upload-artifact@')]
+        self.assertEqual(upload['if'], "steps.result.outputs.record_name != ''")
+        self.assertTrue(upload['continue-on-error'])
+        self.assertEqual(upload['with']['name'], '${{ steps.result.outputs.record_name }}')
+
+    def test_reused_groups_require_fresh_root_and_fuzz_advisories(self):
+        steps = self.workflows['deny']['jobs']['deny-checks']['steps']
+        fresh, = [s for s in steps if s.get('id') == 'fresh-advisories']
+        witness, = [s for s in steps if s.get('name') == 'Require fresh advisories on a reused merge group']
+        install, = [s for s in steps if s.get('name') == 'Install cargo-deny']
+        condition = "github.event_name == 'merge_group' && steps.result.outputs.reuse == 'true'"
+        self.assertEqual(fresh['if'], condition)
+        self.assertEqual(witness['if'], 'always() && ' + condition)
+        self.assertEqual(install['if'], "steps.result.outputs.reuse != 'true' || github.event_name == 'merge_group'")
+        self.assertNotIn('continue-on-error', fresh)
+        self.assertNotIn('continue-on-error', witness)
+        self.assertEqual(witness['env'], {'ADVISORIES': '${{ steps.fresh-advisories.outcome }}'})
+        self.assertIn('python3 scripts/fuzz_plan.py --projects', fresh['run'])
+        self.assertNotIn('--offline', fresh['run'])
+        self.assertNotIn('--disable-fetch', fresh['run'])
+        self.assertFalse(any('advisory' in str(s.get('with', {}).get('path', '')).lower()
+                             for s in steps if 'cache@' in s.get('uses', '')))
+        for outcome in ('success', '', 'skipped', 'cancelled', 'failure'):
+            done = subprocess.run(['bash', '-c', witness['run']], env={'ADVISORIES': outcome},
+                                  capture_output=True)
+            self.assertEqual(done.returncode == 0, outcome == 'success')
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'scripts').mkdir()
+            (root / 'scripts/fuzz_plan.py').write_text("print('crates/alpha/fuzz\\ncrates/beta/fuzz')\n")
+            (root / 'cargo').write_text('#!/usr/bin/env python3\nimport json, os, sys\n'
+                'with open(os.environ["CALLS"], "a") as output: output.write(json.dumps(sys.argv[1:]) + "\\n")\n'
+                'fail = os.environ.get("FAIL", "")\n'
+                'sys.exit(int(bool(fail) and (fail == "root" and "--manifest-path" not in sys.argv '
+                'or fail in " ".join(sys.argv))))\n')
+            (root / 'cargo').chmod(0o755)
+            for failure in ('', 'root', 'beta'):
+                calls = root / 'calls.jsonl'
+                calls.unlink(missing_ok=True)
+                done = subprocess.run(['bash', '-c', fresh['run']], cwd=root, capture_output=True,
+                    env={'PATH': str(root) + ':/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin',
+                         'RUNNER_TEMP': directory, 'CALLS': str(calls), 'FAIL': failure})
+                self.assertEqual(done.returncode == 0, failure == '', done.stderr)
+                self.assertEqual([json.loads(line) for line in calls.read_text().splitlines()], [
+                    ['deny', '--all-features', 'check', 'advisories'],
+                    ['deny', '--all-features', '--manifest-path', 'crates/alpha/fuzz/Cargo.toml', 'check', 'advisories'],
+                    ['deny', '--all-features', '--manifest-path', 'crates/beta/fuzz/Cargo.toml', 'check', 'advisories'],
+                ])
 
     def test_aac_source_build_runs_the_whole_transcode_target(self):
         steps = self.workflows['ci']['jobs']['isobmff-decode']['steps']
@@ -217,10 +296,10 @@ class MainPlan(unittest.TestCase):
         for evidence in itertools.product((False, True), repeat=3):
             plans = [self.plan('push', evidence[run], code=run != 1, h264=run != 1)
                      for run in range(3)]
-            for name in ('ci', 'python', 'npm'):
+            for name in ('ci', 'ci-full', 'python', 'npm'):
                 workflow = self.workflows[name]
                 self.assertNotIn('concurrency', workflow)
-                gate = name + '-changes'
+                gate = 'full-fixtures' if name == 'ci-full' else name + '-changes'
                 selected = [[(job, index) for job, count in plan[name].items()
                              if not job.endswith('-report') for index in range(count)] for plan in plans]
                 expected = {(run, job, index) for run in range(3) for job, index in selected[run]}
@@ -250,20 +329,28 @@ class MainPlan(unittest.TestCase):
                         retained = completed | set(running.values()) | set(pending.values())
                         if not expected <= retained:
                             failures.append((name, evidence, order, blocked, expected - retained))
-        self.assertEqual(checked, 4320)
+        self.assertEqual(checked, 5760)
         self.assertEqual(len(failures), 0, f'{len(failures)} lost-work orderings; first: {failures[:1]}')
 
-    def plan(self, event, reused, code=True, h264=True, oracle_installer=False):
+    def plan(self, event, reused, code=True, h264=True, oracle_installer=False, full_covered=False):
         plans = {}
         for name, workflow in self.workflows.items():
+            if name == 'ci-full' and (event not in ('push', 'schedule', 'workflow_dispatch')
+                                      or (event == 'push' and not code)):
+                plans[name] = {}
+                continue
             github = {'event_name': event, 'ref': 'refs/heads/main', 'run_id': '17', 'workflow': name,
                       'repository': 'owner/repo', 'event': {'pull_request': {'draft': False, 'labels': [],
                       'head': {'repo': {'full_name': 'owner/repo'}}}}}
+            if event == 'schedule':
+                github['event']['schedule'] = workflow['on']['schedule'][0]['cron']
             steps = {key: {'outputs': {'run': 'true' if selected else 'false'}}
                      for key, selected in (('filter', code), ('platforms', code),
                                             ('h264-conformance', h264), ('bench-guard', code),
                                             ('oracle-installer', oracle_installer))}
             steps['result'] = {'outputs': {'reuse': 'true' if reused else 'false'}}
+            if name == 'ci-full':
+                steps['result']['outputs']['reuse'] = 'true' if full_covered else 'false'
             steps['fuzz-plan'] = {'outputs': {'plan': ''}}
             context = {'github': github, 'steps': steps, 'needs': {}}
             jobs = workflow['jobs']
@@ -273,7 +360,8 @@ class MainPlan(unittest.TestCase):
                 needs = [needs] if isinstance(needs, str) else needs
                 condition = fields.get('if', 'true')
                 dependencies = all(context['needs'][dependency]['result'] == 'success' for dependency in needs)
-                run = (dependencies or 'always()' in condition) and evaluate(condition, context)
+                explicit_status = any(function in condition for function in ('always()', 'cancelled()'))
+                run = (dependencies or explicit_status) and evaluate(condition, context)
                 result = {'result': 'success' if run else 'skipped', 'outputs': {}}
                 if run:
                     for key, expression in fields.get('outputs', {}).items():
@@ -289,11 +377,24 @@ class MainPlan(unittest.TestCase):
     def test_reused_main_keeps_only_main_maintenance_and_required_reports(self):
         plan = self.plan('push', True)
         self.assertEqual(set(plan['ci']), {'ci-changes', 'ci-report',
-                                          'main-cache', 'conformance-arm64', 'bench-guard'})
+                                          'main-cache', 'bench-guard'})
+        self.assertEqual(plan['ci-full'], {
+            'full-fixtures': 1, 'h264-full': 1, 'conformance-arm64': 1,
+            'transcode-compat-shard': 3, 'transcode-compat': 1, 'ci-full-report': 1,
+        })
         self.assertEqual(set(plan['python']), {'python-changes', 'python-report'})
         self.assertEqual(set(plan['npm']), {'npm-changes', 'npm-report'})
         self.assertEqual(set(plan['deny']), {'deny', 'deny-checks'})
-        self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 11)
+        self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 18)
+
+    def test_proven_groups_keep_only_gate_and_report_jobs(self):
+        plan = self.plan('merge_group', True)
+        self.assertEqual(set(plan['ci']), {'ci-changes', 'ci-report'})
+        self.assertEqual(set(plan['deny']), {'deny-checks', 'deny'})
+        self.assertEqual(set(plan['python']), {'python-changes', 'python-report'})
+        self.assertEqual(set(plan['npm']), {'npm-changes', 'npm-report'})
+        self.assertEqual(plan['ci-full'], {})
+        self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 8)
 
     def test_installer_only_proof_is_reused_without_starting_the_h264_group(self):
         for event, reused in (('pull_request', False), ('merge_group', False),
@@ -313,22 +414,24 @@ class MainPlan(unittest.TestCase):
         for plan in (main, group):
             self.assertIn('check', plan['ci'])
             self.assertIn('isobmff-writers', plan['ci'])
-            self.assertIn('transcode-compat-shard', plan['ci'])
+            self.assertIn('isobmff-command-compat', plan['ci'])
+            self.assertNotIn('transcode-compat-shard', plan['ci'])
             self.assertIn('svt-av1', plan['ci'])
             self.assertIn('linux-x86_64', plan['python'])
             self.assertIn('package', plan['npm'])
             self.assertNotIn('main-cache', plan['ci'])
-        self.assertEqual(sum(sum(jobs.values()) for jobs in main.values()), 35)
+        self.assertEqual(sum(sum(jobs.values()) for jobs in main.values()), 39)
+        self.assertEqual(group['ci-full'], {})
         self.assertNotIn('conformance-arm64', group['ci'])
 
     def test_documentation_only_main_keeps_the_eight_lightweight_jobs(self):
         plan = self.plan('push', True, code=False, h264=False)
         self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 8)
 
-    def test_representative_non_h264_merge_drops_from_28_to_10_jobs(self):
+    def test_representative_non_h264_main_retains_independent_full_work(self):
         counts = [sum(sum(jobs.values()) for jobs in self.plan('push', reused, h264=False).values())
                   for reused in (False, True)]
-        self.assertEqual(counts, [29, 10])
+        self.assertEqual(counts, [34, 18])
 
     def test_concurrency_never_cancels_or_joins_merge_groups(self):
         for name, workflow in self.workflows.items():

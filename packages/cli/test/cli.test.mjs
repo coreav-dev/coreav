@@ -7,11 +7,12 @@
 
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { compareCases } from "./parity.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const launcher = join(here, "..", "lib", "wasi.mjs");
@@ -23,6 +24,8 @@ const skip = !bin || dirs.length === 0 ? "needs COREAV_BIN and COREAV_FIXTURE_DI
 /** Exit status and output as bytes: a clip to `-` writes MP4 to stdout. */
 function run(command, args, cwd) {
   const done = spawnSync(command, args, { cwd, maxBuffer: 64 << 20 });
+  if (done.error) throw done.error;
+  if (done.signal) throw new Error(`child terminated by ${done.signal}`);
   return { status: done.status, stdout: done.stdout, stderr: done.stderr };
 }
 
@@ -66,20 +69,6 @@ test("a file written to stdout survives a reader slower than the writer", { skip
   assert.ok(Buffer.concat(chunks).equals(expected), "stdout differs from the native command's");
 });
 
-/** A case's output: a file's bytes, or every segment `split` wrote, by name; null if none. */
-function snapshot(output) {
-  if (!output.includes("%")) return existsSync(output) ? readFileSync(output) : null;
-  const dir = dirname(output);
-  const names = existsSync(dir) ? readdirSync(dir).sort() : [];
-  return names.length === 0 ? null : names.map((n) => [n, readFileSync(join(dir, n))]);
-}
-
-function clear(output) {
-  if (!output.includes("%")) return rmSync(output, { force: true });
-  rmSync(dirname(output), { recursive: true, force: true });
-  mkdirSync(dirname(output));
-}
-
 /**
  * Every case: [label, arguments with IN and OUT (a file) or SEGMENTS (a
  * `split` pattern) placeholders, writes an output].
@@ -104,53 +93,21 @@ function cases() {
   return list;
 }
 
-test("every subcommand equals the native command on every fixture", { skip }, () => {
-  const scratch = mkdtempSync(join(tmpdir(), "coreav-npx-"));
-  let compared = 0;
-  let outputs = 0;
-  // Labels of the cases that succeeded on some fixture: none may be a
-  // usage error everywhere.
-  const succeeded = new Set();
-  try {
-    for (const dir of dirs) {
-      for (const name of readdirSync(dir).filter((f) => f !== "MANIFEST").sort()) {
-        for (const [label, template, writes] of cases()) {
-          // Absolute paths; an input relative to the working directory;
-          // outputs relative to it.
-          for (const [input, relative, cwd] of [
-            [join(dir, name), false, scratch],
-            [name, false, dir],
-            [join(dir, name), true, scratch],
-          ]) {
-            const segments = template.includes("SEGMENTS");
-            const argument = segments ? join("segments", "%03d.mp4") : "out";
-            const target = join(scratch, argument);
-            const output = relative ? argument : target;
-            const args = template.map((a) => (a === "IN" ? input : a === "OUT" || a === "SEGMENTS" ? output : a));
-            clear(target);
-            const expected = run(bin, args, cwd);
-            const bytes = writes ? snapshot(target) : null;
-            clear(target);
-            const got = npx(args, cwd);
-            const where = `${name} ${label} (${input}${relative ? ", relative output" : ""})`;
-            assert.deepEqual(got, expected, where);
-            if (expected.status === 0) succeeded.add(label);
-            if (bytes !== null) {
-              assert.deepEqual(snapshot(target), bytes, `${where}: output bytes differ`);
-              outputs += 1;
-            } else if (writes) {
-              assert.equal(snapshot(target), null, `${where}: an output the native command did not write`);
-            }
-            compared += 1;
-          }
+test("every subcommand equals the native command on every fixture", { skip }, async () => {
+  const commands = cases();
+  const enumeration = [];
+  for (const dir of dirs) {
+    for (const name of readdirSync(dir).filter((f) => f !== "MANIFEST").sort()) {
+      for (const [label, template, writes] of commands) {
+        for (const [relativeInput, relativeOutput] of [[false, false], [true, false], [false, true]]) {
+          enumeration.push({ label, template, writes, input: join(dir, name), relativeInput, relativeOutput });
         }
       }
     }
-    assert.deepEqual(readdirSync(scratch).filter((f) => f.endsWith(".part")), [], "temporary files left behind");
-  } finally {
-    rmSync(scratch, { recursive: true, force: true });
   }
-  assert.deepEqual(cases().map(([label]) => label).filter((label) => !succeeded.has(label)), []);
-  assert.ok(outputs > 50, `only ${outputs} outputs compared`);
-  console.log(`${compared} comparisons, ${outputs} outputs`);
+  const result = await compareCases(enumeration, { native: [bin], wasi: [process.execPath, launcher] });
+  assert.deepEqual(commands.map(([label]) => label).filter((label) => !result.succeeded.includes(label)), []);
+  assert.ok(result.outputs > 50, `only ${result.outputs} outputs compared`);
+  console.log(`${result.compared} comparisons, ${result.outputs} outputs`);
+  if (process.env.COREAV_PARITY_SUMMARY) writeFileSync(process.env.COREAV_PARITY_SUMMARY, JSON.stringify(result));
 });

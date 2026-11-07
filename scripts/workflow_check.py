@@ -106,7 +106,7 @@ WORKFLOW_CANCEL = ("${{ github.event_name == 'pull_request' || "
 MATRIX = '-${{ strategy.job-index }}'
 # The workflows that cancel job by job, so that removing every group from
 # one fails rather than leaving nothing to check.
-JOB_GROUPS = {'ci.yml', 'python.yml', 'npm.yml'}
+JOB_GROUPS = {'ci-full.yml', 'ci.yml', 'python.yml', 'npm.yml'}
 # A step's ref: a full lowercase commit sha, or a Docker image by digest.
 PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
 WORKFLOW_SUFFIXES = ('.yml', '.yaml')
@@ -345,6 +345,8 @@ def trigger_filters(text):
     if isinstance(data, str):
         return data
     out = []
+    if not isinstance(data['on'], dict):
+        return out
     for event, fields in data['on'].items():
         for key in ('paths', 'paths-ignore'):
             if not isinstance(fields, dict) or key not in fields:
@@ -522,7 +524,6 @@ end
 root = stream.children.first&.root
 top = root ? mapping.(root) : {}
 events = top["on"]
-abort "use an event mapping under on:" if events && !events.is_a?(Psych::Nodes::Mapping)
 setting = top["concurrency"]
 abort "use a mapping for workflow concurrency" if setting && !setting.is_a?(Psych::Nodes::Mapping)
 puts JSON.generate({ "on" => events ? decode.(events) : {}, "concurrency" => setting ? decode.(setting) : nil })
@@ -548,6 +549,7 @@ def read_yaml(text, program):
     return json.loads(run.stdout)
 
 
+@functools.lru_cache(maxsize=512)
 def yaml_entries(text):
     """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
     keys of a file and [{'line': n, 'run': str}] for its `run` keys with a
@@ -597,6 +599,17 @@ def check(root):
     names = {}       # check name -> [(workflow, job id)]
     for path in workflows:
         lines = path.read_text(encoding='utf-8').splitlines()
+        if path.name in unlisted:
+            data = workflow_yaml('\n'.join(lines))
+            if isinstance(data, str):
+                problems.append(f'{path.name}: {data}')
+            else:
+                events = data['on']
+                if isinstance(events, str):
+                    events = [events]
+                if isinstance(events, (list, dict)) and 'merge_group' in events:
+                    problems.append(f'{path.name}: remove `merge_group:` from a workflow marked not required; '
+                                    'keep its PR, main and full-tier triggers')
         jobs[path.name] = found = jobs_of(lines)
         if not found:
             problems.append(f'{path.name}: no job found; the parser expects two-space job ids')

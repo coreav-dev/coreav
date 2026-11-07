@@ -17,9 +17,32 @@ REPOSITORY = 'coreav-dev/coreav'
 BOT = 'github-actions[bot]'
 AREAS = {
     'ci': ('CI infrastructure', 'area:ci'),
+    'h264': ('H.264 decoding', 'area:h264'),
+    'transcode': ('Transcode compatibility', 'area:transcode'),
+    'vp9': ('VP9 decoding', 'area:ci'),
     'hevc': ('HEVC decoding', 'area:ci'),
 }
 FULL_WORKFLOWS = {
+    'ci-full': {
+        'file': 'ci-full.yml',
+        'final_head': 'always',
+        'areas': {
+            'ci': ('full-fixtures',),
+            'h264': ('h264-full', 'conformance-arm64'),
+            'transcode': tuple(f'transcode-compat-shard ({i})' for i in (1, 2, 3)) + ('transcode-compat',),
+        },
+    },
+    'vp9-corpus': {
+        'file': 'vp9-corpus.yml',
+        'final_head': 'always',
+        'areas': {'vp9': ('contract',) + tuple(f'corpus ({i})' for i in range(8)) + ('corpus-summary',)},
+    },
+    'vp9-conformance': {
+        'file': 'vp9-conformance.yml',
+        'final_head': 'always',
+        'areas': {'vp9': tuple(f'{job} ({host})' for job in ('vectors', 'interpolation-fuzz')
+                              for host in ('ubuntu-24.04', 'macos-15')) + ('adapter-contract',)},
+    },
     'hevc-conformance': {
         'file': 'hevc-conformance.yml',
         'final_head': 'area',
@@ -28,6 +51,24 @@ FULL_WORKFLOWS = {
     },
 }
 PROOF_STEPS = {
+    ('ci-full', 'full-fixtures'): ('Publish the full fixture sets',),
+    ('ci-full', 'h264-full'): ('Decode every in-scope stream', 'Decode every in-scope stream in safe mode',
+                              'Lint and test safe mode'),
+    ('ci-full', 'conformance-arm64'): ('Decode every in-scope stream',),
+    ('ci-full', 'transcode-compat-shard'): ('Prove composed output identity and semantic mutations',
+                                         'Run the registered composed compatibility check'),
+    ('ci-full', 'transcode-compat'): ('Judge the registered compatibility check over every shard',
+                                    'Check the registered version and pinned oracle'),
+    ('vp9-corpus', 'contract'): ('Check the comparison contract before corpus acquisition',
+                                'Preflight the original-file oracle on a pinned public vector',
+                                'Compare the routine original-file smoke subset'),
+    ('vp9-corpus', 'corpus'): ('Compare exact clocks and pixels without credentials',),
+    ('vp9-corpus', 'corpus-summary'): ('Require every registered shard and comparison',),
+    ('vp9-conformance', 'vectors'): ('Read vector headers and compare decoded frames',
+                                     'Compare native boundary frames and keyframe-only selection',
+                                     'Compare scalar-only vector frames without changing comparators'),
+    ('vp9-conformance', 'interpolation-fuzz'): ('Compare automatic and scalar interpolation for C3',),
+    ('vp9-conformance', 'adapter-contract'): ('Check the scratch adapter without building timing artifacts',),
     ('hevc-conformance', 'hevc-vectors'): (
         'Verify registered synthetic references before native classification',
         'Acquire every registered official archive',
@@ -165,6 +206,69 @@ def area_failures(name, jobs, conclusion):
     return failures
 
 
+def covers(name, scheduled, covering, jobs):
+    try:
+        require(name in FULL_WORKFLOWS, 'unknown_full_workflow')
+        for run in (scheduled, covering):
+            require(positive(run['id']) and positive(run['run_attempt'])
+                    and positive(run['workflow_id']) and run['name'] == name
+                    and run['path'] == '.github/workflows/' + FULL_WORKFLOWS[name]['file']
+                    and run['head_branch'] == 'main'
+                    and run['repository']['full_name'] == REPOSITORY
+                    and run['head_repository']['full_name'] == REPOSITORY
+                    and isinstance(run['head_sha'], str)
+                    and re.fullmatch('[0-9a-f]{40}', run['head_sha']), 'wrong_coverage_identity')
+        require(scheduled['event'] == 'schedule' and covering['event'] == 'push'
+                and scheduled['workflow_id'] == covering['workflow_id']
+                and scheduled['head_sha'] == covering['head_sha']
+                and covering['status'] == 'completed' and covering['conclusion'] == 'success'
+                and dispatch_order(covering)[0] <= dispatch_order(scheduled)[0], 'uncovered_schedule')
+        require(isinstance(jobs, list) and all(isinstance(job, dict)
+                and job['run_id'] == covering['id'] and job['run_attempt'] == covering['run_attempt']
+                and job['head_sha'] == covering['head_sha'] for job in jobs), 'wrong_coverage_jobs')
+        return not area_failures(name, jobs, 'success')
+    except (Failure, KeyError, TypeError, ValueError):
+        return False
+
+
+def covered_schedule(api, name, run, jobs):
+    if run.get('event') != 'schedule' or run.get('conclusion') != 'success':
+        return False
+    gates = [job for job in jobs if job.get('name') == f'{name}-coverage']
+    if len(gates) != 1 or gates[0].get('status') != 'completed' or gates[0].get('conclusion') != 'success':
+        return False
+    gate, = gates
+    others = [job for job in jobs if job is not gate]
+    if not others or any(job.get('status') != 'completed' or job.get('conclusion') != 'skipped'
+                         for job in others):
+        return False
+    claims = []
+    steps = gate.get('steps')
+    if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
+        return False
+    for step in steps:
+        if not isinstance(step.get('name'), str):
+            return False
+        match = re.fullmatch(r'Covered by run ([1-9][0-9]{0,18}) attempt ([1-9][0-9]{0,3})',
+                            step.get('name', ''))
+        if step.get('name', '').startswith('Covered by run '):
+            if match is None:
+                return False
+            claims.append((match, step))
+    if len(claims) != 1:
+        return False
+    match, step = claims[0]
+    if step.get('status') != 'completed' or step.get('conclusion') != 'success':
+        return False
+    try:
+        covering, full_jobs = attempt_evidence(api, name, int(match[1]), int(match[2]))
+    except Failure as error:
+        if str(error).startswith('api_'):
+            raise
+        return False
+    return covers(name, run, covering, full_jobs)
+
+
 def issue_marker(name, area):
     require(name in FULL_WORKFLOWS and area in AREAS, 'invalid_issue_class')
     return f'<!-- ci-full-failure:{name}:{area} -->'
@@ -235,6 +339,8 @@ def report(event, api):
     require(run.get('status') == 'completed' and run.get('event') == candidate['event']
             and run.get('head_branch') == 'main' and run.get('head_sha') == candidate.get('head_sha'),
             'wrong_completed_event')
+    if covered_schedule(api, name, run, jobs):
+        return []
     results = []
     for area, bad in area_failures(name, jobs, run.get('conclusion')).items():
         marker = issue_marker(name, area)
