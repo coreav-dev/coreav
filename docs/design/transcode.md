@@ -1052,6 +1052,21 @@ The fixed delay and flush contract is qualified against the pinned
 FFmpeg build, not independently signalled by raw MP3 frames. An operator's
 custom libmp3lame build with a changed encoder delay is outside this contract.
 
+**Information-frame byte parity.** The TOC describes approximate seek
+positions, not an ISO-mandated rounding algorithm. The
+[Xing header description](https://teslabs.com/openplayer/docs/docs/specs/mp3_structure.pdf)
+defines each entry as a position scaled by 256 over the MPEG audio byte
+length; the Info Tag specification retains that layout for CBR.
+Compatibility with the pinned FFmpeg requires an additional rounding
+choice, established from generated files rather than implementation source.
+The regression compares complete output files from lossless inputs in CBR
+and VBR modes. It checks the reference's actual audio-frame count before
+comparing bytes, with counts around integer percentiles and seek-table
+resolution changes at 400, 800 and 1,600 frames. The matrix includes mono
+and stereo, MPEG-1, MPEG-2 and MPEG-2.5, with no change to encoder selection
+or native command admission. Existing non-frame-aligned EOF differences
+remain outside complete-file equality.
+
 The compatibility surface is `-c:a` or `-acodec libmp3lame`, default MP3
 encoding for `.mp3` or `-f mp3`, `-b:a` and `-q:a`/`-qscale:a`, with `-vn`
 or one selected audio stream. The source's supported MP3 sampling rate is
