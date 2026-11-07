@@ -69,18 +69,6 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: candidate/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
-      - name: Count active WPP and tile syntax over the complete census
-        if: matrix.shard == 0
-        env:
-          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
-          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
-        run: |
-          set -euo pipefail
-          umask 077
-          mkdir -p "$RUNNER_TEMP/private"
-          python3 -I candidate/scripts/hevc_threading.py census --parser "$PWD/candidate/target/release/examples/headers" --oracle-bin "$RUNNER_TEMP/oracle" --dest "$RUNNER_TEMP/census-media" --out "$RUNNER_TEMP/private/syntax" > "$RUNNER_TEMP/private/syntax.log" 2>&1
       - name: Verify every thread count before paired reference calls
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
