@@ -188,6 +188,54 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+    fn unavailable_wavefront_neighbours_are_refused_before_border_reads() {
+        let settings = crate::Settings {
+            width: 64,
+            height: 48,
+            qp: 28,
+            deblocking: crate::Deblocking::Disabled,
+            gop: crate::Gop::AllIntra,
+            colour: crate::Colour {
+                full_range: false,
+                primaries: 1,
+                transfer: 1,
+                matrix: 1,
+                chroma_location: 0,
+            },
+        };
+        let encoder = Encoder::with_threads(settings, crate::Limits::default(), 3).unwrap();
+        let y = [128; 64 * 48];
+        let chroma = [128; 32 * 24];
+        let picture = Picture {
+            y: Plane::new(&y, 64, 64, 48).unwrap(),
+            cb: Plane::new(&chroma, 32, 32, 24).unwrap(),
+            cr: Plane::new(&chroma, 32, 32, 24).unwrap(),
+        };
+        let mut table = decide(
+            &encoder,
+            picture,
+            syntax::Slice {
+                idr: true,
+                id: 0,
+                frame_num: 0,
+            },
+        )
+        .unwrap();
+        let address = 5;
+        assert!(Neighbours::at(&table, address, 4).is_ok());
+        for dependency in [4, 1, 0, 2] {
+            let candidate = table[dependency].take().unwrap();
+            assert!(matches!(
+                Neighbours::at(&table, address, 4),
+                Err(Error::Internal)
+            ));
+            assert!(table[dependency].set(candidate).is_ok());
+            assert!(Neighbours::at(&table, address, 4).is_ok());
+        }
+    }
+
+    #[test]
     fn retained_decisions_fit_the_bounded_picture_workspace() {
         let slot_bytes = std::mem::size_of::<OnceLock<Candidate>>();
         let max_macroblocks = 1920 * 1088 / 256;

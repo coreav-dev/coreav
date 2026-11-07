@@ -882,3 +882,61 @@ fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
         }
     }
 }
+
+#[test]
+fn eight_worker_textured_multirow_p_pictures_match_independent_decoding() {
+    let (width, height) = (320, 128);
+    let mut settings = settings(width, height, 27);
+    settings.gop = Gop::Fixed { idr_interval: 32 };
+    settings.deblocking = Deblocking::Enabled;
+    let mut encoder = Encoder::with_threads(settings, Limits::default(), 8).unwrap();
+    let mut decoder =
+        coreav_h264::Decoder::with_kernels(coreav_h264::Scalar, coreav_h264::Limits::default())
+            .with_mode(coreav_h264::Mode::EveryPicture);
+    let mut expected = Vec::new();
+    let chroma = vec![128; width * height / 4];
+    for frame in 0..4 {
+        let y: Vec<_> = (0..width * height)
+            .map(|p| {
+                if frame == 0 {
+                    128
+                } else {
+                    let (x, y) = (p % width + frame * 3, p / width);
+                    (16 + (x * 13 + y * 7 + x / 7 * (y / 3) * 11 + frame * 19) % 224) as u8
+                }
+            })
+            .collect();
+        let output = encoder
+            .encode(Picture {
+                y: Plane::new(&y, width, width, height).unwrap(),
+                cb: Plane::new(&chroma, width / 2, width / 2, height / 2).unwrap(),
+                cr: Plane::new(&chroma, width / 2, width / 2, height / 2).unwrap(),
+            })
+            .unwrap();
+        let mut syntax = nal_reader(&output.nals[2]);
+        assert_eq!(syntax.ue(), 0);
+        assert_eq!(syntax.ue(), if frame == 0 { 7 } else { 5 });
+        expected.push(output.reconstruction);
+        for nal in &output.nals {
+            decoder.decode_nal(nal).unwrap();
+        }
+        decoder.end_access_unit().unwrap();
+    }
+    decoder.flush().unwrap();
+    let decoded = decoder.take_pictures();
+    assert_eq!(decoded.len(), expected.len());
+    for (frame, reference) in decoded.iter().zip(expected) {
+        let (cb, cr) = frame.chroma();
+        let actual: Vec<_> = frame
+            .luma()
+            .rows()
+            .chain(cb.rows())
+            .chain(cr.rows())
+            .flatten()
+            .copied()
+            .collect();
+        assert_eq!(actual, reference);
+    }
+    assert!(decoder.warnings().is_empty());
+    assert_eq!(decoder.warnings_dropped(), 0);
+}
