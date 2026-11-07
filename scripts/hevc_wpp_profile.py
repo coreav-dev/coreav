@@ -39,6 +39,16 @@ try:
                 stdout, _ = reference.command(reference.ffmpeg_command(oracle.ffmpeg, source, True,
                     ['-pix_fmt', '+yuv420p', '-f', 'framemd5', '-']), timeout=600)
                 row['oracle_frames'] = stdout.decode()
+                stdout, _ = reference.command([oracle.ffprobe, '-v', 'error', '-select_streams', 'v:0',
+                    '-show_frames', '-show_entries', 'frame=width,height,pix_fmt,sample_aspect_ratio,side_data_list',
+                    '-of', 'json', source], timeout=600)
+                row['decoded_probe'] = json.loads(stdout)
+                cmd = reference.ffmpeg_command(oracle.ffmpeg, source, True,
+                    ['-pix_fmt', '+yuv420p', '-f', 'framemd5', '-'])
+                cmd[3] = 'verbose'
+                child = subprocess.run(list(map(str, cmd)), capture_output=True, check=True,
+                    timeout=600, env=reference.CHILD_ENV)
+                row['oracle_diagnostic'] = child.stderr.decode()
                 row['status'] = 'geometry_diagnosis_only'
                 continue
             row.update(reference.verify(args.native, oracle, source, timeout=600))
