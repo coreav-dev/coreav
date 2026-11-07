@@ -1386,6 +1386,7 @@ impl EncodedStream {
             start,
             priming: 312,
             presented: total - 312,
+            aac_mp4_tail: false,
             roll: 4,
             data: SliceSource::new(&self.data),
         }
@@ -1623,6 +1624,7 @@ fn aac_replacement(
         start: 0,
         priming: 1024,
         presented: aac.samples.len() as u64 * 1024 - 1024 - 300,
+        aac_mp4_tail: false,
         roll: 1,
         data: SliceSource::new(&aac.data),
     }
@@ -1644,14 +1646,10 @@ fn assert_aac_track(out: &[u8], movie: &Movie, index: usize, aac: &EncodedStream
     assert_eq!((empty, media_time), (0, 1024));
     let written = packets(out, movie, index);
     assert_eq!(written.len(), aac.samples.len());
+    assert_eq!(track.mdhd_duration, aac.samples.len() as u64 * 1024);
     let mut at = 0;
-    for (index, (p, s)) in written.iter().zip(&aac.samples).enumerate() {
-        let duration = if index + 1 == written.len() {
-            724
-        } else {
-            1024
-        };
-        assert_eq!((p.size, p.duration, p.keyframe), (s.size, duration, true));
+    for (p, s) in written.iter().zip(&aac.samples) {
+        assert_eq!((p.size, p.duration, p.keyframe), (s.size, 1024, true));
         assert_eq!(
             bytes(out, p.offset, p.size),
             aac.data[at..at + s.size as usize]
@@ -1729,6 +1727,7 @@ fn aac_mp4_tail_does_not_change_padded_packets_or_other_codecs() {
             let aac = aac_stream(5);
             let mut replacement = aac_replacement(&aac, 1);
             replacement.presented = 3 * 1024 + tail;
+            replacement.aac_mp4_tail = true;
             let mut out = Vec::new();
             let replacements = Replacements {
                 video: None,
@@ -1776,6 +1775,7 @@ fn aac_mp4_tail_does_not_change_padded_packets_or_other_codecs() {
     let opus = opus_stream(5, 960);
     let mut replacement = opus.replacement(1, 0);
     replacement.presented -= 200;
+    replacement.aac_mp4_tail = true;
     let mut out = Vec::new();
     remux_mp4_replacing(
         SliceSource::new(&av_movie()),

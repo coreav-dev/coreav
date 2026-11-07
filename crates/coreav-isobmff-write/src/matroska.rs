@@ -896,7 +896,7 @@ fn remux<S: Source, R: Source, W: Write>(
             }
         }
         if let Some(a) = audio {
-            let aac_end = (a.sample_entry.get(4..8) == Some(b"mp4a"))
+            let aac_end = (a.aac_mp4_tail && a.sample_entry.get(4..8) == Some(b"mp4a"))
                 .then(|| u64::from(a.priming) + a.presented);
             for sample in crate::mp4_audio_samples(a.samples, aac_end) {
                 muxer.push_sample(

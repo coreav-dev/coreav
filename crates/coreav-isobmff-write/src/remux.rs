@@ -2146,7 +2146,7 @@ fn list_audio<R>(
     index: usize,
     audio: &AudioReplacement<'_, R>,
 ) -> Result<(), ExtractError> {
-    let aac_end = (audio.sample_entry.get(4..8) == Some(b"mp4a"))
+    let aac_end = (audio.aac_mp4_tail && audio.sample_entry.get(4..8) == Some(b"mp4a"))
         .then(|| u64::from(audio.priming) + audio.presented);
     for sample in crate::mp4_audio_samples(audio.samples, aac_end) {
         muxer.push_sample(

@@ -326,6 +326,9 @@ pub struct AudioReplacement<'a, R> {
     /// Media ticks presented from `priming` on; at least 1, and at most
     /// what the samples hold after `priming`.
     pub presented: u64,
+    /// Shorten a partially presented final AAC sample in MP4 to the media
+    /// end. Other codecs and Matroska output keep the supplied durations.
+    pub aac_mp4_tail: bool,
     /// The samples a decoder must decode before any one it starts at, at
     /// most 32,767: the `roll` group's distance (written negative).
     pub roll: u16,
