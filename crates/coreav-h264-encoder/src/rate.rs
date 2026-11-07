@@ -34,10 +34,9 @@ pub(crate) fn picture_qp(mode: RateMode, luma: Plane<'_>, idr: bool) -> Result<u
     let samples = luma.width.checked_mul(luma.height).ok_or(Error::Limit)?;
     let activity = sad / u64::try_from(samples).map_err(|_| Error::Limit)?;
     let correction = match activity {
-        0..8 => -2i16,
-        8..12 => -1,
-        12..24 => 0,
-        24..48 => 1,
+        0..8 => -1i16,
+        8..12 => 0,
+        12..24 => 1,
         _ => 2,
     };
     let qp = i16::from(crf)

@@ -934,14 +934,14 @@ fn rate_modes_validate_quality_at_the_boundary() {
 #[test]
 fn crf_activity_bands_offsets_clamps_and_quality_order() {
     for (amplitude, correction) in [
-        (0, -2),
-        (7, -2),
-        (8, -1),
-        (11, -1),
-        (12, 0),
-        (23, 0),
-        (24, 1),
-        (47, 1),
+        (0, -1),
+        (7, -1),
+        (8, 0),
+        (11, 0),
+        (12, 1),
+        (23, 1),
+        (24, 2),
+        (47, 2),
         (48, 2),
         (127, 2),
     ] {
@@ -1006,7 +1006,7 @@ fn crf_streams_preserve_worker_identity_and_failed_call_state() {
                         encoder.limits.total_bytes = old;
                         outputs.push(encoder.encode(picture).unwrap());
                     }
-                    let correction = [-2, -1, 0, 1, 2][frame];
+                    let correction = [-1, 0, 1, 2, 2][frame];
                     let expected_qp = (i16::from(crf) + correction - i16::from(frame % 3 == 0))
                         .clamp(10, 51) as u8;
                     assert_eq!(slice_qp(&outputs[0].nals[2]), expected_qp);
