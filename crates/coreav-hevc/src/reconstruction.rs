@@ -5,7 +5,13 @@ use coreav_kernels_hevc::{self as kernels, BitDepth, IntraMode, MotionVector};
 
 mod filter;
 mod inter;
+mod parallel;
 mod syntax;
+
+pub(crate) fn caught<T>(work: impl FnOnce() -> Result<T>) -> Result<T> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
+        .unwrap_or(Err(Error::Limit("reconstruction_panic")))
+}
 
 /// Effective scalar inter reconstruction work, without timing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -177,6 +183,7 @@ fn allocation_bytes<T>(values: &Vec<T>) -> Result<usize> {
 }
 
 pub(crate) struct Frame {
+    pub(crate) workers: usize,
     pub(crate) deadline: Option<std::time::Instant>,
     index: u64,
     info: PictureInfo,
@@ -335,6 +342,7 @@ impl Frame {
             .ok_or(Error::Limit("picture_cells"))?;
         Ok(Self {
             deadline: None,
+            workers: 1,
             index: input.index,
             info: input.picture,
             depth: BitDepth::new(input.picture.bit_depth as u8)?,

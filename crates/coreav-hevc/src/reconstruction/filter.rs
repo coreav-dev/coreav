@@ -837,6 +837,7 @@ mod tests {
             };
             let retained = RetainedPicture::for_test(0, info, None);
             let mut frame = Frame {
+                workers: 1,
                 deadline: None,
                 index: 0,
                 info,

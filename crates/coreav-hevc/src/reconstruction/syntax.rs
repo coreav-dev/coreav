@@ -113,6 +113,7 @@ pub(super) struct Checkpoint {
     slice: u32,
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct Qp {
     current: i32,
     predictor: i32,
@@ -375,7 +376,7 @@ fn alignment(cabac: &mut Cabac<'_, '_>) -> Result<()> {
     Ok(())
 }
 
-fn end_range(cabac: &mut Cabac<'_, '_>, bytes: usize, final_slice: bool) -> Result<()> {
+pub(super) fn end_range(cabac: &mut Cabac<'_, '_>, bytes: usize, final_slice: bool) -> Result<()> {
     alignment(cabac)?;
     let remaining = bytes
         .checked_sub(cabac.position() / 8)
@@ -561,7 +562,7 @@ impl Frame {
         limit: usize,
     ) -> Result<usize> {
         Self::admit(&input)?;
-        self.decode_common(input, None, remaining, fixed, limit)
+        self.decode_common(input, None, remaining, fixed, limit, 1)
     }
 
     pub(crate) fn decode_full(
@@ -571,6 +572,7 @@ impl Frame {
         remaining: &mut u64,
         fixed: usize,
         limit: usize,
+        threads: usize,
     ) -> Result<usize> {
         if self.reference.is_none()
             || input.syntax.kind > 2
@@ -578,7 +580,7 @@ impl Frame {
         {
             return Err(Error::InvalidData("inter_segment_state"));
         }
-        self.decode_common(input, Some(dpb), remaining, fixed, limit)
+        self.decode_common(input, Some(dpb), remaining, fixed, limit, threads)
     }
 
     fn decode_common(
@@ -588,6 +590,7 @@ impl Frame {
         remaining: &mut u64,
         fixed: usize,
         limit: usize,
+        threads: usize,
     ) -> Result<usize> {
         if self.index != input.index
             || self.info != input.picture
@@ -629,6 +632,11 @@ impl Frame {
                 .checked_mul(core::mem::size_of::<Range<usize>>())
                 .ok_or(Error::Limit("reconstruction_memory"))?,
         )?;
+        if let Some(peak) =
+            self.decode_wpp(&input, dpb, remaining, &ranges, memory.used, limit, threads)?
+        {
+            return Ok(peak);
+        }
         if !input.header.dependent {
             self.contexts = Contexts::new(input.syntax.qp_y, input.syntax.initialization);
             self.qp = Qp::new(input.syntax.qp_y);
@@ -649,29 +657,7 @@ impl Frame {
                 .ok_or(Error::InvalidData("intra_substream_range"))?;
             let mut cabac = Cabac::new(bytes, remaining)?;
             loop {
-                self.check_deadline()?;
-                let location = input.layout.at_tile_scan(self.next_ctu)?;
-                self.start_ctu(&input, location, slice)?;
-                self.read_sao(&input, location, slice, &mut cabac)?;
-                let mut walker = Walker {
-                    frame: self,
-                    input: &input,
-                    location,
-                    slice,
-                    dpb,
-                };
-                walker.coding_tree(
-                    &mut cabac,
-                    Area {
-                        x: (location.x << input.sps.ctb_log2) as usize,
-                        y: (location.y << input.sps.ctb_log2) as usize,
-                        log2: input.sps.ctb_log2,
-                    },
-                    0,
-                )?;
-                self.stats.ctus += 1;
-                self.save_wpp(&input, location, slice);
-                self.next_ctu += 1;
+                let location = self.decode_ctu(&input, dpb, slice, &mut cabac)?;
                 if cabac.terminate()? {
                     if range_index + 1 != ranges.len() {
                         return Err(Error::InvalidData("intra_unconsumed_substreams"));
@@ -701,6 +687,39 @@ impl Frame {
             }
         }
         Err(Error::InvalidData("intra_missing_substream"))
+    }
+
+    pub(super) fn decode_ctu(
+        &mut self,
+        input: &SliceInput<'_>,
+        dpb: Option<&crate::dpb::Dpb>,
+        slice: u32,
+        cabac: &mut Cabac<'_, '_>,
+    ) -> Result<Location> {
+        self.check_deadline()?;
+        let location = input.layout.at_tile_scan(self.next_ctu)?;
+        self.start_ctu(input, location, slice)?;
+        self.read_sao(input, location, slice, cabac)?;
+        Walker {
+            frame: self,
+            input,
+            location,
+            slice,
+            dpb,
+        }
+        .coding_tree(
+            cabac,
+            Area {
+                x: (location.x << input.sps.ctb_log2) as usize,
+                y: (location.y << input.sps.ctb_log2) as usize,
+                log2: input.sps.ctb_log2,
+            },
+            0,
+        )?;
+        self.stats.ctus += 1;
+        self.save_wpp(input, location, slice);
+        self.next_ctu += 1;
+        Ok(location)
     }
 
     pub(super) fn cell_index(&self, x: usize, y: usize) -> Result<usize> {
@@ -2339,7 +2358,7 @@ mod tests {
                 let mut frame =
                     Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
                 let mut budget = bins;
-                let decoded = frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX);
+                let decoded = frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1);
                 assert!(
                     decoded.is_ok(),
                     "{initialization:?} skip={skipped} depth={depth}: {decoded:?}"
@@ -2386,7 +2405,7 @@ mod tests {
                 let mut frame =
                     Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
                 let mut budget = 10;
-                frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX)?;
+                frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1)?;
                 assert_eq!(budget, 0);
                 assert!(frame.complete());
                 assert!(
@@ -2420,7 +2439,7 @@ mod tests {
             let dpb = reference_dpb(&input)?;
             let mut frame = Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
             let mut budget = 5;
-            frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX)?;
+            frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1)?;
             assert_eq!(budget, 0);
             assert!(frame.complete());
             assert!(
@@ -2581,7 +2600,7 @@ mod tests {
             let dpb = reference_dpb(&input)?;
             let mut frame = Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX)?;
             let mut budget = 11;
-            let result = frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX);
+            let result = frame.decode_full(input, &dpb, &mut budget, 0, usize::MAX, 1);
             if !zero {
                 assert!(result.is_err());
                 continue;
@@ -3332,6 +3351,197 @@ mod tests {
         assert_eq!(frame.stats.wpp_restarts, 1);
         assert_eq!(frame.stats.ctus, 6);
         assert_eq!(budget, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn wavefront_workers_preserve_samples_work_and_failure_order() -> Result<()> {
+        for width in [1, 3] {
+            let fixture = fixture(width * 16, 32, 8, true, 1)?;
+            let (top, bottom) = if width == 1 {
+                (
+                    pcm_body(&[[0x86, 0x80]], [0xfd, 0x80], &[34])?,
+                    pcm_body(&[[0x86, 0x80]], [0xfe, 0x80], &[51])?,
+                )
+            } else {
+                (
+                    pcm_body(
+                        &[[0x86, 0x80], [0x8b, 0x80], [0x91, 0x80]],
+                        [0xfd, 0x80],
+                        &[34; 3],
+                    )?,
+                    pcm_body(
+                        &[[0x92, 0x80], [0x96, 0x80], [0x9b, 0x80]],
+                        [0xfe, 0x80],
+                        &[51; 3],
+                    )?,
+                )
+            };
+            let lengths = [top.len() as u64];
+            for truncate in [false, true] {
+                let mut rbsp = vec![0x80];
+                rbsp.extend(&top);
+                rbsp.extend(&bottom);
+                if truncate {
+                    rbsp.truncate(rbsp.len() - 7);
+                }
+                let original = escaped(&rbsp);
+                let input = fixture.input(segment(&rbsp, &original, &lengths));
+                for allowance in (0..=24).chain([10_000_000]) {
+                    let mut serial = Frame::new(&input, 0, usize::MAX)?;
+                    let mut budget = allowance;
+                    let expected = serial.decode_common(input, None, &mut budget, 0, usize::MAX, 1);
+                    for threads in [2, 4, 8] {
+                        let mut frame = Frame::new(&input, 0, usize::MAX)?;
+                        let mut parallel_budget = allowance;
+                        let actual = frame.decode_common(
+                            input,
+                            None,
+                            &mut parallel_budget,
+                            0,
+                            usize::MAX,
+                            threads,
+                        );
+                        assert_eq!(actual.map(|_| ()), expected.map(|_| ()));
+                        assert_eq!(parallel_budget, budget);
+                        if allowance < 10_000_000 {
+                            assert_eq!(frame.workers, 1);
+                        }
+                        if actual.is_ok() {
+                            assert_eq!(frame.workers > 1, allowance == 10_000_000);
+                            assert_eq!(frame.planes, serial.planes);
+                            assert_eq!(frame.stats, serial.stats);
+                            assert_eq!(frame.inter_stats, serial.inter_stats);
+                            assert_eq!(frame.complete(), serial.complete());
+                            assert_eq!(frame.next_ctu, serial.next_ctu);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn wavefront_memory_fallback_and_deadline_preserve_serial_admission() -> Result<()> {
+        let fixture = fixture(16, 32, 8, true, 1)?;
+        let top = pcm_body(&[[0x86, 0x80]], [0xfd, 0x80], &[34])?;
+        let lengths = [top.len() as u64];
+        let mut rbsp = vec![0x80];
+        rbsp.extend(top);
+        rbsp.extend(pcm_body(&[[0x86, 0x80]], [0xfe, 0x80], &[51])?);
+        let original = escaped(&rbsp);
+        let input = fixture.input(segment(&rbsp, &original, &lengths));
+        for threads in [1, 2, 4, 8] {
+            let mut frame = Frame::new(&input, 0, usize::MAX)?;
+            let mut budget = 100;
+            frame.decode_common(input, None, &mut budget, 0, 1 << 20, threads)?;
+            assert!(frame.complete());
+            assert_eq!(frame.workers, 1);
+            let mut frame = Frame::new(&input, 0, usize::MAX)?;
+            frame.deadline = Some(std::time::Instant::now());
+            assert_eq!(
+                frame.decode_common(input, None, &mut budget, 0, usize::MAX, threads),
+                Err(Error::Limit("decode_deadline"))
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn wavefront_eight_rows_finish_or_fail_without_stranding_workers() -> Result<()> {
+        let fixture = fixture(16, 128, 8, true, 1)?;
+        let mut rbsp = vec![0x80];
+        let mut lengths = Vec::new();
+        for row in 0..8 {
+            let body = pcm_body(
+                &[[0x86, 0x80]],
+                [if row == 7 { 0xfe } else { 0xfd }, 0x80],
+                &[34 + row],
+            )?;
+            if row < 7 {
+                lengths.push(body.len() as u64);
+            }
+            rbsp.extend(body);
+        }
+        for mutation in 0..3 {
+            let mut data = rbsp.clone();
+            if mutation == 1 {
+                data.truncate(data.len() - 7);
+            }
+            if mutation == 2 {
+                data[1 + 2 * lengths[0] as usize] = 0xff;
+            }
+            let original = escaped(&data);
+            let input = fixture.input(segment(&data, &original, &lengths));
+            let mut serial = Frame::new(&input, 0, usize::MAX)?;
+            let mut budget = 10_000_000;
+            let expected = serial.decode_common(input, None, &mut budget, 0, usize::MAX, 1);
+            for threads in [2, 4, 8] {
+                let mut frame = Frame::new(&input, 0, usize::MAX)?;
+                let mut parallel_budget = 10_000_000;
+                let actual =
+                    frame.decode_common(input, None, &mut parallel_budget, 0, usize::MAX, threads);
+                assert_eq!(actual.map(|_| ()), expected.map(|_| ()));
+                assert_eq!(parallel_budget, budget);
+                if actual.is_ok() {
+                    assert_eq!(frame.workers, threads);
+                    assert_eq!(frame.planes, serial.planes);
+                    assert_eq!(frame.stats, serial.stats);
+                    assert!(frame.complete());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn wavefront_partial_final_row_continues_as_a_dependent_segment() -> Result<()> {
+        let fixture = fixture(48, 32, 8, true, 1)?;
+        let top = pcm_body(
+            &[[0x86, 0x80], [0x8b, 0x80], [0x91, 0x80]],
+            [0xfd, 0x80],
+            &[34; 3],
+        )?;
+        let bottom = pcm_body(&[[0x92, 0x80]], [0xfe, 0x80], &[51])?;
+        let lengths = [top.len() as u64];
+        let mut rbsp = vec![0x80];
+        rbsp.extend(top);
+        rbsp.extend(bottom);
+        let original = escaped(&rbsp);
+        let input = fixture.input(segment(&rbsp, &original, &lengths));
+        let mut expected = None;
+        for threads in [1, 2, 4, 8] {
+            let mut frame = Frame::new(&input, 0, usize::MAX)?;
+            let mut budget = 10_000_000;
+            frame.decode_common(input, None, &mut budget, 0, usize::MAX, threads)?;
+            assert_eq!(frame.next_ctu, 4);
+            let mut tail = vec![0x80];
+            tail.extend(pcm_body(
+                &[[0x97, 0x80], [0x9b, 0x80]],
+                [0xfe, 0x80],
+                &[68; 2],
+            )?);
+            let nal = escaped(&tail);
+            let mut segment = segment(&tail, &nal, &[]);
+            segment.address = 4;
+            segment.dependent = true;
+            frame.decode_common(
+                fixture.input(segment),
+                None,
+                &mut budget,
+                0,
+                usize::MAX,
+                threads,
+            )?;
+            assert!(frame.complete());
+            let actual = (frame.planes, frame.stats, budget);
+            if let Some(expected) = &expected {
+                assert_eq!(&actual, expected);
+            } else {
+                expected = Some(actual);
+            }
+        }
         Ok(())
     }
 

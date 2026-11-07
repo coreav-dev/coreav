@@ -8,6 +8,8 @@ use crate::{
 /// Independent admission, live-memory and entropy-work limits for a complete stream.
 #[derive(Clone, Copy, Debug)]
 pub struct DecodeLimits {
+    /// Requested reconstruction workers, bounded to one through sixteen.
+    pub threads: usize,
     /// Header admission, including the stream-wide coded-picture limit.
     pub headers: Limits,
     /// Maximum simultaneous codec state, pictures and transient scratch bytes.
@@ -25,6 +27,7 @@ pub struct DecodeLimits {
 impl Default for DecodeLimits {
     fn default() -> Self {
         Self {
+            threads: 1,
             headers: Limits::default(),
             max_memory_bytes: 512 * 1024 * 1024,
             max_stream_bins: 1 << 40,
@@ -89,6 +92,10 @@ impl OutputMemory<'_> {
 /// Successful complete-stream accounting, including pictures not selected for output.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DecodeSummary {
+    /// Pictures reconstructed using more than one successfully started worker.
+    pub parallel_pictures: u64,
+    /// Greatest number of successfully started workers, including the caller.
+    pub max_workers: usize,
     /// Header syntax and presentation-order output counts.
     pub headers: Summary,
     /// Pictures reconstructed and finalized, including non-output reference pictures.
@@ -140,6 +147,15 @@ pub struct PictureDecoder {
 }
 
 impl PictureDecoder {
+    /// Selects reconstruction workers without changing sample or output ordering.
+    pub fn with_threads(mut self, threads: usize) -> Self {
+        self.limits.threads = threads.clamp(1, 16);
+        for session in &mut self.session {
+            session.pictures.limits.threads = self.limits.threads;
+        }
+        self
+    }
+
     /// Creates an opt-in decoder without allocating picture samples.
     pub fn new(limits: DecodeLimits) -> Self {
         Self {
@@ -378,6 +394,8 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
             .ok_or(Error::Limit("reconstruction_memory"))?;
         let peak = frame.finalize(fixed, self.pictures.limits.max_memory_bytes)?;
         self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(peak);
+        self.pictures.summary.parallel_pictures += u64::from(frame.workers > 1);
+        self.pictures.summary.max_workers = self.pictures.summary.max_workers.max(frame.workers);
         frame.stats.bins = self.pictures.limits.max_picture_bins - self.pictures.picture_remaining;
         frame.stats.memory_bytes = self.pictures.summary.memory_bytes;
         self.pictures
@@ -452,13 +470,16 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
             .stream_remaining
             .min(self.pictures.picture_remaining);
         let mut budget = allowance;
-        let result = frame.decode_full(
-            input,
-            dpb,
-            &mut budget,
-            fixed,
-            self.pictures.limits.max_memory_bytes,
-        );
+        let result = crate::reconstruction::caught(|| {
+            frame.decode_full(
+                input,
+                dpb,
+                &mut budget,
+                fixed,
+                self.pictures.limits.max_memory_bytes,
+                self.pictures.limits.threads,
+            )
+        });
         let consumed = allowance - budget;
         self.pictures.stream_remaining -= consumed;
         self.pictures.picture_remaining -= consumed;
@@ -545,7 +566,7 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
 }
 
 impl DecodeSummary {
-    fn add(&mut self, reconstruction: IntraStats, inter: InterStats) -> Result<()> {
+    pub(crate) fn add(&mut self, reconstruction: IntraStats, inter: InterStats) -> Result<()> {
         self.decoded_pictures = self
             .decoded_pictures
             .checked_add(1)

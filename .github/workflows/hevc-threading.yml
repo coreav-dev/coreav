@@ -1,0 +1,192 @@
+name: hevc-threading
+# workflow-check: not required
+
+on:
+  workflow_call:
+    inputs:
+      candidate:
+        required: true
+        type: string
+      baseline:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE: ${{ inputs.candidate }}
+  BASELINE: ${{ inputs.baseline }}
+
+jobs:
+  reference:
+    name: hevc-threading-reference (${{ matrix.shard }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.candidate }}
+          fetch-depth: 0
+          path: candidate
+      - name: Admit exact branch arms before building or using credentials
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE" =~ ^[0-9a-f]{40}$ && "$BASELINE" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$CANDIDATE"
+          test -n "$(git branch -r --contains "$CANDIDATE")"
+          git merge-base --is-ancestor "$BASELINE" origin/main
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.baseline }}
+          path: baseline
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Build distinct candidate and serial-main executables
+        run: |
+          set -euo pipefail
+          cp candidate/bench/hevc-reference/decode.rs candidate/crates/coreav-hevc/examples/reference.rs
+          cp candidate/bench/hevc-reference/decode.rs baseline/crates/coreav-hevc/examples/reference.rs
+          (cd candidate && RUSTFLAGS='--check-cfg=cfg(hevc_serial_baseline)' cargo build --locked --release -p coreav-hevc --features native-hevc --example reference --example headers)
+          (cd baseline && test "$(git rev-parse HEAD)" = "$BASELINE" && RUSTFLAGS='--cfg hevc_serial_baseline --check-cfg=cfg(hevc_serial_baseline)' cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+      - name: Install the pinned binary oracle
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: candidate/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Count active WPP and tile syntax over the complete census
+        if: matrix.shard == 0
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          python3 -I candidate/scripts/hevc_threading.py census --parser "$PWD/candidate/target/release/examples/headers" --oracle-bin "$RUNNER_TEMP/oracle" --dest "$RUNNER_TEMP/census-media" --out "$RUNNER_TEMP/private/syntax" > "$RUNNER_TEMP/private/syntax.log" 2>&1
+      - name: Verify every thread count before paired reference calls
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          python3 -I candidate/scripts/hevc_threading.py \
+            --native "$PWD/candidate/target/release/examples/reference" \
+            --main "$PWD/baseline/target/release/examples/reference" \
+            --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/private" \
+            --candidate "$CANDIDATE" --baseline "$BASELINE" \
+            --shard-index '${{ matrix.shard }}' --shard-count 3
+      - name: Seal reference results
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          [ -d private ] || exit 0
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/candidate/bench/hevc-conformance/evidence-public.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hevc-threading-reference-${{ matrix.shard }}-${{ inputs.candidate }}
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: error
+          retention-days: 7
+
+  conformance:
+    name: hevc-threading-conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.candidate }}
+          fetch-depth: 0
+      - name: Admit the exact candidate
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$CANDIDATE"
+          test -n "$(git branch -r --contains "$CANDIDATE")"
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example decode
+      - run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Prepare complete conformance references
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          python3 -I scripts/hevc_fixture.py verify --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --output "$RUNNER_TEMP/synthetic" > "$RUNNER_TEMP/private/synthetic.log" 2>&1
+          python3 -I scripts/hevc_conformance.py acquire --dest "$RUNNER_TEMP/data" > "$RUNNER_TEMP/private/acquire.log" 2>&1
+          python3 -I scripts/hevc_conformance.py manifest --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/archives.json" > "$RUNNER_TEMP/private/manifest.log" 2>&1
+          python3 -I scripts/hevc_conformance.py run --registration "$RUNNER_TEMP/private/archives.json" --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/census" --parser "$PWD/target/release/examples/headers" --oracle-bin "$RUNNER_TEMP/oracle" --synthetic-data "$RUNNER_TEMP/synthetic" > "$RUNNER_TEMP/private/census.log" 2>&1
+      - name: Compare complete outputs at one two four and eight threads
+        run: |
+          set -euo pipefail
+          for threads in 1 2 4 8; do
+            python3 -I scripts/hevc_decode.py --registration "$RUNNER_TEMP/private/archives.json" --census "$RUNNER_TEMP/private/census/census.json" --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/threads-$threads" --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/decode" --oracle-bin "$RUNNER_TEMP/oracle" --threads "$threads" > "$RUNNER_TEMP/private/threads-$threads.log" 2>&1
+          done
+      - name: Seal conformance records
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          [ -d private ] || exit 0
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/bench/hevc-conformance/evidence-public.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hevc-threading-conformance-${{ inputs.candidate }}
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: error
+          retention-days: 7
+
+  thread-sanitizer:
+    name: hevc-threading-sanitizer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.candidate }}
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: nightly
+          components: rust-src
+      - name: Stress wavefront completion and failure under ThreadSanitizer
+        env:
+          RUSTFLAGS: -Zsanitizer=thread
+          RUSTDOCFLAGS: -Zsanitizer=thread
+        run: |
+          set -euo pipefail
+          sudo sysctl vm.mmap_rnd_bits=28
+          for repeat in $(seq 1 20); do
+            cargo test --locked -Zbuild-std --target x86_64-unknown-linux-gnu -p coreav-hevc --features native-hevc --lib wavefront
+          done
