@@ -4226,7 +4226,7 @@ fn ffmpeg_libopus_lines_encode_the_audio() {
         ),
         (
             vec!["-i", input, "-c:v", "libx264", "-b:a", "64k", out],
-            "strict-safe mode never runs the ffmpeg program",
+            "coreav ffmpeg: strict-safe mode never runs the ffmpeg program, so it cannot encode AAC audio: use -c:a copy or libopus, or run without --strict-safe and COREAV_STRICT_SAFE\n",
         ),
     ] {
         let (code, stderr) = ffmpeg(&args, true);
@@ -4238,7 +4238,11 @@ fn ffmpeg_libopus_lines_encode_the_audio() {
             );
             continue;
         }
-        assert!(stderr.contains(says), "{args:?}: {stderr}");
+        if says.starts_with("coreav ffmpeg: ") {
+            assert_eq!(stderr, says, "{args:?}: {stderr}");
+        } else {
+            assert!(stderr.contains(says), "{args:?}: {stderr}");
+        }
     }
     nothing_left(&dir);
 }
