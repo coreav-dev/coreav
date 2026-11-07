@@ -67,7 +67,8 @@ pub use remux::{
     remux_mp4, remux_mp4_inputs, remux_mp4_inputs_with_options, remux_mp4_replacing, sanitize_mp4,
 };
 pub use replace::{
-    AudioReplacement, AudioSample, Replacement, ReplacementSample, Replacements, roll_boxes,
+    AudioReplacement, AudioSample, Replacement, ReplacementSample, Replacements, mp4_audio_samples,
+    roll_boxes,
 };
 pub use split::split_mp4;
 

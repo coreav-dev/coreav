@@ -322,7 +322,9 @@ impl EncodedAudio {
                 boxes: Vec::new(),
             })
             .map_err(writer)?;
-        for sample in &self.samples {
+        let aac_end = (entry.get(4..8) == Some(b"mp4a"))
+            .then(|| u64::from(self.summary.pre_skip) + self.summary.samples);
+        for sample in coreav_isobmff_write::mp4_audio_samples(&self.samples, aac_end) {
             if Instant::now() >= deadline {
                 return Err(Error::Decode(coreav_decode::Error::new(
                     ErrorKind::Timeout,
