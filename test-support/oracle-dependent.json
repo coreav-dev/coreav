@@ -132,6 +132,10 @@
   "crates/coreav-cli/tests/ffmpeg_pcm.rs": [
     "aac_raw_output_refuses_with_exact_pinned_fallback"
   ],
+  "crates/coreav-cli/tests/ffmpeg_video_quality.rs": [
+    "h264_video_quality_is_ignored",
+    "video_quality_refusals_preserve_destinations"
+  ],
   "crates/coreav-cli/tests/ffmpeg_wav.rs": [
     "aac_s16_wav_forms_match_complete_pinned_outputs_and_retain_native_metadata_cases",
     "integer_wav_output_matches_complete_pinned_files",

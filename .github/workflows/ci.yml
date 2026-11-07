@@ -482,6 +482,15 @@ jobs:
         run: |
           cargo test --locked -p coreav-cli --features native-h264 --test transcode ffmpeg_libx264_crop_matches_the_oracle -- --exact --nocapture --color never 2>&1 | tee "$RUNNER_TEMP/literal-crop-macos.log"
           grep -F 'test ffmpeg_libx264_crop_matches_the_oracle ... ok' "$RUNNER_TEMP/literal-crop-macos.log"
+      - name: Ignored H264 video quality on macOS
+        if: env.COREAV_FFMPEG != '' && env.COREAV_FFPROBE != ''
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_X264: ${{ runner.temp }}/coreav-test-oracle/x264
+        run: |
+          cargo test --locked -p coreav-cli --features native-h264 --test ffmpeg_video_quality -- --nocapture --color never --test-threads=1 2>&1 | tee "$RUNNER_TEMP/video-quality-macos.log"
+          grep -F 'test h264_video_quality_is_ignored ... ok' "$RUNNER_TEMP/video-quality-macos.log"
+          grep -F 'test video_quality_refusals_preserve_destinations ... ok' "$RUNNER_TEMP/video-quality-macos.log"
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site --test transcode_selection
       - run: |
           cargo test --release -p coreav-isobmff --test hostile -- --ignored
