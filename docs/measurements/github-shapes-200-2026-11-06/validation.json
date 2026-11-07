@@ -1,0 +1,28 @@
+{
+  "capture_and_full_replay": "success on the registered Actions host",
+  "commit": "521a0d396c670294bf79a674c42aedbee1776db3",
+  "independent_bundle_validation": [
+    "artifact digest matched the GitHub artifact record",
+    "complete byte inventory",
+    "merged method identity",
+    "build and source binding",
+    "complete roster and invocations",
+    "staged fixture identity",
+    "fallback and program-start records",
+    "all probe judgments replayed without invoking media commands",
+    "weighted arithmetic recomputed"
+  ],
+  "set_sha256": "0ca6bcb9b983ade0625f795bd5098cffa12ee638d5ddf94a37c1cefb782d9045",
+  "sha256": {
+    "build.json": "1966c65181328fcd68dd40821b8fecd1d4707902cb968967a324cfb4de79cd8c",
+    "host.json": "35847b443d233dd9d9839c74f761b812de5693173bd15d870361175b9a7999d4",
+    "manifest.json": "f6696fb002dd93cf540073b15f3134904cc4d1c4f40fc47f1ae67ea8f8f41602",
+    "records.json": "0005fa0bd0171d57c426bead58d1ace2ec5ca4c62dbf5be2c638101535d12a8c",
+    "summary.json": "3b076bb9972053c291acb76c04040d2bada7d6abe1b7efaca824374b65ca415f"
+  },
+  "workflow_artifact": {
+    "bytes": 40350865,
+    "sha256": "fd24199f8df0c24f743e2217c80527ce4591a734aa3330b92119ab2e65797ddd"
+  },
+  "workflow_url": "https://github.com/coreav-dev/coreav/actions/runs/42200130332"
+}
