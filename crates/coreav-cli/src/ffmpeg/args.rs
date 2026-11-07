@@ -1207,7 +1207,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     }
     if let Some(option) = encoders.first()
         && !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264)
-        && command.muxer != Muxer::Mp4
+        && !(command.muxer == Muxer::Mp4
+            && command.encoding.bitrate.is_none()
+            && command
+                .encoding
+                .filter
+                .as_deref()
+                .is_none_or(|filter| filter.starts_with("crop=")))
         && !command.muxer.frames()
         && command.muxer != Muxer::Matroska
     {
@@ -1917,11 +1923,21 @@ mod tests {
     #[test]
     fn mp4_video_options_reach_effective_codec_selection() {
         for line in [
-            "-i in.mp4 -vf scale=2:2 out.mp4",
+            "-i in.mp4 -vf crop=2:2:0:0 out.mp4",
             "-i in.mp4 -c copy -crf 23 out.mp4",
-            "-i in.mp4 -c:a copy -vf scale=32:24 out.mp4",
+            "-i in.mp4 -c:a copy -s 32x24 out.mp4",
         ] {
             assert!(parse(&args(line)).is_ok(), "{line}");
+        }
+        for line in [
+            "-i in.mp4 -vf scale=32:24 out.mp4",
+            "-i in.mp4 -filter:v scale=32:24 out.mp4",
+            "-i in.mp4 -b:v 100k out.mp4",
+        ] {
+            assert!(
+                matches!(parse(&args(line)), Err(Refusal::NotNative(_))),
+                "{line}"
+            );
         }
     }
 

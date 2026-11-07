@@ -1130,8 +1130,15 @@ Explicit codec options still win in their original order. For example,
 selected stream. Defaults do not add an encoder, widen audio-source
 support or enable audio-only encoding. An M4A output with selected video
 is still refused, not silently reduced to audio. Segment output still
-requires explicit codecs. MP4 video encoder options also apply to default
-libx264 selection. Explicit copy selection still refuses encoder options,
+requires explicit codecs. MP4 crop, CRF, preset, pixel-format and passthrough
+options also apply to default libx264 selection. Output `-s` is admitted
+only when it repeats the selected source dimensions and is then a no-op,
+preserving the source aspect ratio. Implicit `-vf scale`,
+`-filter:v scale`, resizing `-s` and `-b:v` still refuse and reach fallback:
+the existing scaler and bitrate encoder path do not produce frame-identical
+output to the pinned FFmpeg. Explicit libx264 commands keep their previous
+behavior; scaling and bitrate parity are not extended here.
+Explicit copy selection still refuses encoder options,
 and audio-only encoding still refuses video encoder options. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
 
 An Opus source can use default AAC encoding. Its current verification uses
