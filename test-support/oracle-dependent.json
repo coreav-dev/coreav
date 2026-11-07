@@ -37,6 +37,9 @@
     "stated_sizes_are_the_decoded_sizes",
     "vp8_key_frames_state_the_decoded_size"
   ],
+  "crates/coreav-cli/tests/aac_worker.rs": [
+    "aac_worker_starts_and_output_pass_the_frozen_checks"
+  ],
   "crates/coreav-cli/tests/decode_audio.rs": [
     "decodes_an_mp4_aac_track_as_ffmpeg_does"
   ],
@@ -131,6 +134,10 @@
   ],
   "crates/coreav-cli/tests/ffmpeg_pcm.rs": [
     "aac_raw_output_refuses_with_exact_pinned_fallback"
+  ],
+  "crates/coreav-cli/tests/ffmpeg_video_quality.rs": [
+    "h264_video_quality_is_ignored",
+    "video_quality_refusals_preserve_destinations"
   ],
   "crates/coreav-cli/tests/ffmpeg_wav.rs": [
     "aac_s16_wav_forms_match_complete_pinned_outputs_and_retain_native_metadata_cases",

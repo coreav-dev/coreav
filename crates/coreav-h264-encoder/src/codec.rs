@@ -13,6 +13,8 @@ use coreav_kernels_h264::{BlockMut, IntraAvail, IntraMut, Kernels, Scalar};
 
 #[path = "inter.rs"]
 mod inter;
+#[path = "rows.rs"]
+mod rows;
 
 const STRIDE: usize = 40;
 const ORIGIN: usize = STRIDE + 1;
@@ -87,13 +89,7 @@ impl Tile {
     }
 
     fn satd(&self, source: &Self, x: usize, y: usize, n: usize) -> Result<u64> {
-        let mut sum = 0;
-        for j in (y..y + n).step_by(4) {
-            for i in (x..x + n).step_by(4) {
-                sum += t::satd(&source.0, &self.0, Self::at(i, j), STRIDE)?;
-            }
-        }
-        Ok(sum)
+        crate::kernels::satd(&source.0, &self.0, Self::at(x, y), STRIDE, n)
     }
 }
 
@@ -395,7 +391,7 @@ fn intra16(base: &Tile, source: &Tile, a: IntraAvail, mode: u8, qp: u8) -> Resul
         tile: base.clone(),
     };
     out.tile.prediction(0, 0, 16, a, mode)?;
-    let quant = t::Quant::of(qp)?;
+    let quant = t::Quant::intra(qp)?;
     let mut sums = [0; 16];
     for (k, levels) in out.levels.iter_mut().enumerate() {
         let (x, y) = xy(k);
@@ -418,13 +414,16 @@ fn chroma(base: &[Tile; 2], source: &[Tile; 2], a: IntraAvail, mode: u8, qp: u8)
     for tile in &mut predicted {
         tile.prediction(0, 0, 8, a, mode)?;
     }
-    let mut out = chroma_residual(&predicted, source, qp)?;
+    let mut out = chroma_code(&predicted, source, qp, t::Quant::chroma_intra(qp)?)?;
     out.mode = mode;
     Ok(out)
 }
 
 fn chroma_residual(base: &[Tile; 2], source: &[Tile; 2], qp: u8) -> Result<Chroma> {
-    let quant = t::Quant::of(qp)?;
+    chroma_code(base, source, qp, t::Quant::chroma_inter(qp)?)
+}
+
+fn chroma_code(base: &[Tile; 2], source: &[Tile; 2], qp: u8, quant: &t::Quant) -> Result<Chroma> {
     let mut sums = [[0; 4]; 2];
     let mut levels = [[[0; 16]; 4]; 2];
     for (((tile, original), sums), levels) in
@@ -436,16 +435,26 @@ fn chroma_residual(base: &[Tile; 2], source: &[Tile; 2], qp: u8) -> Result<Chrom
             *levels = quant.levels(&coefficients, true);
         }
     }
-    chroma_reconstruct(base, &sums, levels, qp)
+    chroma_finish(base, &sums, levels, qp, quant)
 }
 
+#[cfg(test)]
 fn chroma_reconstruct(
     base: &[Tile; 2],
     sums: &[[i32; 4]; 2],
     levels: [[[i32; 16]; 4]; 2],
     qp: u8,
 ) -> Result<Chroma> {
-    let quant = t::Quant::of(qp)?;
+    chroma_finish(base, sums, levels, qp, t::Quant::chroma_inter(qp)?)
+}
+
+fn chroma_finish(
+    base: &[Tile; 2],
+    sums: &[[i32; 4]; 2],
+    levels: [[[i32; 16]; 4]; 2],
+    qp: u8,
+    quant: &t::Quant,
+) -> Result<Chroma> {
     let mut out = Chroma {
         mode: 0,
         levels,
@@ -459,7 +468,7 @@ fn chroma_reconstruct(
         .zip(&mut out.dc)
         .zip(&out.levels)
     {
-        let (levels, dc) = t::chroma_dc(sums, qp)?;
+        let (levels, dc) = quant.chroma_dc(sums, qp)?;
         *dc_levels = levels;
         for (k, (levels, &dc)) in blocks.iter().zip(&dc).enumerate() {
             tile.reconstruct(k % 2 * 4, k / 2 * 4, levels, quant, Some(dc))?;
@@ -485,7 +494,7 @@ fn intra4(
         tile: base.clone(),
     };
     let mut counts = [0; 16];
-    let quant = t::Quant::of(qp)?;
+    let quant = t::Quant::intra(qp)?;
     let lambda = 1u64 << (qp / 3);
     let mut cheap_score = 0;
     for k in 0..16 {
@@ -619,6 +628,7 @@ impl FramePlane {
         }
         Ok(())
     }
+    #[cfg(test)]
     fn tiles(&self, source: Plane<'_>, x: usize, y: usize, n: usize) -> Result<(Tile, Tile)> {
         let mut base = Tile::empty();
         let mut input = Tile::empty();
@@ -686,6 +696,7 @@ struct Candidate {
     luma: Luma,
     chroma: Chroma,
     inter: Option<inter::Inter>,
+    state: Neighbour,
 }
 
 struct Decision<'a> {
@@ -723,7 +734,7 @@ impl Decision<'_> {
         if self.context.p_slice {
             counter.ue(self.pending_skip + u32::from(skip))?;
         }
-        macroblock(&mut counter, &luma, &chroma, inter.as_ref(), self.context)?;
+        let state = macroblock(&mut counter, &luma, &chroma, inter.as_ref(), self.context)?;
         let mut distortion = luma.tile.error(self.source, 0, 0, 16)?;
         for (tile, source) in chroma.tiles.iter().zip(self.csources) {
             distortion += tile.error(source, 0, 0, 8)?;
@@ -761,6 +772,7 @@ impl Decision<'_> {
             luma,
             chroma,
             inter,
+            state,
         })
     }
 
@@ -1012,114 +1024,41 @@ pub(crate) fn picture(
         FramePlane::new(e.coded_width / 2, e.coded_height / 2)?,
     ];
     let mb_width = e.coded_width / 16;
-    let mut states: Vec<Neighbour> = zeros(mb_width * (e.coded_height / 16))?;
     let mut writer = Bits::new(e.limits.access_unit_bytes);
     syntax::slice(&mut writer, e, slice)?;
+    let candidates = rows::decide(e, input, slice)?;
     let mut pending_skip = 0;
     let mut previous_mv_count = e.previous_mv_count;
-    for my in 0..e.coded_height / 16 {
-        for mx in 0..e.coded_width / 16 {
-            let address = my * mb_width + mx;
-            let top = if my != 0 {
-                states.get(address - mb_width)
+    for (address, slot) in candidates.iter().enumerate() {
+        let candidate = slot.get().ok_or(Error::Internal)?;
+        let Candidate {
+            luma,
+            chroma,
+            inter,
+            ..
+        } = candidate;
+        let (mx, my) = (address % mb_width, address / mb_width);
+        let context = rows::context(&candidates, address, mb_width, !slice.idr)?;
+        let skip = inter.as_ref().is_some_and(|i| i.skip);
+        if !slice.idr {
+            if skip {
+                pending_skip += 1;
             } else {
-                None
-            };
-            let left = if mx != 0 {
-                states.get(address - 1)
-            } else {
-                None
-            };
-            let top_left = if mx != 0 && my != 0 {
-                states.get(address - mb_width - 1)
-            } else {
-                None
-            };
-            let top_right = if my != 0 && mx + 1 < mb_width {
-                states.get(address - mb_width + 1)
-            } else {
-                None
-            };
-            let border = Border {
-                left: left.map(|n| &n.motion),
-                top: top.map(|n| &n.motion),
-                top_left: top_left.map(|n| &n.motion),
-                top_right: top_right.map(|n| &n.motion),
-            };
-            let a = intra_availability(border);
-            let context = MbContext {
-                top,
-                left,
-                p_slice: !slice.idr,
-            };
-            let (base, source) =
-                planes
-                    .first()
-                    .ok_or(Error::Internal)?
-                    .tiles(input.y, mx * 16, my * 16, 16)?;
-            let (cb, scb) =
-                planes
-                    .get(1)
-                    .ok_or(Error::Internal)?
-                    .tiles(input.cb, mx * 8, my * 8, 8)?;
-            let (cr, scr) =
-                planes
-                    .get(2)
-                    .ok_or(Error::Internal)?
-                    .tiles(input.cr, mx * 8, my * 8, 8)?;
-            let cbases = [cb, cr];
-            let csources = [scb, scr];
-            let decision = Decision {
-                source: &source,
-                csources: &csources,
-                context,
-                qp: e.settings.qp,
-                pending_skip,
-            };
-            let mut best = None;
-            let mut refusal = Error::Coefficient;
-            let scope = if slice.idr {
-                IntraScope::Exhaustive
-            } else {
-                inter::Search {
-                    reference: e.reference.as_ref().ok_or(Error::Internal)?,
-                    decision: &decision,
-                    border,
-                    mx,
-                    my,
-                    previous: previous_mv_count,
-                }
-                .candidates(&mut best, &mut refusal)?
-            };
-            decision.intra(&base, &cbases, a, scope, &mut best, &mut refusal)?;
-            let Candidate {
-                luma,
-                chroma,
-                inter,
-                ..
-            } = best.ok_or(refusal)?;
-            let skip = inter.as_ref().is_some_and(|i| i.skip);
-            if !slice.idr {
-                if skip {
-                    pending_skip += 1;
-                } else {
-                    writer.ue(pending_skip)?;
-                    pending_skip = 0;
-                }
+                writer.ue(pending_skip)?;
+                pending_skip = 0;
             }
-            let state = macroblock(&mut writer, &luma, &chroma, inter.as_ref(), context)?;
-            previous_mv_count = inter.as_ref().map_or(0, |i| i.len as u8);
+        }
+        macroblock(&mut writer, luma, chroma, inter.as_ref(), context)?;
+        previous_mv_count = inter.as_ref().map_or(0, |i| i.len as u8);
+        planes
+            .first_mut()
+            .ok_or(Error::Internal)?
+            .commit(&luma.tile, mx * 16, my * 16, 16)?;
+        for (c, tile) in chroma.tiles.iter().enumerate() {
             planes
-                .first_mut()
+                .get_mut(c + 1)
                 .ok_or(Error::Internal)?
-                .commit(&luma.tile, mx * 16, my * 16, 16)?;
-            for (c, tile) in chroma.tiles.iter().enumerate() {
-                planes
-                    .get_mut(c + 1)
-                    .ok_or(Error::Internal)?
-                    .commit(tile, mx * 8, my * 8, 8)?;
-            }
-            *states.get_mut(address).ok_or(Error::Internal)? = state;
+                .commit(tile, mx * 8, my * 8, 8)?;
         }
     }
     if pending_skip != 0 {
@@ -1139,7 +1078,11 @@ pub(crate) fn picture(
                 qp,
                 c != 0,
                 |mx, my| {
-                    let n = states.get(my * mb_width + mx).ok_or(Error::Internal)?;
+                    let n = &candidates
+                        .get(my * mb_width + mx)
+                        .and_then(std::sync::OnceLock::get)
+                        .ok_or(Error::Internal)?
+                        .state;
                     let mut nonzero = 0;
                     for (p, &count) in n.counts.first().ok_or(Error::Internal)?.iter().enumerate() {
                         if count != 0 {

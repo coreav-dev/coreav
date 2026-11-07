@@ -17,8 +17,8 @@ CASES = (('gradient', 18, 22), ('vertical', 34, 18),
          ('horizontal', 18, 34), ('crossed', 32, 32))
 BASELINE = {
     'input_sha256': 'e8f5e52209d52d33ed84051982282de1003f25cd60c5ae11959e9337efb94387',
-    'stream_sha256': '1808185d05b060ba833902740a4b67f19d36253b0bc48610c6047c1235e26708',
-    'reconstruction_sha256': '9c1f508de55ff166ad1efa68887c7808abf472ded97c318f603ab415b7ae1997',
+    'stream_sha256': '00e041e267597626ff51c3e43bea7d2866042f5cad697fa4cd7c7660da056d53',
+    'reconstruction_sha256': '995277002526f21ada2da72fa8157e663cca6ea0e2e0b9cef7a80a2cacbd3ff9',
 }
 
 

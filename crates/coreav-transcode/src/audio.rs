@@ -56,7 +56,7 @@ const ENCODER_MEMORY: u64 = 1 << 30;
 /// libraries it maps.
 const AAC_ENCODER_MEMORY: u64 = 2 << 30;
 
-/// Bytes of the `ffmpeg` program's answer about its `aac` encoder kept.
+/// Bytes retained from an encoder availability encode.
 const PROBE_ANSWER: usize = 64 << 10;
 
 /// The default bit rate in bits a second, for `channels` (1 or 2): 64,000
@@ -749,23 +749,22 @@ fn encode_with(
     })
 }
 
-/// Asks the `ffmpeg` program about its requested encoder, as it runs as the
-/// encoder (through `launcher`, killed at `deadline`): one without it is
-/// refused before the source is decoded.
+/// Checks the requested encoder with an empty raw-PCM encode through
+/// `launcher`, killed at `deadline`, before decoding the source.
 fn probe_encoder(
     program: &Path,
     launcher: Option<&ExecLauncher>,
     deadline: Instant,
     codec: &str,
 ) -> Result<(), Error> {
-    struct Answer(Vec<u8>, bool);
+    struct Answer(Vec<u8>);
     impl Sink for Answer {
         fn write(&mut self, bytes: &[u8]) -> Result<(), coreav_decode::Error> {
             let room = PROBE_ANSWER.saturating_sub(self.0.len());
-            if self.1 && bytes.len() > room {
+            if bytes.len() > room {
                 return Err(coreav_decode::Error::new(
                     ErrorKind::Limit,
-                    "the MP3 encoder probe exceeded its output limit",
+                    "the audio encoder probe exceeded its output limit",
                 ));
             }
             self.0
@@ -776,15 +775,12 @@ fn probe_encoder(
     let args = if codec == "libmp3lame" {
         mp3::encode_args(48000, 1, mp3::Mode::Constant(None))
     } else {
-        [
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-h",
-            &format!("encoder={codec}"),
-        ]
-        .map(std::ffi::OsString::from)
-        .to_vec()
+        aac::encode_args(48000, 1, None)
+    };
+    let name = if codec == "aac" {
+        "the AAC encoder"
+    } else {
+        "the MP3 encoder"
     };
     let command = command(
         program,
@@ -794,42 +790,43 @@ fn probe_encoder(
         &EncoderLimits::new(AAC_ENCODER_MEMORY),
         deadline,
     );
-    let Answer(answer, _) = Process::spawn(
-        if codec == "aac" {
-            "the AAC encoder"
-        } else {
-            "the MP3 encoder"
-        },
+    let Answer(answer) = Process::spawn(
+        name,
         "sample blocks",
         command,
         program,
         deadline,
-        Answer(Vec::new(), codec == "libmp3lame"),
+        Answer(Vec::new()),
     )
     .and_then(Process::finish)
     .map_err(|error| {
-        if codec == "libmp3lame"
-            && error.kind == ErrorKind::Backend
+        if error.kind == ErrorKind::Backend
             && error
                 .message
-                .starts_with("the MP3 encoder failed (exit status: ")
-            && error.message.contains("Unknown encoder 'libmp3lame'")
+                .starts_with(&format!("{name} failed (exit status: "))
+            && error
+                .message
+                .contains(&format!("Unknown encoder '{codec}'"))
         {
-            Error::Unsupported("the ffmpeg program has no libmp3lame encoder".into())
+            Error::Unsupported(format!("the ffmpeg program has no {codec} encoder"))
         } else {
             Error::Encode(error)
         }
     })?;
-    if codec == "libmp3lame" && !answer.is_empty() {
-        if !answer.starts_with(b"ID3\x04\0\0") {
-            return Err(encoder_error("invalid MP3 encoder probe output".into()));
-        }
-        return Ok(());
-    }
-    if !answer.starts_with(format!("Encoder {codec} [").as_bytes()) {
+    if answer.is_empty() {
         return Err(Error::Unsupported(format!(
             "the ffmpeg program {} has no {codec} encoder; install FFmpeg with that encoder",
             program.display()
+        )));
+    }
+    let signature: &[u8] = if codec == "aac" {
+        b"\x1a\x45\xdf\xa3"
+    } else {
+        b"ID3\x04\0\0"
+    };
+    if !answer.starts_with(signature) {
+        return Err(encoder_error(format!(
+            "invalid {codec} encoder probe output"
         )));
     }
     Ok(())
@@ -1595,12 +1592,12 @@ mod tests {
         for (name, body, says) in [
             (
                 "with",
-                "echo 'Encoder aac [AAC (Advanced Audio Coding)]:'",
+                "cat >/dev/null; printf '\\032\\105\\337\\243'",
                 None,
             ),
             (
                 "without",
-                "echo \"Codec 'aac' is not recognized by FFmpeg.\"",
+                "printf \"Unknown encoder 'aac'\\n\" >&2; exit 1",
                 Some("has no aac encoder"),
             ),
             ("silent", "true", Some("has no aac encoder")),
@@ -1614,6 +1611,53 @@ mod tests {
                 (Err(e), Some(says)) => assert!(e.to_string().contains(says), "{name}: {e}"),
                 (result, _) => panic!("{name}: {result:?}"),
             }
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn aac_availability_errors_keep_their_classification_and_output_bound() {
+        for (name, body, unsupported) in [
+            ("aac-silent", "true", true),
+            (
+                "aac-unavailable-status-eight",
+                "printf \"Unknown encoder 'aac'\\n\" >&2; exit 8",
+                true,
+            ),
+            (
+                "aac-unknown-before-flood",
+                "printf \"Unknown encoder 'aac'\\n\" >&2; exec yes",
+                false,
+            ),
+            (
+                "aac-unknown-before-signal",
+                "printf \"Unknown encoder 'aac'\\n\" >&2; kill -TERM $$",
+                false,
+            ),
+            ("aac-invalid", "printf bad", false),
+            ("aac-flood", "exec yes", false),
+            ("aac-failure", "echo 'other failure' >&2; exit 1", false),
+        ] {
+            let (dir, script) = ffmpeg_stand_in(name, body);
+            let result = probe_encoder(
+                &script,
+                None,
+                Instant::now() + Duration::from_secs(5),
+                "aac",
+            );
+            assert!(result.is_err(), "{name}");
+            assert_eq!(
+                matches!(result, Err(Error::Unsupported(_))),
+                unsupported,
+                "{name}"
+            );
+            if name.contains("flood") {
+                assert!(
+                    matches!(result, Err(Error::Encode(ref error)) if error.kind == ErrorKind::Limit),
+                    "{name}: {result:?}"
+                );
+            }
+            std::fs::remove_dir_all(dir).unwrap();
         }
     }
 

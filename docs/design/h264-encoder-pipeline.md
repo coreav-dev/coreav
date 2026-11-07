@@ -54,12 +54,14 @@ The stage attribution suggests, without establishing a majority for any one stag
 | 6 | Step 7, exact early quiet test | Identical | Step 5 | Medium on low motion, small on real motion | Obvious |
 | 7 | Multi-candidate SAD: one source row against several candidate rows per call | Identical | Step 6 | Small to medium; integer probes are already cheap | Obvious, under the kernel policy |
 | 8 | Step 9, deblocking fast path; a vector filter only if the fast path leaves a measurable share | Identical | None | Small; an earlier trial of the decoder's dispatched filter showed no clear benefit | Obvious |
-| 9 | Row wavefront, after the one-time removal of raster-order cost state; admission keeps the normative motion-vector limit for consecutive macroblocks (below) | Changes once, then identical for every thread count | Steps 6 and 8, so per-picture planes exist before rows start | Scales with cores; needed for parity above one thread and neutral at one thread | Obvious: the threading model is decided |
+| 9 | Row wavefront, after the one-time removal of raster-order cost state; admission keeps the normative motion-vector limit for consecutive macroblocks (below) | Changes once, then identical for every thread count | None; the current reference planes are immutable | Scales with cores; needed for parity above one thread, with a measured one-thread ownership cost | Obvious: the threading model is decided |
 | 10 | New NEON arithmetic for items 1, 4, 5 and 7 | Identical | Those items | Arm hosts keep scalar SAD and SATD until then | Decided: the encoder kernel policy will be amended (approved) to allow new NEON kernels under the same rules before any new NEON kernel lands; x86-64 kernels come first |
 
 Step 10 completes the target pipeline for P pictures the way step 1 did for IDR. **P finalist shortlist (output change).** Skip is still built and counted exactly, because the quiet test reads it and it can be the best complete candidate. The other inter options (coded 16x16 at the skip vector, the 16x16 plan and, when step 2 searched them, the 8x8 plans) are deduplicated first, so identical complete representations occupy one slot. The remaining options are ranked by SATD plus known syntax lengths, and only the best two are built and counted exactly. When neither passes macroblock admission, the remaining options are evaluated as now, so the shortlist never refuses a macroblock the complete evaluation accepts.
 
 The wavefront removes the consecutive motion-vector count from costs, not from admission. Admission still enforces the limit on motion vectors in two consecutive macroblocks, and the count carried from the previous picture is kept as now. Within a row the predecessor is the left neighbour. Across a row boundary the predecessor belongs to another row, so the last macroblock of each row and the first macroblock of the next are each held to half the pair limit. The pair is then legal without waiting for the other row, and output does not depend on the thread count.
+
+The [row-wavefront implementation](h264-encoder-wavefront.md) separates immutable macroblock decisions from serial entropy coding and deblocking. Its explicit worker-count constructor and automatic available-core selection produce the same stream. Padding and half-sample planes are not prerequisites: workers share the existing immutable reference picture and retain the existing per-call interpolation.
 
 ### Compression efficiency
 
@@ -76,7 +78,7 @@ Compression items come from the specification and published literature, as the s
 
 ### Order
 
-Steps 5, 6 and 8 are in progress. Once they merge, speed items 1, 5 and 7 and compression item 1 can proceed in parallel, because they touch separate code. Vector quantization and dead-zone quantization still share one arithmetic contract: the vector kernel must reproduce the scalar quantizer exactly, so whichever lands second re-runs the scalar and vector identity tests against the other's rounding. Step 10 and the revised step 3 follow step 6. The wavefront comes last among speed items, so it parallelizes the cheaper per-row work rather than the current one.
+The row-wavefront implementation proceeds before steps 6 and 8 because it can share the existing immutable reference planes. The reference-plane changes remain separate speed candidates, not concurrency prerequisites. Speed items 1, 5 and 7 and compression item 1 can proceed when their listed arithmetic or storage dependencies are ready. Vector quantization and dead-zone quantization still share one arithmetic contract: the vector kernel must reproduce the scalar quantizer exactly, so whichever lands second re-runs the scalar and vector identity tests against the other's rounding. Step 10 and the revised step 3 remain independent decision candidates.
 
 ## Decisions outside this plan
 

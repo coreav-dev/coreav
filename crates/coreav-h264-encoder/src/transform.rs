@@ -13,8 +13,19 @@ const ADJUST: [[i64; 3]; 6] = [
     [18, 29, 23],
 ];
 const SHIFT: u32 = 40;
+const INTRA_OFFSET: u64 = 5;
+const INTER_OFFSET: u64 = 2;
+const CHROMA_INTRA_OFFSET: u64 = 5;
+const CHROMA_INTER_OFFSET: u64 = 5;
+const OFFSET_DENOMINATOR: u64 = 12;
 static QUANT: LazyLock<[Quant; 52]> =
-    LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8)));
+    LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, INTER_OFFSET)));
+static INTRA_QUANT: LazyLock<[Quant; 52]> =
+    LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, INTRA_OFFSET)));
+static CHROMA_QUANT: LazyLock<[Quant; 52]> =
+    LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, CHROMA_INTER_OFFSET)));
+static INTRA_CHROMA_QUANT: LazyLock<[Quant; 52]> =
+    LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, CHROMA_INTRA_OFFSET)));
 
 pub(crate) fn chroma_qp(qp: u8) -> u8 {
     const HIGH: [u8; 22] = [
@@ -38,13 +49,12 @@ pub(crate) fn norm(qp: u8, position: usize) -> Result<i64> {
         .ok_or(Error::Internal)
 }
 
-fn nearest(numerator: i64, denominator: i64) -> Result<i32> {
-    let a = numerator.abs();
-    if 2 * a <= denominator {
-        return Ok(0);
-    }
-    let level = a / denominator + i64::from((a % denominator) * 2 > denominator);
-    i32::try_from(if numerator < 0 { -level } else { level }).map_err(|_| Error::Coefficient)
+fn rounded(numerator: i64, denominator: i64, offset: u64) -> Result<i32> {
+    let magnitude = (numerator.unsigned_abs()
+        + denominator.unsigned_abs() * offset / OFFSET_DENOMINATOR)
+        / denominator.unsigned_abs();
+    let level = i32::try_from(magnitude).map_err(|_| Error::Coefficient)?;
+    Ok(if numerator < 0 { -level } else { level })
 }
 
 /// Forward core transform of one 4x4 residual of 8-bit samples, so every
@@ -56,7 +66,6 @@ impl Forward {
         self.0.first().copied().unwrap_or(0)
     }
 
-    #[cfg(test)]
     pub(crate) fn coefficients(&self) -> &[i32; 16] {
         &self.0
     }
@@ -65,6 +74,7 @@ impl Forward {
 /// Quantizer constants of one QP by raster position: the zero bound, the
 /// rounding bias and the reciprocal of the divisor, and the scaling factor.
 pub(crate) struct Quant {
+    offset: u64,
     zero: [u32; 16],
     bias: [u64; 16],
     reciprocal: [u64; 16],
@@ -72,15 +82,19 @@ pub(crate) struct Quant {
 }
 
 impl Quant {
-    fn new(qp: u8) -> Self {
+    fn new(qp: u8, offset: u64) -> Self {
         let scale = |p: usize| norm(qp, p).unwrap_or(0) << (qp / 6);
         let divisor = |p: usize| {
             ((if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 }) * scale(p))
                 .unsigned_abs()
         };
         Self {
-            zero: std::array::from_fn(|p| u32::try_from(divisor(p) / 128).unwrap_or(u32::MAX)),
-            bias: std::array::from_fn(|p| divisor(p).saturating_sub(1)),
+            offset,
+            zero: std::array::from_fn(|p| {
+                let d = 2 * divisor(p);
+                u32::try_from((d - 1 - d * offset / OFFSET_DENOMINATOR) / 128).unwrap_or(u32::MAX)
+            }),
+            bias: std::array::from_fn(|p| 2 * divisor(p) * offset / OFFSET_DENOMINATOR),
             reciprocal: std::array::from_fn(|p| {
                 ((1u64 << SHIFT) + 2 * divisor(p) - 1)
                     .checked_div(2 * divisor(p))
@@ -94,9 +108,35 @@ impl Quant {
         QUANT.get(usize::from(qp)).ok_or(Error::Internal)
     }
 
+    pub(crate) fn intra(qp: u8) -> Result<&'static Self> {
+        INTRA_QUANT.get(usize::from(qp)).ok_or(Error::Internal)
+    }
+
+    pub(crate) fn chroma_inter(qp: u8) -> Result<&'static Self> {
+        CHROMA_QUANT.get(usize::from(qp)).ok_or(Error::Internal)
+    }
+
+    pub(crate) fn chroma_intra(qp: u8) -> Result<&'static Self> {
+        INTRA_CHROMA_QUANT
+            .get(usize::from(qp))
+            .ok_or(Error::Internal)
+    }
+
+    pub(crate) fn chroma_dc(&self, sums: [i32; 4], qp: u8) -> Result<([i32; 4], [i32; 4])> {
+        chroma_dc_offset(sums, qp, self.offset)
+    }
+
     pub(crate) fn zero(&self, coefficients: &Forward, separate_dc: bool) -> bool {
+        #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+        if let Some(simd) = crate::kernels::arithmetic() {
+            return simd.zero(coefficients, self, separate_dc);
+        }
+        self.zero_scalar(coefficients, separate_dc)
+    }
+
+    pub(crate) fn zero_scalar(&self, coefficients: &Forward, separate_dc: bool) -> bool {
         coefficients
-            .0
+            .coefficients()
             .iter()
             .zip(&self.zero)
             .skip(usize::from(separate_dc))
@@ -104,10 +144,18 @@ impl Quant {
     }
 
     pub(crate) fn levels(&self, coefficients: &Forward, separate_dc: bool) -> [i32; 16] {
+        #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+        if let Some(simd) = crate::kernels::arithmetic() {
+            return simd.levels(coefficients, self, separate_dc);
+        }
+        self.levels_scalar(coefficients, separate_dc)
+    }
+
+    pub(crate) fn levels_scalar(&self, coefficients: &Forward, separate_dc: bool) -> [i32; 16] {
         let mut out = [0; 16];
         for (((level, &c), &bias), &reciprocal) in out
             .iter_mut()
-            .zip(&coefficients.0)
+            .zip(coefficients.coefficients())
             .zip(&self.bias)
             .zip(&self.reciprocal)
         {
@@ -122,6 +170,27 @@ impl Quant {
         out
     }
 
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    pub(crate) fn parameters(&self) -> (&[u32; 16], &[u64; 16], &[u64; 16], &[i32; 16]) {
+        (&self.zero, &self.bias, &self.reciprocal, &self.scale)
+    }
+
+    pub(crate) fn scaled_scalar(&self, levels: &[i32; 16]) -> [i32; 16] {
+        let mut out = [0; 16];
+        for ((out, &level), &scale) in out.iter_mut().zip(levels).zip(&self.scale) {
+            *out = level.wrapping_mul(scale);
+        }
+        out
+    }
+
+    fn scaled(&self, levels: &[i32; 16]) -> [i32; 16] {
+        #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+        if let Some(simd) = crate::kernels::arithmetic() {
+            return simd.scaled(levels, &self.scale);
+        }
+        self.scaled_scalar(levels)
+    }
+
     pub(crate) fn reconstruct(
         &self,
         levels: &[i32; 16],
@@ -132,9 +201,7 @@ impl Quant {
     ) -> Result<()> {
         let mut coefficients = [0; 16];
         if levels.iter().any(|&level| level != 0) {
-            for ((out, &level), &scale) in coefficients.iter_mut().zip(levels).zip(&self.scale) {
-                *out = level.wrapping_mul(scale);
-            }
+            coefficients = self.scaled(levels);
             if !coefficients.iter().all(|&c| fits(c)) {
                 return Err(Error::Coefficient);
             }
@@ -178,6 +245,22 @@ fn residual(source: &[u8], predicted: &[u8], at: usize, stride: usize) -> Result
 }
 
 pub(crate) fn forward(
+    source: &[u8],
+    predicted: &[u8],
+    at: usize,
+    stride: usize,
+) -> Result<Forward> {
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    if let Some(simd) = crate::kernels::arithmetic() {
+        return simd
+            .forward(source, predicted, at, stride)
+            .map(Forward)
+            .ok_or(Error::Internal);
+    }
+    forward_scalar(source, predicted, at, stride)
+}
+
+pub(crate) fn forward_scalar(
     source: &[u8],
     predicted: &[u8],
     at: usize,
@@ -252,6 +335,14 @@ fn inverse_line([a, b, c, d]: [i32; 4]) -> ([i32; 4], bool) {
 }
 
 fn inverse(coefficients: [i32; 16]) -> Option<[i32; 16]> {
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    if let Some(simd) = crate::kernels::arithmetic() {
+        return simd.inverse(&coefficients);
+    }
+    inverse_scalar(coefficients)
+}
+
+pub(crate) fn inverse_scalar(coefficients: [i32; 16]) -> Option<[i32; 16]> {
     if let [dc, rest @ ..] = coefficients
         && rest.iter().all(|&c| c == 0)
     {
@@ -289,19 +380,21 @@ fn inverse(coefficients: [i32; 16]) -> Option<[i32; 16]> {
     (ra && rb && rc && rd && r0 && r1 && r2 && r3 && out.iter().all(|&x| x <= 32735)).then_some(out)
 }
 
+/// Tests only inter-predicted chroma DC, as used by the quiet-skip path.
 pub(crate) fn chroma_dc_quantizes_to_zero(sums: [i32; 4], qp: u8) -> Result<bool> {
     let [a, b, c, d] = sums.map(i64::from);
-    let limit = norm(qp, 0)? * (1i64 << (qp / 6));
+    let step = norm(qp, 0)? * (1i64 << (qp / 6));
+    let limit = step - 1 - (step * CHROMA_INTER_OFFSET as i64 / OFFSET_DENOMINATOR as i64);
     Ok([a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
         .iter()
-        .all(|v| 4 * v.abs() <= limit))
+        .all(|v| 2 * v.abs() <= limit))
 }
 
 pub(crate) fn luma_dc(sums: [i32; 16], qp: u8) -> Result<([i32; 16], [i32; 16])> {
     let step = norm(qp, 0)? * (1i64 << (qp / 6));
     let mut levels = [0i32; 16];
     for (out, v) in levels.iter_mut().zip(transform::<true>(sums)) {
-        *out = nearest(i64::from(v), step)?;
+        *out = rounded(i64::from(v), step, INTRA_OFFSET)?;
     }
     let mut dc = [0i32; 16];
     for (out, v) in dc.iter_mut().zip(transform::<true>(levels)) {
@@ -311,13 +404,18 @@ pub(crate) fn luma_dc(sums: [i32; 16], qp: u8) -> Result<([i32; 16], [i32; 16])>
     Ok((levels, dc))
 }
 
+#[cfg(test)]
 pub(crate) fn chroma_dc(sums: [i32; 4], qp: u8) -> Result<([i32; 4], [i32; 4])> {
+    chroma_dc_offset(sums, qp, CHROMA_INTER_OFFSET)
+}
+
+fn chroma_dc_offset(sums: [i32; 4], qp: u8, offset: u64) -> Result<([i32; 4], [i32; 4])> {
     fn h([a, b, c, d]: [i64; 4]) -> [i64; 4] {
         [a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
     }
     let mut levels = [0i32; 4];
     for (out, v) in levels.iter_mut().zip(h(sums.map(i64::from))) {
-        *out = nearest(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)))?;
+        *out = rounded(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)), offset)?;
     }
     let mut dc = [0i32; 4];
     for (out, v) in dc.iter_mut().zip(h(levels.map(i64::from))) {
@@ -348,6 +446,67 @@ mod tests {
     use super::*;
     use coreav_kernels_h264::{BlockMut, Kernels, Scalar};
 
+    #[test]
+    fn quantizer_tables_fit_the_vector_multiply_contract() -> Result<()> {
+        for qp in 0..=51 {
+            let quant = Quant::of(qp)?;
+            for ((&bias, &reciprocal), &zero) in
+                quant.bias.iter().zip(&quant.reciprocal).zip(&quant.zero)
+            {
+                assert!(bias + 128 * 9180 <= u64::from(u32::MAX));
+                assert!(reciprocal <= u64::from(u32::MAX));
+                assert!(
+                    u128::from(bias + 128 * 9180) * u128::from(reciprocal) <= u128::from(u64::MAX)
+                );
+                assert!(zero <= i32::MAX as u32);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn vector_forward_matches_scalar_with_exact_extents_and_overlapping_rows() -> Result<()> {
+        for stride in 0..32 {
+            for at in 0..32 {
+                let extent = at + 3 * stride + 4;
+                let a: Vec<_> = (0..extent).map(|i| (i * 171 + 37) as u8).collect();
+                let b: Vec<_> = (0..extent).map(|i| (i * 59 + 213) as u8).collect();
+                assert_eq!(
+                    forward(&a, &b, at, stride)?.coefficients(),
+                    forward_scalar(&a, &b, at, stride)?.coefficients()
+                );
+                let short = a.get(..extent - 1).ok_or(Error::Internal)?;
+                assert_eq!(forward(short, &b, at, stride).err(), Some(Error::Internal));
+                let short = b.get(..extent - 1).ok_or(Error::Internal)?;
+                assert_eq!(forward(&a, short, at, stride).err(), Some(Error::Internal));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn vector_inverse_matches_scalar_at_signed_intermediate_boundaries() {
+        let mut seed = 0x56cadf31e974b280u64;
+        for bound in [1, 255, 1023, 4095, 8191, 16383, 32767] {
+            for _ in 0..16384 {
+                let coefficients = std::array::from_fn(|_| {
+                    seed ^= seed << 13;
+                    seed ^= seed >> 7;
+                    seed ^= seed << 17;
+                    (seed % (2 * bound + 1) as u64) as i32 - bound
+                });
+                assert_eq!(inverse(coefficients), inverse_scalar(coefficients));
+            }
+        }
+        for dc in -32768..=32767 {
+            let mut coefficients = [0; 16];
+            if let Some(first) = coefficients.first_mut() {
+                *first = dc;
+            }
+            assert_eq!(inverse(coefficients), inverse_scalar(coefficients));
+        }
+    }
+
     const BASIS: [[i64; 4]; 4] = [[1, 1, 1, 1], [2, 1, -1, -2], [1, -1, -1, 1], [1, -2, 2, -1]];
     const HADAMARD: [[i64; 4]; 4] = [[1, 1, 1, 1], [1, 1, -1, -1], [1, -1, -1, 1], [1, -1, 1, -1]];
     const AT: usize = 3;
@@ -357,7 +516,13 @@ mod tests {
 
     /// The 64-bit, per-call checked path the fused kernel replaced.
     mod reference {
-        use super::super::{Error, Result, nearest, norm, range};
+        use super::super::{CHROMA_INTER_OFFSET, Error, INTRA_OFFSET, Result, norm, range};
+
+        pub(super) fn round(n: i64, d: i64, offset: u64) -> Result<i32> {
+            let magnitude = (12 * n.abs() + d * offset as i64) / (12 * d);
+            i32::try_from(if n < 0 { -magnitude } else { magnitude })
+                .map_err(|_| Error::Coefficient)
+        }
 
         fn line<const DC: bool>([a, b, c, d]: [i64; 4]) -> [i64; 4] {
             if DC {
@@ -388,14 +553,16 @@ mod tests {
             transformed: &[i64; 16],
             qp: u8,
             separate_dc: bool,
+            offset: u64,
         ) -> Result<[i32; 16]> {
             let mut out = [0; 16];
             for (p, dst) in out.iter_mut().enumerate().skip(usize::from(separate_dc)) {
                 let weight =
                     (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
-                *dst = nearest(
+                *dst = round(
                     64 * transformed[p],
                     weight * norm(qp, p)? * (1i64 << (qp / 6)),
+                    offset,
                 )?;
             }
             Ok(out)
@@ -405,6 +572,7 @@ mod tests {
             transformed: &[i64; 16],
             qp: u8,
             separate_dc: bool,
+            offset: u64,
         ) -> bool {
             transformed
                 .iter()
@@ -413,7 +581,13 @@ mod tests {
                 .all(|(p, c)| {
                     let weight =
                         (if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 });
-                    128 * c.abs() <= weight * norm(qp, p).unwrap() * (1i64 << (qp / 6))
+                    round(
+                        64 * c,
+                        weight * norm(qp, p).unwrap() * (1i64 << (qp / 6)),
+                        offset,
+                    )
+                    .unwrap()
+                        == 0
                 })
         }
 
@@ -468,7 +642,7 @@ mod tests {
             let transformed = matrix::<true>(sums);
             let mut levels = [0i32; 16];
             for (out, v) in levels.iter_mut().zip(transformed) {
-                *out = nearest(v, norm(qp, 0)? * (1i64 << (qp / 6)))?;
+                *out = round(v, norm(qp, 0)? * (1i64 << (qp / 6)), INTRA_OFFSET)?;
             }
             let inv = matrix::<true>(levels.map(i64::from));
             let mut dc = [0i32; 16];
@@ -481,12 +655,20 @@ mod tests {
         }
 
         pub(super) fn chroma_dc(sums: [i64; 4], qp: u8) -> Result<([i32; 4], [i32; 4])> {
+            chroma_dc_with_offset(sums, qp, CHROMA_INTER_OFFSET)
+        }
+
+        pub(super) fn chroma_dc_with_offset(
+            sums: [i64; 4],
+            qp: u8,
+            offset: u64,
+        ) -> Result<([i32; 4], [i32; 4])> {
             fn h([a, b, c, d]: [i64; 4]) -> [i64; 4] {
                 [a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
             }
             let mut levels = [0i32; 4];
             for (out, v) in levels.iter_mut().zip(h(sums)) {
-                *out = nearest(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)))?;
+                *out = round(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)), offset)?;
             }
             let mut dc = [0i32; 4];
             for (out, v) in dc.iter_mut().zip(h(levels.map(i64::from))) {
@@ -600,6 +782,85 @@ mod tests {
     }
 
     #[test]
+    fn offset_kernels_match_division_and_zero_decisions_for_both_prediction_types() {
+        for qp in 0..=51 {
+            for offset in [0, 2, 3, 4, 5, 6] {
+                let quant = Quant::new(qp, offset);
+                for coefficient in -MAX_COEFFICIENT..=MAX_COEFFICIENT {
+                    let input = Forward([coefficient; 16]);
+                    for separate_dc in [false, true] {
+                        let expected =
+                            reference::quantize(&input.0.map(i64::from), qp, separate_dc, offset)
+                                .unwrap();
+                        assert_eq!(quant.levels(&input, separate_dc), expected);
+                        assert_eq!(
+                            quant.zero(&input, separate_dc),
+                            expected.into_iter().all(|level| level == 0),
+                        );
+                    }
+                }
+            }
+            for quant in [Quant::of(qp).unwrap(), Quant::intra(qp).unwrap()] {
+                for numerator in [-130_560, -1, 0, 1, 130_560] {
+                    let divisor = norm(qp, 0).unwrap() << (qp / 6);
+                    assert_eq!(
+                        rounded(numerator, divisor, quant.offset),
+                        reference::round(numerator, divisor, quant.offset),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn intra_chroma_dc_and_prediction_offsets_match_direct_division() {
+        let mut split_witnesses = [false; 52];
+        for qp in 0..=51 {
+            assert!((0..=MAX_COEFFICIENT).any(|value| {
+                let block = Forward([value; 16]);
+                Quant::intra(qp).unwrap().levels(&block, false)
+                    != Quant::of(qp).unwrap().levels(&block, false)
+            }));
+            for value in -4080..=4080 {
+                for sums in [[value, 0, 0, 0], [value, -value, value, -value]] {
+                    let intra = Quant::chroma_intra(qp).unwrap().chroma_dc(sums, qp);
+                    let inter = Quant::chroma_inter(qp).unwrap().chroma_dc(sums, qp);
+                    assert_eq!(
+                        intra,
+                        reference::chroma_dc_with_offset(
+                            sums.map(i64::from),
+                            qp,
+                            CHROMA_INTRA_OFFSET
+                        ),
+                        "intra QP {qp}, {sums:?}",
+                    );
+                    assert_eq!(
+                        inter,
+                        reference::chroma_dc_with_offset(
+                            sums.map(i64::from),
+                            qp,
+                            CHROMA_INTER_OFFSET
+                        ),
+                        "inter QP {qp}, {sums:?}",
+                    );
+                    if let (Ok((intra_levels, _)), Ok((inter_levels, _))) = (intra, inter) {
+                        split_witnesses[usize::from(qp)] |= intra_levels != inter_levels;
+                        assert_eq!(
+                            chroma_dc_quantizes_to_zero(sums, qp).unwrap(),
+                            inter_levels.into_iter().all(|level| level == 0),
+                        );
+                    }
+                }
+            }
+        }
+        assert!(
+            split_witnesses
+                .into_iter()
+                .all(|found| found == (CHROMA_INTRA_OFFSET != CHROMA_INTER_OFFSET))
+        );
+    }
+
+    #[test]
     fn levels_and_zero_match_exact_division_for_every_coefficient_and_qp() {
         for qp in 0..=51u8 {
             let quant = Quant::of(qp).unwrap();
@@ -609,12 +870,12 @@ mod tests {
                 for separate_dc in [false, true] {
                     assert_eq!(
                         quant.levels(&block, separate_dc),
-                        reference::quantize(&wide, qp, separate_dc).unwrap(),
+                        reference::quantize(&wide, qp, separate_dc, quant.offset).unwrap(),
                         "{qp} {c} {separate_dc}"
                     );
                     assert_eq!(
                         quant.zero(&block, separate_dc),
-                        reference::quantizes_to_zero(&wide, qp, separate_dc),
+                        reference::quantizes_to_zero(&wide, qp, separate_dc, quant.offset),
                         "{qp} {c} {separate_dc}"
                     );
                 }
@@ -633,9 +894,13 @@ mod tests {
                 let coefficients = forward(&place(source), &place(prediction), AT, STRIDE).unwrap();
                 for separate_dc in [false, true] {
                     let levels = quant.levels(&coefficients, separate_dc);
-                    let expected =
-                        reference::quantize(&reference::matrix::<false>(residual), qp, separate_dc)
-                            .unwrap();
+                    let expected = reference::quantize(
+                        &reference::matrix::<false>(residual),
+                        qp,
+                        separate_dc,
+                        quant.offset,
+                    )
+                    .unwrap();
                     assert_eq!(levels, expected);
                     let dcs: &[Option<i32>] = if separate_dc {
                         &[
@@ -758,8 +1023,10 @@ mod tests {
             );
             for qp in 10..=51 {
                 let transformed = generic(input.map(i64::from), &HADAMARD);
-                let levels = transformed
-                    .map(|v| nearest(v, norm(qp, 0).unwrap() * (1i64 << (qp / 6))).unwrap());
+                let levels = transformed.map(|v| {
+                    reference::round(v, norm(qp, 0).unwrap() * (1i64 << (qp / 6)), INTRA_OFFSET)
+                        .unwrap()
+                });
                 let inv = generic(levels.map(i64::from), &HADAMARD);
                 let expected = (|| {
                     let mut dc = [0; 16];

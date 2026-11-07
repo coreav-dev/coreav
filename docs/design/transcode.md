@@ -829,6 +829,14 @@ without it the encoder's own default applies, which the summary gives as
 
 **Pipeline.** As for Opus, the audio is encoded before the video:
 
+AAC availability is checked before source decoding with an empty 48 kHz
+mono raw-PCM encode through the same argument owner and sandbox as the
+real encode. Both starts are encoder-only invocations, never encoder-help
+queries. The probe retains at most 64 KiB and requires a successful exit
+with an EBML header. A normal nonzero exit naming the missing AAC encoder
+is unsupported; malformed output, resource failures and signals remain
+terminal errors. The real encode retains its complete Matroska readback.
+
 1. `coreav-audio`'s `decode` reads the stream as it does for Opus (the
    first audio stream this build decodes, with container trimming applied) to
    32-bit float at the stream's own rate: nothing is resampled. More than
@@ -1138,6 +1146,8 @@ preserving the source aspect ratio. Implicit `-vf scale`,
 the existing scaler and bitrate encoder path do not produce frame-identical
 output to the pinned FFmpeg. Explicit libx264 commands keep their previous
 behavior; scaling and bitrate parity are not extended here.
+An ignored `-q:v` needs no explicit encoder name when the effective video
+encoder is libx264.
 Explicit copy selection still refuses encoder options,
 and audio-only encoding still refuses video encoder options. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
 
@@ -1165,6 +1175,7 @@ explicit AAC, and default libx264 can use only the x264 program.
 | `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k with `-c:a libopus` as libopus takes it, 16k to 512k with `-c:a aac`; without it, the encoder's default; only with `-c:a libopus` or `aac` |
 | `-an` | no audio |
 | `-crf Q` | `--crf`, 0 to 51, fractions as given |
+| `-q:v Q` | ignored on the effective libx264 video encode route, including MP4's default codec, as in the pinned FFmpeg; only finite decimal numbers, optionally with an exponent, are admitted, not expressions or nonfinite values. Other encoders, copy and audio-only outputs still refuse it |
 | `-b:v RATE` | `--bitrate`: FFmpeg's number syntax (`k`, `M`, a fraction), in bits a second, divided by 1,000 with the remainder dropped as libx264 receives it (`1M` 1,000, `1234567` 1,234 kbit/s, checked on the pinned FFmpeg as a black box); a rate below 1,000 is refused |
 | `-preset P` | `--preset` |
 | `-threads N` after the input | `--threads`; `0` is the encoder's own choice |

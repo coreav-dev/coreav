@@ -402,6 +402,27 @@ fn raw_stdin_writes_before_eof_without_a_whole_input_spool() {
 fn tiny_pcm_stdout_reports_a_closed_reader_during_final_flush() {
     use std::io::Write;
     use std::process::Stdio;
+    const NAME: &str = "tiny_pcm_stdout_reports_a_closed_reader_during_final_flush";
+    if std::env::var_os("COREAV_PCM_CLOSED_READER_PROBE").is_none() {
+        let result = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                NAME,
+                "--nocapture",
+                "--color",
+                "never",
+                "--test-threads=1",
+            ])
+            .env("COREAV_PCM_CLOSED_READER_PROBE", "1")
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{result:?}");
+        assert!(
+            String::from_utf8_lossy(&result.stdout).contains(&format!("test {NAME} ... ok")),
+            "{result:?}"
+        );
+        return;
+    }
     let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
         .args([
             "--strict-safe",

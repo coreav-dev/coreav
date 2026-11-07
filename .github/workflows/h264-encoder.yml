@@ -45,8 +45,6 @@ on:
       - .github/workflows/h264-encoder.yml
       - Cargo.toml
       - Cargo.lock
-  merge_group:
-    types: [checks_requested]
   workflow_dispatch:
 
 permissions:

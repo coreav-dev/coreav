@@ -207,22 +207,33 @@ test("the install script changes nothing outside node_modules, and ignores COREA
 
 test("stopping the launcher stops the binary", { skip: process.platform === "win32" && "POSIX signals" }, async () => {
   const scratch = mkdtempSync(join(tmpdir(), "coreav-signal-"));
+  let launcher;
+  let pid;
   try {
     // A stand-in binary that records its pid and waits.
     const pidFile = join(scratch, "pid");
     const slow = join(scratch, "slow");
-    writeFileSync(slow, `#!/bin/sh\necho $$ > ${pidFile}\nexec sleep 30\n`);
+    writeFileSync(slow, `#!/bin/sh\nprintf "%s\\n" "$$" > "$COREAV_TEST_PID_FILE.tmp"\nmv "$COREAV_TEST_PID_FILE.tmp" "$COREAV_TEST_PID_FILE"\nexec sleep 30\n`);
     chmodSync(slow, 0o755);
     const { spawn } = await import("node:child_process");
-    const launcher = spawn(process.execPath, [main], { env: { ...process.env, COREAV_BINARY: slow }, stdio: "ignore" });
+    launcher = spawn(process.execPath, [main], {
+      env: { ...process.env, COREAV_BINARY: slow, COREAV_TEST_PID_FILE: pidFile }, stdio: "ignore",
+    });
     for (let i = 0; i < 100 && !existsSync(pidFile); i++) await new Promise((r) => setTimeout(r, 50));
-    const pid = Number(readFileSync(pidFile, "utf8"));
+    const printedPid = readFileSync(pidFile, "utf8");
+    assert.match(printedPid, /^[1-9][0-9]*\n$/, "signal fixture: invalid_pid_record");
+    pid = Number(printedPid);
+    assert.ok(Number.isSafeInteger(pid) && pid > 1, "signal fixture: invalid_child_pid");
     launcher.kill("SIGTERM");
     const [code, signal] = await new Promise((resolve) => launcher.on("exit", (c, s) => resolve([c, s])));
     assert.ok(signal === "SIGTERM" || code === 143, `launcher exit ${code} ${signal}`);
     await new Promise((r) => setTimeout(r, 200));
-    assert.throws(() => process.kill(pid, 0), "the binary is still running");
+    assert.throws(() => process.kill(pid, 0), { code: "ESRCH" }, `the binary is still running (pid ${pid})`);
   } finally {
+    launcher?.kill("SIGKILL");
+    if (Number.isSafeInteger(pid) && pid > 1) {
+      try { process.kill(pid, "SIGKILL"); } catch {}
+    }
     rmSync(scratch, { recursive: true, force: true });
   }
 });

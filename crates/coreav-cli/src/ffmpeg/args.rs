@@ -194,6 +194,8 @@ pub struct Encoding {
     pub audio_bitrate: Option<String>,
     /// `-q:a` or `-qscale:a` for libmp3lame VBR.
     pub audio_quality: Option<String>,
+    /// A finite `-q:v` was requested, ignored only by effective libx264 encoding.
+    pub video_quality: bool,
     /// `-fps_mode` or `-vsync`: `passthrough` (or `0`).
     pub passthrough: bool,
 }
@@ -311,7 +313,7 @@ const GLOBAL: [(&str, Arity); 7] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 37] = [
+const PER_FILE: [(&str, Arity); 38] = [
     ("-bsf:v", Arity::Value),
     ("-ar", Arity::Value),
     ("-ac", Arity::Value),
@@ -342,6 +344,7 @@ const PER_FILE: [(&str, Arity); 37] = [
     ("-b:a", Arity::Value),
     ("-q:a", Arity::Value),
     ("-qscale:a", Arity::Value),
+    ("-q:v", Arity::Value),
     ("-preset", Arity::Value),
     ("-vf", Arity::Value),
     ("-filter:v", Arity::Value),
@@ -1002,6 +1005,17 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-pix_fmt" => encoding.pixel_format = value,
             "-b:a" => encoding.audio_bitrate = value,
             "-q:a" | "-qscale:a" => encoding.audio_quality = value,
+            "-q:v" => {
+                if !text.parse::<f64>().is_ok_and(f64::is_finite) {
+                    return Err(not_native(
+                        option,
+                        Some(text),
+                        "video quality requires a finite number in native syntax",
+                    ));
+                }
+                encoding.video_quality = true;
+                continue;
+            }
             "-fps_mode" | "-vsync" => {
                 if !matches!(text, "passthrough") && !(option == "-vsync" && text == "0") {
                     return Err(not_native(
@@ -1916,6 +1930,7 @@ mod tests {
                 passthrough: true,
                 audio_bitrate: None,
                 audio_quality: None,
+                video_quality: false,
             }
         );
     }

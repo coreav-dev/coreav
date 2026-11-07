@@ -716,12 +716,12 @@ fn complete_skip_sequence_wraps_frame_numbers_then_resets_at_idr() {
 #[test]
 fn disabled_all_intra_bytes_preserve_the_original_synthetic_stream() {
     let expected = concat!(
-        "000000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888422e4d931317f8350",
-        "00100f52a896c9ea551295425889eaf2e1b3ce554b6b9430010a1f0c000a2483a7c74f8e9f1d3e0e6e39b8e6e39bc000",
-        "0000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888208bb36ccc6d6fc1a80",
-        "00806a954252f27a9544a55094bc9eab6a7d527ad955286002143618001449074f8e9f1d3e3a7c1cdc7371cdc7378000",
-        "0000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888422e4190131065e0d40",
-        "0040254aa25cf0e154252a8973c38ecee79c73c396787030010a1b10000a23074f8e9f1d3e3a7c1cdc7371cdc73780",
+        "000000016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888422e4d9315bfc1a80",
+        "00807a9544b64f52a894aa12c44f57b9f5caa96d7286002143e18001449075f1d7c75f1d7c1cdc7371cdc73780000000",
+        "016742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888208bb36ccd2ff06a000201a",
+        "a55094bc9ea5512954252f27aacb85eaa4f5b2aa50c004286c300028920ebe3af8ebe3af839b8e6e39b8e6f000000001",
+        "6742c033da7a6a020203e0000003002000000790800000000168ce3e800000000165888422e419013137f06a0002012a",
+        "5512e7870aa129544b9e1c7973639e1cb3c381800850d8800051183af8ebe3af8ebe0e6e39b8e6e39bc0",
     );
     for gop in [Gop::AllIntra, Gop::Fixed { idr_interval: 1 }] {
         let mut s = settings(16, 16, 28);
@@ -806,16 +806,79 @@ fn p_intra_fallback_keeps_every_candidate() {
     encode_16x16(&mut encoder, &[128; 384]).unwrap();
     let p = encode_16x16(&mut encoder, &xorshift(1)).unwrap();
     let expected = concat!(
-        "000000016742c033da7a6a020203e0000003002000000790800000000168ce3e8000000001619a202aa6bd5ec64f832a",
-        "f00040b8e02180afcc17ac9e9c9f9abde0301035508134d56b9f85151b53fde000080d8039050b6843463b4d22d994d1",
-        "e00097a00803872383f89e74fb81ff8301756002de0d99b938f19d674a35e0000400c002e815c88d18b18fab9722d3ff",
-        "bc0001006053a01393d856c56a9815435f810e4879dd8335e517273b368871e0000805060ebcc2692eed078f2c9d51e7",
-        "810e02d84fbb438c8364084d875cfc010107989eb6174be48d626894a7c20404d031a74b0b0dc8f99d57db78010a003e",
-        "c4ecbabf65e17d51775f819c000d20c0673f225ba4dde2efef00203d80f055e2bcb9349e192d4c65e000182002966d61",
-        "a259c92e35f274fd0400020230100101000080d020e64002c00040240705db612a3796463b9450ffb8400c20142bbb5a",
-        "1645852e906bc0041c31c6d0376781b406dea769c4000200800020240160e25f32a987b0755200007020500010042488",
-        "66241c21c69a62b3400010051c0058cc1cb5ceead55d96cf7000638025b0a2a7ceb6931a33324fa04004069cfead3385",
-        "0fb6883ad0",
+        "000000016742c033da7a6a020203e0000003002000000790800000000168ce3e8000000001619a202aa6bd5dd909fb32",
+        "f00040b8e021809fcc17ac9e9c9f9abde0301035508134d56b9f84d51b53fde000080d8039050b6843463b4922b994d1",
+        "e00097a00803872583f89e74f381ef83017560025e0c99b736f19d274a35f0000401403a408438307ace3e2f8dc2287c",
+        "0001004053201793da56c56aa815475f810e4879dd8335e50726fb368875e0000805060ebcc268aeed078f2c9d41e781",
+        "0e02d84fbb438c8364084d871d7c010107989eb6174be48d626894afc20404d031a74b0b0dc8f99d57da780102800d63",
+        "f25dbdf4267f9aa7887c0ca00049060339f912dd26ef173e7804002a848ca4ff166509e1d6498a3c00030400528dac30",
+        "4b2925c6be4a9780800040460200202000101a041cc8005800080480e0bb6c2536f2c8c7728a1ff70801840285776b42",
+        "c8b0a5d20d7800838638da06ecf03680dbd4ed3880004010000404802c1c4be65530f60e2a40000e040a00020084910b",
+        "c4838438d34c5668000200a2800b198396b9dd5a8bb2d9ee000c7004b61454f9d6d263466649f4080080d39fd5a670a1",
+        "f6d1075a",
     );
     assert_eq!(p, expected);
+}
+
+#[test]
+fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
+    for (width, height) in [(16, 80), (18, 34), (32, 48), (80, 66), (96, 96)] {
+        for qp in [22, 37] {
+            for deblocking in [Deblocking::Disabled, Deblocking::Enabled] {
+                let mut settings = settings(width, height, qp);
+                settings.deblocking = deblocking;
+                settings.gop = Gop::Fixed { idr_interval: 3 };
+                let mut encoders: Vec<_> = [1, 2, 3, 8]
+                    .into_iter()
+                    .map(|threads| {
+                        Encoder::with_threads(settings, Limits::default(), threads).unwrap()
+                    })
+                    .collect();
+                let mut control = Encoder::with_threads(settings, Limits::default(), 1).unwrap();
+                assert!(Encoder::with_threads(settings, Limits::default(), 0).is_err());
+                for frame in 0..5 {
+                    let mut seed = 0x81f259a3u32 + frame;
+                    let raw: Vec<_> = (0..width * height * 3 / 2)
+                        .map(|p| {
+                            seed ^= seed << 13;
+                            seed ^= seed >> 17;
+                            seed ^= seed << 5;
+                            (80 + (p + frame as usize * 3) % 64 + (seed as usize % 16)) as u8
+                        })
+                        .collect();
+                    let (y, uv) = raw.split_at(width * height);
+                    let (cb, cr) = uv.split_at(width * height / 4);
+                    let picture = Picture {
+                        y: Plane::new(y, width, width, height).unwrap(),
+                        cb: Plane::new(cb, width / 2, width / 2, height / 2).unwrap(),
+                        cr: Plane::new(cr, width / 2, width / 2, height / 2).unwrap(),
+                    };
+                    let outputs: Vec<_> = encoders
+                        .iter_mut()
+                        .map(|encoder| encoder.encode(picture).unwrap())
+                        .collect();
+                    let expected = control.encode(picture).unwrap();
+                    assert_eq!(outputs[0].nals, expected.nals);
+                    assert_eq!(outputs[0].reconstruction, expected.reconstruction);
+                    for other in &outputs[1..] {
+                        assert_eq!(outputs[0].nals, other.nals);
+                        assert_eq!(outputs[0].reconstruction, other.reconstruction);
+                    }
+                    for encoder in &mut encoders {
+                        let previous = encoder.previous_mv_count;
+                        let old = encoder.limits.access_unit_bytes;
+                        encoder.limits.access_unit_bytes = 1;
+                        assert!(matches!(encoder.encode(picture), Err(Error::Limit)));
+                        assert_eq!(encoder.previous_mv_count, previous);
+                        encoder.limits.access_unit_bytes = old;
+                        let old = encoder.limits.total_bytes;
+                        encoder.limits.total_bytes = 0;
+                        assert!(matches!(encoder.encode(picture), Err(Error::Limit)));
+                        assert_eq!(encoder.previous_mv_count, previous);
+                        encoder.limits.total_bytes = old;
+                    }
+                }
+            }
+        }
+    }
 }

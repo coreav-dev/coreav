@@ -28,6 +28,16 @@ Prediction continues to use checked `Block` and `BlockMut` views, including the 
 
 Alternatives were a new public kernel crate or threading a function table through every search structure. Both introduce ownership and API surface without a current consumer. A small private capability and the existing checked pixel trait keep geometry and arithmetic in their existing owners.
 
+## Batched Hadamard sums
+
+Forward transformation, quantization and inverse arithmetic are covered separately by the [transform SIMD design](h264-encoder-transform-simd.md).
+
+The next arithmetic change keeps the existing row SAD and its per-row early rejection unchanged. SATD gains a checked square-block interface for widths 4, 8 and 16. These are sums of independent 4x4 Hadamard costs, not an 8x8 transform. Mode decision submits the whole square so dispatch and extent validation happen once, including its single-block decisions. The scalar transform remains the reference and fallback.
+
+The AVX2 implementation widens exact-width byte loads to sixteen signed 16-bit lanes, computes four horizontal transforms independently per row and then transforms four rows vertically. Narrow blocks zero the unused lanes. Residuals are in [-255, 255], horizontal coefficients in [-1020, 1020] and final coefficients in [-4080, 4080], so every butterfly and absolute value fits signed 16-bit arithmetic. Wide accumulation preserves the scalar sum and its division by two for every 4x4 block. Each block's sum is even, so dividing the accumulated sum once is exact. Runtime detection, the forced-scalar feature and the existing private unsafe boundary are unchanged.
+
+Verification compares all admitted square sizes against the unchanged scalar transform, including extreme patterns, unaligned and final-byte extents, malformed extents and randomized strides. A differential fuzz target exercises the same safe boundary. Complete-stream identity and encode-only alternating reference runs compare explicit baseline and candidate commits in separate build directories on one x86 Actions host, including scalar-forced controls. No search, interpolation, quantization or threading policy changes.
+
 ## Verification and reference method
 
 - Compare every new kernel against safe scalar over all extreme byte combinations, lengths including exact final-byte boundaries, random samples and unaligned subslices. Compare error results at malformed length boundaries too.
