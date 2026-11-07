@@ -870,7 +870,7 @@ fn copied_mp3_matches_oracle_metadata_with_and_without_bitrate() {
             std::fs::rename(encoded, dir.0.join("source.mp4")).unwrap();
             let control = native_transcode_control(&dir.0);
             assert_eq!(audio_entries(&control).len(), 2);
-            for rate in [None, Some("16k"), Some("96k"), Some("128k")] {
+            for rate in [None, Some("0"), Some("16k"), Some("96k"), Some("128k")] {
                 let mut args = vec![
                     "-map", "0:v", "-map", "0:a", "-c:v", "libx264", "-threads", "1", "-c:a",
                     "aac", "-c:a", "copy",
