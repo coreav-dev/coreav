@@ -1,0 +1,71 @@
+name: core-660-profile
+on:
+  push:
+    branches: [gunwooterry/core-660-reference]
+permissions:
+  contents: read
+env:
+  BASE: aff17330db351f39ca6f3c742951aa8e400fbbad
+  HARNESS_SHA256: 13586cd4388b2cce1a52b3da70ccf95d5904d5ed92fd9ce3bdb7b38150b9ace6
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Provision tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y valgrind linux-tools-generic
+          sudo sysctl kernel.perf_event_paranoid=-1 || true
+          echo "PERF=$(find /usr/lib/linux-tools -name perf -type f | sort | tail -1)" >> "$GITHUB_ENV"
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          python3 -m pip install --quiet boto3
+      - name: Fetch private diagnostic harness
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          python3 - <<'PY'
+          import boto3, hashlib, io, os, tarfile
+          c = boto3.client('s3', endpoint_url=os.environ['R2_ENDPOINT'], aws_access_key_id=os.environ['R2_ACCESS_KEY_ID'], aws_secret_access_key=os.environ['R2_SECRET_ACCESS_KEY'], region_name='auto')
+          sha = os.environ['HARNESS_SHA256']
+          data = c.get_object(Bucket=os.environ['R2_BUCKET'], Key='diagnostics/' + sha + '.tar.gz')['Body'].read()
+          assert hashlib.sha256(data).hexdigest() == sha
+          with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as t:
+              t.extractall(filter='data')
+          PY
+      - name: Build explicit main and diagnostic arms
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          for arm in main attribute; do
+            git worktree add --detach "$RUNNER_TEMP/$arm" "$BASE"
+            cp ab/encode.rs "$RUNNER_TEMP/$arm/crates/coreav-h264-encoder/examples/encode.rs"
+            if [ "$arm" = attribute ]; then python3 ab/instrument.py "$RUNNER_TEMP/$arm"; fi
+            RUSTFLAGS="-C force-frame-pointers=yes -C symbol-mangling-version=legacy -C debuginfo=1" CARGO_TARGET_DIR="$RUNNER_TEMP/target-$arm" cargo build --locked --release --manifest-path "$RUNNER_TEMP/$arm/Cargo.toml" -p coreav-h264-encoder --features full --example encode
+            cp "$RUNNER_TEMP/target-$arm/release/examples/encode" "$RUNNER_TEMP/bin/$arm-encode"
+          done
+      - name: Collect counts samples and scheduler traces
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: python3 ab/collect.py "$RUNNER_TEMP/results" "$RUNNER_TEMP/bin" "$RUNNER_TEMP/oracle"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: internal-profile
+          path: |
+            ${{ runner.temp }}/results/*.json
+            ${{ runner.temp }}/results/*.callgrind
+            ${{ runner.temp }}/results/*.txt
+            ${{ runner.temp }}/results/*.log
+            ${{ runner.temp }}/results/*.perf
+          retention-days: 1
