@@ -1,0 +1,33 @@
+# HEVC wavefront decoding
+
+## Choice
+
+Start with wavefront parallel processing (WPP) for a single-tile picture whose first independent slice supplies one entropy substream per CTU row. Keep every other slice on the existing serial path. Both paths use the same CTU decoder. This remains an opt-in `native-hevc` feature.
+
+Frame parallelism has the broadest eventual coverage, including streams without entry points. It also needs concurrent DPB lifetimes, reference-row publication after deblocking and SAO, motion-field publication, and cancellation across picture dependencies. The current DPB publishes only complete filtered pictures. Changing that contract is larger than a first threading path and overlaps the filtering work.
+
+Tiles have independent entropy and prediction state but help only streams that signal multiple tiles. Independent slices also need no entropy synchronization, but arbitrary slice boundaries and dependent segments complicate admission. Neither is a reliable assumption about the existing reference inputs. WPP already has parsed entry points and a serial second-CTU context checkpoint. It can expose most entropy and reconstruction work without changing the DPB or filtering.
+
+The expected gain is limited to WPP-signalled inputs and excludes serial filtering. Wide pictures offer more useful overlap than narrow pictures because each lower row trails the row above by two CTUs. The reference run must report actual eligible-picture coverage rather than treating non-WPP inputs as parallel work. No numerical speed-up is assumed before that run.
+
+## Ownership and ordering
+
+Each worker owns reconstruction scratch and its mutable picture storage. A row publishes completed CTUs, their prediction cells and SAO metadata under one mutex. A lower row waits until the upper row has completed the current column plus its upper-right neighbour, or the upper row has ended. It imports only published data. The second completed CTU also publishes the CABAC context checkpoint required by H.265 clause 9.3.2. Spatial prediction and QP derivation continue to use the existing slice and tile availability rules.
+
+Rows are assigned in increasing order to a bounded group of scoped workers. Dependencies point only to the preceding row. Completed row storage is merged in row order before the unchanged whole-picture finalization and hash check. No partially reconstructed or filtered picture enters the DPB. The output callback still runs on the caller's thread in presentation order.
+
+The codec exposes `PictureDecoder::with_threads`. The backend follows the existing native decoder option shape, `NativeOptions { threads: Option<usize> }`, with `None` selecting available host parallelism and explicit counts bounded to 1 through 16. Memory admission can reduce the effective count to one. Threadless targets retain serial decoding. The existing command-line decoder thread option supplies this backend option without adding a new CLI flag.
+
+## Failure and resource bounds
+
+Charge worker picture buffers, row publications, synchronization records and bounded thread stacks before starting work. Preserve the existing serial path when extra storage does not fit. Workers never call user callbacks or mutate the DPB.
+
+Each row records its entropy consumption and outcome. Reconcile rows in bitstream order against the stream and picture bin budgets, so scheduling does not choose the reported syntax or budget failure. A failed row wakes dependent rows. Every worker is joined before returning, including after a spawn failure, decode error or panic. Convert a caught reconstruction panic to the same terminal codec failure at every thread count. Deadline checks remain inside CTU work and dependency waits. Failure publishes no partial picture and the session remains failed.
+
+## Verification
+
+Compare complete visible output, coded-component hashes, picture order, timestamps and work counters with one thread at 2, 4 and 8 threads. Run the admitted conformance set and generated WPP boundary cases, including one-column rows, partial final rows, malformed entry points, dependent-segment continuation, budget exhaustion, callback failure and deadline expiry. Stress repeated decoding under a hard process timeout. Exercise the synchronization owner with ThreadSanitizer on Linux where supported. Keep unsupported sanitizer coverage explicit.
+
+Measure the existing reference inputs on GitHub Actions with full candidate and main SHAs, separate executables, warm-up and alternating repeated calls at 1, 4, 8 and 16 threads. First verify pixels against the qualified pinned oracle. Report main time divided by candidate time, candidate one-thread time divided by candidate multithread time, CPU usage, host core count and WPP coverage. These are shared-runner reference figures, not speed acceptance bars. Retain the result privately and delete the disposable runs afterward.
+
+No change in this work modifies `inverse_residual`, `Frame::finalize`, the default build, decoder isolation, or the admitted coding-tool set. Sources are ITU-T H.265 and conformance data only.
