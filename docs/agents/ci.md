@@ -2,8 +2,44 @@
 
 Workflow required checks, path filters, DCO, pinned actions, merge-group reuse, and workspace lints.
 
+## Run Linux development commands locally
+
+Use Docker Desktop on Apple Silicon for trusted Linux-only unit tests and generated-fixture checks. Start Docker Desktop, enable Rosetta for amd64 emulation, and allocate about 24 GB to its VM. Each command is limited to 6 GiB, two CPUs, 512 processes, and two Cargo build jobs. Coordinate builds across worktrees; run at most one Rust build per thread.
+
+From the worktree root, build the amd64 image and verify its oracle:
+
+```sh
+python3 scripts/dev-container.py --build -- python3 scripts/oracle_pin.py --verify-bin /opt/oracle/bin
+python3 scripts/dev-container.py --platform linux/arm64 --build -- node --test --test-name-pattern='running executable' packages/cli/test/native.test.mjs
+```
+
+For Rust, fetch dependencies with explicit network access, then test offline:
+
+```sh
+python3 scripts/dev-container.py --network -- cargo fetch --locked
+python3 scripts/dev-container.py -- cargo test --locked --offline -p coreav-range
+python3 scripts/dev-container.py --platform linux/arm64 --build -- cargo --version
+```
+
+The arm64 image has no oracle. Rebuild after changing the Dockerfile, Rust toolchain file, or oracle installer inputs; the wrapper identifies images by those inputs. The current Rust channel is `stable`, so rebuilding without a cached toolchain layer can resolve a newer stable compiler.
+
+The wrapper forwards arguments without a shell. Use `-- bash -c 'command && another-command'` when shell syntax is needed. Commands run as UID 1000 from the corresponding directory under `/work`. The wrapper mounts only this worktree, not its parent, host home, Git metadata outside the worktree, SSH agent, or Docker socket. Keep credentials and untrusted files outside the worktree. No host environment variables are passed into the container. Runtime networking is off unless `--network` is present; image builds require networking. The oracle build uses only the public download and fails if that download fails; no credentialed fallback is available. Keep these development images local, not in a registry.
+
+Cargo output stays in a per-worktree, per-architecture named volume at `/target`. The Cargo home, including the registry and its shared lock files, uses a named volume per architecture. Containers are removed after each command. Files deliberately written under `/work` persist in the checkout; use `/target` or `/tmp` for generated scratch files. Git-based repository checks run on the host because a linked worktree's external Git metadata is not mounted.
+
+Emulated amd64 results are development checks only. Never use them to judge a registered measurement. Registered Linux x86_64 runs, untrusted media, and credentialed work remain on GitHub Actions or the designated measurement host. This container does not replace decoder isolation or any required CI check.
+
+Emulation can differ from native Linux even in filesystem behavior. The running-executable inode regression requires `ETXTBSY`, which the translated amd64 executable does not produce on the tested Docker Desktop host. Run that regression in native arm64, as above, or GitHub Actions. Do not weaken its assertion for emulation.
+
+### Reclaim Docker disk
+
+Inspect usage with `docker system df -v`. Run `docker builder prune` to remove unused build cache and `docker image prune` to remove dangling images. Both commands ask for confirmation. Stop containers before removing their data.
+
+List development caches with `docker volume ls --filter name=coreav-dev-`. After checking that a listed cache is no longer needed, remove that exact volume with `docker volume rm VOLUME_NAME`. Removing a registry cache requires another network-enabled fetch; removing a target cache requires a rebuild. Avoid `docker system prune --volumes`, which can delete unrelated project data.
+
 | Rule | Enforced by |
 |---|---|
+| Local Linux development commands mount only their worktree and named Cargo caches, without host credentials or default runtime networking | `scripts/dev-container.py` owns the Docker argument list and explicit build inputs; `test_dev_container.py` checks mounts, non-root identity, limits, network opt-in, argument forwarding, build context, and refusal outside the worktree. Keep secrets outside the mounted worktree; arbitrary file contents cannot be classified by a path check |
 | A credentialed manual workflow that builds a dispatched commit admits only commits on this repository's branches, so pull-request code from forks never runs beside corpus credentials | The HEVC reference workflow's admission step refuses a candidate no branch contains before the build and every credentialed step; `test_candidate_must_be_on_a_branch_before_it_builds_or_sees_credentials` pins that order. Writers already hold the repository's secrets, so this closes the only path that widens access. Workflow step order cannot be encoded in Rust types |
 | A daily full run skips only for a successful same-workflow main-push attempt at its exact SHA; weekly full runs never skip for coverage, and a covered daily never masquerades as missing full work | `merge-group-result` owns bounded search and revalidation; `ci_full.covers` owns complete job/proof validation shared with the pinned-claim reporter. `test_full_coverage.py` rejects wrong identities, non-successes, missing legs, reruns and malformed claims, while preserving cancellation and manual evidence. An exact daily-cron gate excludes each weekly trigger; the weekly scheduling test supplies a covering success and still requires every registered full job, and the reporter test preserves the normal failure path. Workflow selection is external to Python types; weekly full work checks drift while main stays unchanged |
 | Merge-group reuse proves both the actual PR-tested tree and base at the newest successful run attempt; missing evidence runs the ordinary checks and advisory scans stay fresh | `merge-group-result` owns checkout-bound attempt receipts and metadata lookup. `test_merge_group_result.py` rejects wrong identities, stale or duplicate receipts, incomplete indexes, newer failures/reruns and head races; `test_main_ci_plan.py` keeps reused groups out of fixture production and main-only maintenance, retains main's baseline guard, and executes root/fuzz advisory commands and their skipped/failure witness. Workflow self-tests reject non-required merge-group triggers. Tree equality alone cannot prove changed-path selection, a base comparison or a current advisory database |
