@@ -68,5 +68,13 @@ jobs:
             ${{ runner.temp }}/results/*.callgrind
             ${{ runner.temp }}/results/*.txt
             ${{ runner.temp }}/results/*.log
-            ${{ runner.temp }}/results/*.perf
+          retention-days: 1
+      - name: Make privileged recordings readable
+        if: always()
+        run: sudo chmod -R a+rX "$RUNNER_TEMP/results"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: internal-perf-recordings
+          path: ${{ runner.temp }}/results/*.perf
           retention-days: 1
