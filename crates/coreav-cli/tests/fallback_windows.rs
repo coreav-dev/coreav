@@ -37,7 +37,7 @@ fn stand_in() -> &'static Path {
 
 fn args(tool: &str) -> &'static [&'static str] {
     match tool {
-        "ffmpeg" => &["-i", "in.mp4", "-vf", "x", "out.mp4"],
+        "ffmpeg" => &["-i", "in.mp4", "-af", "x", "out.mp4"],
         _ => &["-show_data", "in.mp4"],
     }
 }

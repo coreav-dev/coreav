@@ -1000,7 +1000,7 @@ fn a_relative_coreav_fallback_is_the_file_in_the_working_directory() {
     let decoy = tmp("relative-decoy");
     symlink("/bin/false", decoy.join("ffmpeg")).unwrap();
     let out = Command::new(bin())
-        .args(["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"])
+        .args(["ffmpeg", "-i", "in.mp4", "-af", "x", "out.mp4"])
         .current_dir(stand_in())
         .env_clear()
         .env("PATH", &decoy)
@@ -1018,7 +1018,7 @@ fn an_empty_path_element_is_the_working_directory_after_coreav() {
     let links = tmp("empty-path-element");
     symlink(bin(), links.join("ffmpeg")).unwrap();
     let out = Command::new(bin())
-        .args(["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"])
+        .args(["ffmpeg", "-i", "in.mp4", "-af", "x", "out.mp4"])
         .current_dir(stand_in())
         .env_clear()
         .env("PATH", format!("{}:", links.display()))
@@ -1040,7 +1040,7 @@ fn a_program_on_path_this_process_cannot_run_is_skipped() {
         return;
     }
     let r = coreav(
-        &["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"],
+        &["ffmpeg", "-i", "in.mp4", "-af", "x", "out.mp4"],
         &[&bad, stand_in()],
         &[],
     );
@@ -1057,7 +1057,7 @@ fn a_program_that_cannot_start_is_logged_as_not_run() {
     std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
     let log = dir.join("fallback.log");
     let r = coreav(
-        &["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"],
+        &["ffmpeg", "-i", "in.mp4", "-af", "x", "out.mp4"],
         &[],
         &[
             ("COREAV_FALLBACK", dir.to_str().unwrap()),
@@ -1083,13 +1083,13 @@ fn without_a_program_the_command_is_refused_and_says_why() {
     let links = tmp("missing");
     symlink(bin(), links.join("ffmpeg")).unwrap();
     let r = coreav(
-        &["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"],
+        &["ffmpeg", "-i", "in.mp4", "-af", "x", "out.mp4"],
         &[&links],
         &[],
     );
     assert_eq!(r.code, 4);
     assert!(r.stdout.is_empty());
-    assert!(r.stderr.contains("'-vf' is not supported"), "{}", r.stderr);
+    assert!(r.stderr.contains("'-af' is not supported"), "{}", r.stderr);
     assert!(
         r.stderr.contains("no other ffmpeg on PATH to run instead"),
         "{}",
@@ -1213,7 +1213,7 @@ fn the_guard_is_set_by_any_value() {
     let dir = stand_in().to_str().unwrap();
     for value in ["", "0", "1"] {
         let r = coreav(
-            &["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"],
+            &["ffmpeg", "-i", "in.mp4", "-af", "x", "out.mp4"],
             &[],
             &[("COREAV_FALLBACK", dir), ("COREAV_FALLBACK_ACTIVE", value)],
         );
@@ -1233,7 +1233,7 @@ fn a_fallback_that_leads_back_to_coreav_is_stopped_by_the_guard() {
     symlink(bin(), links.join("ffmpeg")).unwrap();
     let log = links.join("fallback.log");
     let r = coreav(
-        &["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"],
+        &["ffmpeg", "-i", "in.mp4", "-af", "x", "out.mp4"],
         &[],
         &[
             ("COREAV_FALLBACK", links.to_str().unwrap()),
@@ -1389,7 +1389,7 @@ fn the_log_gets_one_redacted_line_per_command_that_is_not_native() {
 fn a_log_that_cannot_be_written_costs_one_line_and_never_stops_the_command() {
     let dir = stand_in().to_str().unwrap();
     let r = coreav(
-        &["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"],
+        &["ffmpeg", "-i", "in.mp4", "-af", "x", "out.mp4"],
         &[],
         &[("COREAV_FALLBACK", dir), ("COREAV_FALLBACK_LOG", dir)],
     );

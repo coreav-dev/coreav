@@ -194,6 +194,8 @@ pub struct Encoding {
     pub audio_bitrate: Option<String>,
     /// `-q:a` or `-qscale:a` for libmp3lame VBR.
     pub audio_quality: Option<String>,
+    /// A finite `-q:v` was requested, ignored only by effective libx264 encoding.
+    pub video_quality: bool,
     /// `-fps_mode` or `-vsync`: `passthrough` (or `0`).
     pub passthrough: bool,
 }
@@ -311,7 +313,7 @@ const GLOBAL: [(&str, Arity); 7] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 37] = [
+const PER_FILE: [(&str, Arity); 38] = [
     ("-bsf:v", Arity::Value),
     ("-ar", Arity::Value),
     ("-ac", Arity::Value),
@@ -342,6 +344,7 @@ const PER_FILE: [(&str, Arity); 37] = [
     ("-b:a", Arity::Value),
     ("-q:a", Arity::Value),
     ("-qscale:a", Arity::Value),
+    ("-q:v", Arity::Value),
     ("-preset", Arity::Value),
     ("-vf", Arity::Value),
     ("-filter:v", Arity::Value),
@@ -1002,6 +1005,17 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-pix_fmt" => encoding.pixel_format = value,
             "-b:a" => encoding.audio_bitrate = value,
             "-q:a" | "-qscale:a" => encoding.audio_quality = value,
+            "-q:v" => {
+                if !text.parse::<f64>().is_ok_and(f64::is_finite) {
+                    return Err(not_native(
+                        option,
+                        Some(text),
+                        "video quality requires a finite number in native syntax",
+                    ));
+                }
+                encoding.video_quality = true;
+                continue;
+            }
             "-fps_mode" | "-vsync" => {
                 if !matches!(text, "passthrough") && !(option == "-vsync" && text == "0") {
                     return Err(not_native(
@@ -1207,6 +1221,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     }
     if let Some(option) = encoders.first()
         && !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264)
+        && !(command.muxer == Muxer::Mp4
+            && command.encoding.bitrate.is_none()
+            && command
+                .encoding
+                .filter
+                .as_deref()
+                .is_none_or(|filter| filter.starts_with("crop=")))
         && !command.muxer.frames()
         && command.muxer != Muxer::Matroska
     {
@@ -1777,7 +1798,7 @@ mod tests {
         };
         let named = |name: &str, value: Option<&str>| (name.to_owned(), value.map(str::to_owned));
         assert_eq!(
-            option("-i in.mp4 -vf scale=2:2 out.mp4"),
+            option("-i in.mp4 -vf scale=2:2 out.m4a"),
             named("-vf", None)
         );
         assert_eq!(
@@ -1785,7 +1806,7 @@ mod tests {
             named("-c:v", Some("libx265"))
         );
         assert_eq!(
-            option("-i in.mp4 -c copy -crf 23 out.mp4"),
+            option("-i in.mp4 -c copy -crf 23 out.m4a"),
             named("-crf", None)
         );
         assert_eq!(
@@ -1817,7 +1838,7 @@ mod tests {
             named("-copyts", None)
         );
         assert_eq!(
-            option("-i in.mp4 -filter:v x out.mp4"),
+            option("-i in.mp4 -filter:v x out.m4a"),
             named("-filter:v", None)
         );
         assert_eq!(
@@ -1909,8 +1930,30 @@ mod tests {
                 passthrough: true,
                 audio_bitrate: None,
                 audio_quality: None,
+                video_quality: false,
             }
         );
+    }
+
+    #[test]
+    fn mp4_video_options_reach_effective_codec_selection() {
+        for line in [
+            "-i in.mp4 -vf crop=2:2:0:0 out.mp4",
+            "-i in.mp4 -c copy -crf 23 out.mp4",
+            "-i in.mp4 -c:a copy -s 32x24 out.mp4",
+        ] {
+            assert!(parse(&args(line)).is_ok(), "{line}");
+        }
+        for line in [
+            "-i in.mp4 -vf scale=32:24 out.mp4",
+            "-i in.mp4 -filter:v scale=32:24 out.mp4",
+            "-i in.mp4 -b:v 100k out.mp4",
+        ] {
+            assert!(
+                matches!(parse(&args(line)), Err(Refusal::NotNative(_))),
+                "{line}"
+            );
+        }
     }
 
     #[test]

@@ -219,7 +219,7 @@ impl Quant {
         let mut coefficients = [0; 16];
         if levels.iter().any(|&level| level != 0) {
             coefficients = self.scaled(levels);
-            if !coefficients.iter().all(|&c| fits(c)) {
+            if !inverse_input_valid(&coefficients) {
                 return Err(Error::Coefficient);
             }
         }
@@ -342,6 +342,10 @@ fn fits(v: i32) -> bool {
     (-32768..=32767).contains(&v)
 }
 
+pub(crate) fn inverse_input_valid(coefficients: &[i32; 16]) -> bool {
+    coefficients.iter().copied().all(fits)
+}
+
 fn inverse_line([a, b, c, d]: [i32; 4]) -> ([i32; 4], bool) {
     let (p, q, r, s) = (a + c, a - c, (b >> 1) - d, b + (d >> 1));
     let out = [p + s, q + r, q - r, p - s];
@@ -360,10 +364,13 @@ fn inverse(coefficients: [i32; 16]) -> Option<[i32; 16]> {
 }
 
 pub(crate) fn inverse_scalar(coefficients: [i32; 16]) -> Option<[i32; 16]> {
+    if !inverse_input_valid(&coefficients) {
+        return None;
+    }
     if let [dc, rest @ ..] = coefficients
         && rest.iter().all(|&c| c == 0)
     {
-        return (fits(dc) && dc <= 32735).then_some([dc; 16]);
+        return (dc <= 32735).then_some([dc; 16]);
     }
     let [
         a0,
@@ -530,6 +537,45 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    #[test]
+    fn inverse_paths_reject_coefficients_outside_the_shared_domain() {
+        let check = |coefficients: [i32; 16], expected| {
+            assert_eq!(inverse_scalar(coefficients), expected, "{coefficients:?}");
+            assert_eq!(inverse(coefficients), expected, "{coefficients:?}");
+            #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+            {
+                let simd = crate::simd::Avx2::detect();
+                assert_eq!(simd.is_some(), std::is_x86_feature_detected!("avx2"));
+                if let Some(simd) = simd {
+                    assert_eq!(simd.inverse(&coefficients), expected, "{coefficients:?}");
+                }
+            }
+        };
+        for row in 0..4 {
+            let mut coefficients = [0; 16];
+            coefficients[row * 4 + 1] = 39000;
+            coefficients[row * 4 + 3] = -13000;
+            check(coefficients, None);
+        }
+        for position in 0..16 {
+            for value in [i32::MIN, -39000, -32769, 32768, 39000, i32::MAX] {
+                let mut coefficients = [0; 16];
+                coefficients[position] = value;
+                check(coefficients, None);
+            }
+        }
+        for dc in [-32768, -1, 0, 1, 32735] {
+            let mut coefficients = [0; 16];
+            coefficients[0] = dc;
+            check(coefficients, Some([dc; 16]));
+        }
+        for dc in [32736, 32767] {
+            let mut coefficients = [0; 16];
+            coefficients[0] = dc;
+            check(coefficients, None);
+        }
     }
 
     #[test]
