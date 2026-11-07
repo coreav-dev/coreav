@@ -698,6 +698,10 @@ impl Frame {
     ) -> Result<Location> {
         self.check_deadline()?;
         let location = input.layout.at_tile_scan(self.next_ctu)?;
+        #[cfg(test)]
+        if let Some(hook) = &self.test_hook {
+            hook.compute(location.y, location.x)?;
+        }
         self.start_ctu(input, location, slice)?;
         self.read_sao(input, location, slice, cabac)?;
         Walker {
@@ -3351,6 +3355,155 @@ mod tests {
         assert_eq!(frame.stats.wpp_restarts, 1);
         assert_eq!(frame.stats.ctus, 6);
         assert_eq!(budget, 0);
+        Ok(())
+    }
+
+    fn above_right_wavefront() -> Result<(Fixture, Vec<u8>, [u64; 1])> {
+        let fixture = fixture(48, 32, 8, true, 1)?;
+        let top = pcm_body(
+            &[[0x86, 0x80], [0x8b, 0x80], [0x91, 0x80]],
+            [0xfd, 0x80],
+            &[34, 51, 68],
+        )?;
+        let lengths = [top.len() as u64];
+        let mut rbsp = vec![0x80];
+        rbsp.extend(top);
+        rbsp.extend([0x90, 0x44, 0x2b, 0xb1, 0x80]);
+        Ok((fixture, rbsp, lengths))
+    }
+
+    #[test]
+    fn wavefront_above_right_prediction_waits_for_publication() -> Result<()> {
+        use super::super::parallel::{TestFault, TestHook};
+        let (fixture, rbsp, lengths) = above_right_wavefront()?;
+        let original = escaped(&rbsp);
+        let input = fixture.input(segment(&rbsp, &original, &lengths));
+        let mut serial = Frame::new(&input, 0, usize::MAX)?;
+        let mut budget = 10_000_000;
+        serial.decode_common(input, None, &mut budget, 0, usize::MAX, 1)?;
+        assert_eq!(serial.planes[0][16 * 48 + 30], 55);
+        assert_eq!(serial.planes[0][16 * 48 + 31], 64);
+        assert_eq!(serial.stats.pcm_units, 3);
+        assert_eq!(serial.stats.coding_units, 6);
+        assert_eq!(serial.cell(16, 16)?.mode, Some(IntraMode::new(34)?));
+        for threads in [2, 4, 8] {
+            let hook = std::sync::Arc::new(TestHook::new(TestFault::None, true));
+            let mut frame = Frame::new(&input, 0, usize::MAX)?;
+            frame.test_hook = Some(hook.clone());
+            let mut parallel_budget = 10_000_000;
+            std::thread::scope(|scope| {
+                let controller =
+                    scope.spawn(|| hook.release_after_wait(std::time::Duration::from_millis(20)));
+                let result =
+                    frame.decode_common(input, None, &mut parallel_budget, 0, usize::MAX, threads);
+                assert!(controller.join().unwrap());
+                result
+            })?;
+            assert!(frame.workers > 1);
+            assert!(frame.complete());
+            assert_eq!(frame.planes, serial.planes);
+            assert_eq!(frame.stats, serial.stats);
+            assert_eq!(frame.inter_stats, serial.inter_stats);
+            assert_eq!(parallel_budget, budget);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn wavefront_mid_row_errors_and_panics_join_every_worker() -> Result<()> {
+        use super::super::parallel::{TestFault, TestHook};
+        let (_, mut rbsp, prefix_lengths) = above_right_wavefront()?;
+        let fixture = fixture(48, 128, 8, true, 1)?;
+        let mut lengths = vec![prefix_lengths[0], 5];
+        let last = rbsp.len() - 2;
+        rbsp[last] = 0xb0;
+        for (row, starts) in [
+            [0x9c, 0xa0, 0xa5],
+            [0xa6, 0xaa, 0xae],
+            [0xaf, 0xb2, 0xb6],
+            [0xb7, 0xb9, 0xbd],
+            [0xbe, 0xc0, 0xc3],
+            [0xc4, 0xc6, 0xc9],
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let body = pcm_body(
+                &starts.map(|byte| [byte, 0x80]),
+                [if row == 5 { 0xfe } else { 0xfd }, 0x80],
+                &[68; 3],
+            )?;
+            if row != 5 {
+                lengths.push(body.len() as u64);
+            }
+            rbsp.extend(body);
+        }
+        let original = escaped(&rbsp);
+        let input = fixture.input(segment(&rbsp, &original, &lengths));
+        let mut control = Frame::new(&input, 0, usize::MAX)?;
+        let control_result = control.decode(input, &mut 10_000_000, 0, usize::MAX);
+        assert!(
+            control_result.is_ok(),
+            "{control_result:?} at CTU {}",
+            control.next_ctu
+        );
+        assert!(control.complete());
+        assert_eq!(control.stats.ctus, 24);
+        for (fault, expected) in [
+            (TestFault::Error, Error::InvalidData("injected_row_error")),
+            (TestFault::Panic, Error::Internal("reconstruction_panic")),
+        ] {
+            let mut serial_budget = None;
+            for threads in [1, 2, 4, 8] {
+                let mut frame = Frame::new(&input, 0, usize::MAX)?;
+                frame.test_hook = Some(std::sync::Arc::new(TestHook::new(fault, false)));
+                let mut budget = 10_000_000;
+                assert_eq!(
+                    super::super::caught(|| frame.decode_common(
+                        input,
+                        None,
+                        &mut budget,
+                        0,
+                        usize::MAX,
+                        threads
+                    )),
+                    Err(expected)
+                );
+                assert_eq!(frame.workers > 1, threads > 1);
+                assert_eq!(frame.workers, threads);
+                assert!(!frame.complete());
+                if let Some(expected_budget) = serial_budget {
+                    assert_eq!(budget, expected_budget);
+                } else {
+                    serial_budget = Some(budget);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn wavefront_deadline_expires_inside_a_parallel_dependency_wait() -> Result<()> {
+        use super::super::parallel::{TestFault, TestHook};
+        let (fixture, rbsp, lengths) = above_right_wavefront()?;
+        let original = escaped(&rbsp);
+        let input = fixture.input(segment(&rbsp, &original, &lengths));
+        for threads in [2, 4, 8] {
+            let hook = std::sync::Arc::new(TestHook::new(TestFault::Deadline, true));
+            let mut frame = Frame::new(&input, 0, usize::MAX)?;
+            frame.test_hook = Some(hook.clone());
+            std::thread::scope(|scope| {
+                let controller =
+                    scope.spawn(|| hook.release_after_wait(std::time::Duration::from_millis(150)));
+                assert_eq!(
+                    frame.decode_common(input, None, &mut 10_000_000, 0, usize::MAX, threads),
+                    Err(Error::Limit("decode_deadline"))
+                );
+                assert!(controller.join().unwrap());
+            });
+            assert!(frame.workers > 1);
+            assert!(!frame.complete());
+        }
         Ok(())
     }
 

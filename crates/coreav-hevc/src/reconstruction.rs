@@ -10,7 +10,7 @@ mod syntax;
 
 pub(crate) fn caught<T>(work: impl FnOnce() -> Result<T>) -> Result<T> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
-        .unwrap_or(Err(Error::Limit("reconstruction_panic")))
+        .unwrap_or(Err(Error::Internal("reconstruction_panic")))
 }
 
 /// Effective scalar inter reconstruction work, without timing.
@@ -183,6 +183,8 @@ fn allocation_bytes<T>(values: &Vec<T>) -> Result<usize> {
 }
 
 pub(crate) struct Frame {
+    #[cfg(test)]
+    test_hook: Option<std::sync::Arc<parallel::TestHook>>,
     pub(crate) workers: usize,
     pub(crate) deadline: Option<std::time::Instant>,
     index: u64,
@@ -342,6 +344,8 @@ impl Frame {
             .ok_or(Error::Limit("picture_cells"))?;
         Ok(Self {
             deadline: None,
+            #[cfg(test)]
+            test_hook: None,
             workers: 1,
             index: input.index,
             info: input.picture,

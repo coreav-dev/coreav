@@ -12,6 +12,114 @@ use std::sync::{
 
 const STACK_BYTES: usize = 2 << 20;
 
+#[cfg(test)]
+#[derive(Clone, Copy)]
+pub(super) enum TestFault {
+    None,
+    Error,
+    Panic,
+    Deadline,
+}
+
+#[cfg(test)]
+#[derive(Default)]
+struct TestProgress {
+    upper_paused: bool,
+    lower_waiting: bool,
+    lower_published: bool,
+    released: bool,
+}
+
+#[cfg(test)]
+pub(super) struct TestHook {
+    fault: TestFault,
+    delay: bool,
+    state: Mutex<TestProgress>,
+    ready: Condvar,
+}
+
+#[cfg(test)]
+impl TestHook {
+    pub(super) fn new(fault: TestFault, delay: bool) -> Self {
+        Self {
+            fault,
+            delay,
+            state: Mutex::new(TestProgress::default()),
+            ready: Condvar::new(),
+        }
+    }
+
+    pub(super) fn compute(&self, row: u32, column: u32) -> Result<()> {
+        if (row, column) == (1, 1) {
+            match self.fault {
+                TestFault::None | TestFault::Deadline => {}
+                TestFault::Error => return Err(Error::InvalidData("injected_row_error")),
+                TestFault::Panic => std::panic::resume_unwind(Box::new(())),
+            }
+        }
+        Ok(())
+    }
+
+    fn waiting(&self, row: usize, column: usize) -> Option<std::time::Instant> {
+        if self.delay && (row, column) == (1, 1) {
+            self.state
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .lower_waiting = true;
+            self.ready.notify_all();
+            if matches!(self.fault, TestFault::Deadline) {
+                return Some(std::time::Instant::now() + std::time::Duration::from_millis(20));
+            }
+        }
+        None
+    }
+
+    fn publication(&self, row: usize, column: usize) {
+        if !self.delay {
+            return;
+        }
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if (row, column) == (0, 2) {
+            state.upper_paused = true;
+            self.ready.notify_all();
+            while !state.released {
+                state = self
+                    .ready
+                    .wait(state)
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+            }
+        } else if (row, column) == (1, 1) {
+            state.lower_published = true;
+            self.ready.notify_all();
+        }
+    }
+
+    pub(super) fn release_after_wait(&self, delay: std::time::Duration) -> bool {
+        let state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (state, _) = self
+            .ready
+            .wait_timeout_while(state, std::time::Duration::from_secs(2), |s| {
+                !s.upper_paused || !s.lower_waiting
+            })
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let reached = state.upper_paused && state.lower_waiting;
+        let (mut state, _) = self
+            .ready
+            .wait_timeout_while(state, delay, |s| !s.lower_published)
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let premature = state.lower_published;
+        state.released = true;
+        self.ready.notify_all();
+        reached && !premature
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Continuation {
     next_ctu: u32,
@@ -267,6 +375,10 @@ impl Frame {
                 memory.charge(STACK_BYTES)?;
                 let mut frame = Self::allocate(input, self.reference, memory.used, limit)?;
                 frame.deadline = self.deadline;
+                #[cfg(test)]
+                {
+                    frame.test_hook = self.test_hook.clone();
+                }
                 memory.charge(frame.heap_bytes()?)?;
                 workers.push(frame);
             }
@@ -391,6 +503,10 @@ fn decode_row(
     let mut cabac = Cabac::new(bytes, budget)?;
     for x in 0..width {
         if let Some(above) = index.checked_sub(1).and_then(|index| rows.get(index)) {
+            #[cfg(test)]
+            if let Some(hook) = &frame.test_hook {
+                frame.deadline = hook.waiting(index, x).or(frame.deadline);
+            }
             let mut band = above.lock();
             loop {
                 frame.check_deadline()?;
@@ -412,6 +528,10 @@ fn decode_row(
             }
         }
         frame.decode_ctu(input, dpb, slice, &mut cabac)?;
+        #[cfg(test)]
+        if let Some(hook) = &frame.test_hook {
+            hook.publication(index, x);
+        }
         {
             let mut band = row.lock();
             band.publish(frame, x..x + 1)?;

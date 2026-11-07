@@ -4,6 +4,14 @@ use coreav_frame::{ColorInfo, Pixels};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+#[test]
+fn reconstruction_panics_are_backend_failures_not_media_limits() {
+    assert_eq!(
+        codec_error(coreav_hevc::Error::Internal("reconstruction_panic")).kind,
+        ErrorKind::Backend
+    );
+}
+
 #[path = "../../coreav-hevc/test-support/pcm.rs"]
 mod pcm;
 #[path = "../../coreav-hevc/test-support/writer.rs"]

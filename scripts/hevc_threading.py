@@ -181,6 +181,8 @@ def main():
             for identity, source, original_sha in reference.inputs(args, oracle, pathlib.Path(temp), pool):
                 try:
                     row = measure(args, oracle, source, identity)
+                    if row['status'] != 'timed':
+                        report['passed'] = False
                 except (ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
                     row = dict(id=identity, status='failed', failure=type(error).__name__)
                     if isinstance(error, ValueError):

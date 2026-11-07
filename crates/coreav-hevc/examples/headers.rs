@@ -189,6 +189,7 @@ fn main() -> std::process::ExitCode {
                 Error::InvalidData(reason) => ("invalid_data", reason),
                 Error::Unsupported(reason) => ("unsupported", reason),
                 Error::Limit(reason) => ("limit", reason),
+                Error::Internal(reason) => ("backend", reason),
             };
             let _ = row(
                 &mut output,

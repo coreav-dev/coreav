@@ -263,6 +263,24 @@ def controls(args, stream, directory, expected):
         truncated.unlink(missing_ok=True)
 
 
+def threading_coverage(entries, threads):
+    parallel_pictures = 0
+    max_workers = 0
+    for entry in entries:
+        if not entry['complete']:
+            continue
+        summary = entry['summary']
+        pictures, workers = summary.get('parallel_pictures'), summary.get('max_workers')
+        require(harness.integer(pictures) and pictures <= summary['decoded_pictures']
+                and harness.integer(workers) and workers <= min(threads, 16), 'native_thread_counters')
+        require(pictures == 0 or workers > 1 and summary['stats']['wpp_restarts'] > 0,
+                'native_parallel_wpp_work')
+        parallel_pictures += pictures
+        max_workers = max(max_workers, workers)
+    require(threads == 1 or parallel_pictures > 0, 'native_parallel_coverage_missing')
+    return dict(parallel_pictures=parallel_pictures, max_workers=max_workers)
+
+
 def run(args):
     require(sys.platform == 'linux', 'linux_actions_required')
     require(0 < args.max_memory_bytes <= 4 << 30
@@ -284,7 +302,7 @@ def run(args):
                    max_picture_bins=args.max_picture_bins)
     dispositions = [dict(test=case['test'], sha256=stream['sha256'], status=stream['status'])
                     for case in census['archives'] for stream in case['streams']]
-    result = dict(complete=False, scope='diagnostic_subset' if args.select_test else 'complete_c1',
+    result = dict(complete=False, passed=False, scope='diagnostic_subset' if args.select_test else 'complete_c1',
                   identities=identities, budgets=budgets, denominator=denominator, results=[], controls=[])
     result['source_dispositions'] = dispositions
     controlled = set()
@@ -347,6 +365,8 @@ def run(args):
                 and harness.digest(args.data / 'acquisition.json') == identities['acquisition']
                 and all(harness.digest(getattr(qualified, name)) == value for name, value in identities['oracle'].items()),
                 'run_identity_changed')
+        if getattr(args, 'threads', None) is not None and not args.select_test:
+            result['threading'] = threading_coverage(result['results'], args.threads)
         result['passed'] = bool(result['results']) and all(row['complete'] for row in result['results'])
         result['complete'] = result['passed'] and not args.select_test and len(result['results']) == len(denominator)
         result['output_pictures'] = sum(row.get('summary', {}).get('output_pictures', 0) for row in result['results'])
