@@ -1432,6 +1432,137 @@ fn hostile_encoders_end_in_an_error_and_leave_nothing() {
     nothing_left(&out_dir);
 }
 
+#[test]
+#[cfg(feature = "native-h264")]
+fn ffmpeg_default_video_encoder_applies_options() {
+    let (ffmpeg, ffprobe) = ffmpeg().unwrap();
+    let x264 = x264().expect("the pinned x264 program is required");
+    let dir = dir("ffmpeg-default-video-options");
+    let tools = Tools {
+        ffmpeg,
+        ffprobe,
+        x264,
+        fixtures: dir.clone(),
+    };
+    let source = dir.join("source.mp4");
+    let generated = Command::new(&tools.ffmpeg)
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=64x48:rate=10:duration=0.8",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-threads:v",
+            "1",
+            "-bf",
+            "0",
+        ])
+        .arg(&source)
+        .output()
+        .unwrap();
+    assert!(
+        generated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    for (case, options, width, height) in [
+        ("scale", vec!["-vf", "scale=32:24"], 32, 24),
+        ("scale-alias", vec!["-filter:v", "scale=32:24"], 32, 24),
+        ("size", vec!["-s", "64x48"], 64, 48),
+        (
+            "faststart",
+            vec![
+                "-vf",
+                "scale=32:24",
+                "-movflags",
+                "faststart",
+                "-pix_fmt",
+                "yuv420p",
+            ],
+            32,
+            24,
+        ),
+        ("crop", vec!["-vf", "crop=32:24:0:0"], 32, 24),
+        ("quality", vec!["-crf", "19", "-preset", "fast"], 64, 48),
+        ("bitrate", vec!["-b:v", "100k"], 64, 48),
+        ("passthrough", vec!["-fps_mode", "passthrough"], 64, 48),
+    ] {
+        let implicit = dir.join(format!("{case}-implicit.mp4"));
+        let explicit = dir.join(format!("{case}-explicit.mp4"));
+        for (path, codec) in [(&implicit, false), (&explicit, true)] {
+            let mut command = Command::new(bin());
+            command.arg("ffmpeg").arg("-i").arg(&source);
+            if codec {
+                command.args(["-c:v", "libx264"]);
+            }
+            let result = command
+                .args(&options)
+                .args(["-threads", "1"])
+                .arg(path)
+                .env("COREAV_X264", &tools.x264)
+                .env("COREAV_FFMPEG", NO_FALLBACK)
+                .env("COREAV_FALLBACK", NO_FALLBACK)
+                .env("COREAV_STRICT_SAFE", "0")
+                .output()
+                .unwrap();
+            assert!(
+                result.status.success(),
+                "{case}, explicit={codec}: {}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+        }
+        assert_eq!(
+            std::fs::read(&implicit).unwrap(),
+            std::fs::read(&explicit).unwrap(),
+            "{case}"
+        );
+        let probe = probe_json(&tools, &["-show_streams", "-count_frames"], &implicit);
+        assert_eq!(probe["streams"][0]["codec_name"], "h264");
+        assert_eq!(probe["streams"][0]["width"], width);
+        assert_eq!(probe["streams"][0]["height"], height);
+        assert_eq!(probe["streams"][0]["nb_read_frames"], "8");
+        decodes_cleanly(&tools, &implicit);
+    }
+    for options in [
+        vec!["-c", "copy", "-vf", "scale=32:24"],
+        vec!["-c:v", "copy", "-crf", "19"],
+        vec!["-c:v", "libx264", "-c", "copy", "-s", "32x24"],
+        vec!["-c:v:1", "libx264", "-c:v:0", "copy", "-preset", "fast"],
+        vec!["-vf", "fps=5"],
+        vec!["-vf", "hflip"],
+        vec!["-pix_fmt", "yuv444p"],
+    ] {
+        let output = dir.join("refused.mp4");
+        std::fs::write(&output, b"existing output").unwrap();
+        let result = Command::new(bin())
+            .arg("ffmpeg")
+            .arg("-y")
+            .arg("-i")
+            .arg(&source)
+            .args(&options)
+            .arg(&output)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", NO_FALLBACK)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .env("COREAV_STRICT_SAFE", "0")
+            .output()
+            .unwrap();
+        assert_eq!(
+            result.status.code(),
+            Some(4),
+            "{options:?}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+    }
+    nothing_left(&dir);
+}
+
 /// `coreav ffmpeg` with `-c:v libx264` (`docs/design/transcode.md`,
 /// "Through `coreav ffmpeg`"): the video's encode with copied audio, or
 /// default AAC when this build decodes the source; unsupported commands

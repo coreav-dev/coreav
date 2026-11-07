@@ -1130,8 +1130,9 @@ Explicit codec options still win in their original order. For example,
 selected stream. Defaults do not add an encoder, widen audio-source
 support or enable audio-only encoding. An M4A output with selected video
 is still refused, not silently reduced to audio. Segment output still
-requires explicit codecs. Encoder options still require their explicit
-encoder name. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
+requires explicit codecs. MP4 video encoder options also apply to default
+libx264 selection. Explicit copy selection still refuses encoder options,
+and audio-only encoding still refuses video encoder options. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
 
 An Opus source can use default AAC encoding. Its current verification uses
 the separately registered [composed Opus-to-AAC check](composed-opus-aac-v2.md):

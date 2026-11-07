@@ -1207,6 +1207,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     }
     if let Some(option) = encoders.first()
         && !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264)
+        && command.muxer != Muxer::Mp4
         && !command.muxer.frames()
         && command.muxer != Muxer::Matroska
     {
@@ -1777,7 +1778,7 @@ mod tests {
         };
         let named = |name: &str, value: Option<&str>| (name.to_owned(), value.map(str::to_owned));
         assert_eq!(
-            option("-i in.mp4 -vf scale=2:2 out.mp4"),
+            option("-i in.mp4 -vf scale=2:2 out.m4a"),
             named("-vf", None)
         );
         assert_eq!(
@@ -1785,7 +1786,7 @@ mod tests {
             named("-c:v", Some("libx265"))
         );
         assert_eq!(
-            option("-i in.mp4 -c copy -crf 23 out.mp4"),
+            option("-i in.mp4 -c copy -crf 23 out.m4a"),
             named("-crf", None)
         );
         assert_eq!(
@@ -1817,7 +1818,7 @@ mod tests {
             named("-copyts", None)
         );
         assert_eq!(
-            option("-i in.mp4 -filter:v x out.mp4"),
+            option("-i in.mp4 -filter:v x out.m4a"),
             named("-filter:v", None)
         );
         assert_eq!(
@@ -1911,6 +1912,17 @@ mod tests {
                 audio_quality: None,
             }
         );
+    }
+
+    #[test]
+    fn mp4_video_options_reach_effective_codec_selection() {
+        for line in [
+            "-i in.mp4 -vf scale=2:2 out.mp4",
+            "-i in.mp4 -c copy -crf 23 out.mp4",
+            "-i in.mp4 -c:a copy -vf scale=32:24 out.mp4",
+        ] {
+            assert!(parse(&args(line)).is_ok(), "{line}");
+        }
     }
 
     #[test]

@@ -177,6 +177,7 @@
     "ffmpeg_audio_only_refuses_unpreserved_source_properties",
     "ffmpeg_avi_mp3_keeps_the_previous_complete_file_bytes",
     "ffmpeg_default_codecs_match_the_oracle",
+    "ffmpeg_default_video_encoder_applies_options",
     "ffmpeg_libopus_lines_encode_the_audio",
     "ffmpeg_libx264_commands_run_the_pipeline",
     "ffmpeg_libx264_crop_matches_the_oracle",
