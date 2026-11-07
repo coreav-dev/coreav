@@ -54,7 +54,10 @@ fuzz_target!(|data: &[u8]| {
     let wide_inverse_input =
         std::array::from_fn(|i| i32::from_le_bytes(std::array::from_fn(|j| byte(400 + i * 4 + j))));
     let wide_inverse = transform::inverse_scalar(wide_inverse_input);
-    if wide_inverse_input.iter().any(|&c| i16::try_from(c).is_err()) {
+    if wide_inverse_input
+        .iter()
+        .any(|&c| i16::try_from(c).is_err())
+    {
         assert!(wide_inverse.is_none());
     }
     #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
