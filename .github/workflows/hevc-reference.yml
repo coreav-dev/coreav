@@ -121,5 +121,5 @@ jobs:
       baseline: ${{ inputs.baseline }}
       sanitizer_only: ${{ inputs.sanitizer_only }}
       only: ${{ inputs.only }}
-      frames: ${{ inputs.frames }}
+      frames: ${{ fromJSON(inputs.frames) }}
     secrets: inherit
