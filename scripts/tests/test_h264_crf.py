@@ -14,9 +14,9 @@ class CrfTests(unittest.TestCase):
         for width, height in ((16, 16), (18, 34)):
             raw = CRF.pictures(width, height, 5)
             self.assertEqual(len(raw), width * height * 3 // 2 * 5)
-            self.assertEqual(CRF.expected_qps(raw, width, height, 5, 23, 3), [21, 23, 24, 24, 25])
+            self.assertEqual(CRF.expected_qps(raw, width, height, 5, 23, 3), [22, 23, 24, 24, 25])
             self.assertEqual(CRF.expected_qps(raw, width, height, 5, 10, 3), [10, 10, 11, 11, 12])
-            self.assertEqual(CRF.expected_qps(raw, width, height, 5, 51, 3), [49, 51, 51, 51, 51])
+            self.assertEqual(CRF.expected_qps(raw, width, height, 5, 51, 3), [50, 51, 51, 51, 51])
             with self.assertRaises(ValueError):
                 CRF.expected_qps(raw[:-1], width, height, 5, 23, 3)
 

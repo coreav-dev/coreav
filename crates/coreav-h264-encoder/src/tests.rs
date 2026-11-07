@@ -960,7 +960,8 @@ fn crf_activity_bands_offsets_clamps_and_quality_order() {
             let mut previous = 0;
             for crf in 10..=51 {
                 let qp = crate::rate::picture_qp(RateMode::Crf(crf), plane, idr).unwrap();
-                let expected = (i16::from(crf) + correction - i16::from(idr)).clamp(10, 51) as u8;
+                let expected =
+                    (i16::from(crf) + (correction - i16::from(idr)).max(-1)).clamp(10, 51) as u8;
                 assert_eq!(qp, expected);
                 assert!(qp >= previous);
                 previous = qp;
@@ -1007,8 +1008,9 @@ fn crf_streams_preserve_worker_identity_and_failed_call_state() {
                         outputs.push(encoder.encode(picture).unwrap());
                     }
                     let correction = [-1, 0, 1, 2, 2][frame];
-                    let expected_qp = (i16::from(crf) + correction - i16::from(frame % 3 == 0))
-                        .clamp(10, 51) as u8;
+                    let expected_qp = (i16::from(crf)
+                        + (correction - i16::from(frame % 3 == 0)).max(-1))
+                    .clamp(10, 51) as u8;
                     assert_eq!(slice_qp(&outputs[0].nals[2]), expected_qp);
                     let expected = control.encode(picture).unwrap();
                     assert_eq!(outputs[0].nals, expected.nals);
@@ -1050,6 +1052,29 @@ fn crf_widely_separated_values_have_expected_sequence_trends() {
     }
     assert!(totals[0].0 > totals[1].0);
     assert!(totals[0].1 < totals[1].1);
+}
+
+#[test]
+fn low_activity_crf_never_stacks_refresh_and_activity_quality_boosts() {
+    let (width, height) = (32, 48);
+    for crf in [10u8, 18, 23, 28, 51] {
+        let mut s = settings(width, height, crf.saturating_sub(1).max(10));
+        s.gop = Gop::Fixed { idr_interval: 3 };
+        s.deblocking = Deblocking::Enabled;
+        let mut cqp = Encoder::with_threads(s, Limits::default(), 1).unwrap();
+        s.rate_mode = RateMode::Crf(crf);
+        let mut quality = Encoder::with_threads(s, Limits::default(), 8).unwrap();
+        for frame in 0..6 {
+            let raw: Vec<_> = (0..width * height * 3 / 2)
+                .map(|p| (112 + (p % width + p / width + frame) % 16) as u8)
+                .collect();
+            let picture = raw_picture(&raw, width, height);
+            let fixed = cqp.encode(picture).unwrap();
+            let adaptive = quality.encode(picture).unwrap();
+            assert_eq!(adaptive.nals, fixed.nals);
+            assert_eq!(adaptive.reconstruction, fixed.reconstruction);
+        }
+    }
 }
 
 #[test]

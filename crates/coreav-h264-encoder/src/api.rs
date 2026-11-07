@@ -70,7 +70,7 @@ pub enum RateMode {
     FixedQp(u8),
     /// Use this quality value, from 10 through 51, as the neutral P-picture QP.
     /// Lower values request finer quantization; 10 is not lossless.
-    /// Source activity adjusts picture QP by at most two, with another -1 for I pictures.
+    /// Source activity and I-picture preference adjust QP from -1 through +2.
     Crf(u8),
 }
 

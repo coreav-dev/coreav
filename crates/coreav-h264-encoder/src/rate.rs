@@ -39,9 +39,10 @@ pub(crate) fn picture_qp(mode: RateMode, luma: Plane<'_>, idr: bool) -> Result<u
         12..24 => 1,
         _ => 2,
     };
-    let qp = i16::from(crf)
-        .checked_add(correction)
-        .and_then(|v| v.checked_sub(i16::from(idr)))
-        .ok_or(Error::Limit)?;
+    let correction = correction
+        .checked_sub(i16::from(idr))
+        .ok_or(Error::Limit)?
+        .max(-1);
+    let qp = i16::from(crf).checked_add(correction).ok_or(Error::Limit)?;
     u8::try_from(qp.clamp(10, 51)).map_err(|_| Error::Internal)
 }

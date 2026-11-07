@@ -24,7 +24,8 @@ def expected_qps(raw, width, height, frames, crf, interval):
                 sad += sum(abs(value - mean) for value in block)
         activity = sad // (width * height)
         correction = sum(activity >= threshold for threshold in (8, 12, 24)) - 1
-        qps.append(min(51, max(10, crf + correction - int(frame % interval == 0))))
+        adjustment = max(-1, correction - int(frame % interval == 0))
+        qps.append(min(51, max(10, crf + adjustment)))
     return qps
 
 
