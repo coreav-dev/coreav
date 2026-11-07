@@ -56,7 +56,6 @@ impl Forward {
         self.0.first().copied().unwrap_or(0)
     }
 
-    #[cfg(test)]
     pub(crate) fn coefficients(&self) -> &[i32; 16] {
         &self.0
     }
@@ -95,8 +94,16 @@ impl Quant {
     }
 
     pub(crate) fn zero(&self, coefficients: &Forward, separate_dc: bool) -> bool {
+        #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+        if let Some(simd) = crate::kernels::arithmetic() {
+            return simd.zero(coefficients, self, separate_dc);
+        }
+        self.zero_scalar(coefficients, separate_dc)
+    }
+
+    pub(crate) fn zero_scalar(&self, coefficients: &Forward, separate_dc: bool) -> bool {
         coefficients
-            .0
+            .coefficients()
             .iter()
             .zip(&self.zero)
             .skip(usize::from(separate_dc))
@@ -104,10 +111,18 @@ impl Quant {
     }
 
     pub(crate) fn levels(&self, coefficients: &Forward, separate_dc: bool) -> [i32; 16] {
+        #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+        if let Some(simd) = crate::kernels::arithmetic() {
+            return simd.levels(coefficients, self, separate_dc);
+        }
+        self.levels_scalar(coefficients, separate_dc)
+    }
+
+    pub(crate) fn levels_scalar(&self, coefficients: &Forward, separate_dc: bool) -> [i32; 16] {
         let mut out = [0; 16];
         for (((level, &c), &bias), &reciprocal) in out
             .iter_mut()
-            .zip(&coefficients.0)
+            .zip(coefficients.coefficients())
             .zip(&self.bias)
             .zip(&self.reciprocal)
         {
@@ -122,6 +137,27 @@ impl Quant {
         out
     }
 
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    pub(crate) fn parameters(&self) -> (&[u32; 16], &[u64; 16], &[u64; 16], &[i32; 16]) {
+        (&self.zero, &self.bias, &self.reciprocal, &self.scale)
+    }
+
+    pub(crate) fn scaled_scalar(&self, levels: &[i32; 16]) -> [i32; 16] {
+        let mut out = [0; 16];
+        for ((out, &level), &scale) in out.iter_mut().zip(levels).zip(&self.scale) {
+            *out = level.wrapping_mul(scale);
+        }
+        out
+    }
+
+    fn scaled(&self, levels: &[i32; 16]) -> [i32; 16] {
+        #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+        if let Some(simd) = crate::kernels::arithmetic() {
+            return simd.scaled(levels, &self.scale);
+        }
+        self.scaled_scalar(levels)
+    }
+
     pub(crate) fn reconstruct(
         &self,
         levels: &[i32; 16],
@@ -132,9 +168,7 @@ impl Quant {
     ) -> Result<()> {
         let mut coefficients = [0; 16];
         if levels.iter().any(|&level| level != 0) {
-            for ((out, &level), &scale) in coefficients.iter_mut().zip(levels).zip(&self.scale) {
-                *out = level.wrapping_mul(scale);
-            }
+            coefficients = self.scaled(levels);
             if !coefficients.iter().all(|&c| fits(c)) {
                 return Err(Error::Coefficient);
             }
@@ -178,6 +212,22 @@ fn residual(source: &[u8], predicted: &[u8], at: usize, stride: usize) -> Result
 }
 
 pub(crate) fn forward(
+    source: &[u8],
+    predicted: &[u8],
+    at: usize,
+    stride: usize,
+) -> Result<Forward> {
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    if let Some(simd) = crate::kernels::arithmetic() {
+        return simd
+            .forward(source, predicted, at, stride)
+            .map(Forward)
+            .ok_or(Error::Internal);
+    }
+    forward_scalar(source, predicted, at, stride)
+}
+
+pub(crate) fn forward_scalar(
     source: &[u8],
     predicted: &[u8],
     at: usize,
@@ -252,6 +302,14 @@ fn inverse_line([a, b, c, d]: [i32; 4]) -> ([i32; 4], bool) {
 }
 
 fn inverse(coefficients: [i32; 16]) -> Option<[i32; 16]> {
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    if let Some(simd) = crate::kernels::arithmetic() {
+        return simd.inverse(&coefficients);
+    }
+    inverse_scalar(coefficients)
+}
+
+pub(crate) fn inverse_scalar(coefficients: [i32; 16]) -> Option<[i32; 16]> {
     if let [dc, rest @ ..] = coefficients
         && rest.iter().all(|&c| c == 0)
     {
@@ -347,6 +405,67 @@ pub(crate) fn scan(levels: &[i32; 16]) -> Result<[i32; 16]> {
 mod tests {
     use super::*;
     use coreav_kernels_h264::{BlockMut, Kernels, Scalar};
+
+    #[test]
+    fn quantizer_tables_fit_the_vector_multiply_contract() -> Result<()> {
+        for qp in 0..=51 {
+            let quant = Quant::of(qp)?;
+            for ((&bias, &reciprocal), &zero) in
+                quant.bias.iter().zip(&quant.reciprocal).zip(&quant.zero)
+            {
+                assert!(bias + 128 * 9180 <= u64::from(u32::MAX));
+                assert!(reciprocal <= u64::from(u32::MAX));
+                assert!(
+                    u128::from(bias + 128 * 9180) * u128::from(reciprocal) <= u128::from(u64::MAX)
+                );
+                assert!(zero <= i32::MAX as u32);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn vector_forward_matches_scalar_with_exact_extents_and_overlapping_rows() -> Result<()> {
+        for stride in 0..32 {
+            for at in 0..32 {
+                let extent = at + 3 * stride + 4;
+                let a: Vec<_> = (0..extent).map(|i| (i * 171 + 37) as u8).collect();
+                let b: Vec<_> = (0..extent).map(|i| (i * 59 + 213) as u8).collect();
+                assert_eq!(
+                    forward(&a, &b, at, stride)?.coefficients(),
+                    forward_scalar(&a, &b, at, stride)?.coefficients()
+                );
+                let short = a.get(..extent - 1).ok_or(Error::Internal)?;
+                assert_eq!(forward(short, &b, at, stride).err(), Some(Error::Internal));
+                let short = b.get(..extent - 1).ok_or(Error::Internal)?;
+                assert_eq!(forward(&a, short, at, stride).err(), Some(Error::Internal));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn vector_inverse_matches_scalar_at_signed_intermediate_boundaries() {
+        let mut seed = 0x56cadf31e974b280u64;
+        for bound in [1, 255, 1023, 4095, 8191, 16383, 32767] {
+            for _ in 0..16384 {
+                let coefficients = std::array::from_fn(|_| {
+                    seed ^= seed << 13;
+                    seed ^= seed >> 7;
+                    seed ^= seed << 17;
+                    (seed % (2 * bound + 1) as u64) as i32 - bound
+                });
+                assert_eq!(inverse(coefficients), inverse_scalar(coefficients));
+            }
+        }
+        for dc in -32768..=32767 {
+            let mut coefficients = [0; 16];
+            if let Some(first) = coefficients.first_mut() {
+                *first = dc;
+            }
+            assert_eq!(inverse(coefficients), inverse_scalar(coefficients));
+        }
+    }
 
     const BASIS: [[i64; 4]; 4] = [[1, 1, 1, 1], [2, 1, -1, -2], [1, -1, -1, 1], [1, -2, 2, -1]];
     const HADAMARD: [[i64; 4]; 4] = [[1, 1, 1, 1], [1, 1, -1, -1], [1, -1, -1, 1], [1, -1, 1, -1]];
