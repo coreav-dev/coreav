@@ -14,7 +14,7 @@ Motion admission retains the limit of sixteen vectors per consecutive macroblock
 
 ## Ownership and publication
 
-The picture owns one bounded table of `OnceLock<Completed>`, indexed in raster order. A `Completed` contains the selected candidate and its neighbour state. A slot is published once by the scheduler after a worker finishes; workers only borrow already-published slots. Reconstruction planes and entropy output are not shared mutable state.
+The picture owns one bounded table of `OnceLock<Candidate>`, indexed in raster order. A candidate contains its selected samples, syntax and neighbour state. A slot is published once by its row's worker after a macroblock finishes; other workers only borrow already-published slots. Reconstruction planes and entropy output are not shared mutable state. A slot occupies 4,976 bytes on the measured 64-bit build, or 40,604,160 bytes at the maximum 1920 by 1088 coded size.
 
 Each macroblock builds its input tile from the caller's immutable picture and its prediction border from the selected, unfiltered tiles of its left, top-left, top and top-right neighbours. These are precisely the samples and metadata the current picture loop reads. It does not read deblocked pixels or partially written picture planes.
 
@@ -22,11 +22,11 @@ An alternative that locks the complete picture around each macroblock would pres
 
 ## Scheduler
 
-A serial scheduler maintains completed-column counts and an in-flight flag per row. It dispatches at most one macroblock per row. Macroblock `(r, x)` is ready when its left neighbour is complete and row `r - 1` has completed at least `min(x + 2, row_width)` macroblocks. The first row has no top dependency. The last-column condition uses the row end rather than an unavailable top-right neighbour.
+A scoped worker takes one complete row at a time from a monotonically increasing atomic row counter. Macroblocks within that row run sequentially. Macroblock `(r, x)` is ready when its left neighbour is complete and row `r - 1` has completed at least `min(x + 2, row_width)` macroblocks. The first row has no top dependency. The last-column condition uses the row end rather than an unavailable top-right neighbour.
 
-Scoped standard-library workers receive macroblock addresses through a channel and return `Result<Completed>` through a completion channel. Only receiving the next address is locked; candidate evaluation holds no scheduler or picture lock. The scheduler publishes each successful completion before dispatching dependants. At one thread, the same decision function runs in raster order without channels or thread creation.
+Each adjacent row pair has a bounded standard-library channel with capacity equal to the row width. The upper row publishes its candidate before sending its completed-column count. The lower row receives until the required count is reached, then borrows the immutable slots. Channels cannot fill beyond their row's bounded message count, even when the lower row has not been assigned or has already failed. A receiver mutex is taken once by its only row reader, not per macroblock. Worker count is capped by both the row count and the number of two-column dependency steps in a row. At one thread, the same decision function runs in raster order without channels or thread creation.
 
-Failure stops dispatch to the failing row and every later row. Earlier rows continue to completion or their own failure; this selects the first error in raster order without computing dependants of a failed macroblock. Dispatch then closes, every started worker is joined and the picture is discarded. Worker creation, channel disconnection, poisoned coordination and worker unwind become bounded encoding errors rather than hangs. Running work may finish after another task fails, but cannot mutate encoder sequence state.
+A row failure sends its error to the next row instead of a completion count, so downstream rows stop before reading an unpublished dependency. Earlier rows continue to completion or their own failure. After joining the workers, outcomes are read in row order to select the first raster error. The picture is discarded on error. Worker creation, channel disconnection, poisoned coordination and worker unwind become bounded encoding errors rather than hangs. Running work may finish after another row fails, but cannot mutate encoder sequence state.
 
 ## Entropy coding and reconstruction
 

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use crate::{Error, Result, api::zeros};
+use crate::{Error, Result};
 use std::sync::{Mutex, OnceLock, mpsc};
 
 pub(crate) fn run<T: Send + Sync>(
@@ -30,40 +30,89 @@ pub(crate) fn run<T: Send + Sync>(
         }
         return Ok(table);
     }
-    let (tasks, receiver) = mpsc::sync_channel::<usize>(workers);
-    let receiver = Mutex::new(receiver);
-    let (results, completed) = mpsc::sync_channel(workers);
+    let mut progress = Vec::new();
+    progress
+        .try_reserve_exact(height)
+        .map_err(|_| Error::Allocation)?;
+    for _ in 0..height {
+        let (sender, receiver) = mpsc::sync_channel::<Result<usize>>(width);
+        progress.push((sender, Mutex::new(receiver)));
+    }
+    let mut outcomes = Vec::new();
+    outcomes
+        .try_reserve_exact(height)
+        .map_err(|_| Error::Allocation)?;
+    outcomes.resize_with(height, OnceLock::new);
+    let next_row = std::sync::atomic::AtomicUsize::new(0);
     std::thread::scope(|scope| -> Result<()> {
         let mut handles = Vec::new();
         handles
             .try_reserve_exact(workers)
             .map_err(|_| Error::Allocation)?;
         for _ in 0..workers {
-            let receiver = &receiver;
-            let results = results.clone();
             let table = &table;
+            let outcomes = &outcomes;
+            let progress = &progress;
+            let next_row = &next_row;
             let compute = &compute;
             match std::thread::Builder::new().spawn_scoped(scope, move || {
                 loop {
-                    let task = match receiver.lock() {
-                        Ok(guard) => guard.recv(),
-                        Err(poisoned) => poisoned.into_inner().recv(),
-                    };
-                    let Ok(address) = task else {
+                    let row = next_row.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if row >= height {
                         break;
-                    };
-                    let value = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        compute(address, table)
-                    }))
-                    .unwrap_or(Err(Error::Internal));
-                    if results.send((address, value)).is_err() {
-                        break;
+                    }
+                    let result =
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<()> {
+                            let top = if row == 0 {
+                                None
+                            } else {
+                                Some(
+                                    progress
+                                        .get(row - 1)
+                                        .ok_or(Error::Internal)?
+                                        .1
+                                        .lock()
+                                        .map_err(|_| Error::Internal)?,
+                                )
+                            };
+                            let mut preceding = 0;
+                            for x in 0..width {
+                                if let Some(top) = &top {
+                                    while preceding < (x + 2).min(width) {
+                                        preceding = top.recv().map_err(|_| Error::Internal)??;
+                                    }
+                                }
+                                let address = row * width + x;
+                                let value = compute(address, table)?;
+                                table
+                                    .get(address)
+                                    .ok_or(Error::Internal)?
+                                    .set(value)
+                                    .map_err(|_| Error::Internal)?;
+                                if row + 1 < height {
+                                    progress
+                                        .get(row)
+                                        .ok_or(Error::Internal)?
+                                        .0
+                                        .send(Ok(x + 1))
+                                        .map_err(|_| Error::Internal)?;
+                                }
+                            }
+                            Ok(())
+                        }))
+                        .unwrap_or(Err(Error::Internal));
+                    if let Err(error) = result {
+                        if let Some((sender, _)) = progress.get(row) {
+                            let _ = sender.send(Err(error));
+                        }
+                    }
+                    if let Some(outcome) = outcomes.get(row) {
+                        let _ = outcome.set(result);
                     }
                 }
             }) {
                 Ok(handle) => handles.push(handle),
                 Err(_) => {
-                    drop(tasks);
                     for handle in handles {
                         let _ = handle.join();
                     }
@@ -71,67 +120,13 @@ pub(crate) fn run<T: Send + Sync>(
                 }
             }
         }
-        drop(results);
-        let result = (|| {
-            let mut progress: Vec<usize> = zeros(height)?;
-            let mut busy: Vec<bool> = zeros(height)?;
-            let mut running = 0;
-            let mut failure: Option<(usize, Error)> = None;
-            loop {
-                for row in 0..height {
-                    let x = *progress.get(row).ok_or(Error::Internal)?;
-                    if running == workers
-                        || x == width
-                        || *busy.get(row).ok_or(Error::Internal)?
-                        || failure.is_some_and(|(address, _)| row >= address / width)
-                        || (row != 0
-                            && *progress.get(row - 1).ok_or(Error::Internal)? < (x + 2).min(width))
-                    {
-                        continue;
-                    }
-                    tasks.send(row * width + x).map_err(|_| Error::Internal)?;
-                    *busy.get_mut(row).ok_or(Error::Internal)? = true;
-                    running += 1;
-                }
-                if running == 0 {
-                    break;
-                }
-                let (address, value) = completed.recv().map_err(|_| Error::Internal)?;
-                let row = address / width;
-                *busy.get_mut(row).ok_or(Error::Internal)? = false;
-                running -= 1;
-                match value {
-                    Ok(value) => {
-                        table
-                            .get(address)
-                            .ok_or(Error::Internal)?
-                            .set(value)
-                            .map_err(|_| Error::Internal)?;
-                        *progress.get_mut(row).ok_or(Error::Internal)? += 1;
-                    }
-                    Err(error) => {
-                        if failure.is_none_or(|old| address < old.0) {
-                            failure = Some((address, error));
-                        }
-                    }
-                }
-            }
-            if let Some((_, error)) = failure {
-                return Err(error);
-            }
-            if progress.iter().any(|&x| x != width) {
-                return Err(Error::Internal);
-            }
-            Ok(())
-        })();
-        drop(tasks);
-        let mut joined = Ok(());
         for handle in handles {
-            if handle.join().is_err() {
-                joined = Err(Error::Internal);
-            }
+            handle.join().map_err(|_| Error::Internal)?;
         }
-        result.and(joined)
+        for outcome in &outcomes {
+            (*outcome.get().ok_or(Error::Internal)?)?;
+        }
+        Ok(())
     })?;
     Ok(table)
 }
