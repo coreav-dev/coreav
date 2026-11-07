@@ -193,10 +193,14 @@ fn parallel<T: Send + Sync>(
             .map_err(|_| Error::Allocation)?;
         for _ in 0..workers {
             #[cfg(test)]
-            if tests::SPAWN_LIMIT.with(|limit| handles.len() >= limit.get()) {
-                break;
-            }
-            match std::thread::Builder::new().spawn_scoped(scope, work) {
+            let handle = if tests::SPAWN_LIMIT.with(|limit| handles.len() >= limit.get()) {
+                Err(std::io::Error::other("injected thread start refusal"))
+            } else {
+                std::thread::Builder::new().spawn_scoped(scope, work)
+            };
+            #[cfg(not(test))]
+            let handle = std::thread::Builder::new().spawn_scoped(scope, work);
+            match handle {
                 Ok(handle) => handles.push(handle),
                 Err(_) => break,
             }
