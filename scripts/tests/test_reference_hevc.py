@@ -55,6 +55,11 @@ class Reference(unittest.TestCase):
         self.assertLess(admission, workflow.index('secrets.'))
         self.assertIn('test -n "$(git branch -r --contains "$CANDIDATE")"', workflow[admission:workflow.index('cargo build')])
 
+    def test_dispatch_frame_count_is_numeric_at_the_reusable_boundary(self):
+        workflow = (SCRIPTS.parent / '.github/workflows/hevc-reference.yml').read_text()
+        threading = workflow[workflow.index('  threading:'):]
+        self.assertIn('frames: ${{ fromJSON(inputs.frames) }}', threading)
+
     def test_diagnostic_mode_never_times_verified_files(self):
         args = type('Args', (), dict(native=pathlib.Path('/native'), oracle_bin=pathlib.Path('/oracle'), diagnose_only=True))()
         with tempfile.TemporaryDirectory() as temp:
