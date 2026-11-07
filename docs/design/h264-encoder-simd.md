@@ -30,6 +30,14 @@ Alternatives were a new public kernel crate or threading a function table throug
 
 ## Verification and reference method
 
+### On-demand encoder interpolation
+
+The encoder retains its checked, edge-replicated source windows rather than preparing whole half-sample pictures. A private AVX2 interpolation entry accepts the existing `Block` and `BlockMut` views, checks the supported shapes before forming pointers, and falls back to `Scalar` for other shapes. It shares the private CPU capability with SAD. The `scalar` feature bypasses this entry entirely.
+
+The luma filter keeps horizontal six-tap values signed and unrounded until the diagonal filter finishes. One-dimensional half samples round by 16 before shifting five bits; diagonal half samples round by 512 before shifting ten bits. Both clip before quarter-sample averaging. Chroma uses the four bilinear weights and rounds by 32 before shifting six bits. Loads and stores use only each active row's exact width, including four-wide luma and two-wide chroma, without padded copies. Rolling horizontal vectors bound diagonal scratch independently of picture dimensions.
+
+Differential tests and fuzzing compare every phase and admitted shape against the existing scalar kernels, including unaligned windows ending at the last borrowed byte. Complete scalar/dispatched identity and an alternating encode-only comparison against an explicit main commit decide whether this specialization is retained. Existing wider pixel dispatch is the baseline, not a scalar-only comparison.
+
 - Compare every new kernel against safe scalar over all extreme byte combinations, lengths including exact final-byte boundaries, random samples and unaligned subslices. Compare error results at malformed length boundaries too.
 - Add a differential fuzz project for the new private kernel. Existing H.264 kernel fuzz targets continue covering reused interpolation, inverse arithmetic and deblocking. Complete encoder identity tests compare scalar-forced and dispatched streams and reconstructions, with forced prediction fixtures and admission failures unchanged.
 - Run `cargo test --locked --release -p coreav-h264-encoder --features full` and again with `--features full,scalar`, encoder all-target Clippy, formatting, `scripts/unsafe_sites_check.py`, affected fuzz checks, and the existing three-decoder encoder conformance workflow. The current-main similarity guard checks the final public head.
