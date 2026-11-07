@@ -17,6 +17,7 @@ class DevContainer(unittest.TestCase):
         with patch.object(sys, 'argv', ['dev-container.py', *arguments]), \
                 patch.object(DEV.shutil, 'which', return_value='/usr/local/bin/docker'), \
                 patch.object(DEV.Path, 'cwd', return_value=ROOT), \
+                patch.object(DEV.Path, 'is_file', lambda path: path.name == '.git' or (path.exists() and not path.is_dir())), \
                 patch.object(sys.stdin, 'isatty', return_value=False), \
                 patch.object(DEV.subprocess, 'run', return_value=subprocess.CompletedProcess([], status)) as run:
             result = DEV.main()
@@ -35,9 +36,10 @@ class DevContainer(unittest.TestCase):
                             ('--pull', 'never'), ('--cap-drop', 'ALL'), ('--security-opt', 'no-new-privileges')):
             self.assertEqual(command[command.index(flag) + 1], value)
         mounts = [command[i + 1] for i, item in enumerate(command) if item == '--mount']
-        self.assertEqual(len(mounts), 3)
+        self.assertEqual(len(mounts), 4)
         self.assertEqual([m for m in mounts if m.startswith('type=bind,')],
-                         [f'type=bind,source={ROOT},target=/work'])
+                         [f'type=bind,source={ROOT},target=/work',
+                          f'type=bind,source={ROOT}/.git,target=/work/.git,readonly'])
         self.assertTrue(any(m.startswith('type=volume,source=coreav-dev-target-amd64-') for m in mounts))
         self.assertIn('type=volume,source=coreav-dev-cargo-amd64,target=/home/dev/.cargo', mounts)
         self.assertNotIn('--env', command)
@@ -58,6 +60,7 @@ class DevContainer(unittest.TestCase):
 
         def invoke(command, **kwargs):
             if command[1] == 'build':
+                self.assertEqual(command[command.index('--build-arg') + 1], 'TARGETARCH=amd64')
                 context = Path(command[-1])
                 observed.extend(sorted(str(p.relative_to(context)) for p in context.rglob('*') if p.is_file()))
                 self.assertEqual(kwargs['env']['BUILDX_CONFIG'], str(context / 'buildx'))
@@ -66,6 +69,7 @@ class DevContainer(unittest.TestCase):
         with patch.object(sys, 'argv', ['dev-container.py', '--build', '--', 'true']), \
                 patch.object(DEV.shutil, 'which', return_value='docker'), \
                 patch.object(DEV.Path, 'cwd', return_value=ROOT), \
+                patch.object(DEV.Path, 'is_file', lambda path: path.name == '.git' or (path.exists() and not path.is_dir())), \
                 patch.object(sys.stdin, 'isatty', return_value=False), \
                 patch.object(DEV.subprocess, 'run', side_effect=invoke):
             self.assertEqual(DEV.main(), 0)
@@ -75,6 +79,15 @@ class DevContainer(unittest.TestCase):
     def test_outside_worktree_is_refused_before_docker(self):
         with patch.object(sys, 'argv', ['dev-container.py', '--', 'true']), \
                 patch.object(DEV.Path, 'cwd', return_value=ROOT.parent), \
+                patch.object(DEV.subprocess, 'run') as run:
+            with self.assertRaises(SystemExit):
+                DEV.main()
+            run.assert_not_called()
+
+    def test_primary_checkout_metadata_is_not_exposed(self):
+        with patch.object(sys, 'argv', ['dev-container.py', '--', 'true']), \
+                patch.object(DEV.Path, 'cwd', return_value=ROOT), \
+                patch.object(DEV.Path, 'is_file', return_value=False), \
                 patch.object(DEV.subprocess, 'run') as run:
             with self.assertRaises(SystemExit):
                 DEV.main()

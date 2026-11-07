@@ -23,6 +23,9 @@ def main():
         parser.error('run from inside this worktree')
     if Path.home().resolve().is_relative_to(root) or ',' in str(root):
         parser.error('the worktree must not contain the home directory or a comma')
+    metadata = root / '.git'
+    if metadata.is_symlink() or not metadata.is_file():
+        parser.error('use a linked worktree with a .git pointer file, not a primary checkout')
     docker = shutil.which('docker')
     if not docker:
         parser.error('docker is not on PATH; start Docker Desktop and add its CLI to PATH')
@@ -41,7 +44,8 @@ def main():
             shutil.copyfile(root / 'rust-toolchain.toml', context / 'rust-toolchain.toml')
             shutil.copyfile(root / 'scripts/dev/Dockerfile', context / 'Dockerfile')
             environment = {**os.environ, 'BUILDX_CONFIG': str(context / 'buildx')}
-            subprocess.run([docker, 'build', '--platform', args.platform, '-t', image, str(context)],
+            subprocess.run([docker, 'build', '--platform', args.platform,
+                            '--build-arg', f'TARGETARCH={arch}', '-t', image, str(context)],
                            check=True, env=environment)
     key = hashlib.sha256(os.fsencode(root)).hexdigest()[:16]
     command = args.command
@@ -52,6 +56,7 @@ def main():
            '--memory', '6g', '--memory-swap', '6g', '--pids-limit', '512', '--cpus', '2',
            '--network', 'bridge' if args.network else 'none',
            '--mount', f'type=bind,source={root},target=/work',
+           '--mount', f'type=bind,source={metadata},target=/work/.git,readonly',
            '--mount', f'type=volume,source=coreav-dev-cargo-{arch},target=/home/dev/.cargo',
            '--mount', f'type=volume,source=coreav-dev-target-{arch}-{key},target=/target',
            '--workdir', str(Path('/work') / cwd.relative_to(root))]
