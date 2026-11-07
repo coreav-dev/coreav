@@ -885,7 +885,7 @@ fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
 
 #[test]
 fn eight_worker_textured_multirow_p_pictures_match_independent_decoding() {
-    let (width, height) = (320, 96);
+    let (width, height) = (320, 128);
     let mut settings = settings(width, height, 27);
     settings.gop = Gop::Fixed { idr_interval: 32 };
     settings.deblocking = Deblocking::Enabled;
