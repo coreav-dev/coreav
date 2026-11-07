@@ -203,6 +203,7 @@
     "ffmpeg_libx264_refuses_before_encoding",
     "ffmpeg_libx264_refuses_video_no_decoder_takes",
     "ffmpeg_mp3_eof_guard_preserves_exact_boundary_lengths",
+    "ffmpeg_mp3_information_headers_match_complete_oracle_files",
     "ffmpeg_mp3_outputs_keep_the_source_samples_and_quality",
     "ffmpeg_mp3_sources_and_refusals_are_build_aware",
     "ffmpeg_strict_safe_authorizes_resolved_audio_before_discovery",
