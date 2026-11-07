@@ -12,6 +12,10 @@ use std::sync::{
 
 const STACK_BYTES: usize = 2 << 20;
 
+std::thread_local! {
+    static PRIVATE_FRAMES: std::cell::RefCell<Vec<Frame>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
 #[cfg(test)]
 #[derive(Clone, Copy)]
 pub(super) enum TestFault {
@@ -308,6 +312,56 @@ impl Band {
 }
 
 impl Frame {
+    fn reset_private(&mut self, source: &Frame) {
+        self.workers = 1;
+        self.deadline = source.deadline;
+        #[cfg(test)]
+        {
+            self.test_hook = source.test_hook.clone();
+        }
+        self.index = source.index;
+        self.info = source.info;
+        self.depth = source.depth;
+        for (target, source) in self.planes.iter_mut().zip(&source.planes) {
+            target.clone_from(source);
+        }
+        self.cells.clone_from(&source.cells);
+        self.filter_ctus.clone_from(&source.filter_ctus);
+        self.filtered = source.filtered;
+        self.next_ctu = source.next_ctu;
+        self.segment_closed = source.segment_closed;
+        self.contexts = source.contexts;
+        self.wpp = source.wpp;
+        self.qp = source.qp;
+        self.stats = source.stats;
+        self.inter_stats = source.inter_stats;
+        self.reference = source.reference;
+        self.hash_seen = source.hash_seen;
+        self.scratch
+            .coefficients
+            .clone_from(&source.scratch.coefficients);
+        self.scratch.residual.clone_from(&source.scratch.residual);
+        self.scratch
+            .prediction
+            .clone_from(&source.scratch.prediction);
+        self.scratch.output.clone_from(&source.scratch.output);
+        self.scratch.scaling.clone_from(&source.scratch.scaling);
+        self.scratch
+            .references
+            .clone_from(&source.scratch.references);
+        for (target, source) in self
+            .scratch
+            .predictors
+            .iter_mut()
+            .zip(&source.scratch.predictors)
+        {
+            target.clone_from(source);
+        }
+        self.scratch
+            .inter_output
+            .clone_from(&source.scratch.inter_output);
+    }
+
     #[expect(
         clippy::too_many_arguments,
         reason = "same slice and resource boundary as serial reconstruction"
@@ -370,11 +424,26 @@ impl Frame {
                     ready: Condvar::new(),
                 });
             }
+            let mut cached = PRIVATE_FRAMES.with(std::cell::RefCell::take);
             let mut workers = Vec::new();
             reserve(&mut workers, count - 1, &mut memory)?;
             for _ in 1..count {
                 memory.charge(STACK_BYTES)?;
-                let mut frame = Self::allocate(input, self.reference, memory.used, limit)?;
+                let mut frame = if let Some(mut frame) = cached.pop().filter(|frame| {
+                    frame.info.width == self.info.width
+                        && frame.info.height == self.info.height
+                        && frame.info.bit_depth == self.info.bit_depth
+                        && frame.info.ctb_log2 == self.info.ctb_log2
+                        && frame.reference.is_some() == self.reference.is_some()
+                }) {
+                    let mut cold = Memory::new(memory.used, limit)?;
+                    cold.charge(input.scratch_bytes)?;
+                    cold.charge(frame.heap_bytes()?)?;
+                    frame.reset_private(self);
+                    frame
+                } else {
+                    Self::allocate(input, self.reference, memory.used, limit)?
+                };
                 frame.deadline = self.deadline;
                 #[cfg(test)]
                 {
@@ -385,7 +454,7 @@ impl Frame {
             }
             Ok((rows, workers, memory.used))
         })();
-        let (rows, workers, peak) = match setup {
+        let (rows, mut workers, peak) = match setup {
             Ok(setup) => setup,
             Err(Error::Limit(_)) => return Ok(None),
             Err(error) => return Err(error),
@@ -400,12 +469,12 @@ impl Frame {
         let next = AtomicUsize::new(0);
         self.workers = std::thread::scope(|scope| {
             let mut started = 1;
-            for mut frame in workers {
+            for frame in &mut workers {
                 let (rows, next) = (&rows, &next);
                 if std::thread::Builder::new()
                     .stack_size(STACK_BYTES)
                     .spawn_scoped(scope, move || {
-                        work(&mut frame, input, dpb, ranges, rows, next);
+                        work(frame, input, dpb, ranges, rows, next);
                     })
                     .is_ok()
                 {
@@ -452,6 +521,7 @@ impl Frame {
             input.index,
             merge_started.elapsed().as_nanos()
         );
+        PRIVATE_FRAMES.with(|cache| *cache.borrow_mut() = workers);
         Ok(Some(peak))
     }
 }

@@ -57,6 +57,7 @@ jobs:
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: |
           umask 077
+          ulimit -v 2097152
           python3 candidate/scripts/hevc_wpp_profile.py --native "$PWD/candidate/target/release/examples/reference" --main "$PWD/baseline/target/release/examples/reference" --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/private" > "$RUNNER_TEMP/profile.log" 2>&1
       - name: Seal diagnostic metadata
         if: always()

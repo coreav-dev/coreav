@@ -15,14 +15,14 @@ parser = argparse.ArgumentParser()
 for name in ('native', 'main', 'oracle-bin', 'out'):
     parser.add_argument('--' + name, type=pathlib.Path, required=True)
 args = parser.parse_args()
-args.only = {'d14'}
-args.frames = 1
+args.only = {'d06', 'd07'}
+args.frames = 4
 args.out.mkdir(parents=True, exist_ok=True)
 oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
 pool = round_files.pool()
 pool.limits.max_requests = 4000
 pool.limits.max_bytes = 32 << 30
-report = dict(scope='temporary scheduler phase instrumentation, not a speed verdict', files=[])
+report = dict(scope='fixed-format full-reset worker reuse ceiling under a 2-GiB process address-space cap; not a shippable cache or speed verdict', files=[])
 try:
     with tempfile.TemporaryDirectory() as temp:
         for identity, source, sha in reference.inputs(args, oracle, pathlib.Path(temp), pool):
