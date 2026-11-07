@@ -1,0 +1,45 @@
+# Deterministic H.264 encoder row wavefront
+
+## Contract
+
+The encoder chooses the same macroblocks, writes the same stream and returns the same reconstruction for every positive thread count. The first change removes raster-order decision state; its quality cost is measured against main separately from parallel execution. There are no presets, new dependencies or unsafe code.
+
+`Encoder::new(settings, limits)` selects the available core count, falling back to one. `Encoder::with_threads(settings, limits, threads)` selects a positive count explicitly. Workers are capped at the coded macroblock-row count. These constructors do not change the CLI or the sequence settings written to the stream.
+
+## Decisions before concurrency
+
+Candidate rate costs use a fixed local skip-run estimate rather than the actual pending raster skip run. The real skip run remains owned exclusively by the final serial writer. Syntax lower bounds and exact candidate counting use the same fixed estimate; changing thread count cannot change their inputs.
+
+Motion admission retains the limit of sixteen vectors per consecutive macroblock pair. Within a row, the predecessor is the committed left macroblock. At each row boundary, both endpoint macroblocks are capped at eight vectors. The first macroblock of the picture also checks the count carried from the preceding successful picture. A one-macroblock-wide row satisfies both endpoint constraints. Intra remains available when no inter representation is admitted. No sequence state is committed on failure.
+
+## Ownership and publication
+
+The picture owns one bounded table of `OnceLock<Completed>`, indexed in raster order. A `Completed` contains the selected candidate and its neighbour state. A slot is published once by the scheduler after a worker finishes; workers only borrow already-published slots. Reconstruction planes and entropy output are not shared mutable state.
+
+Each macroblock builds its input tile from the caller's immutable picture and its prediction border from the selected, unfiltered tiles of its left, top-left, top and top-right neighbours. These are precisely the samples and metadata the current picture loop reads. It does not read deblocked pixels or partially written picture planes.
+
+An alternative that locks the complete picture around each macroblock would preserve the old data layout but serialize its expensive decisions. Separate mutable row planes avoid that lock but need additional ownership machinery for top-row readers. Immutable macroblock publication exposes the dependencies directly, at the cost of retaining selected candidates until picture assembly. The table is bounded by the existing coded-pixel limit; its size and the resulting peak memory are reported with the implementation.
+
+## Scheduler
+
+A serial scheduler maintains completed-column counts and an in-flight flag per row. It dispatches at most one macroblock per row. Macroblock `(r, x)` is ready when its left neighbour is complete and row `r - 1` has completed at least `min(x + 2, row_width)` macroblocks. The first row has no top dependency. The last-column condition uses the row end rather than an unavailable top-right neighbour.
+
+Scoped standard-library workers receive macroblock addresses through a channel and return `Result<Completed>` through a completion channel. Only receiving the next address is locked; candidate evaluation holds no scheduler or picture lock. The scheduler publishes each successful completion before dispatching dependants. At one thread, the same decision function runs in raster order without channels or thread creation.
+
+Failure stops dispatch to the failing row and every later row. Earlier rows continue to completion or their own failure; this selects the first error in raster order without computing dependants of a failed macroblock. Dispatch then closes, every started worker is joined and the picture is discarded. Worker creation, channel disconnection, poisoned coordination and worker unwind become bounded encoding errors rather than hangs. Running work may finish after another task fails, but cannot mutate encoder sequence state.
+
+## Entropy coding and reconstruction
+
+Exact candidate counting already derives the neighbour state. The selected candidate retains that state rather than counting its syntax again for publication. After all decisions succeed, a serial raster pass writes macroblock syntax with the real skip-run prefix and commits each selected tile to the tightly packed reconstruction planes. CAVLC neighbour contexts are derived from the same immutable completed neighbours used for candidate counting. Skip runs are never concatenated across independent entropy buffers.
+
+Deblocking runs only after the raster assembly pass and retains its existing order and neighbour records. Visible cropping follows deblocking. The finished reference and sequence counters are committed only after the existing access-unit and total-byte limits succeed.
+
+## Verification
+
+- Compare the one-thread raster-independent decision build with main on five prepared inputs over the quality curve; each input must stay within a +0.5% luma BD-rate cost.
+- Compare complete streams and reconstructions at one, two, three and eight threads, with both dispatched and scalar kernels. Decode every measured stream through the pinned oracle to the reconstruction.
+- Exercise narrow and cropped pictures, row endpoints, cross-picture motion budgets, failure and rollback, blocked dependencies, reordered completions and repeated calls. Test that one-thread and parallel refusals agree and worker failure cannot strand the scheduler.
+- Measure wall-clock encoding at one, two, four and eight threads, recording the available CPU count and identifying oversubscription. Build baseline and candidate in separate target directories at explicit full commits. Keep decoding outside encoding timing.
+- Run the encoder tests, strict Clippy, workspace formatting and unsafe-site checks, public-text checks and exact-head similarity guard. Independent review covers publication order, all scheduler termination paths and the normative pair limit.
+
+This implements the row-wavefront decision and admission scheme in [the pipeline roadmap](h264-encoder-pipeline.md). SIMD changes remain separate.
