@@ -1138,8 +1138,8 @@ Explicit codec options still win in their original order. For example,
 selected stream. Defaults do not add an encoder, widen audio-source
 support or enable audio-only encoding. An M4A output with selected video
 is still refused, not silently reduced to audio. Segment output still
-requires explicit codecs. Encoder options still require their explicit
-encoder name. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
+requires explicit codecs. Encoder options other than the ignored `-q:v`
+still require their explicit encoder name. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
 
 An Opus source can use default AAC encoding. Its current verification uses
 the separately registered [composed Opus-to-AAC check](composed-opus-aac-v2.md):
@@ -1165,6 +1165,7 @@ explicit AAC, and default libx264 can use only the x264 program.
 | `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k with `-c:a libopus` as libopus takes it, 16k to 512k with `-c:a aac`; without it, the encoder's default; only with `-c:a libopus` or `aac` |
 | `-an` | no audio |
 | `-crf Q` | `--crf`, 0 to 51, fractions as given |
+| `-q:v Q` | ignored on the effective libx264 video encode route, including MP4's default codec, as in the pinned FFmpeg; only finite decimal numbers, optionally with an exponent, are admitted, not expressions or nonfinite values. Other encoders, copy and audio-only outputs still refuse it |
 | `-b:v RATE` | `--bitrate`: FFmpeg's number syntax (`k`, `M`, a fraction), in bits a second, divided by 1,000 with the remainder dropped as libx264 receives it (`1M` 1,000, `1234567` 1,234 kbit/s, checked on the pinned FFmpeg as a black box); a rate below 1,000 is refused |
 | `-preset P` | `--preset` |
 | `-threads N` after the input | `--threads`; `0` is the encoder's own choice |

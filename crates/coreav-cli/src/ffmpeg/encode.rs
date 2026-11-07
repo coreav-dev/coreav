@@ -145,6 +145,7 @@ pub fn request(
         passthrough: _,
         audio_bitrate,
         audio_quality,
+        video_quality: _,
     } = &command.encoding;
     if audio_quality.is_some() {
         return Err(Refusal::not_native(
