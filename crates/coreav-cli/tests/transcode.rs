@@ -1436,7 +1436,11 @@ fn hostile_encoders_end_in_an_error_and_leave_nothing() {
 #[cfg(feature = "native-h264")]
 fn ffmpeg_default_video_encoder_applies_options() {
     let (ffmpeg, ffprobe) = ffmpeg().unwrap();
-    let x264 = x264().expect("the pinned x264 program is required");
+    let Some(x264) = x264() else {
+        assert!(!required(), "no pinned x264 (set COREAV_X264)");
+        eprintln!("skipping: no pinned x264 (set COREAV_X264)");
+        return;
+    };
     let dir = dir("ffmpeg-default-video-options");
     let tools = Tools {
         ffmpeg,
