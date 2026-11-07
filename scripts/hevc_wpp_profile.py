@@ -15,8 +15,8 @@ parser = argparse.ArgumentParser()
 for name in ('native', 'main', 'oracle-bin', 'out'):
     parser.add_argument('--' + name, type=pathlib.Path, required=True)
 args = parser.parse_args()
-args.only = {'d06', 'd07', 'd14'}
-args.frames = 4
+args.only = {'d14'}
+args.frames = 1
 args.out.mkdir(parents=True, exist_ok=True)
 oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
 pool = round_files.pool()
@@ -36,6 +36,9 @@ try:
                 stdout, _ = reference.command([oracle.ffprobe, '-v', 'error', '-select_streams', 'v:0',
                     '-show_entries', 'stream=pix_fmt,width,height', '-of', 'json', source], timeout=600)
                 row['probe'] = json.loads(stdout)
+                stdout, _ = reference.command(reference.ffmpeg_command(oracle.ffmpeg, source, True,
+                    ['-pix_fmt', '+yuv420p', '-f', 'framemd5', '-']), timeout=600)
+                row['oracle_frames'] = stdout.decode()
                 row['status'] = 'geometry_diagnosis_only'
                 continue
             row.update(reference.verify(args.native, oracle, source, timeout=600))
@@ -47,7 +50,7 @@ try:
                 before = resource.getrusage(resource.RUSAGE_CHILDREN)
                 start = time.monotonic()
                 child = subprocess.run([str(args.native), str(source), 'decode', str(threads)],
-                    capture_output=True, timeout=600, check=True)
+                    capture_output=True, timeout=600, check=True, env=reference.CHILD_ENV)
                 wall = time.monotonic() - start
                 after = resource.getrusage(resource.RUSAGE_CHILDREN)
                 reference.check_work('coreav', child.stdout, row['frames'])
