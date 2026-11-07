@@ -13,8 +13,13 @@ const ADJUST: [[i64; 3]; 6] = [
     [18, 29, 23],
 ];
 const SHIFT: u32 = 40;
+const INTRA_OFFSET: u64 = 4;
+const INTER_OFFSET: u64 = 2;
+const OFFSET_DENOMINATOR: u64 = 12;
 static QUANT: LazyLock<[Quant; 52]> =
-    LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8)));
+    LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, INTER_OFFSET)));
+static INTRA_QUANT: LazyLock<[Quant; 52]> =
+    LazyLock::new(|| std::array::from_fn(|qp| Quant::new(qp as u8, INTRA_OFFSET)));
 
 pub(crate) fn chroma_qp(qp: u8) -> u8 {
     const HIGH: [u8; 22] = [
@@ -38,6 +43,7 @@ pub(crate) fn norm(qp: u8, position: usize) -> Result<i64> {
         .ok_or(Error::Internal)
 }
 
+#[cfg(test)]
 fn nearest(numerator: i64, denominator: i64) -> Result<i32> {
     let a = numerator.abs();
     if 2 * a <= denominator {
@@ -45,6 +51,14 @@ fn nearest(numerator: i64, denominator: i64) -> Result<i32> {
     }
     let level = a / denominator + i64::from((a % denominator) * 2 > denominator);
     i32::try_from(if numerator < 0 { -level } else { level }).map_err(|_| Error::Coefficient)
+}
+
+fn rounded(numerator: i64, denominator: i64, offset: u64) -> Result<i32> {
+    let magnitude = (numerator.unsigned_abs()
+        + denominator.unsigned_abs() * offset / OFFSET_DENOMINATOR)
+        / denominator.unsigned_abs();
+    let level = i32::try_from(magnitude).map_err(|_| Error::Coefficient)?;
+    Ok(if numerator < 0 { -level } else { level })
 }
 
 /// Forward core transform of one 4x4 residual of 8-bit samples, so every
@@ -65,6 +79,7 @@ impl Forward {
 /// Quantizer constants of one QP by raster position: the zero bound, the
 /// rounding bias and the reciprocal of the divisor, and the scaling factor.
 pub(crate) struct Quant {
+    offset: u64,
     zero: [u32; 16],
     bias: [u64; 16],
     reciprocal: [u64; 16],
@@ -72,15 +87,19 @@ pub(crate) struct Quant {
 }
 
 impl Quant {
-    fn new(qp: u8) -> Self {
+    fn new(qp: u8, offset: u64) -> Self {
         let scale = |p: usize| norm(qp, p).unwrap_or(0) << (qp / 6);
         let divisor = |p: usize| {
             ((if p / 4 % 2 == 0 { 4 } else { 5 }) * (if p % 2 == 0 { 4 } else { 5 }) * scale(p))
                 .unsigned_abs()
         };
         Self {
-            zero: std::array::from_fn(|p| u32::try_from(divisor(p) / 128).unwrap_or(u32::MAX)),
-            bias: std::array::from_fn(|p| divisor(p).saturating_sub(1)),
+            offset,
+            zero: std::array::from_fn(|p| {
+                let d = 2 * divisor(p);
+                u32::try_from((d - 1 - d * offset / OFFSET_DENOMINATOR) / 128).unwrap_or(u32::MAX)
+            }),
+            bias: std::array::from_fn(|p| 2 * divisor(p) * offset / OFFSET_DENOMINATOR),
             reciprocal: std::array::from_fn(|p| {
                 ((1u64 << SHIFT) + 2 * divisor(p) - 1)
                     .checked_div(2 * divisor(p))
@@ -92,6 +111,14 @@ impl Quant {
 
     pub(crate) fn of(qp: u8) -> Result<&'static Self> {
         QUANT.get(usize::from(qp)).ok_or(Error::Internal)
+    }
+
+    pub(crate) fn intra(qp: u8) -> Result<&'static Self> {
+        INTRA_QUANT.get(usize::from(qp)).ok_or(Error::Internal)
+    }
+
+    pub(crate) fn chroma_dc(&self, sums: [i32; 4], qp: u8) -> Result<([i32; 4], [i32; 4])> {
+        chroma_dc_offset(sums, qp, self.offset)
     }
 
     pub(crate) fn zero(&self, coefficients: &Forward, separate_dc: bool) -> bool {
@@ -291,17 +318,18 @@ fn inverse(coefficients: [i32; 16]) -> Option<[i32; 16]> {
 
 pub(crate) fn chroma_dc_quantizes_to_zero(sums: [i32; 4], qp: u8) -> Result<bool> {
     let [a, b, c, d] = sums.map(i64::from);
-    let limit = norm(qp, 0)? * (1i64 << (qp / 6));
+    let step = norm(qp, 0)? * (1i64 << (qp / 6));
+    let limit = step - 1 - (step * INTER_OFFSET as i64 / OFFSET_DENOMINATOR as i64);
     Ok([a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
         .iter()
-        .all(|v| 4 * v.abs() <= limit))
+        .all(|v| 2 * v.abs() <= limit))
 }
 
 pub(crate) fn luma_dc(sums: [i32; 16], qp: u8) -> Result<([i32; 16], [i32; 16])> {
     let step = norm(qp, 0)? * (1i64 << (qp / 6));
     let mut levels = [0i32; 16];
     for (out, v) in levels.iter_mut().zip(transform::<true>(sums)) {
-        *out = nearest(i64::from(v), step)?;
+        *out = rounded(i64::from(v), step, INTRA_OFFSET)?;
     }
     let mut dc = [0i32; 16];
     for (out, v) in dc.iter_mut().zip(transform::<true>(levels)) {
@@ -311,13 +339,18 @@ pub(crate) fn luma_dc(sums: [i32; 16], qp: u8) -> Result<([i32; 16], [i32; 16])>
     Ok((levels, dc))
 }
 
+#[cfg(test)]
 pub(crate) fn chroma_dc(sums: [i32; 4], qp: u8) -> Result<([i32; 4], [i32; 4])> {
+    chroma_dc_offset(sums, qp, INTER_OFFSET)
+}
+
+fn chroma_dc_offset(sums: [i32; 4], qp: u8, offset: u64) -> Result<([i32; 4], [i32; 4])> {
     fn h([a, b, c, d]: [i64; 4]) -> [i64; 4] {
         [a + b + c + d, a - b + c - d, a + b - c - d, a - b - c + d]
     }
     let mut levels = [0i32; 4];
     for (out, v) in levels.iter_mut().zip(h(sums.map(i64::from))) {
-        *out = nearest(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)))?;
+        *out = rounded(2 * v, norm(qp, 0)? * (1i64 << (qp / 6)), offset)?;
     }
     let mut dc = [0i32; 4];
     for (out, v) in dc.iter_mut().zip(h(levels.map(i64::from))) {

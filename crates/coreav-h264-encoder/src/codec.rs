@@ -395,7 +395,7 @@ fn intra16(base: &Tile, source: &Tile, a: IntraAvail, mode: u8, qp: u8) -> Resul
         tile: base.clone(),
     };
     out.tile.prediction(0, 0, 16, a, mode)?;
-    let quant = t::Quant::of(qp)?;
+    let quant = t::Quant::intra(qp)?;
     let mut sums = [0; 16];
     for (k, levels) in out.levels.iter_mut().enumerate() {
         let (x, y) = xy(k);
@@ -418,13 +418,16 @@ fn chroma(base: &[Tile; 2], source: &[Tile; 2], a: IntraAvail, mode: u8, qp: u8)
     for tile in &mut predicted {
         tile.prediction(0, 0, 8, a, mode)?;
     }
-    let mut out = chroma_residual(&predicted, source, qp)?;
+    let mut out = chroma_code(&predicted, source, qp, t::Quant::intra(qp)?)?;
     out.mode = mode;
     Ok(out)
 }
 
 fn chroma_residual(base: &[Tile; 2], source: &[Tile; 2], qp: u8) -> Result<Chroma> {
-    let quant = t::Quant::of(qp)?;
+    chroma_code(base, source, qp, t::Quant::of(qp)?)
+}
+
+fn chroma_code(base: &[Tile; 2], source: &[Tile; 2], qp: u8, quant: &t::Quant) -> Result<Chroma> {
     let mut sums = [[0; 4]; 2];
     let mut levels = [[[0; 16]; 4]; 2];
     for (((tile, original), sums), levels) in
@@ -436,16 +439,26 @@ fn chroma_residual(base: &[Tile; 2], source: &[Tile; 2], qp: u8) -> Result<Chrom
             *levels = quant.levels(&coefficients, true);
         }
     }
-    chroma_reconstruct(base, &sums, levels, qp)
+    chroma_finish(base, &sums, levels, qp, quant)
 }
 
+#[cfg(test)]
 fn chroma_reconstruct(
     base: &[Tile; 2],
     sums: &[[i32; 4]; 2],
     levels: [[[i32; 16]; 4]; 2],
     qp: u8,
 ) -> Result<Chroma> {
-    let quant = t::Quant::of(qp)?;
+    chroma_finish(base, sums, levels, qp, t::Quant::of(qp)?)
+}
+
+fn chroma_finish(
+    base: &[Tile; 2],
+    sums: &[[i32; 4]; 2],
+    levels: [[[i32; 16]; 4]; 2],
+    qp: u8,
+    quant: &t::Quant,
+) -> Result<Chroma> {
     let mut out = Chroma {
         mode: 0,
         levels,
@@ -459,7 +472,7 @@ fn chroma_reconstruct(
         .zip(&mut out.dc)
         .zip(&out.levels)
     {
-        let (levels, dc) = t::chroma_dc(sums, qp)?;
+        let (levels, dc) = quant.chroma_dc(sums, qp)?;
         *dc_levels = levels;
         for (k, (levels, &dc)) in blocks.iter().zip(&dc).enumerate() {
             tile.reconstruct(k % 2 * 4, k / 2 * 4, levels, quant, Some(dc))?;
@@ -485,7 +498,7 @@ fn intra4(
         tile: base.clone(),
     };
     let mut counts = [0; 16];
-    let quant = t::Quant::of(qp)?;
+    let quant = t::Quant::intra(qp)?;
     let lambda = 1u64 << (qp / 3);
     let mut cheap_score = 0;
     for k in 0..16 {
