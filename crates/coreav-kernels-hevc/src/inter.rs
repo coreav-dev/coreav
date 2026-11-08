@@ -196,8 +196,11 @@ fn interpolate(
         rows: [[0; 64]; 8],
     };
     let source_width = output.width + x_filter.len().saturating_sub(1);
-    for (x, column) in scratch.columns.iter_mut().take(source_width).enumerate() {
-        *column = (x_start + x as i64).clamp(0, reference.width as i64 - 1) as usize;
+    let consecutive = x_start >= 0 && x_start + source_width as i64 <= reference.width as i64;
+    if !consecutive {
+        for (x, column) in scratch.columns.iter_mut().take(source_width).enumerate() {
+            *column = (x_start + x as i64).clamp(0, reference.width as i64 - 1) as usize;
+        }
     }
     let row_count = y_filter.len().max(1);
     let mut next_row = 0;
@@ -210,13 +213,20 @@ fn interpolate(
                 .data
                 .get(begin..begin + reference.width)
                 .ok_or(Error::Buffer)?;
-            let input = scratch
-                .source
-                .get_mut(..source_width)
-                .ok_or(Error::Buffer)?;
-            for (value, &column) in input.iter_mut().zip(&scratch.columns) {
-                *value = *source.get(column).ok_or(Error::Buffer)?;
-            }
+            let input = if consecutive {
+                source
+                    .get(x_start as usize..x_start as usize + source_width)
+                    .ok_or(Error::Buffer)?
+            } else {
+                let input = scratch
+                    .source
+                    .get_mut(..source_width)
+                    .ok_or(Error::Buffer)?;
+                for (value, &column) in input.iter_mut().zip(&scratch.columns) {
+                    *value = *source.get(column).ok_or(Error::Buffer)?;
+                }
+                &*input
+            };
             let row = scratch.rows.get_mut(next_row % 8).ok_or(Error::Buffer)?;
             let row = row.get_mut(..output.width).ok_or(Error::Buffer)?;
             if x_filter.is_empty() {
