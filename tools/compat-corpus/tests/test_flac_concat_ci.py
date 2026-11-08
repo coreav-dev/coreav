@@ -251,7 +251,7 @@ class ScopedProjection(unittest.TestCase):
 @unittest.skipUnless(os.environ.get('COREAV_CURRENT_CI_ORACLE') == '1', 'needs generated current-CI records')
 class GeneratedRecords(unittest.TestCase):
     @unittest.skipUnless(sys.platform == 'linux', 'the fixture digest uses the pinned Linux oracle')
-    def test_fixture_generation_is_cpu_independent_and_digest_bound(self):
+    def test_fixture_generation_pins_override_cpu_requests_and_match_the_digest(self):
         import test_oracle
         tools = test_oracle.require()
         with tempfile.TemporaryDirectory() as temporary:
