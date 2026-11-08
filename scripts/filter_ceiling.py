@@ -70,6 +70,27 @@ def erased(text, kind):
 
 
 def erased_driver(text, kind):
+    if kind == 'deblock-metadata':
+        replacements = (
+            ('    cell: Cell,', '    cell: &Cell,'),
+            ('    p: Cell,\n    q: Cell,', '    p: &Cell,\n    q: &Cell,'),
+            ('fn filter_ctu(&self, x: usize, y: usize) -> Result<Ctu>', 'fn filter_ctu(&self, x: usize, y: usize) -> Result<&Ctu>'),
+            ('            .copied()\n            .filter(|c| c.seen)\n', '\n'),
+            ('                let qcell = *self.cell(lx, ly)?;', '                let qcell = self.cells.get((ly / 4) * (self.info.width as usize / 4) + lx / 4).ok_or(Error::InvalidData("intra_cell_address"))?;'),
+            ('                let pcell = *self.cell(px, py)?;', '                let pcell = self.cells.get((py / 4) * (self.info.width as usize / 4) + px / 4).ok_or(Error::InvalidData("intra_cell_address"))?;'),
+        )
+        for original, replacement in replacements:
+            if text.count(original) != 1:
+                raise ValueError('metadata_span_changed')
+            text = text.replace(original, replacement)
+        start, end = body_span(text, 'fn deblock(&mut self,')
+        body = text[start:end].replace('ctu.offsets', 'filter_offsets')
+        body = body.replace('let offset = *ctu\n                            .chroma_offsets', 'let offset = *chroma_offsets')
+        needle = '                let ctu = self.filter_ctu(lx, ly)?;'
+        if body.count(needle) != 1:
+            raise ValueError('metadata_snapshot_changed')
+        body = body.replace(needle, needle + '\n                let filter_offsets = ctu.offsets;\n                let chroma_offsets = ctu.chroma_offsets;')
+        return text[:start] + body + text[end:]
     if kind == 'deblock-write':
         start, end = body_span(text, 'fn write_edge<const N: usize>(')
         return text[:start] + '\n        let _ = (component, horizontal, edge, along, strength);\n        core::hint::black_box(result);\n        Ok(())\n    ' + text[end:]
@@ -253,7 +274,7 @@ def main():
     sub = parser.add_subparsers(dest='action', required=True)
     patch = sub.add_parser('erase')
     patch.add_argument('--filter', type=pathlib.Path, required=True)
-    kinds = ('deblock', 'sao10', 'deblock10', 'deblock-write', 'deblock8-gather', 'sao8-validation', 'sao8-tail', 'sao8-protection')
+    kinds = ('deblock', 'sao10', 'deblock10', 'deblock-write', 'deblock8-gather', 'deblock-metadata', 'sao8-validation', 'sao8-tail', 'sao8-protection')
     patch.add_argument('--kind', choices=kinds, required=True)
     patch.add_argument('--diff', type=pathlib.Path, required=True)
     patch.add_argument('--driver', type=pathlib.Path)
@@ -269,7 +290,7 @@ def main():
     run_parser.add_argument('--audit-only', action='store_true')
     args = parser.parse_args()
     if args.action == 'erase':
-        driver_arm = args.kind in ('deblock-write', 'deblock8-gather', 'sao8-protection')
+        driver_arm = args.kind in ('deblock-write', 'deblock8-gather', 'deblock-metadata', 'sao8-protection')
         path = args.driver if driver_arm else args.filter
         if path is None:
             raise ValueError('missing_driver_path')

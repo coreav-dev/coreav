@@ -23,6 +23,11 @@ on:
         required: true
         type: boolean
         default: false
+      arms:
+        description: Space-separated scalar erasure targets
+        required: true
+        type: string
+        default: deblock10 deblock-write deblock8-gather sao8-validation sao8-tail sao8-protection
 
 permissions:
   contents: read
@@ -41,6 +46,7 @@ jobs:
       CASE: ${{ matrix.case }}
       FRAMES: ${{ inputs.frames }}
       DIAGNOSE: ${{ inputs.diagnose }}
+      ARMS: ${{ inputs.arms }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -61,6 +67,8 @@ jobs:
           assert re.fullmatch('[0-9a-f]{40}', os.environ['BASELINE'])
           assert re.fullmatch('[dc][0-9]{2}', os.environ['CASE'])
           assert 1 <= int(os.environ['FRAMES']) <= 32
+          arms = os.environ['ARMS'].split()
+          assert arms and set(arms) <= {'deblock10', 'deblock-write', 'deblock8-gather', 'deblock-metadata', 'sao8-validation', 'sao8-tail', 'sao8-protection'}
           PY
           test "$(git -C main rev-parse HEAD)" = "$BASELINE"
           git -C main merge-base --is-ancestor "$BASELINE" origin/main
@@ -78,7 +86,7 @@ jobs:
           cp main/crates/coreav-kernels-hevc/src/filter.rs "$RUNNER_TEMP/kernel.rs"
           cp main/crates/coreav-hevc/src/reconstruction/filter.rs "$RUNNER_TEMP/driver.rs"
           if [ "$DIAGNOSE" != true ]; then
-          for ARM in deblock10 deblock-write deblock8-gather sao8-validation sao8-tail sao8-protection; do
+          for ARM in $ARMS; do
             cp "$RUNNER_TEMP/kernel.rs" main/crates/coreav-kernels-hevc/src/filter.rs
             cp "$RUNNER_TEMP/driver.rs" main/crates/coreav-hevc/src/reconstruction/filter.rs
             python3 -I driver/scripts/filter_ceiling.py erase --kind "$ARM" --filter main/crates/coreav-kernels-hevc/src/filter.rs --driver main/crates/coreav-hevc/src/reconstruction/filter.rs --diff "$RUNNER_TEMP/count/$ARM.patch"
@@ -108,7 +116,7 @@ jobs:
               --native "$RUNNER_TEMP/binaries/main" --oracle-bin "$RUNNER_TEMP/oracle" \
               --only "$CASE" --frames "$FRAMES" --out "$RUNNER_TEMP/count"
           else
-            python3 -I driver/scripts/filter_ceiling.py run --baseline "$BASELINE" --arms deblock10 deblock-write deblock8-gather sao8-validation sao8-tail sao8-protection \
+            python3 -I driver/scripts/filter_ceiling.py run --baseline "$BASELINE" --arms $ARMS \
               --binaries "$RUNNER_TEMP/binaries" --oracle-bin "$RUNNER_TEMP/oracle" \
               --only "$CASE" --depth 0 --frames "$FRAMES" --out "$RUNNER_TEMP/count"
           fi
