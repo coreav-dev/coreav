@@ -35,6 +35,9 @@ pub use intra::{IntraLimits, IntraPicture, IntraPictureDecoder, IntraPlane, Intr
 pub use nal::{AnnexB, LengthPrefixed, NalHeader, packet_nal};
 pub use parser::{HeaderParser, NalInfo, PictureInfo, Summary};
 pub use reconstruction::InterStats;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub use residual::coefficient_levels_match_reference;
 pub use rps::Rps;
 pub use sei::{PictureHash, SeiInfo};
 pub use slice::{LongTermRef, SliceHeader};

@@ -21,3 +21,18 @@ CABAC arithmetic and level decoding remain unchanged in the first candidate.
 Consider further restructuring or assembly only after measuring this safe
 candidate. Any later unsafe site must retain a safe reference, document its
 memory preconditions and compare both implementations on arbitrary bytes.
+
+## Sparse coefficient-level iteration
+
+Level decoding visits a 16-position group once to read greater-than-one
+flags. Retain that pass and collect the significant positions in a `u16`
+mask. The sign and remaining-level passes then visit only the set bits,
+from the highest scan position to the lowest. Coefficient storage,
+context transitions, sign hiding and Rice adaptation remain unchanged.
+
+Keep the original three-pass implementation as a test-only reference.
+Compare output, coefficient flags, contexts, carried group state and the
+complete CABAC state on arbitrary masks and byte sources, including
+truncation and exhausted bin budgets. Exhaust the position-mask domain in
+unit tests and run the differential target on Actions before measuring.
+This candidate uses checked access only and introduces no assembly.

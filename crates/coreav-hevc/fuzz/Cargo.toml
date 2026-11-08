@@ -12,7 +12,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-coreav-hevc = { path = "..", features = ["native-hevc"] }
+coreav-hevc = { path = "..", features = ["native-hevc", "test-support"] }
 
 [[bin]]
 name = "intra"
@@ -31,6 +31,13 @@ bench = false
 [[bin]]
 name = "pictures"
 path = "fuzz_targets/pictures.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "levels"
+path = "fuzz_targets/levels.rs"
 test = false
 doc = false
 bench = false
