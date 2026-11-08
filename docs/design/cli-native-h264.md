@@ -2,7 +2,7 @@
 
 ## Selection
 
-`coreav --native-h264-encoder ffmpeg -i in.mp4 -an -c:v libx264 -crf 23 out.mp4` prefers CoreAV's encoder. The `native-h264-encoder` Cargo feature enables the flag and the library wiring. Neither the feature nor its dependencies enter default, release-default, or release-full feature sets. A decoder backend remains a separate opt-in.
+`coreav --native-h264-encoder ffmpeg -i in.mp4 -an -c:v libx264 -crf 23 out.mp4` prefers CoreAV's encoder. The `native-h264-encoder` Cargo feature enables the flag and the library wiring. The feature and the `coreav-h264-encoder` crate remain absent from default, release-default, and release-full builds. Both release feature sets already include the shared `transcode` dependency. A decoder backend remains a separate opt-in.
 
 The selector belongs to CoreAV, before the subcommand. A new codec name would require rewriting fallback arguments. A flag inside FFmpeg's arguments could collide with an option value or filename. An environment variable would make selection implicit. The outer flag avoids all three problems. Without the flag, the existing path remains unchanged, including in a feature-enabled build.
 
