@@ -913,11 +913,11 @@ fn joined_audio_entry(
                 config
                     .get_mut(8..10)
                     .ok_or_else(overflow)?
-                    .copy_from_slice(&(plan.minimum as u16).to_be_bytes());
+                    .copy_from_slice(&plan.minimum.to_be_bytes());
                 config
                     .get_mut(10..12)
                     .ok_or_else(overflow)?
-                    .copy_from_slice(&(plan.maximum as u16).to_be_bytes());
+                    .copy_from_slice(&plan.maximum.to_be_bytes());
                 let mut minimum = u32::MAX;
                 let mut maximum = 0;
                 for sample in 0..tables.samples() {

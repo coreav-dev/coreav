@@ -6,8 +6,8 @@ use std::cell::RefCell;
 use std::io::{self, Write};
 
 pub(super) struct Plan {
-    pub(super) minimum: u32,
-    pub(super) maximum: u32,
+    pub(super) minimum: u16,
+    pub(super) maximum: u16,
     pub(super) samples: u64,
 }
 
@@ -61,13 +61,17 @@ impl Survey {
         if !self.rewrite || self.minimum < 16 || self.samples >= 1 << 36 || self.maximum == 0 {
             return None;
         }
+        if self.frames == 1 {
+            self.minimum = 16;
+            self.maximum = self.maximum.max(16);
+        }
         if self.minimum == self.maximum {
             self.minimum = 16;
             self.maximum = self.maximum.max(17);
         }
         Some(Plan {
-            minimum: self.minimum,
-            maximum: self.maximum,
+            minimum: u16::try_from(self.minimum).ok()?,
+            maximum: u16::try_from(self.maximum).ok()?,
             samples: self.samples,
         })
     }
@@ -342,5 +346,23 @@ mod tests {
             survey.push(head).unwrap();
         }
         assert_eq!(survey.finish().unwrap().minimum, 768);
+    }
+
+    #[test]
+    fn a_single_repaired_frame_has_legal_representable_bounds() {
+        let (_, packet, _) = encoded(32, 0, SampleFormat::S16);
+        let base = FrameHeader::parse(&packet).unwrap();
+        assert!(Survey::new().finish().is_none());
+        for block in [1, 15, 16, 128, 65535] {
+            let mut head = base;
+            head.block_size = block;
+            head.number = 1;
+            let mut survey = Survey::new();
+            survey.push(head).unwrap();
+            let plan = survey.finish().unwrap();
+            assert!(plan.minimum >= 16 && plan.minimum < plan.maximum);
+            assert!(u32::from(plan.maximum) >= block);
+            assert_eq!(plan.samples, u64::from(block));
+        }
     }
 }
