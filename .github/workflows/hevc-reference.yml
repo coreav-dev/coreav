@@ -5,12 +5,17 @@ run-name: HEVC reference ${{ inputs.candidate }} (${{ inputs.only || 'all' }}, c
 on:
   workflow_dispatch:
     inputs:
+      inverse:
+        description: Run the same-host inverse reconstruction comparison
+        required: false
+        default: false
+        type: boolean
       candidate:
         description: Exact decoder commit
         required: true
         type: string
       baseline:
-        description: Optional full main SHA for the threading comparison
+        description: Optional full baseline SHA for a comparison
         required: false
         default: ''
         type: string
@@ -39,8 +44,17 @@ permissions:
   contents: read
 
 jobs:
+  inverse-comparison:
+    if: inputs.inverse
+    uses: ./.github/workflows/hevc-inverse-reference.yml
+    with:
+      baseline: ${{ inputs.baseline }}
+      candidate: ${{ inputs.candidate }}
+      only: ${{ inputs.only }}
+    secrets: inherit
+
   reference:
-    if: inputs.baseline == '' && !inputs.sanitizer_only
+    if: ${{ !inputs.inverse && inputs.baseline == '' && !inputs.sanitizer_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
@@ -114,7 +128,7 @@ jobs:
           retention-days: 30
 
   threading:
-    if: inputs.baseline != '' || inputs.sanitizer_only
+    if: ${{ !inputs.inverse && (inputs.baseline != '' || inputs.sanitizer_only) }}
     uses: ./.github/workflows/hevc-threading.yml
     with:
       candidate: ${{ inputs.candidate }}
