@@ -213,6 +213,7 @@ impl<'a, T> Rect<'a, T> {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl<T: Copy> Rect<'_, T> {
     pub(crate) fn at(&self, x: usize, y: usize) -> Result<T, Error> {
         self.data
@@ -261,6 +262,7 @@ impl<'a, T> RectMut<'a, T> {
         self.height
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn put(&mut self, x: usize, y: usize, value: T) -> Result<(), Error> {
         *self
             .data

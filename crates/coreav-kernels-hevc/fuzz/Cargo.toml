@@ -51,3 +51,10 @@ path = "fuzz_targets/deblock.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "combine"
+path = "fuzz_targets/combine.rs"
+test = false
+doc = false
+bench = false
