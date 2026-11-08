@@ -22,6 +22,8 @@ mod ffv1;
 mod frames;
 #[cfg(feature = "input-capture")]
 mod image_capture;
+#[cfg(feature = "native-h264-encoder")]
+pub mod native_h264;
 mod pcm;
 mod raw_audio;
 mod ts;
@@ -30,7 +32,7 @@ pub(crate) const MUXER_ENCODER: &str = "Lavf63.1.102";
 
 /// The wall-clock limit of one native encode command.
 #[cfg(feature = "transcode")]
-const ENCODE_LIMIT: std::time::Duration = std::time::Duration::from_secs(3600);
+pub const ENCODE_LIMIT: std::time::Duration = std::time::Duration::from_secs(3600);
 
 use crate::error::Failure;
 use crate::fallback::NotNative;
@@ -304,6 +306,23 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     run_inner(args, strict_safe, None, None)
 }
 
+#[cfg(feature = "native-h264-encoder")]
+/// Runs the existing path within an opt-in command's original deadline.
+pub fn run_attempt(
+    args: &[String],
+    strict_safe: StrictSafe,
+    attempt: native_h264::EncodeAttempt,
+) -> Result<serde_json::Value, Stop> {
+    run_command(
+        args::parse(args)?,
+        strict_safe,
+        None,
+        None,
+        None,
+        Some(attempt),
+    )
+}
+
 /// Runs a parsed pipe command from its privately spooled encoded input.
 pub fn run_spooled(
     args: &[String],
@@ -372,7 +391,29 @@ fn run_with_input(
     image_capture: Option<&Path>,
     spooled: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
-    let mut command = args::parse(args)?;
+    let command = args::parse(args)?;
+    run_command(
+        command,
+        strict_safe,
+        capture,
+        image_capture,
+        spooled,
+        #[cfg(feature = "native-h264-encoder")]
+        None,
+    )
+}
+
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
+fn run_command(
+    mut command: Command,
+    strict_safe: StrictSafe,
+    capture: Option<&Path>,
+    image_capture: Option<&Path>,
+    spooled: Option<&Path>,
+    #[cfg(feature = "native-h264-encoder")] attempt: Option<native_h264::EncodeAttempt>,
+) -> Result<serde_json::Value, Stop> {
+    #[cfg(feature = "native-h264-encoder")]
+    let native = attempt.and_then(|attempt| attempt.native);
     if let Some(input) = spooled {
         command.input = input.to_string_lossy().into_owned();
     }
@@ -441,6 +482,10 @@ fn run_with_input(
         return write(&command, &job);
     }
     let job = plan(&command, &report, list)?;
+    #[cfg(feature = "native-h264-encoder")]
+    if native.is_some() && !matches!(job, Job::Transcode(_)) {
+        return Err(Refusal::not_native("native H.264 requires video encoding").into());
+    }
     if image_capture.is_some()
         && !matches!(
             job,
@@ -473,11 +518,27 @@ fn run_with_input(
     }
     #[cfg(feature = "transcode")]
     if let Job::Transcode(transcode) = &job {
+        #[cfg(feature = "native-h264-encoder")]
+        if native.is_some() && !native_h264::source(&report, transcode.video) {
+            return Err(Refusal::not_native("the source is outside native H.264 limits").into());
+        }
         if capture.is_some() && transcode.audio_encoder != Some(args::AudioEncoder::Aac) {
             return Err(Refusal::not_native("input capture without a native AAC encode").into());
         }
         let encoder = encode::encoder(transcode, strict_safe)?;
-        return encode::write_inner(&command, transcode, encoder, strict_safe, capture);
+        return encode::write_inner(
+            &command,
+            transcode,
+            encoder,
+            strict_safe,
+            capture,
+            #[cfg(feature = "native-h264-encoder")]
+            attempt,
+        );
+    }
+    #[cfg(feature = "native-h264-encoder")]
+    if native.is_some() {
+        return Err(Refusal::not_native("native H.264 requires video encoding").into());
     }
     if capture.is_some() {
         return Err(Refusal::not_native("input capture without a native AAC encode").into());

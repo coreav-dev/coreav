@@ -1152,6 +1152,8 @@ that AAC source decoding is byte-identical to the oracle.
 
 ## Through `coreav ffmpeg`
 
+The optional `native-h264-encoder` CLI feature and outer `--native-h264-encoder` flag prefer CoreAV's native H.264 encoder for eligible commands. The [native CLI design](cli-native-h264.md) defines its integer CRF and fixed-QP mapping, input limits, transactional retry, and unchanged default and release feature sets. The external encoder rules below remain the default and the fallback.
+
 `coreav ffmpeg` ([`compat-cli.md`](compat-cli.md)) runs the common
 `ffmpeg` command lines of this job through this pipeline: one input, the
 video re-encoded with libx264, the audio copied, dropped, or one audio

@@ -683,6 +683,10 @@ struct Grouped<'a> {
 }
 
 fn grouped(args: &[String]) -> Result<Grouped<'_>, Refusal> {
+    grouped_with_qp(args, false)
+}
+
+fn grouped_with_qp(args: &[String], native_qp: bool) -> Result<Grouped<'_>, Refusal> {
     let mut inputs: Vec<(&str, Group)> = Vec::new();
     let mut outputs: Vec<(&str, Group)> = Vec::new();
     let (mut yes, mut no) = (false, false);
@@ -711,7 +715,10 @@ fn grouped(args: &[String]) -> Result<Grouped<'_>, Refusal> {
             .chain(PER_FILE.iter())
             .find(|(name, _)| *name == arg)
             .map(|(_, arity)| *arity)
-            .or_else(|| (arg == "-i" || codec_option(arg).is_some()).then_some(Arity::Value));
+            .or_else(|| {
+                (arg == "-i" || codec_option(arg).is_some() || native_qp && arg == "-qp")
+                    .then_some(Arity::Value)
+            });
         let Some(arity) = arity else {
             let base = arg.split(':').next().unwrap_or(arg);
             let why = REFUSED.iter().find(|(name, _)| *name == base).map_or(
@@ -807,13 +814,34 @@ pub fn summary(args: &[String]) -> Result<Option<Vec<crate::ffprobe::args::Optio
 
 /// Parses an invocation that writes an output file.
 pub fn parse(args: &[String]) -> Result<Command, Refusal> {
+    parse_grouped(grouped(args)?)
+}
+
+#[cfg(feature = "native-h264-encoder")]
+pub(super) fn native_h264(args: &[String]) -> Result<(Command, Option<String>), Refusal> {
+    let mut grouped = grouped_with_qp(args, true)?;
+    let mut qp = None;
+    if let [(_, options)] = grouped.outputs.as_mut_slice() {
+        options.retain(|(option, value)| {
+            if *option == "-qp" {
+                qp = value.map(str::to_owned);
+                false
+            } else {
+                true
+            }
+        });
+    }
+    Ok((parse_grouped(grouped)?, qp))
+}
+
+fn parse_grouped(grouped: Grouped<'_>) -> Result<Command, Refusal> {
     let Grouped {
         inputs,
         outputs,
         yes,
         no,
         ..
-    } = grouped(args)?;
+    } = grouped;
     let overwrite = match (yes, no) {
         (true, true) => return Err(usage("Error, both -y and -n supplied. Exiting.")),
         (true, false) => Overwrite::Yes,

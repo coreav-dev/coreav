@@ -9,6 +9,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+coreav-h264-encoder = { path = "../coreav-h264-encoder", optional = true, features = ["full"] }
 coreav-ffv1 = { path = "../coreav-ffv1" }
 coreav-audio = { path = "../coreav-audio" }
 coreav-decode = { path = "../coreav-decode" }
@@ -23,6 +24,7 @@ sha2 = { version = "0.10", optional = true }
 serde = { workspace = true, optional = true }
 
 [features]
+h264-native = ["dep:coreav-h264-encoder"]
 # AAC LC decoding in `coreav-audio`, including sources of audio encodes.
 aac = ["coreav-audio/aac"]
 input-capture = ["dep:sha2", "dep:serde"]

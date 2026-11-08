@@ -574,6 +574,7 @@ dependencies = [
  "coreav-decode",
  "coreav-ffv1",
  "coreav-frame",
+ "coreav-h264-encoder",
  "coreav-isobmff",
  "coreav-isobmff-write",
  "coreav-mkv",

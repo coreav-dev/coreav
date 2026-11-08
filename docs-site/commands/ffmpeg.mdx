@@ -34,6 +34,23 @@ In every build with a decoder backend, such a command line can also encode one a
 
 These audio encoders also work without video: use `-vn` or select one audio stream with `-map a` or `-map 0:a:0`. AAC output can be MP4 or M4A; Opus output can be MP4. `-b:a` and the encoder defaults are unchanged. No video decoder or video encoder runs. Multiple audio streams, delayed source audio, chapters, source tags or dispositions the writer does not preserve, video encoder options and trim options are refused. On M4A, `-map_metadata -1` discards source tags. The standalone `coreav transcode` command still requires video.
 
+### Opt-in native H.264 encoding
+
+A build with the `native-h264-encoder` Cargo feature accepts the outer flag `--native-h264-encoder` before `ffmpeg`. A decoder backend, such as `native-h264`, is also needed. This feature is absent from default and release feature sets.
+
+```sh
+coreav --native-h264-encoder ffmpeg -i input.mp4 -an -c:v libx264 -crf 23 output.mp4
+coreav --native-h264-encoder ffmpeg -i input.mp4 -an -c:v libx264 -qp 28 fixed.mp4
+```
+
+The flag prefers CoreAV's native encoder rather than changing what `libx264` means for other commands. Native output is Constrained Baseline, with enabled deblocking and an IDR interval of 250. Integer `-crf` and `-qp` values from 10 through 51 select constant quality and fixed quantization respectively. With neither, native encoding uses CRF 23. Thread count does not change output bytes.
+
+Native input must be progressive planar 8-bit 4:2:0 at exactly 30 frames per second, with square pixels and even dimensions from 16 through 1920 horizontally and 16 through 1080 vertically. Native output is limited to MP4 files; Matroska keeps the existing external path. Other clocks, variable frame rates, unsupported color descriptions, scaling, cropping, presets, profiles, B-frame controls, bitrate and VBV options also keep the existing path. So do fractional or out-of-range quality values and commands containing both `-crf` and `-qp`.
+
+The flag is a preference, not a promise to avoid external programs. If the native library cannot encode a picture within its coding limits, CoreAV discards the staged native output and retries the unchanged command through the existing path. Strict-safe mode also keeps its existing encoder policy. Without the flag, every command keeps its existing behavior. See the [native CLI design](https://github.com/coreav-dev/coreav/blob/main/docs/design/cli-native-h264.md).
+
+Both CoreAV encode attempts share the original one-hour command limit. A native timeout is terminal rather than a reason to retry: an input that an external encoder could finish within the limit may time out with the native preference.
+
 ### MP3 output
 
 In a build with the `transcode` feature, a `.mp3` output or `-f mp3` defaults to MP3 encoding. `-c:a libmp3lame`, `-codec:a libmp3lame` and `-acodec libmp3lame` select it explicitly. CoreAV runs the `ffmpeg` program named by `COREAV_FFMPEG`, else the one on `PATH`, with libmp3lame as a separate resource-limited encoder. CoreAV supplies decoded PCM, checks its output, and writes the MP3 file itself, including ID3v2.4 and Xing/Info gapless metadata. It never links or bundles libmp3lame.

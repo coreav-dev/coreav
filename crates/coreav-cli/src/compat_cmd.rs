@@ -74,11 +74,24 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
         Ok(args) => args,
         Err(code) => return code,
     };
-    match ffmpeg::args::summary(&args) {
-        Ok(Some(options)) => return run_summary(Tool::Ffmpeg, &args, &options, strict_safe),
+    run_ffmpeg_with(
+        &args,
+        strict_safe,
+        #[cfg(feature = "native-h264-encoder")]
+        None,
+    )
+}
+
+fn run_ffmpeg_with(
+    args: &[String],
+    strict_safe: StrictSafe,
+    #[cfg(feature = "native-h264-encoder")] attempt: Option<ffmpeg::native_h264::EncodeAttempt>,
+) -> ExitCode {
+    match ffmpeg::args::summary(args) {
+        Ok(Some(options)) => return run_summary(Tool::Ffmpeg, args, &options, strict_safe),
         Ok(None) => {}
         Err(Refusal::NotNative(refusal)) => {
-            return fallback_cmd::refuse(Tool::Ffmpeg, &args, refusal, strict_safe);
+            return fallback_cmd::refuse(Tool::Ffmpeg, args, refusal, strict_safe);
         }
         Err(Refusal::Usage(text)) => {
             message("ffmpeg", &text);
@@ -87,7 +100,7 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
         Err(Refusal::Help) => return print_usage(ffmpeg::USAGE),
     }
     let mut spool = None;
-    if let Ok(command) = ffmpeg::args::parse(&args)
+    if let Ok(command) = ffmpeg::args::parse(args)
         && ffmpeg::args::stdin(&command.input)
         && command.more_inputs.is_empty()
         && matches!(
@@ -108,9 +121,24 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
         }
     }
     let result = match &spool {
-        Some(input) => ffmpeg::run_spooled(&args, strict_safe, &input.path),
-        None => ffmpeg::run(&args, strict_safe),
+        Some(input) => ffmpeg::run_spooled(args, strict_safe, &input.path),
+        #[cfg(feature = "native-h264-encoder")]
+        None => match attempt {
+            Some(attempt) => ffmpeg::run_attempt(args, strict_safe, attempt),
+            None => ffmpeg::run(args, strict_safe),
+        },
+        #[cfg(not(feature = "native-h264-encoder"))]
+        None => ffmpeg::run(args, strict_safe),
     };
+    finish_ffmpeg(args, strict_safe, spool, result)
+}
+
+fn finish_ffmpeg(
+    args: &[String],
+    strict_safe: StrictSafe,
+    mut spool: Option<EncodedInput>,
+    result: Result<serde_json::Value, Stop>,
+) -> ExitCode {
     match result {
         Ok(_) => ExitCode::SUCCESS,
         Err(Stop::Refused(Refusal::NotNative(refusal))) => {
@@ -118,7 +146,7 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
                 match input.into_replay() {
                     Ok((file, input)) => fallback_cmd::refuse_with_input(
                         Tool::Ffmpeg,
-                        &args,
+                        args,
                         refusal,
                         strict_safe,
                         file,
@@ -133,7 +161,7 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
                     }
                 }
             } else {
-                fallback_cmd::refuse(Tool::Ffmpeg, &args, refusal, strict_safe)
+                fallback_cmd::refuse(Tool::Ffmpeg, args, refusal, strict_safe)
             }
         }
         Err(Stop::Refused(Refusal::Usage(text))) => {
@@ -155,13 +183,34 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
                 .get("message")
                 .and_then(serde_json::Value::as_str)
                 .map_or_else(|| json.to_string(), str::to_owned);
-            message("ffmpeg", &format!("{}: {text}", args_input(&args)));
+            message("ffmpeg", &format!("{}: {text}", args_input(args)));
             ExitCode::from(if failure.is_io() {
                 EXIT_IO
             } else {
                 EXIT_REJECTED
             })
         }
+    }
+}
+
+#[cfg(feature = "native-h264-encoder")]
+pub fn run_ffmpeg_native(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
+    let text = match strings("ffmpeg", args) {
+        Ok(text) => text,
+        Err(code) => return code,
+    };
+    let deadline = std::time::Instant::now() + ffmpeg::ENCODE_LIMIT;
+    match ffmpeg::native_h264::run(&text, strict_safe, deadline) {
+        Ok(Some(_)) => ExitCode::SUCCESS,
+        Ok(None) | Err(Stop::Refused(Refusal::NotNative(_))) => run_ffmpeg_with(
+            &text,
+            strict_safe,
+            Some(ffmpeg::native_h264::EncodeAttempt {
+                native: None,
+                deadline,
+            }),
+        ),
+        Err(error) => finish_ffmpeg(&text, strict_safe, None, Err(error)),
     }
 }
 
