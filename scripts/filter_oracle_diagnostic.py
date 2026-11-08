@@ -11,6 +11,17 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import hevc_reference as ref
 
 
+def units(data):
+    starts = list(re.finditer(b'\x00\x00(?:\x00)?\x01', data))
+    result = []
+    for index, start in enumerate(starts):
+        end = starts[index + 1].start() if index + 1 < len(starts) else len(data)
+        nal = data[start.end():end].rstrip(b'\x00')
+        if len(nal) >= 2:
+            result.append(((nal[0] >> 1) & 63, nal))
+    return result
+
+
 def diagnose(args):
     args.only = set(args.only.split(','))
     oracle = ref.test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
@@ -36,14 +47,10 @@ def diagnose(args):
                                      conformance_window=pictures[0].get('conformance_window'),
                                      depth=pictures[0]['bit_depth'], complete=native[-1]['complete'])
                 data = source.read_bytes()
-                starts = list(re.finditer(b'\x00\x00(?:\x00)?\x01', data))
                 types = collections.Counter()
                 first_slices = 0
-                for index, start in enumerate(starts):
-                    end = starts[index + 1].start() if index + 1 < len(starts) else len(data)
-                    nal = data[start.end():end]
+                for kind, nal in units(data):
                     if len(nal) >= 3:
-                        kind = (nal[0] >> 1) & 63
                         types[kind] += 1
                         first_slices += int(kind <= 31 and bool(nal[2] & 128))
                 row['prepared'] = dict(bytes=len(data), sha256=ref.conformance.digest(source),
@@ -60,17 +67,27 @@ def diagnose(args):
                         '-of', 'json', source], timeout=60)
                     row['decoded_probe'] = dict(status='success', frames=json.loads(frames)['frames'])
                 except subprocess.TimeoutExpired as error:
+                    partial = error.stdout or b''
                     row['decoded_probe'] = dict(status='timeout', stdout_bytes=len(error.stdout or b''),
-                                                stderr_bytes=len(error.stderr or b''))
-                for variant in ('output-single-thread', 'rawvideo-single-thread', 'single-filter-thread'):
+                        stderr_bytes=len(error.stderr or b''),
+                        widths=[int(v) for v in re.findall(rb'"width":\s*(\d+)', partial)],
+                        heights=[int(v) for v in re.findall(rb'"height":\s*(\d+)', partial)],
+                        side_data_types=[v.decode() for v in re.findall(rb'"side_data_type":\s*"([A-Za-z0-9 .:-]{1,100})"', partial)])
+                stripped = pathlib.Path(temp) / 'without-prefix-sei.hevc'
+                ref.command([oracle.ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin',
+                    '-i', source, '-map', '0:v:0', '-c:v', 'copy', '-bsf:v', 'filter_units=remove_types=39',
+                    '-f', 'hevc', '-y', stripped])
+                row['stripped'] = dict(sha256=ref.conformance.digest(stripped),
+                    non_prefix_units_equal=[q for q in units(data) if q[0] != 39] == units(stripped.read_bytes()))
+                if not row['stripped']['non_prefix_units_equal']:
+                    raise ValueError('prefix_removal_changed_other_nals')
+                for variant in ('prefix-sei-free', 'explicit-crop', 'ignore-display-window'):
                     output = ['-pix_fmt', '+' + pixel_format, '-f', 'framemd5', '-']
-                    if variant in ('output-single-thread', 'rawvideo-single-thread'):
-                        output = ['-threads:v', '1', *output]
-                    if variant == 'rawvideo-single-thread':
-                        output = ['-c:v', 'rawvideo', *output]
-                    command = ref.ffmpeg_command(oracle.ffmpeg, source, True, output)
-                    if variant == 'single-filter-thread':
-                        command[1:1] = ['-filter_threads', '1']
+                    command = ref.ffmpeg_command(oracle.ffmpeg, stripped if variant == 'prefix-sei-free' else source, True, output)
+                    if variant == 'explicit-crop':
+                        command[1:1] = ['-apply_cropping', '1']
+                    if variant == 'ignore-display-window':
+                        command[1:1] = ['-apply_defdispwin', '0']
                     status = 'success'
                     stdout = stderr = b''
                     try:
