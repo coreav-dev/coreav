@@ -191,6 +191,34 @@ class OracleInstall(unittest.TestCase):
 
 
 class OracleArchiveWorkflow(unittest.TestCase):
+    def test_native_h264_cli_uses_the_shared_verified_archive(self):
+        data = self.data(ROOT / '.github/workflows/h264-encoder.yml')
+        job = data['jobs']['native-h264-cli']
+        candidate = job['defaults']['run']['working-directory']
+        self.assertTrue(any(step.get('with', {}).get('path') == candidate and
+                            'ref' not in step.get('with', {}) for step in job['steps']))
+        owner, = [step for step in job['steps'] if 'sparse-checkout' in step.get('with', {})]
+        self.assertNotIn('path', owner['with'])
+        self.assertNotIn('ref', owner['with'])
+        self.assertFalse(owner['with']['sparse-checkout-cone-mode'])
+        self.assertEqual(owner['with']['sparse-checkout'].splitlines(),
+                         ['.github/actions/oracle-cache', 'scripts/oracle-ffmpeg.env'])
+        cache, = [index for index, step in enumerate(job['steps'])
+                  if step.get('uses') == './.github/actions/oracle-cache']
+        install, = [index for index, step in enumerate(job['steps']) if any(
+            workflow_check.calls_installer(line, workflow_check.CI_ORACLE_PIN[1])
+            for line in step.get('run', '').splitlines())]
+        self.assertLess(cache, install)
+        self.assertNotIn('if', job['steps'][install])
+        run = job['steps'][install]['run']
+        self.assertIn('scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/cli-oracles"', run)
+        self.assertLess(run.index('--verify-bin'), run.index('scripts/gen-fixtures.sh'))
+        self.assertFalse(any(workflow_check.calls_installer(line) for line in run.splitlines()))
+        triggers = data.get('on', data.get('true'))
+        for event in ('push', 'pull_request'):
+            for path in workflow_check.CI_ORACLE_PIN:
+                self.assertIn(path, triggers[event]['paths'])
+
     def test_local_actions_cannot_keep_the_frozen_installer(self):
         consumers = 0
         for path in (ROOT / '.github/actions').glob('*/action.y*ml'):

@@ -76,6 +76,14 @@ jobs:
       run:
         working-directory: candidate
     steps:
+      - name: Check out the shared acquisition action
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/oracle-cache
+            scripts/oracle-ffmpeg.env
+          sparse-checkout-cone-mode: false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           path: candidate
@@ -117,14 +125,16 @@ jobs:
           cargo clippy --locked -p coreav-cli --features native-h264-encoder,native-h264 --all-targets -- -D warnings
           cargo build --locked --release -p coreav-cli --features native-h264-encoder,native-h264
           cargo build --locked --release -p coreav-h264-encoder --features full --example p
+      - uses: ./.github/actions/oracle-cache
       - name: Install pinned black-box tools and generate trusted fixtures
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends nasm
           echo 'Installing pinned FFmpeg'
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/cli-oracles" || { echo '::error::reason=pinned_ffmpeg_install_failed'; exit 1; }
+          scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/cli-oracles" || { echo '::error::reason=pinned_ffmpeg_install_failed'; exit 1; }
           echo 'Installing pinned x264'
           scripts/install-x264.sh "$RUNNER_TEMP/cli-oracles" || { echo '::error::reason=pinned_x264_install_failed'; exit 1; }
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/cli-oracles"
           export PATH="$RUNNER_TEMP/cli-oracles:$PATH"
           scripts/gen-fixtures.sh "$RUNNER_TEMP/cli-fixtures"
       - name: Verify stored native output and unchanged external behavior
