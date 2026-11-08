@@ -10,7 +10,7 @@ Every admitted internal predictor has magnitude at most 33,247. Effective weight
 
 ## Dispatch boundary
 
-Both depths use the safe row implementation. This family adds no runtime capability check, target-feature function or unsafe code. The `scalar` feature continues to exclude existing SIMD in other kernel families without changing these combination equations.
+Combination arithmetic for both depths uses the safe row implementation. The `scalar` feature excludes SIMD validation and the existing SIMD in other kernel families without changing these combination equations.
 
 ## Predictor-domain validation
 
