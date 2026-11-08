@@ -15,6 +15,7 @@ on:
       - tools/compat-corpus/**
       - docs/design/png-bmp-yuv-v1.md
       - .github/workflows/png-bmp-yuv.yml
+      - .github/actions/oracle-cache/action.yml
   push:
     branches: [main]
     paths:
@@ -27,6 +28,7 @@ on:
       - tools/compat-corpus/**
       - docs/design/png-bmp-yuv-v1.md
       - .github/workflows/png-bmp-yuv.yml
+      - .github/actions/oracle-cache/action.yml
   workflow_dispatch:
 
 permissions:
@@ -49,10 +51,11 @@ jobs:
           toolchain: stable
       - name: Install the worker decoder dependency
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libvpx-dev pkg-config
+      - uses: ./.github/actions/oracle-cache
       - name: Install and verify the frozen oracle
         run: |
           set -euo pipefail
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/image-oracle"
+          scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/image-oracle"
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/image-oracle"
       - name: Build the normal command and both harnesses
         run: |

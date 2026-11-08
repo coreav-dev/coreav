@@ -28,7 +28,8 @@ on:
       - scripts/iso_patch.py
       - scripts/stss_craft.py
       - docs/schema/policy-examples/**
-      - scripts/install-oracle-ffmpeg.sh
+      - scripts/install-ci-oracle-ffmpeg.sh
+      - .github/actions/oracle-cache/action.yml
       - scripts/oracle-ffmpeg.env
       - scripts/test_oracle.py
       - scripts/oracle_pin.py
@@ -68,7 +69,8 @@ on:
       - scripts/iso_patch.py
       - scripts/stss_craft.py
       - docs/schema/policy-examples/**
-      - scripts/install-oracle-ffmpeg.sh
+      - scripts/install-ci-oracle-ffmpeg.sh
+      - .github/actions/oracle-cache/action.yml
       - scripts/oracle-ffmpeg.env
       - scripts/test_oracle.py
       - scripts/oracle_pin.py
@@ -161,21 +163,16 @@ jobs:
           set -euo pipefail
           helpers=$(grep -o '\$SCRIPTS/[A-Za-z0-9_.-]*' scripts/gen-fixtures.sh | sed 's|^\$SCRIPTS/|scripts/|' | sort -u)
           support=$(python3 -I -B -c 'import sys; sys.path.insert(0, "scripts"); from test_oracle import SUPPORT; print(" ".join("scripts/" + name for name in SUPPORT))')
-          identity="$(cat scripts/gen-fixtures.sh scripts/install-oracle-ffmpeg.sh scripts/oracle-ffmpeg.env $helpers $support | sha256sum | cut -c1-32)"
+          identity="$(cat scripts/gen-fixtures.sh scripts/install-ci-oracle-ffmpeg.sh scripts/oracle-ffmpeg.env $helpers $support | sha256sum | cut -c1-32)"
           echo "key=linux-x64-fixtures-$identity" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
         id: fixtures
         with:
           path: ${{ runner.temp }}/coreav-fixtures
           key: ${{ steps.fixtures-key.outputs.key }}
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        id: oracle-cache
-        with:
-          path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned fixture generator
-        if: steps.oracle-cache.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Generate required fixtures
         if: steps.fixtures.outputs.cache-hit != 'true'
         env:

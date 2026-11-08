@@ -232,10 +232,12 @@ jobs:
           path: ${{ runner.temp }}/coreav-oracle-bin
           key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       # MediaInfo is a gating oracle for extracted M4A files only; elsewhere it stays informational.
+      - uses: ./.github/actions/oracle-cache
+      - name: Install the checksum-verified FFmpeg
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
         run: |
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
         run: |
@@ -321,10 +323,12 @@ jobs:
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
           key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      - uses: ./.github/actions/oracle-cache
+      - name: Install the checksum-verified FFmpeg
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Install the pinned oracle
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
         run: |
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
         run: |

@@ -12,7 +12,9 @@ on:
       - tools/compat-corpus/decoded_output.py
       - tools/compat-corpus/encode_breadth.py
       - tools/compat-corpus/tests/test_github_shapes*.py
+      - scripts/install-ci-oracle-ffmpeg.sh
       - scripts/install-oracle-ffmpeg.sh
+      - .github/actions/oracle-cache/action.yml
       - scripts/install-x264.sh
       - scripts/oracle*
       - scripts/aac_pcm_eligibility.py
@@ -50,8 +52,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned black-box oracle
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/writer-oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/writer-oracle"
       - name: Check actual writer output on independent controls
         run: |
           set -euo pipefail
@@ -168,10 +171,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned oracle and transform dependency
         run: |
           set -euo pipefail
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/aac-oracle"
+          scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/aac-oracle"
           python3 -m venv "$RUNNER_TEMP/aac-python"
           "$RUNNER_TEMP/aac-python/bin/pip" install --quiet --only-binary=:all: --require-hashes -r scripts/aac-pns-requirements.txt
           echo "$RUNNER_TEMP/aac-python/bin" >> "$GITHUB_PATH"

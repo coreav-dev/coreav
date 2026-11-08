@@ -3,10 +3,10 @@ name: vp9-corpus
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/vp9_smoke.py", "scripts/tests/test_vp9_smoke.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/vp9_smoke.py", "scripts/tests/test_vp9_smoke.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-ci-oracle-ffmpeg.sh", ".github/actions/oracle-cache/action.yml", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/vp9_smoke.py", "scripts/tests/test_vp9_smoke.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/vp9_smoke.py", "scripts/tests/test_vp9_smoke.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-ci-oracle-ffmpeg.sh", ".github/actions/oracle-cache/action.yml", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
   schedule:
     - cron: '11 17 * * *'
     - cron: '11 18 * * 0'
@@ -67,15 +67,9 @@ jobs:
           cargo test --locked -p coreav-vp9-corpus-oracle --features native-vp9
           cargo clippy --locked -p coreav-vp9-corpus-oracle --features native-vp9 --all-targets -- -D warnings
           cargo build --locked --release -p coreav-vp9-corpus-oracle --features native-vp9
-      - name: Cache the pinned FFmpeg
-        id: ffmpeg-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        with:
-          path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned FFmpeg
-        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Preflight the original-file oracle on a pinned public vector
         run: |
           set -euo pipefail

@@ -31,7 +31,8 @@ on:
       - scripts/oracle-ffmpeg.env
       - scripts/oracle_pin.py
       - scripts/oracle_pin_macos.py
-      - scripts/install-oracle-ffmpeg.sh
+      - scripts/install-ci-oracle-ffmpeg.sh
+      - .github/actions/oracle-cache/action.yml
       - scripts/tests/test_input_summary_*.py
       - .github/workflows/input-summary.yml
   workflow_dispatch:
@@ -65,8 +66,9 @@ jobs:
           toolchain: stable
       - name: Verify fixture checker behavior
         run: python3 -I -m unittest discover -s scripts/tests -p 'test_input_summary_*.py'
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned black-box oracle
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Build the native CLI
         run: cargo build --locked --release -p coreav-cli --bin coreav
       - name: Compare exact summary bytes
@@ -95,8 +97,9 @@ jobs:
           (pathlib.Path(os.environ['RUNNER_TEMP']) / 'evidence.pem').write_bytes(value)
           PY
           openssl x509 -in "$RUNNER_TEMP/evidence.pem" -noout
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned black-box oracle
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Build the native CLI
         run: cargo build --locked --release -p coreav-cli --bin coreav
       - name: Compare development summaries without held-out inputs

@@ -1,0 +1,15 @@
+name: Cache the pinned oracle archive
+description: Share only the archive identified by the oracle SHA256
+runs:
+  using: composite
+  steps:
+    - id: pin
+      shell: bash
+      run: |
+        source "$GITHUB_ACTION_PATH/../../../scripts/oracle-ffmpeg.env"
+        echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+        echo "COREAV_ORACLE_ARCHIVE=$RUNNER_TEMP/coreav-oracle-archive/$SHA256.tar.xz" >> "$GITHUB_ENV"
+    - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ${{ runner.temp }}/coreav-oracle-archive/${{ steps.pin.outputs.sha256 }}.tar.xz
+        key: oracle-archive-${{ steps.pin.outputs.sha256 }}

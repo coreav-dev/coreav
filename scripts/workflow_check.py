@@ -116,8 +116,11 @@ UNLISTED = '# workflow-check: not required'
 # The oracle FFmpeg's pin and its installer: a workflow that runs the
 # installer starts when either changes.
 ORACLE_PIN = ('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh')
+ORACLE_CACHE = '.github/actions/oracle-cache/action.yml'
+CI_ORACLE_PIN = (ORACLE_PIN[0], 'scripts/install-ci-oracle-ffmpeg.sh', ORACLE_CACHE)
 ORACLE_PINS = (ORACLE_PIN, ('scripts/oracle-ffmpeg-macos.env', 'scripts/install-oracle-ffmpeg-macos.sh',
-                            'scripts/oracle_pin_macos.py', 'scripts/oracle-ffmpeg.env', 'scripts/oracle_pin.py'))
+                            'scripts/oracle_pin_macos.py', 'scripts/oracle-ffmpeg.env', 'scripts/oracle_pin.py'),
+               CI_ORACLE_PIN)
 STOPS_SHELL = ('help', 'version', 'dump-strings', 'dump-po-strings')
 TAKES_OPERAND = ('rcfile', 'init-file')
 

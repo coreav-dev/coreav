@@ -4,9 +4,9 @@ name: vp9-filter
 on:
   push:
     branches: [main]
-    paths: ["scripts/vp9_filter*.py", "scripts/tests/test_vp9_filter*.py", "scripts/vp9_corpus.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "scripts/oracle_pin.py", "scripts/test_oracle.py", "scripts/oracle_pin_macos.py", "scripts/oracle_from_r2.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "docs/measurements/vp9-filter-coverage/plan.json", "tools/vp9-corpus-oracle/**", "crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-filter.yml"]
+    paths: ["scripts/vp9_filter*.py", "scripts/tests/test_vp9_filter*.py", "scripts/vp9_corpus.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "scripts/oracle_pin.py", "scripts/test_oracle.py", "scripts/oracle_pin_macos.py", "scripts/oracle_from_r2.py", "scripts/oracle-ffmpeg.env", "scripts/install-ci-oracle-ffmpeg.sh", ".github/actions/oracle-cache/action.yml", "docs/measurements/vp9-filter-coverage/plan.json", "tools/vp9-corpus-oracle/**", "crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-filter.yml"]
   pull_request:
-    paths: ["scripts/vp9_filter*.py", "scripts/tests/test_vp9_filter*.py", "scripts/vp9_corpus.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "scripts/oracle_pin.py", "scripts/test_oracle.py", "scripts/oracle_pin_macos.py", "scripts/oracle_from_r2.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "docs/measurements/vp9-filter-coverage/plan.json", "tools/vp9-corpus-oracle/**", "crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-filter.yml"]
+    paths: ["scripts/vp9_filter*.py", "scripts/tests/test_vp9_filter*.py", "scripts/vp9_corpus.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "scripts/oracle_pin.py", "scripts/test_oracle.py", "scripts/oracle_pin_macos.py", "scripts/oracle_from_r2.py", "scripts/oracle-ffmpeg.env", "scripts/install-ci-oracle-ffmpeg.sh", ".github/actions/oracle-cache/action.yml", "docs/measurements/vp9-filter-coverage/plan.json", "tools/vp9-corpus-oracle/**", "crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-filter.yml"]
   workflow_dispatch:
     inputs:
       mode:
@@ -49,14 +49,9 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build the unpublished scalar adapter
         run: cargo build --locked --release -p coreav-vp9-corpus-oracle
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        id: oracle
-        with:
-          path: ${{ runner.temp }}/oracle
-          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned oracle
-        if: steps.oracle.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Verify the oracle including cache hits
         run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Capture the registered filter controls

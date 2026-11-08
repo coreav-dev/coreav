@@ -24,7 +24,8 @@ on:
       - scripts/oracle_audio.py
       - scripts/oracle-ffmpeg-macos.env
       - scripts/oracle-audio-args.txt
-      - scripts/install-oracle-ffmpeg.sh
+      - scripts/install-ci-oracle-ffmpeg.sh
+      - .github/actions/oracle-cache/action.yml
       - .github/workflows/avi-output.yml
   workflow_dispatch:
 
@@ -47,8 +48,9 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned oracle
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Build commands and run packet tests
         id: build
         run: |

@@ -5,10 +5,10 @@ name: hevc-conformance
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "crates/coreav-backend-hevc/**", "crates/coreav-thumbnail/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-isobmff/**", "crates/coreav-cli/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_boundary.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
+    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "crates/coreav-backend-hevc/**", "crates/coreav-thumbnail/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-isobmff/**", "crates/coreav-cli/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_boundary.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-ci-oracle-ffmpeg.sh", ".github/actions/oracle-cache/action.yml", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "crates/coreav-backend-hevc/**", "crates/coreav-thumbnail/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-isobmff/**", "crates/coreav-cli/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_boundary.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
+    paths: ["crates/coreav-hevc/**", "crates/coreav-kernels-hevc/**", "crates/coreav-backend-hevc/**", "crates/coreav-thumbnail/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "crates/coreav-isobmff/**", "crates/coreav-cli/**", "bench/hevc-conformance/**", "scripts/hevc_conformance.py", "scripts/hevc_intra.py", "scripts/hevc_decode.py", "scripts/hevc_boundary.py", "scripts/hevc_fixture.py", "scripts/hevc_synthetic.py", "scripts/hevc_smoke.py", "scripts/test_oracle.py", "scripts/hevc_oracle_input.py", "scripts/tests/test_hevc*.py", "docs/measurements/hevc-native/roster.json", "docs/measurements/transcode/round-2/corpus-selection.json", "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl", "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl", "docs/measurements/transcode/speed-selection.json", "tools/compat-corpus/**", "tools/stage3-report/**", "scripts/oracle-ffmpeg.env", "scripts/install-ci-oracle-ffmpeg.sh", ".github/actions/oracle-cache/action.yml", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "Cargo.toml", "Cargo.lock", ".github/workflows/hevc-conformance.yml"]
   schedule:
     - cron: "45 3 * * *"
     - cron: "45 4 * * 0"
@@ -104,8 +104,9 @@ jobs:
         with:
           toolchain: stable
       - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example intra
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned binary oracle
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Verify registered synthetic references before smoke comparison
         run: |
           python3 -I scripts/hevc_fixture.py verify \
@@ -142,8 +143,9 @@ jobs:
           toolchain: stable
       - run: cargo build --locked --release -p coreav-hevc --features native-hevc${{ inputs.scalar && ',scalar' || '' }} --example headers --example intra --example decode
       - run: cargo build --locked --release -p coreav-backend-hevc --features native-hevc${{ inputs.scalar && ',coreav-hevc/scalar' || '' }} --example boundary
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned binary oracle
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Verify registered synthetic references before native classification
         run: |
           python3 -I scripts/hevc_fixture.py verify \
@@ -213,8 +215,9 @@ jobs:
           toolchain: stable
       - run: cargo build --locked --release -p coreav-hevc --features native-hevc${{ inputs.scalar && ',scalar' || '' }} --example headers --example intra --example packets
       - run: cargo build --locked --release -p coreav-backend-hevc --features native-hevc${{ inputs.scalar && ',coreav-hevc/scalar' || '' }} --example boundary
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned binary oracle
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Inspect all fixed files with isolated metadata subprocesses
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
