@@ -32,6 +32,8 @@ def diagnose(args):
                 expected = [(q['output_bytes'], q['output_md5']) for q in pictures]
                 row['native'] = dict(frames=len(pictures), decoded=native[-1]['decoded_pictures'],
                                      width=pictures[0]['width'], height=pictures[0]['height'],
+                                     coded_width=pictures[0].get('coded_width'), coded_height=pictures[0].get('coded_height'),
+                                     conformance_window=pictures[0].get('conformance_window'),
                                      depth=pictures[0]['bit_depth'], complete=native[-1]['complete'])
                 data = source.read_bytes()
                 starts = list(re.finditer(b'\x00\x00(?:\x00)?\x01', data))
@@ -47,19 +49,28 @@ def diagnose(args):
                 row['prepared'] = dict(bytes=len(data), sha256=ref.conformance.digest(source),
                                        first_slices=first_slices, nal_types=dict(types))
                 metadata, _ = ref.command([oracle.ffprobe, '-v', 'error', '-select_streams', 'v:0',
-                    '-show_entries', 'stream=pix_fmt,width,height', '-of', 'json', source])
-                pixel_format = json.loads(metadata)['streams'][0]['pix_fmt']
+                    '-show_entries', 'stream=pix_fmt,width,height,coded_width,coded_height,sample_aspect_ratio', '-of', 'json', source])
+                row['probe'] = json.loads(metadata)['streams'][0]
+                pixel_format = row['probe']['pix_fmt']
                 if pixel_format not in ({'yuv420p', 'yuvj420p'} if pictures[0]['bit_depth'] == 8 else {'yuv420p10le'}):
                     raise ValueError('oracle_pixel_format')
-                for variant in ('standard', 'output-cap', 'default-threads', 'aligned'):
+                try:
+                    frames, _ = ref.command([oracle.ffprobe, '-v', 'error', '-flags', 'unaligned',
+                        '-select_streams', 'v:0', '-show_frames', '-show_entries', 'frame=width,height,pix_fmt',
+                        '-of', 'json', source], timeout=60)
+                    row['decoded_probe'] = dict(status='success', frames=json.loads(frames)['frames'])
+                except subprocess.TimeoutExpired as error:
+                    row['decoded_probe'] = dict(status='timeout', stdout_bytes=len(error.stdout or b''),
+                                                stderr_bytes=len(error.stderr or b''))
+                for variant in ('output-single-thread', 'rawvideo-single-thread', 'single-filter-thread'):
                     output = ['-pix_fmt', '+' + pixel_format, '-f', 'framemd5', '-']
-                    if variant == 'output-cap':
-                        output = ['-frames:v', str(len(pictures)), *output]
-                    command = ref.ffmpeg_command(oracle.ffmpeg, source, variant != 'default-threads', output)
-                    if variant == 'aligned':
-                        offset = command.index('-flags')
-                        assert command[offset + 1] == 'unaligned'
-                        del command[offset:offset + 2]
+                    if variant in ('output-single-thread', 'rawvideo-single-thread'):
+                        output = ['-threads:v', '1', *output]
+                    if variant == 'rawvideo-single-thread':
+                        output = ['-c:v', 'rawvideo', *output]
+                    command = ref.ffmpeg_command(oracle.ffmpeg, source, True, output)
+                    if variant == 'single-filter-thread':
+                        command[1:1] = ['-filter_threads', '1']
                     status = 'success'
                     stdout = stderr = b''
                     try:
