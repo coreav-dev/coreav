@@ -406,20 +406,10 @@ fn combine(
     let upper = (88 * max_sample) >> (depth.bits() - 8);
     let minimum = (88 * lower - 24 * upper) >> 6;
     let maximum = (88 * upper - 24 * lower) >> 6;
-    for row in first.data.chunks(first.stride).take(first.height) {
-        if row
-            .get(..first.width)
-            .ok_or(Error::Buffer)?
-            .iter()
-            .any(|value| !(minimum..=maximum).contains(value))
-        {
-            return Err(Error::Sample);
-        }
-    }
-    if let Some((_, other)) = second {
-        for row in other.data.chunks(other.stride).take(other.height) {
+    let scalar_validation = || {
+        for row in first.data.chunks(first.stride).take(first.height) {
             if row
-                .get(..other.width)
+                .get(..first.width)
                 .ok_or(Error::Buffer)?
                 .iter()
                 .any(|value| !(minimum..=maximum).contains(value))
@@ -427,7 +417,35 @@ fn combine(
                 return Err(Error::Sample);
             }
         }
+        if let Some((_, other)) = second {
+            for row in other.data.chunks(other.stride).take(other.height) {
+                if row
+                    .get(..other.width)
+                    .ok_or(Error::Buffer)?
+                    .iter()
+                    .any(|value| !(minimum..=maximum).contains(value))
+                {
+                    return Err(Error::Sample);
+                }
+            }
+        }
+        Ok(())
+    };
+    #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+    {
+        let vector = if first.width >= 8 {
+            super::simd::Avx2::detect()
+        } else {
+            None
+        };
+        if let Some(vector) = vector {
+            vector.validate_combine(first, second.map(|(_, row)| row), minimum, maximum)?;
+        } else {
+            scalar_validation()?;
+        }
     }
+    #[cfg(any(feature = "scalar", not(target_arch = "x86_64")))]
+    scalar_validation()?;
     let width = output.width;
     let height = output.height;
     let shift = weight.denom + 14 - depth.bits();
