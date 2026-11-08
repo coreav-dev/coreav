@@ -49,8 +49,8 @@ pub use domain::{
 };
 #[cfg(feature = "native-hevc")]
 pub use filter::{
-    BoundaryStrength, SaoClass, deblock_chroma, deblock_luma, deblock_luma_with_strength,
-    sao_sample,
+    BoundaryStrength, SaoBand, SaoClass, SaoEdge, deblock_chroma, deblock_luma,
+    deblock_luma_with_strength, sao_sample,
 };
 #[cfg(all(feature = "native-hevc", feature = "test-support"))]
 #[doc(hidden)]
