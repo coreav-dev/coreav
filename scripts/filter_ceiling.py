@@ -29,6 +29,22 @@ def body_span(text, signature):
 
 
 def erased(text, kind):
+    if kind == 'deblock10':
+        for name in ('deblock_luma_scalar', 'deblock_chroma_scalar'):
+            start, _ = body_span(text, f'pub fn {name}(')
+            text = text[:start] + '\n    if depth.bits() == 10 {\n        return Ok(core::hint::black_box(edge));\n    }\n' + text[start:]
+        return text
+    if kind == 'sao8-validation':
+        first = 'if samples.iter().any(|v| *v > self.depth.max_sample()) {'
+        second = 'if source\n            .iter()'
+        if text.count(first) != 1 or text.count(second) != 1:
+            raise ValueError('validation_span_changed')
+        return text.replace(first, 'if self.depth.bits() != 8 && samples.iter().any(|v| *v > self.depth.max_sample()) {').replace(second, 'if self.depth.bits() != 8 && source\n            .iter()')
+    if kind == 'sao8-tail':
+        needle = '        let mut changed = changed;'
+        if text.count(needle) != 2:
+            raise ValueError('tail_span_changed')
+        return text.replace(needle, '        if self.depth.bits() == 8 {\n            return Ok(changed);\n        }\n' + needle)
     if kind == 'deblock':
         for name, ignored in (
             ('deblock_luma_with_strength', 'depth, qp, offsets, strength, protected'),
@@ -53,6 +69,42 @@ def erased(text, kind):
     return text
 
 
+def erased_driver(text, kind):
+    if kind == 'deblock-write':
+        start, end = body_span(text, 'fn write_edge<const N: usize>(')
+        return text[:start] + '\n        let _ = (component, horizontal, edge, along, strength);\n        core::hint::black_box(result);\n        Ok(())\n    ' + text[end:]
+    if kind == 'deblock8-gather':
+        for width in (8, 4):
+            needle = f'                        let mut samples = [[0; {width}]; 4];'
+            if text.count(needle) != 1:
+                raise ValueError('gather_span_changed')
+            start = text.index(needle)
+            end = text.index('                        let offset = *ctu' if width == 4 else '                        let result = kernels::', start)
+            original = text[start:end]
+            prefix = f'                        let mut samples = core::hint::black_box([[0; {width}]; 4]);\n                        if self.depth.bits() != 8 {{\n'
+            gather = original[len(needle) + 1:]
+            text = text[:start] + prefix + gather + '                        }\n' + text[end:]
+        return text
+    if kind == 'sao8-protection':
+        needle = '''                                let protected = self.cell(x * scale, y * scale)?.protected;
+                                x = ((x / (4 / scale) + 1) * (4 / scale)).min(x1);
+                                while x < x1
+                                    && self.cell(x * scale, y * scale)?.protected == protected
+                                {
+                                    x = (x + 4 / scale).min(x1);
+                                }'''
+        if text.count(needle) != 1:
+            raise ValueError('protection_span_changed')
+        replacement = '''                                let protected;
+                                if self.depth.bits() == 8 {
+                                    protected = core::hint::black_box(false);
+                                    x = x1;
+                                } else {
+''' + needle.replace('let protected =', 'protected =') + '\n                                }'
+        return text.replace(needle, replacement)
+    raise ValueError('unknown_driver_arm')
+
+
 def functions(annotation):
     rows = []
     for line in annotation.splitlines():
@@ -69,7 +121,7 @@ def count(binary, source, out, identity, arm, expected):
     path = out / f'{identity}-{arm}.callgrind'
     stdout, _ = ref.command(['valgrind', '--tool=callgrind', '--error-exitcode=99',
         '--collect-jumps=no', '--dump-instr=no', '--cache-sim=no',
-        f'--callgrind-out-file={path}', binary, source, 'decode'], timeout=1800)
+        f'--callgrind-out-file={path}', binary, source, 'decode'], timeout=3600)
     work = json.loads(stdout)
     if work != expected:
         raise ValueError('changed_decode_work')
@@ -133,7 +185,7 @@ def run(args):
                 report['files'].append(row)
                 save()
                 expected = ref.verify(binaries['main'], oracle, original)
-                if not 0 < expected['frames'] <= args.frames or expected['depth'] != args.depth:
+                if not 0 < expected['frames'] <= args.frames or args.depth and expected['depth'] != args.depth:
                     raise ValueError('unexpected_prefix_or_depth')
                 if args.audit_only:
                     check = pixels(binaries['main'], original)
@@ -157,9 +209,21 @@ def run(args):
                 main_pixels = row['checks']['main']['pictures']
                 row['pixel_equal_to_main'] = {arm: check['pictures'] == main_pixels
                                              for arm, check in row['checks'].items()}
-                if args.depth == 8 and 'sao10' in binaries and not row['pixel_equal_to_main']['sao10']:
+                if expected['depth'] == 8 and 'sao10' in binaries and not row['pixel_equal_to_main']['sao10']:
                     raise ValueError('sao10_erase_changed_eight_bit_pixels')
                 for arm, binary in binaries.items():
+                    applicable = arm == 'main' or not (
+                        arm == 'deblock10' and expected['depth'] != 10
+                        or arm in ('deblock8-gather', 'sao8-validation', 'sao8-tail', 'sao8-protection') and expected['depth'] != 8
+                        or arm.startswith('sao8-') and not any(row['checks']['main']['summary']['stats']['sao_blocks'])
+                        or arm in ('deblock10', 'deblock-write', 'deblock8-gather') and not any(row['checks']['main']['summary']['stats']['deblock_edges'])
+                    )
+                    if not applicable:
+                        if not row['pixel_equal_to_main'][arm]:
+                            raise ValueError('inactive_arm_changed_pixels')
+                        row['calls'][arm] = dict(row['calls']['main'], inactive=True)
+                        save()
+                        continue
                     row['calls'][arm] = count(binary, source, args.out, identity, arm, work)
                     save()
                 if len(report['files']) == 1:
@@ -172,7 +236,7 @@ def run(args):
                                          for arm in args.arms}
                 row['complete'] = True
                 save()
-                print(json.dumps(dict(id=identity, depth=args.depth, complete=True)), flush=True)
+                print(json.dumps(dict(id=identity, depth=expected['depth'], complete=True)), flush=True)
         if {row['id'] for row in report['files']} != args.only:
             raise ValueError('incomplete_input_set')
         if not args.audit_only:
@@ -189,25 +253,31 @@ def main():
     sub = parser.add_subparsers(dest='action', required=True)
     patch = sub.add_parser('erase')
     patch.add_argument('--filter', type=pathlib.Path, required=True)
-    patch.add_argument('--kind', choices=('deblock', 'sao10'), required=True)
+    kinds = ('deblock', 'sao10', 'deblock10', 'deblock-write', 'deblock8-gather', 'sao8-validation', 'sao8-tail', 'sao8-protection')
+    patch.add_argument('--kind', choices=kinds, required=True)
     patch.add_argument('--diff', type=pathlib.Path, required=True)
+    patch.add_argument('--driver', type=pathlib.Path)
     run_parser = sub.add_parser('run')
     run_parser.add_argument('--binaries', type=pathlib.Path, required=True)
     run_parser.add_argument('--oracle-bin', type=pathlib.Path, required=True)
     run_parser.add_argument('--out', type=pathlib.Path, required=True)
     run_parser.add_argument('--baseline', required=True)
-    run_parser.add_argument('--arms', nargs='+', choices=('deblock', 'sao10'), default=['deblock', 'sao10'])
+    run_parser.add_argument('--arms', nargs='+', choices=kinds, default=['deblock', 'sao10'])
     run_parser.add_argument('--only', required=True)
-    run_parser.add_argument('--depth', type=int, choices=(8, 10), required=True)
+    run_parser.add_argument('--depth', type=int, choices=(0, 8, 10), required=True)
     run_parser.add_argument('--frames', type=int, choices=range(1, 33), default=1)
     run_parser.add_argument('--audit-only', action='store_true')
     args = parser.parse_args()
     if args.action == 'erase':
-        original = args.filter.read_text()
-        modified = erased(original, args.kind)
+        driver_arm = args.kind in ('deblock-write', 'deblock8-gather', 'sao8-protection')
+        path = args.driver if driver_arm else args.filter
+        if path is None:
+            raise ValueError('missing_driver_path')
+        original = path.read_text()
+        modified = erased_driver(original, args.kind) if driver_arm else erased(original, args.kind)
         args.diff.write_text(''.join(difflib.unified_diff(original.splitlines(True), modified.splitlines(True),
                                                         fromfile='filter.rs', tofile=f'{args.kind}/filter.rs')))
-        args.filter.write_text(modified)
+        path.write_text(modified)
     else:
         run(args)
 

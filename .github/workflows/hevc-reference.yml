@@ -1,5 +1,5 @@
 name: hevc-reference
-run-name: HEVC Main10 filter count ${{ inputs.baseline }}
+run-name: HEVC remaining filter count ${{ inputs.baseline }}
 
 on:
   workflow_dispatch:
@@ -8,6 +8,16 @@ on:
         description: Exact main commit to count
         required: true
         type: string
+      cases:
+        description: JSON array of neutral reference IDs
+        required: true
+        type: string
+        default: '["d00", "d01", "d02", "d03", "d04", "d05", "d06", "d07", "d08", "d09", "d10", "d11", "d12", "d13", "d14", "d15", "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23", "d24", "d25", "c00", "c01", "c02", "c03"]'
+      frames:
+        description: Maximum original pictures per reference
+        required: true
+        type: number
+        default: 16
 
 permissions:
   contents: read
@@ -15,19 +25,16 @@ permissions:
 jobs:
   count:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 360
     strategy:
       fail-fast: false
+      max-parallel: 8
       matrix:
-        include:
-          - label: first
-            only: d07,d20,d23,c02,c03
-            frames: 1
-          - label: active-prefix
-            only: c02
-            frames: 8
+        case: ${{ fromJSON(inputs.cases) }}
     env:
       BASELINE: ${{ inputs.baseline }}
+      CASE: ${{ matrix.case }}
+      FRAMES: ${{ inputs.frames }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -43,6 +50,12 @@ jobs:
       - name: Admit the exact main commit
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          assert re.fullmatch('[0-9a-f]{40}', os.environ['BASELINE'])
+          assert re.fullmatch('[dc][0-9]{2}', os.environ['CASE'])
+          assert 1 <= int(os.environ['FRAMES']) <= 32
+          PY
           test "$(git -C main rev-parse HEAD)" = "$BASELINE"
           git -C main merge-base --is-ancestor "$BASELINE" origin/main
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
@@ -56,9 +69,15 @@ jobs:
           export CARGO_PROFILE_RELEASE_DEBUG=1
           (cd main && cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
           cp main/target/release/examples/reference "$RUNNER_TEMP/binaries/main"
-          python3 -I driver/scripts/filter_ceiling.py erase --kind sao10 --filter main/crates/coreav-kernels-hevc/src/filter.rs --diff "$RUNNER_TEMP/count/erasure.patch"
-          (cd main && cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
-          cp main/target/release/examples/reference "$RUNNER_TEMP/binaries/sao10"
+          cp main/crates/coreav-kernels-hevc/src/filter.rs "$RUNNER_TEMP/kernel.rs"
+          cp main/crates/coreav-hevc/src/reconstruction/filter.rs "$RUNNER_TEMP/driver.rs"
+          for ARM in deblock10 deblock-write deblock8-gather sao8-validation sao8-tail sao8-protection; do
+            cp "$RUNNER_TEMP/kernel.rs" main/crates/coreav-kernels-hevc/src/filter.rs
+            cp "$RUNNER_TEMP/driver.rs" main/crates/coreav-hevc/src/reconstruction/filter.rs
+            python3 -I driver/scripts/filter_ceiling.py erase --kind "$ARM" --filter main/crates/coreav-kernels-hevc/src/filter.rs --driver main/crates/coreav-hevc/src/reconstruction/filter.rs --diff "$RUNNER_TEMP/count/$ARM.patch"
+            (cd main && cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+            cp main/target/release/examples/reference "$RUNNER_TEMP/binaries/$ARM"
+          done
           rustc -Vv > "$RUNNER_TEMP/count/compiler.txt"
       - name: Install instruction profiler
         run: sudo apt-get update -qq && sudo apt-get install -y valgrind
@@ -76,12 +95,12 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: |
-          python3 -I driver/scripts/filter_ceiling.py run --baseline "$BASELINE" --arms sao10 \
+          python3 -I driver/scripts/filter_ceiling.py run --baseline "$BASELINE" --arms deblock10 deblock-write deblock8-gather sao8-validation sao8-tail sao8-protection \
             --binaries "$RUNNER_TEMP/binaries" --oracle-bin "$RUNNER_TEMP/oracle" \
-            --only '${{ matrix.only }}' --depth 10 --frames '${{ matrix.frames }}' --out "$RUNNER_TEMP/count"
+            --only "$CASE" --depth 0 --frames "$FRAMES" --out "$RUNNER_TEMP/count"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: main10-count-${{ matrix.label }}
+          name: remainder-count-${{ matrix.case }}
           path: ${{ runner.temp }}/count
           retention-days: 1
