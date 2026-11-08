@@ -19,16 +19,16 @@ pinned() {
   echo "$SHA256  $ARCHIVE_FILE" | sha256sum --check --strict
 }
 if [[ -f "$CACHED_ARCHIVE" ]]; then
-  cp "$CACHED_ARCHIVE" "$ARCHIVE_FILE"
-  if ! pinned; then
+  if ! { cp "$CACHED_ARCHIVE" "$ARCHIVE_FILE" && pinned; }; then
     echo 'install-ci-oracle-ffmpeg.sh: discarding an unverified cached archive' >&2
     rm -f "$ARCHIVE_FILE"
   fi
 fi
 if [[ ! -f "$ARCHIVE_FILE" ]]; then
   if [[ "${COREAV_ORACLE_FROM_R2:-0}" == 1 ]] ||
-    ! { curl --fail --location --retry 5 --retry-all-errors --retry-connrefused \
-      --retry-max-time 300 --connect-timeout 20 --max-time 60 \
+    ! { curl --fail --location --retry 8 --retry-all-errors --retry-connrefused \
+      --retry-max-time 360 --connect-timeout 20 --max-time 300 \
+      --speed-limit 1024 --speed-time 30 \
       "$URL" --output "$ARCHIVE_FILE" && pinned; }; then
     if [[ -n "${R2_ACCESS_KEY_ID:-}" && -n "${R2_SECRET_ACCESS_KEY:-}" && -n "${R2_ENDPOINT:-}" ]]; then
       echo 'install-ci-oracle-ffmpeg.sh: taking the pinned archive from R2' >&2
@@ -39,10 +39,13 @@ if [[ ! -f "$ARCHIVE_FILE" ]]; then
       exit 1
     fi
   fi
-  mkdir -p "$(dirname "$CACHED_ARCHIVE")"
-  CACHE_PART=$(mktemp "$CACHED_ARCHIVE.XXXXXX")
-  cp "$ARCHIVE_FILE" "$CACHE_PART"
-  mv -f "$CACHE_PART" "$CACHED_ARCHIVE"
+  CACHE_PART=''
+  if ! { mkdir -p "$(dirname "$CACHED_ARCHIVE")" &&
+    CACHE_PART=$(mktemp "$CACHED_ARCHIVE.XXXXXX") &&
+    cp "$ARCHIVE_FILE" "$CACHE_PART" && mv -f "$CACHE_PART" "$CACHED_ARCHIVE"; }; then
+    rm -f "$CACHE_PART" || true
+    echo 'install-ci-oracle-ffmpeg.sh: could not update the archive cache' >&2
+  fi
 fi
 tar -xJf "$ARCHIVE_FILE" -C "$WORK" "$ARCHIVE/bin/ffmpeg" "$ARCHIVE/bin/ffprobe"
 python3 -I "$HERE/oracle_pin.py" --verify-bin "$WORK/$ARCHIVE/bin"

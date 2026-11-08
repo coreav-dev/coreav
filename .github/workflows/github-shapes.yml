@@ -13,6 +13,7 @@ on:
       - tools/compat-corpus/encode_breadth.py
       - tools/compat-corpus/tests/test_github_shapes*.py
       - scripts/install-ci-oracle-ffmpeg.sh
+      - scripts/install-oracle-ffmpeg.sh
       - .github/actions/oracle-cache/action.yml
       - scripts/install-x264.sh
       - scripts/oracle*
@@ -98,13 +99,12 @@ jobs:
           if not all(os.environ.get(name) for name in names):
               raise SystemExit('private_retention_configuration')
           PY
-      - uses: ./.github/actions/oracle-cache
       - name: Install build dependencies and pinned programs
         run: |
           set -euo pipefail
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev nasm pkg-config
-          scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           scripts/install-x264.sh "$RUNNER_TEMP/oracle"
           python3 -m venv "$RUNNER_TEMP/aac-python"
           "$RUNNER_TEMP/aac-python/bin/pip" install --quiet --only-binary=:all: --require-hashes -r scripts/aac-pns-requirements.txt

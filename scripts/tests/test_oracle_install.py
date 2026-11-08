@@ -84,11 +84,14 @@ class OracleInstall(unittest.TestCase):
         return subprocess.run(['bash', str(self.scripts / 'install-ci-oracle-ffmpeg.sh'), str(self.dest)],
                               env=self.env, capture_output=True, text=True, timeout=45)
 
-    def assert_installed(self, result):
+    def assert_programs(self, result):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         for name, data in self.programs.items():
             self.assertEqual((self.dest / name).read_bytes(), data)
             self.assertIn(f'{name} version {self.pin["BUILD"]}', result.stdout)
+
+    def assert_installed(self, result):
+        self.assert_programs(result)
         self.assertEqual(self.cache.read_bytes(), self.archive)
 
     def test_http_503_504_and_404_recover_with_real_curl_backoff(self):
@@ -115,6 +118,33 @@ class OracleInstall(unittest.TestCase):
         self.assert_installed(result)
         self.assertEqual(self.requests, [200])
         self.assertIn('discarding an unverified cached archive', result.stderr)
+
+    def test_unreadable_cache_falls_back_to_a_verified_download(self):
+        self.cache.parent.mkdir()
+        self.cache.write_bytes(self.archive)
+        tool = self.tools / 'cp'
+        tool.write_text('#!/bin/sh\n[ "$1" != "$COREAV_ORACLE_ARCHIVE" ] || exit 1\n' +
+                        f'exec "{shutil.which("cp")}" "$@"\n')
+        tool.chmod(0o755)
+        self.assert_installed(self.install())
+        self.assertEqual(self.requests, [200])
+
+    def test_unwritable_cache_does_not_fail_verified_installation(self):
+        self.cache.parent.write_bytes(b'not a directory')
+        result = self.install()
+        self.assert_programs(result)
+        self.assertIn('could not update the archive cache', result.stderr)
+        self.assertEqual(self.requests, [200])
+        self.assertEqual(self.cache.parent.read_bytes(), b'not a directory')
+
+    def test_failed_cache_publication_removes_its_partial_file(self):
+        tool = self.tools / 'mv'
+        tool.write_text('#!/bin/sh\nexit 1\n')
+        tool.chmod(0o755)
+        result = self.install()
+        self.assert_programs(result)
+        self.assertIn('could not update the archive cache', result.stderr)
+        self.assertEqual(list(self.cache.parent.iterdir()), [])
 
     def test_wrong_download_hash_fails_without_r2_or_publishing(self):
         self.archive += b'wrong bytes'
@@ -152,6 +182,20 @@ class OracleInstall(unittest.TestCase):
 
 
 class OracleArchiveWorkflow(unittest.TestCase):
+    def test_historical_measurements_keep_the_frozen_installer(self):
+        rosters = {'github-shapes.yml': ('measure',),
+                   'codec-coverage.yml': ('coverage-v1', 'coverage-v1-fixtures',
+                                          'coverage-v2-v3', 'coverage-v2-images')}
+        for workflow, jobs in rosters.items():
+            data = self.data(ROOT / '.github/workflows' / workflow)
+            for job in jobs:
+                with self.subTest(workflow=workflow, job=job):
+                    steps = data['jobs'][job]['steps']
+                    self.assertFalse(any(s.get('uses') == './.github/actions/oracle-cache' for s in steps))
+                    run = '\n'.join(s.get('run', '') for s in steps)
+                    self.assertIn('scripts/install-oracle-ffmpeg.sh', run)
+                    self.assertNotIn(workflow_check.CI_ORACLE_PIN[1], run)
+
     def test_the_ci_installer_cannot_duplicate_the_pin(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
