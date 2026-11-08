@@ -134,6 +134,34 @@ pub(super) struct Search<'a> {
 
 type Ranked = (u64, usize, Mv);
 
+fn motion_bits(difference: Mv) -> usize {
+    [difference.x, difference.y]
+        .into_iter()
+        .map(|value| (u32::BITS - value.unsigned_abs().leading_zeros()) as usize * 2 + 1)
+        .sum()
+}
+
+fn score_rows(
+    source: &[u8],
+    predicted: &[u8],
+    stride: usize,
+    width: usize,
+    motion_cost: u64,
+    cutoff: Option<u64>,
+) -> Result<Option<u64>> {
+    let mut score = motion_cost;
+    for (original, predicted) in source.chunks(STRIDE).zip(predicted.chunks(stride)) {
+        score += crate::kernels::sad(
+            original.get(..width).ok_or(Error::Internal)?,
+            predicted.get(..width).ok_or(Error::Internal)?,
+        )?;
+        if cutoff.is_some_and(|limit| score > limit) {
+            return Ok(None);
+        }
+    }
+    Ok(Some(score))
+}
+
 struct Motions {
     seen: [Option<Ranked>; 99],
     len: usize,
@@ -237,9 +265,8 @@ impl Search<'_> {
             Err(Error::Syntax) => return Ok(None),
             Err(e) => return Err(e),
         };
-        let mut bits = Bits::count();
-        difference.write(&mut bits)?;
-        let motion_cost = (1u64 << (self.decision.qp / 6)) * bits.len as u64;
+        let bits = motion_bits(difference);
+        let motion_cost = (1u64 << (self.decision.qp / 6)) * bits as u64;
         let cutoff = motions
             .ranked
             .last()
@@ -251,59 +278,65 @@ impl Search<'_> {
             return Ok(None);
         }
         let reference = self.reference.first().ok_or(Error::Internal)?;
-        let mut sad = 0u64;
-        if mv.x % 4 == 0 && mv.y % 4 == 0 {
-            for y in part.y..part.y + part.height {
-                let ix = (self.mx * 16 + part.x) as i32 + mv.x / 4;
-                let iy = (self.my * 16 + y) as i32 + mv.y / 4;
-                let at = Tile::at(part.x, y);
-                let original = self
-                    .decision
-                    .source
-                    .0
-                    .get(at..at + part.width)
-                    .ok_or(Error::Internal)?;
-                if ix >= 0
-                    && iy >= 0
-                    && ix as usize + part.width <= reference.width
-                    && (iy as usize) < reference.height
-                {
-                    let start = iy as usize * reference.width + ix as usize;
-                    let predicted = reference
-                        .data
-                        .get(start..start + part.width)
-                        .ok_or(Error::Internal)?;
-                    sad += crate::kernels::sad(original, predicted)?;
-                } else {
+        let at = Tile::at(part.x, part.y);
+        let span = part.height.checked_sub(1).ok_or(Error::Internal)? * STRIDE + part.width;
+        let source = self
+            .decision
+            .source
+            .0
+            .get(at..at + span)
+            .ok_or(Error::Internal)?;
+        let score = if mv.x % 4 == 0 && mv.y % 4 == 0 {
+            let ix = (self.mx * 16 + part.x) as i32 + mv.x / 4;
+            let iy = (self.my * 16 + part.y) as i32 + mv.y / 4;
+            if ix >= 0
+                && iy >= 0
+                && ix as usize + part.width <= reference.width
+                && iy as usize + part.height <= reference.height
+            {
+                let start = iy as usize * reference.width + ix as usize;
+                let end = start + (part.height - 1) * reference.width + part.width;
+                score_rows(
+                    source,
+                    reference.data.get(start..end).ok_or(Error::Internal)?,
+                    reference.width,
+                    part.width,
+                    motion_cost,
+                    cutoff,
+                )?
+            } else {
+                let mut score = motion_cost;
+                for (y, original) in source.chunks(STRIDE).enumerate() {
                     let mut row = [0; 16];
                     let row = row.get_mut(..part.width).ok_or(Error::Internal)?;
-                    reference.row(ix, iy, row)?;
-                    sad += crate::kernels::sad(original, row)?;
+                    reference.row(ix, iy + y as i32, row)?;
+                    score += crate::kernels::sad(
+                        original.get(..part.width).ok_or(Error::Internal)?,
+                        row,
+                    )?;
+                    if cutoff.is_some_and(|limit| score > limit) {
+                        return Ok(None);
+                    }
                 }
-                if cutoff.is_some_and(|limit| sad + motion_cost > limit) {
-                    return Ok(None);
-                }
+                Some(score)
             }
         } else {
             part.mv = mv;
             let mut tile = Tile::empty();
             predict(reference, &mut tile, part, self.mx, self.my, false)?;
-            for y in part.y..part.y + part.height {
-                let at = Tile::at(part.x, y);
-                let original = self
-                    .decision
-                    .source
-                    .0
-                    .get(at..at + part.width)
-                    .ok_or(Error::Internal)?;
-                let predicted = tile.0.get(at..at + part.width).ok_or(Error::Internal)?;
-                sad += crate::kernels::sad(original, predicted)?;
-                if cutoff.is_some_and(|limit| sad + motion_cost > limit) {
-                    return Ok(None);
-                }
-            }
-        }
-        let value = (sad + motion_cost, bits.len, mv);
+            score_rows(
+                source,
+                tile.0.get(at..at + span).ok_or(Error::Internal)?,
+                STRIDE,
+                part.width,
+                motion_cost,
+                cutoff,
+            )?
+        };
+        let Some(score) = score else {
+            return Ok(None);
+        };
+        let value = (score, bits, mv);
         motions.insert(value)?;
         Ok(Some(value))
     }
@@ -891,6 +924,21 @@ impl Search<'_> {
 mod tests {
     use super::*;
     use crate::{Colour, Gop, Limits, Settings};
+
+    #[test]
+    fn motion_lengths_match_written_syntax_over_the_complete_domain() {
+        for value in -32768..=32767 {
+            for difference in [
+                Mv { x: value, y: 0 },
+                Mv { x: 0, y: value },
+                Mv { x: value, y: value },
+            ] {
+                let mut bits = Bits::new(16);
+                difference.write(&mut bits).unwrap();
+                assert_eq!(motion_bits(difference), bits.len);
+            }
+        }
+    }
 
     std::thread_local! {
         pub(super) static SEARCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
@@ -2074,6 +2122,8 @@ mod tests {
 
     fn settings(deblocking: Deblocking) -> Settings {
         Settings {
+            frame_rate: Default::default(),
+            sample_aspect_ratio: Default::default(),
             width: 16,
             height: 16,
             rate_mode: crate::RateMode::FixedQp(28),

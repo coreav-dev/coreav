@@ -36,6 +36,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let height = height.parse::<usize>()?;
     let frames = frames.parse::<u64>()?;
     let settings = Settings {
+        frame_rate: Default::default(),
+        sample_aspect_ratio: Default::default(),
         width,
         height,
         rate_mode: match qp.strip_prefix("crf:") {

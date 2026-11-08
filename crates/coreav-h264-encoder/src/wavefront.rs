@@ -3,11 +3,11 @@
 use crate::{Error, Result};
 use std::sync::{Mutex, OnceLock, mpsc};
 
-pub(crate) fn run<T: Send + Sync>(
+pub(crate) fn fill<T: Send + Sync>(
     width: usize,
     height: usize,
     threads: usize,
-    compute: impl Fn(usize, &[OnceLock<T>]) -> Result<T> + Sync,
+    compute: impl Fn(usize, &[OnceLock<T>]) -> Result<()> + Sync,
 ) -> Result<Vec<OnceLock<T>>> {
     if width == 0 || height == 0 || threads == 0 {
         return Err(Error::Internal);
@@ -22,12 +22,7 @@ pub(crate) fn run<T: Send + Sync>(
     if workers == 1 {
         return std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             for address in 0..table.len() {
-                let value = compute(address, &table)?;
-                table
-                    .get(address)
-                    .ok_or(Error::Internal)?
-                    .set(value)
-                    .map_err(|_| Error::Internal)?;
+                compute(address, &table)?;
             }
             Ok(table)
         }))
@@ -75,12 +70,7 @@ pub(crate) fn run<T: Send + Sync>(
                             }
                         }
                         let address = row * width + x;
-                        let value = compute(address, &table)?;
-                        table
-                            .get(address)
-                            .ok_or(Error::Internal)?
-                            .set(value)
-                            .map_err(|_| Error::Internal)?;
+                        compute(address, &table)?;
                         if row + 1 < height {
                             progress
                                 .get(row)
@@ -134,6 +124,22 @@ pub(crate) fn run<T: Send + Sync>(
         Ok(())
     })?;
     Ok(table)
+}
+
+#[cfg(test)]
+fn run<T: Send + Sync>(
+    width: usize,
+    height: usize,
+    threads: usize,
+    compute: impl Fn(usize, &[OnceLock<T>]) -> Result<T> + Sync,
+) -> Result<Vec<OnceLock<T>>> {
+    fill(width, height, threads, |address, table| {
+        table
+            .get(address)
+            .ok_or(Error::Internal)?
+            .set(compute(address, table)?)
+            .map_err(|_| Error::Internal)
+    })
 }
 
 #[cfg(test)]
