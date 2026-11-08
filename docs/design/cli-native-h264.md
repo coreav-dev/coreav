@@ -12,7 +12,7 @@ The existing argument parser and transcode planner remain authoritative. Native 
 
 Verification narrowed the initial MP4 and Matroska design to MP4. The existing Matroska cadence calculation omits `DefaultDuration` when rounded nanosecond intervals differ. Pinned ffprobe then reports 60 fps for the native stream instead of 30. Matroska therefore keeps the existing external path; correcting its shared cadence calculation is separate work.
 
-Decoded pictures must be progressive planar 8-bit 4:2:0, with even dimensions from 16 through 1920 horizontally and 16 through 1080 vertically. The source must also fit those dimensions. CLI admission remains exactly 30/1 with square pixels, so other clocks, variable frame rates, and non-square pixels keep the external path. The adapter uses the library's default 30/1 timing and absent sample-aspect signalling. Unsupported color descriptions also keep the external path. The adapter maps absent color code points to unspecified, without converting samples.
+Decoded pictures must be progressive planar 8-bit 4:2:0, with even dimensions from 16 through 1920 horizontally and 16 through 1080 vertically. The source must also fit those dimensions. The [metadata design](cli-native-h264-metadata.md) admits supported positive constant rational frame rates from the exact presentation clock and retains declared non-square sample aspects in both VUI and MP4. Variable or rounded alternating clocks and unrepresentable ratios keep the external path. Absent, unspecified and square aspects preserve the former native signalling. Unsupported color descriptions also keep the external path. The adapter maps absent color code points to unspecified, without converting samples.
 
 Native output uses Constrained Baseline, enabled deblocking, and an IDR interval of 250. The native encoder receives the requested thread count, but its output cannot depend on that count. Existing decoding policy, staging, spool limits, timestamps, audio handling, and muxing are reused. Strict-safe selection retains today's path and policy rather than changing decoder or process authorization.
 
@@ -28,4 +28,4 @@ The native path checks its deadline before and after each bounded picture. It do
 - Compare complete native MP4 bytes across thread counts, retain exact external Matroska output, and run the existing CLI limit and timeout tests.
 - Check default and release feature graphs, generated command documentation, public text, DCO, CI, and exact-head similarity.
 
-Speed and quality comparisons are outside this change. Broader CLI frame-rate and sample-aspect admission remains separate work even when the library supports it.
+Speed and quality comparisons are outside this change. Matroska output admission remains separate work.

@@ -61,9 +61,7 @@ pub(super) fn source(report: &Report, index: usize) -> bool {
         && matches!(field("pix_fmt"), Some(Value::Str(s)) if s == "yuv420p")
         && dimension("width", 1920)
         && dimension("height", 1080)
-        && stream
-            .r_frame_rate()
-            .is_some_and(|(n, d)| d.checked_mul(30) == Some(n))
+        && stream.r_frame_rate().is_some()
 }
 
 /// Tries the opt-in encoder without changing the command used on fallback.
@@ -160,8 +158,6 @@ mod tests {
             ("field_order", Value::Na),
             ("pix_fmt", Value::Str("yuv420p10le".into())),
             ("pix_fmt", Value::Str("yuv444p".into())),
-            ("r_frame_rate", Value::Str("30000/1001".into())),
-            ("r_frame_rate", Value::Str("3002/100".into())),
             ("r_frame_rate", Value::Str("0/0".into())),
         ] {
             let mut changed = report.clone();
@@ -173,6 +169,17 @@ mod tests {
                 }
             }
             assert!(!source(&changed, 0), "{name}: {value:?}");
+        }
+        for rate in ["25/1", "24000/1001", "30000/1001", "1000/33"] {
+            let mut changed = report.clone();
+            if let Some(stream) = changed.streams.first_mut() {
+                for (name, field) in &mut stream.entries {
+                    if *name == "r_frame_rate" {
+                        *field = Value::Str(rate.into());
+                    }
+                }
+            }
+            assert!(source(&changed, 0), "{rate}");
         }
     }
 
