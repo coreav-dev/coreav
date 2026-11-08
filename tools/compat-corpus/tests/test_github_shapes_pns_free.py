@@ -276,10 +276,24 @@ class ReplayRegistration(Controls):
 
 
 class WorkflowPrivacy(unittest.TestCase):
+    def test_invalid_pair_selection_stops_before_checkout_or_media(self):
+        workflow = (run.ROOT / '.github/workflows/github-shapes.yml').read_text()
+        step = workflow.split('      - name: Require a merged main candidate\n', 1)[1]
+        block = step.split('        run: |\n', 1)[1].split('      - name:', 1)[0]
+        script = '\n'.join(line[10:] for line in block.splitlines())
+        with tempfile.TemporaryDirectory() as temporary:
+            result = subprocess.run(['/bin/bash', '-c', script], cwd=temporary, capture_output=True,
+                timeout=10, env={'PATH': '/bin:/usr/bin', 'GITHUB_REF': 'refs/heads/main',
+                                'COMMIT': 'a' * 40, 'REGISTRATION': 'unknown'})
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(b'fixture_registration', result.stdout)
+            self.assertEqual(list(Path(temporary).iterdir()), [])
+
     def test_paired_run_stops_on_pns_free_failure_and_keeps_results_private(self):
         workflow = (run.ROOT / '.github/workflows/github-shapes.yml').read_text()
         measure = workflow.split('  measure:\n', 1)[1].split('  aac-controls:\n', 1)[0]
         self.assertNotIn('upload-artifact', measure)
+        self.assertIn('[ "$REGISTRATION" = paired ]', measure)
         self.assertIn("if: github.event_name == 'workflow_dispatch'", measure)
         self.assertLess(measure.index('Require private evidence retention'), measure.index('Acquire and replay'))
         self.assertIn("if: always() && steps.acquire.outcome != 'skipped'", measure)
