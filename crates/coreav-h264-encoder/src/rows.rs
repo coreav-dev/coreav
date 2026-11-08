@@ -122,78 +122,85 @@ pub(super) fn decide(
     e: &Encoder,
     input: Picture<'_>,
     slice: syntax::Slice,
+    consume: impl FnMut(usize, &[OnceLock<Candidate>]) -> Result<()>,
 ) -> Result<Vec<OnceLock<Candidate>>> {
     let width = e.coded_width / 16;
-    crate::wavefront::fill(width, e.coded_height / 16, e.threads, |address, table| {
-        let (mx, my) = (address % width, address / width);
-        let neighbours = Neighbours::at(table, address, width)?;
-        let border = Border {
-            left: neighbours.left.map(|c| &c.state.motion),
-            top: neighbours.top.map(|c| &c.state.motion),
-            top_left: neighbours.top_left.map(|c| &c.state.motion),
-            top_right: neighbours.top_right.map(|c| &c.state.motion),
-        };
-        let mut base = Tile::empty();
-        let mut source = Tile::empty();
-        let mut cbases = [Tile::empty(), Tile::empty()];
-        let mut csources = [Tile::empty(), Tile::empty()];
-        neighbours.tiles(input.y, mx, my, 0, &mut base, &mut source)?;
-        for (c, ((base, source), plane)) in cbases
-            .iter_mut()
-            .zip(&mut csources)
-            .zip([input.cb, input.cr])
-            .enumerate()
-        {
-            neighbours.tiles(plane, mx, my, c + 1, base, source)?;
-        }
-        let context = neighbours.context(!slice.idr);
-        let decision = Decision {
-            source: &source,
-            csources: &csources,
-            context,
-            qp: slice.qp,
-            pending_skip: 0,
-        };
-        let previous = if address == 0 {
-            e.previous_mv_count
-        } else {
-            neighbours
-                .left
-                .and_then(|c| c.inter.as_ref())
-                .map_or(0, |i| i.len as u8)
-        };
-        let previous = motion::row_previous(previous, mx == 0, mx + 1 == width);
-        let mut best = None;
-        let mut refusal = Error::Coefficient;
-        let scope = if slice.idr {
-            IntraScope::Exhaustive
-        } else {
-            inter::Search {
-                reference: e.reference.as_ref().ok_or(Error::Internal)?,
-                decision: &decision,
-                border,
-                mx,
-                my,
-                previous,
+    crate::wavefront::fill(
+        width,
+        e.coded_height / 16,
+        e.threads,
+        |address, table| {
+            let (mx, my) = (address % width, address / width);
+            let neighbours = Neighbours::at(table, address, width)?;
+            let border = Border {
+                left: neighbours.left.map(|c| &c.state.motion),
+                top: neighbours.top.map(|c| &c.state.motion),
+                top_left: neighbours.top_left.map(|c| &c.state.motion),
+                top_right: neighbours.top_right.map(|c| &c.state.motion),
+            };
+            let mut base = Tile::empty();
+            let mut source = Tile::empty();
+            let mut cbases = [Tile::empty(), Tile::empty()];
+            let mut csources = [Tile::empty(), Tile::empty()];
+            neighbours.tiles(input.y, mx, my, 0, &mut base, &mut source)?;
+            for (c, ((base, source), plane)) in cbases
+                .iter_mut()
+                .zip(&mut csources)
+                .zip([input.cb, input.cr])
+                .enumerate()
+            {
+                neighbours.tiles(plane, mx, my, c + 1, base, source)?;
             }
-            .candidates(&mut best, &mut refusal)?
-        };
-        let available = intra_availability(border);
-        decision.intra(&base, &cbases, available, scope, &mut best, &mut refusal)?;
-        let candidate = decision.refine_levels(
-            best.ok_or(refusal)?,
-            &base,
-            &cbases,
-            available,
-            e.reference.as_ref(),
-            (mx, my),
-        )?;
-        table
-            .get(address)
-            .ok_or(Error::Internal)?
-            .set(candidate)
-            .map_err(|_| Error::Internal)
-    })
+            let context = neighbours.context(!slice.idr);
+            let decision = Decision {
+                source: &source,
+                csources: &csources,
+                context,
+                qp: slice.qp,
+                pending_skip: 0,
+            };
+            let previous = if address == 0 {
+                e.previous_mv_count
+            } else {
+                neighbours
+                    .left
+                    .and_then(|c| c.inter.as_ref())
+                    .map_or(0, |i| i.len as u8)
+            };
+            let previous = motion::row_previous(previous, mx == 0, mx + 1 == width);
+            let mut best = None;
+            let mut refusal = Error::Coefficient;
+            let scope = if slice.idr {
+                IntraScope::Exhaustive
+            } else {
+                inter::Search {
+                    reference: e.reference.as_ref().ok_or(Error::Internal)?,
+                    decision: &decision,
+                    border,
+                    mx,
+                    my,
+                    previous,
+                }
+                .candidates(&mut best, &mut refusal)?
+            };
+            let available = intra_availability(border);
+            decision.intra(&base, &cbases, available, scope, &mut best, &mut refusal)?;
+            let candidate = decision.refine_levels(
+                best.ok_or(refusal)?,
+                &base,
+                &cbases,
+                available,
+                e.reference.as_ref(),
+                (mx, my),
+            )?;
+            table
+                .get(address)
+                .ok_or(Error::Internal)?
+                .set(candidate)
+                .map_err(|_| Error::Internal)
+        },
+        consume,
+    )
 }
 
 #[cfg(test)]
@@ -236,6 +243,7 @@ mod tests {
                 frame_num: 0,
                 qp: 28,
             },
+            |_, _| Ok(()),
         )
         .unwrap();
         let address = 5;

@@ -1056,78 +1056,90 @@ pub(crate) fn picture(
         FramePlane::new(e.coded_width / 2, e.coded_height / 2)?,
     ];
     let mb_width = e.coded_width / 16;
+    let mb_height = e.coded_height / 16;
     let mut writer = Bits::new(e.limits.access_unit_bytes);
     syntax::slice(&mut writer, e, slice)?;
-    let candidates = rows::decide(e, input, slice)?;
     let mut pending_skip = 0;
     let mut previous_mv_count = e.previous_mv_count;
-    for (address, slot) in candidates.iter().enumerate() {
-        let candidate = slot.get().ok_or(Error::Internal)?;
-        let Candidate {
-            luma,
-            chroma,
-            inter,
-            ..
-        } = candidate;
-        let (mx, my) = (address % mb_width, address / mb_width);
-        let context = rows::context(&candidates, address, mb_width, !slice.idr)?;
-        let skip = inter.as_ref().is_some_and(|i| i.skip);
-        if !slice.idr {
-            if skip {
-                pending_skip += 1;
-            } else {
-                writer.ue(pending_skip)?;
-                pending_skip = 0;
+    rows::decide(e, input, slice, |row, candidates| {
+        for address in row * mb_width..(row + 1) * mb_width {
+            let slot = candidates.get(address).ok_or(Error::Internal)?;
+            let candidate = slot.get().ok_or(Error::Internal)?;
+            let Candidate {
+                luma,
+                chroma,
+                inter,
+                ..
+            } = candidate;
+            let (mx, my) = (address % mb_width, address / mb_width);
+            let context = rows::context(candidates, address, mb_width, !slice.idr)?;
+            let skip = inter.as_ref().is_some_and(|i| i.skip);
+            if !slice.idr {
+                if skip {
+                    pending_skip += 1;
+                } else {
+                    writer.ue(pending_skip)?;
+                    pending_skip = 0;
+                }
+            }
+            macroblock(&mut writer, luma, chroma, inter.as_ref(), context)?;
+            previous_mv_count = inter.as_ref().map_or(0, |i| i.len as u8);
+            planes
+                .first_mut()
+                .ok_or(Error::Internal)?
+                .commit(&luma.tile, mx * 16, my * 16, 16)?;
+            for (c, tile) in chroma.tiles.iter().enumerate() {
+                planes
+                    .get_mut(c + 1)
+                    .ok_or(Error::Internal)?
+                    .commit(tile, mx * 8, my * 8, 8)?;
             }
         }
-        macroblock(&mut writer, luma, chroma, inter.as_ref(), context)?;
-        previous_mv_count = inter.as_ref().map_or(0, |i| i.len as u8);
-        planes
-            .first_mut()
-            .ok_or(Error::Internal)?
-            .commit(&luma.tile, mx * 16, my * 16, 16)?;
-        for (c, tile) in chroma.tiles.iter().enumerate() {
-            planes
-                .get_mut(c + 1)
-                .ok_or(Error::Internal)?
-                .commit(tile, mx * 8, my * 8, 8)?;
+        if e.settings.deblocking == Deblocking::Enabled && (e.threads != 1 || row + 1 == mb_height)
+        {
+            let rows = if e.threads == 1 {
+                0..mb_height
+            } else {
+                row..row + 1
+            };
+            for (c, plane) in planes.iter_mut().enumerate() {
+                let qp = if c == 0 {
+                    slice.qp
+                } else {
+                    t::chroma_qp(slice.qp)
+                };
+                deblock::rows(
+                    &mut plane.data,
+                    plane.width,
+                    qp,
+                    c != 0,
+                    rows.clone(),
+                    |mx, my| {
+                        let n = &candidates
+                            .get(my * mb_width + mx)
+                            .and_then(std::sync::OnceLock::get)
+                            .ok_or(Error::Internal)?
+                            .state;
+                        let mut nonzero = 0;
+                        for (p, &count) in
+                            n.counts.first().ok_or(Error::Internal)?.iter().enumerate()
+                        {
+                            if count != 0 {
+                                nonzero |= 1 << p;
+                            }
+                        }
+                        Ok(deblock::Record {
+                            motion: n.motion,
+                            nonzero,
+                        })
+                    },
+                )?;
+            }
         }
-    }
+        Ok(())
+    })?;
     if pending_skip != 0 {
         writer.ue(pending_skip)?;
-    }
-    if e.settings.deblocking == Deblocking::Enabled {
-        for (c, plane) in planes.iter_mut().enumerate() {
-            let qp = if c == 0 {
-                slice.qp
-            } else {
-                t::chroma_qp(slice.qp)
-            };
-            deblock::picture(
-                &mut plane.data,
-                plane.width,
-                plane.height,
-                qp,
-                c != 0,
-                |mx, my| {
-                    let n = &candidates
-                        .get(my * mb_width + mx)
-                        .and_then(std::sync::OnceLock::get)
-                        .ok_or(Error::Internal)?
-                        .state;
-                    let mut nonzero = 0;
-                    for (p, &count) in n.counts.first().ok_or(Error::Internal)?.iter().enumerate() {
-                        if count != 0 {
-                            nonzero |= 1 << p;
-                        }
-                    }
-                    Ok(deblock::Record {
-                        motion: n.motion,
-                        nonzero,
-                    })
-                },
-            )?;
-        }
     }
     let visible = e.settings.width * e.settings.height * 3 / 2;
     let mut reconstruction = zeros(visible)?;
