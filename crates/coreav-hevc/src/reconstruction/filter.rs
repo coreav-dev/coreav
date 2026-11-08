@@ -177,14 +177,45 @@ impl Frame {
     }
 
     fn deblock(&mut self, component: usize, horizontal: bool) -> Result<()> {
+        self.deblock_rows(
+            component,
+            horizontal,
+            0..self.info.height as usize,
+            super::rows::SampleRows::full(),
+        )
+    }
+
+    pub(super) fn deblock_rows(
+        &mut self,
+        component: usize,
+        horizontal: bool,
+        rows: core::ops::Range<usize>,
+        storage: super::rows::SampleRows<'_>,
+    ) -> Result<()> {
+        if rows.start > rows.end
+            || rows.end > self.info.height as usize
+            || rows.start % 8 != 0
+            || rows.end % 8 != 0
+        {
+            return Err(Error::InvalidData("filter_row_range"));
+        }
         let scale = if component == 0 { 1 } else { 2 };
         let width = self.info.width as usize / scale;
         let height = self.info.height as usize / scale;
+        let origin = storage.offset(component, width)?;
         let edge_extent = if horizontal { height } else { width };
         let along_extent = if horizontal { width } else { height };
         for edge in (8..edge_extent).step_by(8) {
+            if horizontal && (edge * scale <= rows.start || edge * scale > rows.end) {
+                continue;
+            }
             self.check_deadline()?;
-            for along in (0..along_extent).step_by(4) {
+            let along_range = if horizontal {
+                0..along_extent
+            } else {
+                rows.start / scale..rows.end / scale
+            };
+            for along in along_range.step_by(4) {
                 let [x, y] = if horizontal {
                     [along, edge]
                 } else {
@@ -196,8 +227,8 @@ impl Frame {
                 } else {
                     [lx - 1, ly]
                 };
-                let qcell = *self.cell(lx, ly)?;
-                let pcell = *self.cell(px, py)?;
+                let qcell = *storage.cell(self, lx, ly)?;
+                let pcell = *storage.cell(self, px, py)?;
                 let ctu = self.filter_ctu(lx, ly)?;
                 if qcell.edges & (1 << usize::from(horizontal)) == 0
                     || ctu.deblock_disabled
@@ -235,6 +266,9 @@ impl Frame {
                                 } else {
                                     (along + row) * width + edge + index - 4
                                 };
+                                let address = address
+                                    .checked_sub(origin)
+                                    .ok_or(Error::InvalidData("deblock_sample"))?;
                                 *value = *self
                                     .planes
                                     .get(component)
@@ -250,7 +284,14 @@ impl Frame {
                             strength,
                             protected,
                         )?;
-                        self.write_edge(component, horizontal, edge, along, strength, result)?;
+                        self.write_edge(
+                            component,
+                            horizontal,
+                            [edge, along],
+                            strength,
+                            result,
+                            storage,
+                        )?;
                     } else {
                         let mut samples = [[0; 4]; 4];
                         for (row, line) in samples.iter_mut().enumerate() {
@@ -260,6 +301,9 @@ impl Frame {
                                 } else {
                                     (along + row) * width + edge + index - 2
                                 };
+                                let address = address
+                                    .checked_sub(origin)
+                                    .ok_or(Error::InvalidData("deblock_sample"))?;
                                 *value = *self
                                     .planes
                                     .get(component)
@@ -278,7 +322,14 @@ impl Frame {
                             ctu.offsets[1],
                             protected,
                         )?;
-                        self.write_edge(component, horizontal, edge, along, strength, result)?;
+                        self.write_edge(
+                            component,
+                            horizontal,
+                            [edge, along],
+                            strength,
+                            result,
+                            storage,
+                        )?;
                     }
                     *self
                         .stats
@@ -295,12 +346,13 @@ impl Frame {
         &mut self,
         component: usize,
         horizontal: bool,
-        edge: usize,
-        along: usize,
+        [edge, along]: [usize; 2],
         strength: BoundaryStrength,
         result: [[u16; N]; 4],
+        storage: super::rows::SampleRows<'_>,
     ) -> Result<()> {
         let width = self.info.width as usize / if component == 0 { 1 } else { 2 };
+        let origin = storage.offset(component, width)?;
         let plane = self
             .planes
             .get_mut(component)
@@ -313,6 +365,9 @@ impl Frame {
                 } else {
                     (along + row) * width + edge + index - N / 2
                 };
+                let address = address
+                    .checked_sub(origin)
+                    .ok_or(Error::InvalidData("deblock_sample"))?;
                 let target = plane
                     .get_mut(address)
                     .ok_or(Error::InvalidData("deblock_sample"))?;
@@ -354,11 +409,37 @@ impl Frame {
         source: Option<&[u16]>,
         output: &mut [u16],
     ) -> Result<()> {
+        self.sao_rows(
+            component,
+            source,
+            output,
+            0..self.info.height as usize,
+            super::rows::SampleRows::full(),
+        )
+    }
+
+    pub(super) fn sao_rows(
+        &mut self,
+        component: usize,
+        source: Option<&[u16]>,
+        output: &mut [u16],
+        rows: core::ops::Range<usize>,
+        storage: super::rows::SampleRows<'_>,
+    ) -> Result<()> {
+        let ctb = 1usize << self.info.ctb_log2;
+        if rows.start > rows.end
+            || rows.end > self.info.height as usize
+            || rows.start % ctb != 0
+            || rows.end != self.info.height as usize && rows.end % ctb != 0
+        {
+            return Err(Error::InvalidData("filter_row_range"));
+        }
         let scale = if component == 0 { 1 } else { 2 };
         let width = self.info.width as usize / scale;
         let height = self.info.height as usize / scale;
         let side = (1usize << self.info.ctb_log2) / scale;
-        for cy in (0..height).step_by(side) {
+        let origin = storage.offset(component, width)?;
+        for cy in (rows.start / scale..rows.end / scale).step_by(side) {
             self.check_deadline()?;
             for cx in (0..width).step_by(side) {
                 let sao = *self
@@ -440,25 +521,29 @@ impl Frame {
                             let mut x = x0;
                             while x < x1 {
                                 let start = x;
-                                let protected = self.cell(x * scale, y * scale)?.protected;
+                                let protected = storage.cell(self, x * scale, y * scale)?.protected;
                                 x = ((x / (4 / scale) + 1) * (4 / scale)).min(x1);
                                 while x < x1
-                                    && self.cell(x * scale, y * scale)?.protected == protected
+                                    && storage.cell(self, x * scale, y * scale)?.protected
+                                        == protected
                                 {
                                     x = (x + 4 / scale).min(x1);
                                 }
                                 if protected {
                                     continue;
                                 }
+                                let begin = (y * width + start)
+                                    .checked_sub(origin)
+                                    .ok_or(Error::InvalidData("sao_sample"))?;
                                 let destination = output
-                                    .get_mut(y * width + start..y * width + x)
+                                    .get_mut(begin..begin + x - start)
                                     .ok_or(Error::InvalidData("sao_sample"))?;
                                 let changed = if let Some(band) = band {
                                     band.apply(destination)?
                                 } else {
                                     let source = source.ok_or(Error::InvalidData("sao_source"))?;
                                     let samples = source
-                                        .get(y * width + start..y * width + x)
+                                        .get(begin..begin + x - start)
                                         .ok_or(Error::InvalidData("sao_sample"))?;
                                     let neighbour = |sign| -> Result<&[u16]> {
                                         let nx = start
@@ -467,8 +552,11 @@ impl Frame {
                                         let ny = y
                                             .checked_add_signed(sign * dy)
                                             .ok_or(Error::InvalidData("sao_neighbour"))?;
+                                        let begin = (ny * width + nx)
+                                            .checked_sub(origin)
+                                            .ok_or(Error::InvalidData("sao_neighbour"))?;
                                         source
-                                            .get(ny * width + nx..ny * width + nx + x - start)
+                                            .get(begin..begin + x - start)
                                             .ok_or(Error::InvalidData("sao_neighbour"))
                                     };
                                     edge.ok_or(Error::InvalidData("sao_class"))?.apply(
@@ -596,6 +684,88 @@ mod tests {
                 inter_output: Vec::new(),
             },
         })
+    }
+
+    #[test]
+    fn private_filter_bands_match_whole_picture_samples_and_counts() -> Result<()> {
+        for ctb in [16usize, 32, 64] {
+            for height in [8, ctb, ctb + 8, 3 * ctb + 8] {
+                for bits in [8, 10] {
+                    for kind in [1, 2] {
+                        for class in 0..4 {
+                            let prepare = || -> Result<Frame> {
+                                let mut frame = sao_frame(bits)?;
+                                let width = 2 * ctb + 8;
+                                frame.info.width = width as u32;
+                                frame.info.height = height as u32;
+                                frame.info.visible_width = width as u32;
+                                frame.info.visible_height = height as u32;
+                                frame.info.ctb_log2 = ctb.trailing_zeros();
+                                frame.info.tiles = false;
+                                let retained =
+                                    super::super::raster::tests::TestSink::new(frame.info).picture;
+                                frame.planes = retained.planes;
+                                frame.cells = retained.cells;
+                                let count = width.div_ceil(ctb) * height.div_ceil(ctb);
+                                frame.next_ctu = count as u32;
+                                frame.filter_ctus.resize(count, Ctu::default());
+                                let scale = 1 << (bits - 8);
+                                for (component, plane) in frame.planes.iter_mut().enumerate() {
+                                    let width = width / if component == 0 { 1 } else { 2 };
+                                    for (index, sample) in plane.iter_mut().enumerate() {
+                                        let (x, y) = (index % width, index / width);
+                                        *sample = (80
+                                            + ((x / 8 + y / 8) % 2) as u16 * 6
+                                            + if class == 0 { 0 } else { ((x + y) % 5) as u16 })
+                                            * scale;
+                                    }
+                                }
+                                for (index, cell) in frame.cells.iter_mut().enumerate() {
+                                    cell.edges = 3;
+                                    cell.qp = 30;
+                                    cell.protected = index % 19 == 0;
+                                }
+                                for (index, ctu) in frame.filter_ctus.iter_mut().enumerate() {
+                                    ctu.seen = true;
+                                    ctu.order = index as u32;
+                                    ctu.deblock_disabled = index % 7 == 0;
+                                    ctu.slice = (index / 3) as u32;
+                                    ctu.across_slices = index % 3 != 0;
+                                    ctu.sao = [Sao {
+                                        kind,
+                                        class,
+                                        band: 10,
+                                        offsets: [2, 1, -1, -2],
+                                    }; 3];
+                                }
+                                Ok(frame)
+                            };
+                            let mut expected = prepare()?;
+                            if ctb == 16 && height == 8 && bits == 8 && kind == 1 && class == 0 {
+                                let mut strong = prepare()?;
+                                let before = strong.planes[0][4 * 40 + 21];
+                                strong.deblock_rows(
+                                    0,
+                                    false,
+                                    0..8,
+                                    super::super::rows::SampleRows::full(),
+                                )?;
+                                assert_ne!(strong.planes[0][4 * 40 + 21], before);
+                            }
+                            expected.finalize(0, usize::MAX)?;
+                            let actual = super::super::raster::tests::filter_fixture(prepare()?)?;
+                            assert_eq!(
+                                actual.planes, expected.planes,
+                                "ctb={ctb} height={height} bits={bits} kind={kind} class={class}"
+                            );
+                            assert_eq!(actual.stats, expected.stats);
+                            assert_eq!(actual.inter_stats, expected.inter_stats);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]

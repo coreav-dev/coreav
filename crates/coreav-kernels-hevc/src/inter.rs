@@ -22,19 +22,47 @@ pub struct RefPlane<'a> {
     stride: usize,
     width: usize,
     height: usize,
+    #[cfg(hevc_thread_diagnostics)]
+    read_observer: Option<fn(usize, usize)>,
 }
 
 impl<'a> RefPlane<'a> {
     /// Checks positive dimensions up to i32::MAX, stride and the last active sample.
     /// Sample depth is checked only over the interpolation support at invocation.
     pub fn new(data: &'a [u16], stride: usize, width: usize, height: usize) -> Result<Self, Error> {
-        check_rectangle(data.len(), stride, width, height)?;
+        Self::prefix(data, stride, width, height, height)
+    }
+
+    #[doc(hidden)]
+    pub fn prefix(
+        data: &'a [u16],
+        stride: usize,
+        width: usize,
+        height: usize,
+        rows: usize,
+    ) -> Result<Self, Error> {
+        if height > i32::MAX as usize {
+            return Err(Error::Buffer);
+        }
+        if rows > height {
+            return Err(Error::Rectangle);
+        }
+        check_rectangle(data.len(), stride, width, rows)?;
         Ok(Self {
             data,
             stride,
             width,
             height,
+            #[cfg(hevc_thread_diagnostics)]
+            read_observer: None,
         })
+    }
+
+    #[cfg(hevc_thread_diagnostics)]
+    #[doc(hidden)]
+    pub fn diagnostic_reads(mut self, observer: fn(usize, usize)) -> Self {
+        self.read_observer = Some(observer);
+        self
     }
 }
 
@@ -60,6 +88,73 @@ pub struct InterPrediction {
     pub y: usize,
     /// Quarter-luma or eighth-chroma displacement; equal numerically for 4:2:0.
     pub motion: MotionVector,
+}
+
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InterSupport {
+    start: [i64; 2],
+    phase: [i16; 2],
+    first: [usize; 2],
+    last: [usize; 2],
+}
+
+impl InterSupport {
+    pub fn rows(self) -> core::ops::RangeInclusive<usize> {
+        self.first[1]..=self.last[1]
+    }
+}
+
+impl InterPrediction {
+    #[doc(hidden)]
+    pub fn support(
+        self,
+        reference_width: usize,
+        reference_height: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<InterSupport, Error> {
+        if self.x > i32::MAX as usize
+            || self.y > i32::MAX as usize
+            || reference_width == 0
+            || reference_height == 0
+            || reference_width > i32::MAX as usize
+            || reference_height > i32::MAX as usize
+        {
+            return Err(Error::Buffer);
+        }
+        let (bits, first_tap, taps, limit) = match self.component {
+            Component::Luma => (2, -3_i64, 8_i64, 64),
+            Component::Chroma => (3, -1_i64, 4_i64, 32),
+        };
+        if width == 0 || height == 0 || width > limit || height > limit {
+            return Err(Error::Rectangle);
+        }
+        let mask = (1 << bits) - 1;
+        let axes = [
+            (self.x, self.motion.x, width, reference_width),
+            (self.y, self.motion.y, height, reference_height),
+        ]
+        .map(|(origin, motion, output, reference)| {
+            let phase = motion & mask;
+            let base = origin as i64 + i64::from(motion >> bits);
+            let start = base + if phase == 0 { 0 } else { first_tap };
+            let end = base + output as i64 - 1 + if phase == 0 { 0 } else { first_tap + taps - 1 };
+            (
+                start,
+                phase,
+                start.clamp(0, reference as i64 - 1) as usize,
+                end.clamp(0, reference as i64 - 1) as usize,
+            )
+        });
+        let [(xs, xp, xf, xl), (ys, yp, yf, yl)] = axes;
+        Ok(InterSupport {
+            start: [xs, ys],
+            phase: [xp, yp],
+            first: [xf, yf],
+            last: [xl, yl],
+        })
+    }
 }
 
 fn coefficients(component: Component, phase: i16) -> Result<&'static [i32], Error> {
@@ -137,6 +232,268 @@ pub fn interpolate_inter_scalar(
     interpolate(config, reference, output, false)
 }
 
+#[cfg(test)]
+mod support_tests {
+    use super::*;
+
+    #[test]
+    fn clipped_support_rows_are_exact_at_both_depths_and_picture_edges() -> Result<(), Error> {
+        for bits in [8, 10] {
+            for (component, automatic) in [
+                (Component::Luma, false),
+                (Component::Luma, true),
+                (Component::Chroma, false),
+                (Component::Chroma, true),
+            ] {
+                for y in [0, 8, 31] {
+                    for motion in [
+                        i16::MIN,
+                        -9,
+                        -8,
+                        -7,
+                        -4,
+                        -3,
+                        -1,
+                        0,
+                        1,
+                        3,
+                        4,
+                        7,
+                        8,
+                        9,
+                        i16::MAX,
+                    ] {
+                        let config = InterPrediction {
+                            depth: BitDepth::new(bits)?,
+                            component,
+                            x: 8,
+                            y,
+                            motion: MotionVector {
+                                x: motion,
+                                y: motion,
+                            },
+                        };
+                        let rows = config.support(32, 32, 8, 4)?.rows();
+                        let source = [42u16; 32 * 32];
+                        let mut expected = [0; 8 * 4];
+                        interpolate(
+                            config,
+                            RefPlane::new(&source, 32, 32, 32)?,
+                            RectMut::new(&mut expected, 8, 8, 4)?,
+                            automatic,
+                        )?;
+                        for row in 0..32 {
+                            let mut source = [42u16; 32 * 32];
+                            source[row * 32..(row + 1) * 32].fill(config.depth.max_sample() + 1);
+                            let mut output = [7; 8 * 4];
+                            let result = interpolate(
+                                config,
+                                RefPlane::new(&source, 32, 32, 32)?,
+                                RectMut::new(&mut output, 8, 8, 4)?,
+                                automatic,
+                            );
+                            if rows.contains(&row) {
+                                assert_eq!(result, Err(Error::Sample));
+                                assert_eq!(output, [7; 8 * 4]);
+                            } else {
+                                result?;
+                                assert_eq!(output, expected);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn support_retains_fractional_taps_even_when_an_endpoint_coefficient_is_zero()
+    -> Result<(), Error> {
+        for (component, motion, first, last) in [
+            (Component::Luma, 0, 8, 11),
+            (Component::Luma, 1, 5, 15),
+            (Component::Luma, 2, 5, 15),
+            (Component::Luma, 3, 5, 15),
+            (Component::Luma, -1, 4, 14),
+            (Component::Luma, -4, 7, 10),
+            (Component::Chroma, 1, 7, 13),
+            (Component::Chroma, 7, 7, 13),
+            (Component::Chroma, -1, 6, 12),
+            (Component::Luma, i16::MIN, 0, 0),
+            (Component::Luma, i16::MAX, 31, 31),
+        ] {
+            let config = InterPrediction {
+                depth: BitDepth::new(8)?,
+                component,
+                x: 8,
+                y: 8,
+                motion: MotionVector { x: 0, y: motion },
+            };
+            assert_eq!(config.support(32, 32, 8, 4)?.rows(), first..=last);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn prefix_references_keep_full_picture_clipping_and_refuse_unpublished_rows()
+    -> Result<(), Error> {
+        let source = [42u16; 32 * 32];
+        for component in [Component::Luma, Component::Chroma] {
+            for motion in [i16::MIN, -1, 0, 1, i16::MAX] {
+                for y in [0, 8, 31] {
+                    let config = InterPrediction {
+                        depth: BitDepth::new(8)?,
+                        component,
+                        x: 8,
+                        y,
+                        motion: MotionVector { x: 0, y: motion },
+                    };
+                    let rows = config.support(32, 32, 8, 4)?.rows();
+                    let available = *rows.end() + 1;
+                    let mut expected = [0; 32];
+                    interpolate(
+                        config,
+                        RefPlane::new(&source, 32, 32, 32)?,
+                        RectMut::new(&mut expected, 8, 8, 4)?,
+                        false,
+                    )?;
+                    let mut actual = [0; 32];
+                    interpolate(
+                        config,
+                        RefPlane::prefix(&source[..available * 32], 32, 32, 32, available)?,
+                        RectMut::new(&mut actual, 8, 8, 4)?,
+                        false,
+                    )?;
+                    assert_eq!(actual, expected);
+                    if available > 1 {
+                        let mut actual = [99; 32];
+                        assert_eq!(
+                            interpolate(
+                                config,
+                                RefPlane::prefix(
+                                    &source[..(available - 1) * 32],
+                                    32,
+                                    32,
+                                    32,
+                                    available - 1
+                                )?,
+                                RectMut::new(&mut actual, 8, 8, 4)?,
+                                false
+                            ),
+                            Err(Error::Buffer)
+                        );
+                        assert_eq!(actual, [99; 32]);
+                    }
+                }
+            }
+        }
+        assert!(RefPlane::prefix(&source, 32, 32, 32, 0).is_err());
+        assert!(RefPlane::prefix(&source, 32, 32, 32, 33).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn support_refuses_invalid_geometry_without_a_reference_buffer() -> Result<(), Error> {
+        let config = InterPrediction {
+            depth: BitDepth::new(8)?,
+            component: Component::Luma,
+            x: 0,
+            y: 0,
+            motion: MotionVector { x: 0, y: 0 },
+        };
+        for (rw, rh, width, height, error) in [
+            (0, 32, 8, 4, Error::Buffer),
+            (32, 0, 8, 4, Error::Buffer),
+            (usize::MAX, 32, 8, 4, Error::Buffer),
+            (32, usize::MAX, 8, 4, Error::Buffer),
+            (32, 32, 0, 4, Error::Rectangle),
+            (32, 32, 8, 0, Error::Rectangle),
+            (32, 32, 65, 4, Error::Rectangle),
+            (32, 32, 8, 65, Error::Rectangle),
+        ] {
+            assert_eq!(config.support(rw, rh, width, height), Err(error));
+        }
+        assert_eq!(
+            InterPrediction {
+                x: usize::MAX,
+                ..config
+            }
+            .support(32, 32, 8, 4),
+            Err(Error::Buffer)
+        );
+        assert_eq!(
+            InterPrediction {
+                component: Component::Chroma,
+                ..config
+            }
+            .support(32, 32, 33, 4),
+            Err(Error::Rectangle)
+        );
+        Ok(())
+    }
+}
+
+#[cfg(all(test, hevc_thread_diagnostics))]
+mod tests {
+    use super::*;
+    use core::sync::atomic::{AtomicUsize, Ordering};
+
+    static READS: AtomicUsize = AtomicUsize::new(usize::MAX);
+
+    fn observed(first: usize, last: usize) {
+        READS.store(first * 64 + last, Ordering::Relaxed);
+    }
+
+    #[test]
+    fn diagnostic_read_bounds_match_interpolation_support() -> Result<(), Error> {
+        for (component, mv_x, mv_y, expected) in [
+            (Component::Luma, 0, 0, (8, 11)),
+            (Component::Luma, 1, 0, (8, 11)),
+            (Component::Luma, 0, 1, (5, 15)),
+            (Component::Luma, 0, -1, (4, 14)),
+            (Component::Luma, 0, -4, (7, 10)),
+            (Component::Chroma, 0, 1, (7, 13)),
+            (Component::Chroma, 0, -1, (6, 12)),
+            (Component::Luma, 0, i16::MIN, (0, 0)),
+            (Component::Luma, 0, i16::MAX, (31, 31)),
+        ] {
+            for automatic in [false, true] {
+                let mut source = [42u16; 32 * 32];
+                let mut output = [0i32; 8 * 4];
+                let config = InterPrediction {
+                    depth: BitDepth::new(8)?,
+                    component,
+                    x: 8,
+                    y: 8,
+                    motion: MotionVector { x: mv_x, y: mv_y },
+                };
+                READS.store(usize::MAX, Ordering::Relaxed);
+                interpolate(
+                    config,
+                    RefPlane::new(&source, 32, 32, 32)?.diagnostic_reads(observed),
+                    RectMut::new(&mut output, 8, 8, 4)?,
+                    automatic,
+                )?;
+                assert_eq!(READS.load(Ordering::Relaxed), expected.0 * 64 + expected.1);
+                *source.get_mut(expected.1 * 32 + 8).ok_or(Error::Buffer)? = 256;
+                let before = output;
+                assert_eq!(
+                    interpolate(
+                        config,
+                        RefPlane::new(&source, 32, 32, 32)?.diagnostic_reads(observed),
+                        RectMut::new(&mut output, 8, 8, 4)?,
+                        automatic
+                    ),
+                    Err(Error::Sample)
+                );
+                assert_eq!(output, before);
+            }
+        }
+        Ok(())
+    }
+}
+
 fn interpolate(
     config: InterPrediction,
     reference: RefPlane<'_>,
@@ -145,31 +502,22 @@ fn interpolate(
 ) -> Result<(), Error> {
     #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
     let vector = _automatic.then(crate::simd::Avx2::detect).flatten();
-    if config.x > i32::MAX as usize || config.y > i32::MAX as usize {
-        return Err(Error::Buffer);
+    let support = config.support(
+        reference.width,
+        reference.height,
+        output.width,
+        output.height,
+    )?;
+    let [phase_x, phase_y] = support.phase;
+    let [x_start, y_start] = support.start;
+    #[cfg(hevc_thread_diagnostics)]
+    if let Some(observer) = reference.read_observer {
+        observer(*support.rows().start(), *support.rows().end());
     }
-    let (fraction_bits, start, taps, limit) = match config.component {
-        Component::Luma => (2, -3_i64, 8_i64, 64),
-        Component::Chroma => (3, -1_i64, 4_i64, 32),
-    };
-    if output.width > limit || output.height > limit {
-        return Err(Error::Rectangle);
-    }
-    let mask = (1 << fraction_bits) - 1;
-    let phase_x = config.motion.x & mask;
-    let phase_y = config.motion.y & mask;
-    let x_base = config.x as i64 + i64::from(config.motion.x >> fraction_bits);
-    let y_base = config.y as i64 + i64::from(config.motion.y >> fraction_bits);
-    let x_start = x_base + if phase_x == 0 { 0 } else { start };
-    let y_start = y_base + if phase_y == 0 { 0 } else { start };
-    let x_end = x_base + output.width as i64 - 1 + if phase_x == 0 { 0 } else { start + taps - 1 };
-    let y_end = y_base + output.height as i64 - 1 + if phase_y == 0 { 0 } else { start + taps - 1 };
-    for y in
-        y_start.clamp(0, reference.height as i64 - 1)..=y_end.clamp(0, reference.height as i64 - 1)
-    {
-        let begin = y as usize * reference.stride;
-        let left = x_start.clamp(0, reference.width as i64 - 1) as usize;
-        let right = x_end.clamp(0, reference.width as i64 - 1) as usize;
+    for y in support.rows() {
+        let begin = y * reference.stride;
+        let left = support.first[0];
+        let right = support.last[0];
         let row = reference
             .data
             .get(begin + left..=begin + right)

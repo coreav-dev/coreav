@@ -20,7 +20,7 @@ Rows are assigned in increasing order to a bounded group of scoped workers. Depe
 
 The decoder session retains private worker allocations only after every row has reconciled successfully. Reuse requires the same worker count, geometry, bit depth, CTU shape, reference-storage shape, buffer lengths and total retained capacity. Every frame field and scratch buffer is reset from the new working picture before dispatch, with exhaustive destructuring requiring new fields to be handled. Workers borrow these private frames only within the thread scope. Failure drops them rather than returning partial state to the session.
 
-The codec exposes `PictureDecoder::with_threads`. The backend follows the existing native decoder option shape, `NativeOptions { threads: Option<usize> }`, with `None` selecting available host parallelism and explicit counts bounded to 1 through 16. Memory admission can reduce the effective count to one. Threadless targets retain serial decoding. The existing command-line decoder thread option supplies this backend option without adding a new CLI flag.
+The codec exposes `PictureDecoder::with_threads`. The backend follows the existing native decoder option shape, `NativeOptions { threads: Option<usize> }`, with `None` selecting available host parallelism and explicit counts bounded to 1 through 16 and available CPUs. Memory admission can reduce the effective count to one. Threadless targets retain serial decoding. The existing command-line decoder thread option supplies this backend option without adding a new CLI flag.
 
 ## Failure and resource bounds
 

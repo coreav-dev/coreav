@@ -18,6 +18,7 @@ test-support = []
 [lints.rust]
 unsafe_code = "deny"
 missing_docs = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(hevc_thread_diagnostics)"] }
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }

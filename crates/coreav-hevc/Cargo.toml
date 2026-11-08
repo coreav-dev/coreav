@@ -12,6 +12,7 @@ publish = false
 [features]
 default = []
 native-hevc = ["dep:sha2", "dep:md-5", "dep:coreav-kernels-hevc", "coreav-kernels-hevc/native-hevc"]
+native-hevc-rows-private = ["native-hevc"]
 scalar = ["coreav-kernels-hevc?/scalar"]
 test-support = []
 

@@ -47,6 +47,7 @@ fuzz_target!(|data: &[u8]| {
             break;
         };
         remaining = tail;
+        let mut received = false;
         let result = match operation & 3 {
             0 => {
                 let Some(prefix) = remaining.first_chunk::<2>() else {
@@ -72,17 +73,26 @@ fuzz_target!(|data: &[u8]| {
             }
             1 => decoder
                 .receive_frame()
-                .map(|frame| delivered.extend(frame.map(|frame| frame.pts))),
+                .map(|frame| {
+                    received = frame.is_some();
+                    delivered.extend(frame.map(|frame| frame.pts));
+                }),
             2 => decoder.send_eof(),
             _ => break,
         };
         if failed {
-            assert!(result.is_err());
+            assert!(result.is_err() || received);
         }
         failed |= result.is_err();
     }
     if failed {
-        assert!(decoder.receive_frame().is_err());
+        loop {
+            match decoder.receive_frame() {
+                Ok(Some(frame)) => delivered.push(frame.pts),
+                Ok(None) => panic!("failed decoder lost its terminal result"),
+                Err(_) => break,
+            }
+        }
         assert!(decoder.send_eof().is_err());
     } else {
         let _ = decoder.send_eof();

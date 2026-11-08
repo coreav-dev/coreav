@@ -217,6 +217,8 @@ other limits are the backend's to enforce.
 
 A `Limit` error from the decoder returned by `open` ends that session, whether the wrapper or the backend detected it. The wrapper drops the backend and its queued output, preserving the original error for the failing call. Later packet, EOF and frame calls return `InvalidData`; `info()` remains available. A caller must open a new decoder to continue. This is not a recoverable backpressure signal. The wrapper adds a state check and a limit-result check per call, and retains one metadata-string copy per opened session so failure cleanup needs no additional metadata allocation.
 
+Opt-in native HEVC has a contained terminal-output exception through its documentation-hidden workspace feature. Before any limit, it reconciles earlier reconstruction so an earlier failure wins. On any terminal failure, it drops the live picture decoder and transfers only already validated packed frames, their byte and capacity accounting, and the latched error to the wrapper. Receive returns those frames in order, then the same error. If the wrapper itself refuses a received frame, it clears the residual because those frames follow the refused one. Packet and EOF calls cannot restart the session or consume its residual output. This owner retains no parser, worker or reference pin, and does not perform new decode work or reapply a deadline to validated output. Direct native HEVC follows the same failure-prefix rule at every worker count. Other backends and release builds keep the ordinary teardown above.
+
 The defaults are:
 
 | Limit | Default | Why |

@@ -5,10 +5,58 @@ use crate::{
     reconstruction::{Cache, Frame, Memory, ReclaimMemory},
 };
 
+#[cfg(feature = "native-hevc-rows-private")]
+mod rows;
+mod scheduler;
+
+trait Delivery {
+    fn output(&mut self, picture: DecodedPicture<'_>, memory: &mut OutputMemory<'_>) -> Result<()>;
+    #[cfg(feature = "native-hevc-rows-private")]
+    fn row_sink(&mut self) -> Option<&mut dyn crate::native_rows::RowSink> {
+        None
+    }
+}
+
+impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> Delivery for F {
+    fn output(&mut self, picture: DecodedPicture<'_>, memory: &mut OutputMemory<'_>) -> Result<()> {
+        self(picture, memory)
+    }
+}
+
+#[cfg(feature = "native-hevc-rows-private")]
+struct RowsOutput<'a>(&'a mut dyn crate::native_rows::RowSink);
+
+#[cfg(feature = "native-hevc-rows-private")]
+impl Delivery for RowsOutput<'_> {
+    fn row_sink(&mut self) -> Option<&mut dyn crate::native_rows::RowSink> {
+        Some(self.0)
+    }
+    fn output(&mut self, picture: DecodedPicture<'_>, memory: &mut OutputMemory<'_>) -> Result<()> {
+        let offset = self.0.cost(0, 0)?.queued_frames;
+        if self.0.prepare(
+            crate::native_rows::OutputHeader {
+                index: picture.index,
+                poc: picture.poc,
+                timestamp: picture.timestamp,
+                origin: picture.origin,
+                info: picture.info,
+            },
+            memory,
+        )? {
+            let result = self.0.fill(offset, picture);
+            if result.is_err() {
+                self.0.truncate(offset);
+            }
+            result?;
+        }
+        Ok(())
+    }
+}
+
 /// Independent admission, live-memory and entropy-work limits for a complete stream.
 #[derive(Clone, Copy, Debug)]
 pub struct DecodeLimits {
-    /// Requested reconstruction workers, bounded to one through sixteen.
+    /// Requested reconstruction workers, bounded to one through sixteen and available CPUs.
     pub threads: usize,
     /// Header admission, including the stream-wide coded-picture limit.
     pub headers: Limits,
@@ -100,9 +148,11 @@ impl OutputMemory<'_> {
 /// Successful complete-stream accounting, including pictures not selected for output.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DecodeSummary {
-    /// Pictures reconstructed using more than one successfully started worker.
+    /// Pictures whose reconstruction overlapped another whole-picture job.
+    pub frame_parallel_pictures: u64,
+    /// Pictures reconstructed with whole-picture overlap or multiple WPP workers.
     pub parallel_pictures: u64,
-    /// Greatest number of successfully started workers, including the caller.
+    /// Greatest executing picture-job count or WPP worker count, including the caller.
     pub max_workers: usize,
     /// Header syntax and presentation-order output counts.
     pub headers: Summary,
@@ -134,6 +184,7 @@ enum State {
 struct Slots {
     active: Vec<Frame>,
     cache: Cache,
+    scheduler: scheduler::Scheduler,
 }
 
 impl Slots {
@@ -165,7 +216,24 @@ impl Slots {
     }
 }
 
-struct Pictures<Storage = Slots> {
+#[expect(
+    dead_code,
+    reason = "The original typed accounting layout fixes cold admission independently of optional counters"
+)]
+struct SerialAccounting {
+    parallel_pictures: u64,
+    max_workers: usize,
+    headers: Summary,
+    decoded_pictures: u64,
+    skipped_pictures: u64,
+    skipped_picture_hashes: u64,
+    skipped_reserved_hashes: u64,
+    reconstruction: IntraStats,
+    inter: InterStats,
+    memory_bytes: usize,
+}
+
+struct Pictures<Storage = Slots, Accounting = DecodeSummary> {
     limits: DecodeLimits,
     frame: Storage,
     timestamp: Option<i64>,
@@ -174,12 +242,26 @@ struct Pictures<Storage = Slots> {
     skipped: Option<u64>,
     stream_remaining: u64,
     picture_remaining: u64,
-    summary: DecodeSummary,
+    summary: Accounting,
 }
 
-struct Session<Storage = Slots> {
+struct Session<Storage = Slots, Accounting = DecodeSummary> {
     core: StreamCore,
-    pictures: Pictures<Storage>,
+    pictures: Pictures<Storage, Accounting>,
+}
+
+impl Pictures {
+    fn synchronize(&mut self) -> Result<()> {
+        self.frame
+            .scheduler
+            .drain(&mut self.summary, &mut self.stream_remaining, None)?;
+        self.frame.scheduler.flush(
+            &mut self.frame.active,
+            &mut self.stream_remaining,
+            &mut self.picture_remaining,
+        )?;
+        Ok(())
+    }
 }
 
 /// Sans-IO Main/Main10 scalar decoder with one DPB and borrowed output callbacks.
@@ -189,11 +271,18 @@ pub struct PictureDecoder {
     state: State,
 }
 
+fn worker_count(requested: usize, available: Option<core::num::NonZeroUsize>) -> usize {
+    requested
+        .clamp(1, 16)
+        .min(available.map_or(1, core::num::NonZeroUsize::get))
+}
+
 impl PictureDecoder {
     /// Selects reconstruction workers without changing sample or output ordering.
     pub fn with_threads(mut self, threads: usize) -> Self {
-        self.limits.threads = threads.clamp(1, 16);
+        self.limits.threads = worker_count(threads, std::thread::available_parallelism().ok());
         for session in &mut self.session {
+            session.pictures.frame.scheduler.join_pending();
             session.pictures.limits.threads = self.limits.threads;
             session.pictures.frame.cache.clear();
         }
@@ -201,7 +290,8 @@ impl PictureDecoder {
     }
 
     /// Creates an opt-in decoder without allocating picture samples.
-    pub fn new(limits: DecodeLimits) -> Self {
+    pub fn new(mut limits: DecodeLimits) -> Self {
+        limits.threads = worker_count(limits.threads, std::thread::available_parallelism().ok());
         Self {
             limits,
             session: Vec::new(),
@@ -212,7 +302,7 @@ impl PictureDecoder {
     fn fixed_memory(&self) -> Result<usize> {
         core::mem::size_of::<Self>()
             .checked_add(
-                core::mem::size_of::<Session<Option<Frame>>>()
+                core::mem::size_of::<Session<Option<Frame>, SerialAccounting>>()
                     .checked_mul(self.session.capacity().max(1) + 1)
                     .ok_or(Error::Limit("reconstruction_memory"))?,
             )
@@ -280,24 +370,145 @@ impl PictureDecoder {
         self.read(bytes, timestamp, Some(origin), emit)
     }
 
+    /// Feeds a NAL while allowing complete-reference picture jobs to overlap.
+    ///
+    /// Unlike `read_nal`, reconstruction failures may be deferred until a required
+    /// reference, output, reservation or final drain synchronizes the serial prefix.
+    /// Callbacks run only on the caller, and `finish_with_output` is required.
+    pub fn read_nal_scheduled(
+        &mut self,
+        bytes: &[u8],
+        timestamp: Option<i64>,
+        origin: Option<u64>,
+        emit: impl FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>,
+    ) -> Result<()> {
+        self.read_mode(bytes, timestamp, origin, true, emit)
+    }
+
+    #[cfg(feature = "native-hevc-rows-private")]
+    #[doc(hidden)]
+    pub fn read_nal_rows(
+        &mut self,
+        bytes: &[u8],
+        timestamp: Option<i64>,
+        origin: Option<u64>,
+        sink: &mut impl crate::native_rows::RowSink,
+    ) -> Result<()> {
+        self.read_mode(bytes, timestamp, origin, true, RowsOutput(sink))
+    }
+
+    #[cfg(feature = "native-hevc-rows-private")]
+    #[doc(hidden)]
+    pub fn settle_rows(&mut self, sink: &mut impl crate::native_rows::RowSink) -> Result<()> {
+        self.settle_delivery(&mut RowsOutput(sink), true)
+    }
+
+    #[cfg(feature = "native-hevc-rows-private")]
+    #[doc(hidden)]
+    pub fn has_native_rows(&self) -> bool {
+        self.session
+            .first()
+            .is_some_and(|session| session.pictures.frame.scheduler.rows().is_some())
+    }
+
+    #[cfg(feature = "native-hevc-rows-private")]
+    #[doc(hidden)]
+    pub fn receive_rows(&mut self) -> Result<Option<crate::native_rows::RowReceive>> {
+        self.session
+            .first_mut()
+            .and_then(|session| session.pictures.frame.scheduler.rows_mut())
+            .map(rows::Rows::receive)
+            .transpose()
+    }
+
+    #[cfg(feature = "native-hevc-rows-private")]
+    #[doc(hidden)]
+    pub fn release_rows_memory(&mut self, bytes: usize) -> Result<()> {
+        let session = self
+            .session
+            .first_mut()
+            .ok_or(Error::Internal("row_owner"))?;
+        if bytes > session.pictures.external_memory {
+            return Err(Error::Internal("output_reservation_growth"));
+        }
+        session.pictures.external_memory = bytes;
+        Ok(())
+    }
+
+    /// Reconciles deferred reconstruction before reporting a caller-owned input error.
+    ///
+    /// This does not seal the current picture, emit output or validate end of stream.
+    /// Closed sessions have no pending work; an already returned error stays authoritative.
+    pub fn synchronize_pending(&mut self) -> Result<()> {
+        if self.state != State::Active {
+            return Ok(());
+        }
+        let result = self
+            .session
+            .first_mut()
+            .map_or(Ok(()), |session| session.pictures.synchronize());
+        if result.is_err() {
+            self.fail();
+        }
+        result
+    }
+
     fn read(
         &mut self,
         bytes: &[u8],
         timestamp: Option<i64>,
         origin: Option<u64>,
-        mut emit: impl FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>,
+        emit: impl FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>,
+    ) -> Result<()> {
+        self.read_mode(bytes, timestamp, origin, false, emit)
+    }
+
+    fn read_mode(
+        &mut self,
+        bytes: &[u8],
+        timestamp: Option<i64>,
+        origin: Option<u64>,
+        scheduled: bool,
+        mut emit: impl Delivery,
     ) -> Result<()> {
         if self.state != State::Active {
             self.fail();
             return Err(Error::InvalidData("picture_decoder_closed"));
         }
         let result = (|| {
+            #[cfg(hevc_thread_diagnostics)]
+            crate::thread_diagnostics::check_row_threads(self.limits.threads)?;
             self.initialize()?;
             let fixed = self.fixed_memory()?;
             let session = self
                 .session
                 .first_mut()
                 .ok_or(Error::InvalidData("decoder_state"))?;
+            session.pictures.frame.scheduler.enabled =
+                scheduled && session.pictures.limits.threads > 1;
+            if !session.pictures.frame.scheduler.enabled {
+                session.pictures.synchronize()?;
+            }
+            session.core.unshare();
+            let needed = fixed
+                + session.core.heap_bytes()?
+                + session
+                    .pictures
+                    .frame
+                    .as_ref()
+                    .map_or(Ok(0), Frame::heap_bytes)?
+                + session.pictures.external_memory
+                + session
+                    .pictures
+                    .frame
+                    .scheduler
+                    .bytes(Some(session.core.dpb()))?
+                + bytes.len().saturating_sub(2);
+            if needed > session.pictures.limits.max_memory_bytes {
+                crate::thread_diagnostic!(barrier MemoryInput);
+                session.pictures.synchronize()?;
+                session.core.unshare();
+            }
             let frame_bytes = session
                 .pictures
                 .frame
@@ -322,6 +533,11 @@ impl PictureDecoder {
                 .max_memory_bytes
                 .checked_sub(live)
                 .ok_or(Error::Limit("reconstruction_memory"))?;
+            let available = if scheduled {
+                session.pictures.limits.max_memory_bytes
+            } else {
+                available
+            };
             session.core.read_reconstructed(
                 bytes,
                 available,
@@ -330,9 +546,21 @@ impl PictureDecoder {
                     fixed,
                     incoming_timestamp: timestamp,
                     incoming_origin: origin,
+                    #[cfg(feature = "native-hevc-rows-private")]
+                    activation: None,
                     emit: &mut emit,
                 },
             )?;
+            #[cfg(feature = "native-hevc-rows-private")]
+            Observer {
+                pictures: &mut session.pictures,
+                fixed,
+                incoming_timestamp: timestamp,
+                incoming_origin: origin,
+                activation: None,
+                emit: &mut emit,
+            }
+            .row_enforce(session.core.dpb(), 0)?;
             session.pictures.summary.memory_bytes = session
                 .pictures
                 .summary
@@ -340,10 +568,56 @@ impl PictureDecoder {
                 .max(session.pictures.frame.cache.peak());
             Ok(())
         })();
+        let result = match result {
+            Err(error) => match self.settle_delivery(&mut emit, true) {
+                Err(earlier) => Err(earlier),
+                Ok(_) => Err(error),
+            },
+            result => result,
+        };
         if result.is_err() {
             self.fail();
         }
         result
+    }
+
+    fn settle_delivery(&mut self, emit: &mut impl Delivery, truncate: bool) -> Result<()> {
+        let fixed = self.fixed_memory()?;
+        let Some(session) = self.session.first_mut() else {
+            return Ok(());
+        };
+        #[cfg(feature = "native-hevc-rows-private")]
+        {
+            let mut observer = Observer {
+                pictures: &mut session.pictures,
+                fixed,
+                incoming_timestamp: None,
+                incoming_origin: None,
+                activation: None,
+                emit,
+            };
+            let result = observer.row_settle(session.core.dpb(), 0);
+            if truncate {
+                if let Some(rows) = observer.pictures.frame.scheduler.rows() {
+                    let keep = rows
+                        .validated
+                        .checked_sub(rows.returned)
+                        .and_then(|n| usize::try_from(n).ok());
+                    if let Some(sink) = observer.emit.row_sink() {
+                        sink.truncate(keep.unwrap_or(0));
+                    }
+                    if keep.is_none() {
+                        return Err(Error::Internal("output_ordinal"));
+                    }
+                }
+            }
+            result
+        }
+        #[cfg(not(feature = "native-hevc-rows-private"))]
+        {
+            let _ = (fixed, emit, truncate);
+            session.pictures.synchronize()
+        }
     }
 
     /// Finalizes the last picture and drains output; success requires this call.
@@ -358,8 +632,21 @@ impl PictureDecoder {
     /// Drains pictures with callback-scoped output reservations in the same account.
     pub fn finish_with_output(
         &mut self,
-        mut emit: impl FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>,
+        emit: impl FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>,
     ) -> Result<DecodeSummary> {
+        self.finish_mode(emit)
+    }
+
+    #[cfg(feature = "native-hevc-rows-private")]
+    #[doc(hidden)]
+    pub fn finish_rows(
+        &mut self,
+        sink: &mut impl crate::native_rows::RowSink,
+    ) -> Result<DecodeSummary> {
+        self.finish_mode(RowsOutput(sink))
+    }
+
+    fn finish_mode(&mut self, mut emit: impl Delivery) -> Result<DecodeSummary> {
         if self.state == State::Failed {
             return Err(Error::InvalidData("picture_decoder_failed"));
         }
@@ -374,8 +661,23 @@ impl PictureDecoder {
                 fixed,
                 incoming_timestamp: None,
                 incoming_origin: None,
+                #[cfg(feature = "native-hevc-rows-private")]
+                activation: None,
                 emit: &mut emit,
             })?;
+            #[cfg(feature = "native-hevc-rows-private")]
+            Observer {
+                pictures: &mut session.pictures,
+                fixed,
+                incoming_timestamp: None,
+                incoming_origin: None,
+                activation: None,
+                emit: &mut emit,
+            }
+            .row_settle(session.core.dpb(), 0)?;
+            #[cfg(not(feature = "native-hevc-rows-private"))]
+            session.pictures.synchronize()?;
+            session.core.unshare();
             session.pictures.summary.headers = headers;
             session.pictures.summary.memory_bytes = session
                 .pictures
@@ -385,6 +687,10 @@ impl PictureDecoder {
             session.pictures.frame.cache.clear();
             Ok(session.pictures.summary)
         })();
+        let result = match result {
+            Err(error) => self.settle_delivery(&mut emit, true).and(Err(error)),
+            result => result,
+        };
         if result.is_err() {
             self.fail();
         } else {
@@ -406,6 +712,30 @@ impl PictureDecoder {
                 .session
                 .first_mut()
                 .ok_or(Error::InvalidData("decoder_state"))?;
+            let optional = session
+                .pictures
+                .frame
+                .scheduler
+                .bytes(Some(session.core.dpb()))?;
+            let required = fixed
+                .checked_add(session.core.heap_bytes()?)
+                .and_then(|n| {
+                    n.checked_add(
+                        session
+                            .pictures
+                            .frame
+                            .as_ref()
+                            .map_or(Ok(0), Frame::heap_bytes)
+                            .ok()?,
+                    )
+                })
+                .and_then(|n| n.checked_add(optional))
+                .and_then(|n| n.checked_add(bytes))
+                .ok_or(Error::Limit("reconstruction_memory"))?;
+            if required > self.limits.max_memory_bytes {
+                session.pictures.synchronize()?;
+                session.core.unshare();
+            }
             let frame = session
                 .pictures
                 .frame
@@ -414,6 +744,16 @@ impl PictureDecoder {
             let live = fixed
                 .checked_add(session.core.heap_bytes()?)
                 .and_then(|n| n.checked_add(frame))
+                .and_then(|n| {
+                    n.checked_add(
+                        session
+                            .pictures
+                            .frame
+                            .scheduler
+                            .bytes(Some(session.core.dpb()))
+                            .ok()?,
+                    )
+                })
                 .ok_or(Error::Limit("reconstruction_memory"))?;
             let mut memory = Memory::with_reclaim(
                 live,
@@ -426,6 +766,18 @@ impl PictureDecoder {
                 session.pictures.summary.memory_bytes.max(memory.peak());
             Ok(())
         })();
+        let result = match result {
+            Err(error) => match self
+                .session
+                .first_mut()
+                .map(|session| session.pictures.synchronize())
+                .transpose()
+            {
+                Err(earlier) => Err(earlier),
+                Ok(_) => Err(error),
+            },
+            result => result,
+        };
         if result.is_err() {
             self.fail();
         }
@@ -438,13 +790,78 @@ struct Observer<'a, F> {
     fixed: usize,
     incoming_timestamp: Option<i64>,
     incoming_origin: Option<u64>,
+    #[cfg(feature = "native-hevc-rows-private")]
+    activation: Option<(u32, [u8; 32])>,
     emit: &'a mut F,
 }
 
-impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureObserver
-    for Observer<'_, F>
-{
-    fn reserve_scratch(&mut self, scratch_bytes: usize, dpb: &Dpb) -> Result<()> {
+impl<F: Delivery> PictureObserver for Observer<'_, F> {
+    #[cfg(feature = "native-hevc-rows-private")]
+    fn activated_sps(&mut self, identity: (u32, [u8; 32])) {
+        self.activation = Some(identity);
+    }
+    fn reconcile(&mut self) -> Result<()> {
+        crate::thread_diagnostic!(event Reconcile);
+        self.pictures.synchronize()
+    }
+
+    fn before_picture(
+        &mut self,
+        dpb: &mut Dpb,
+        nal: crate::NalHeader,
+        sps: &crate::params::Sps,
+    ) -> Result<()> {
+        if dpb.picture_outputs(nal, sps) {
+            #[cfg(feature = "native-hevc-rows-private")]
+            if self
+                .pictures
+                .frame
+                .scheduler
+                .rows()
+                .is_some_and(|rows| rows.plan.lag != 0)
+            {
+                return Ok(());
+            }
+            #[cfg(hevc_thread_diagnostics)]
+            if self.pictures.frame.scheduler.has_work() {
+                use crate::thread_diagnostics::{Barrier, barrier};
+                for (active, reason) in dpb.picture_output_constraints(nal, sps).into_iter().zip([
+                    Barrier::OutputRandomAccess,
+                    Barrier::OutputCapacity,
+                    Barrier::OutputReorder,
+                    Barrier::OutputLatency,
+                ]) {
+                    if active {
+                        barrier(reason);
+                    }
+                }
+            }
+            self.pictures.synchronize()?;
+            dpb.unshare();
+        }
+        Ok(())
+    }
+
+    fn reserve_scratch(&mut self, scratch_bytes: usize, dpb: &mut Dpb) -> Result<()> {
+        let optional = self.pictures.frame.scheduler.bytes(Some(dpb))?;
+        let current = self
+            .pictures
+            .frame
+            .as_ref()
+            .map_or(Ok(0), Frame::heap_bytes)?;
+        let needed = self
+            .fixed
+            .checked_add(dpb.heap_bytes()?)
+            .and_then(|n| n.checked_add(current))
+            .and_then(|n| n.checked_add(self.pictures.external_memory))
+            .and_then(|n| n.checked_add(scratch_bytes))
+            .and_then(|n| n.checked_add(optional))
+            .ok_or(Error::Limit("reconstruction_memory"))?;
+        if needed > self.pictures.limits.max_memory_bytes {
+            crate::thread_diagnostic!(barrier MemoryScratch);
+            self.pictures.synchronize()?;
+            dpb.unshare();
+        }
         let frame = self
             .pictures
             .frame
@@ -455,6 +872,7 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
             .checked_add(dpb.heap_bytes()?)
             .and_then(|n| n.checked_add(frame))
             .and_then(|n| n.checked_add(self.pictures.external_memory))
+            .and_then(|n| n.checked_add(self.pictures.frame.scheduler.bytes(Some(dpb)).ok()?))
             .ok_or(Error::Limit("reconstruction_memory"))?;
         let mut memory = Memory::with_reclaim(
             fixed,
@@ -471,6 +889,55 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
         let Some(mut frame) = self.pictures.frame.take() else {
             return Ok(());
         };
+        if self.pictures.frame.scheduler.has_input() {
+            self.pictures.frame.scheduler.seal(
+                frame,
+                dpb,
+                self.pictures.limits,
+                &mut self.pictures.summary,
+                &mut self.pictures.stream_remaining,
+                scheduler::JobIdentity {
+                    prior_bins: self.pictures.limits.max_picture_bins
+                        - self.pictures.picture_remaining,
+                    timestamp: self.pictures.timestamp,
+                    origin: self.pictures.origin,
+                },
+            )?;
+            if dpb.resume_outputs() {
+                #[cfg(feature = "native-hevc-rows-private")]
+                if self
+                    .pictures
+                    .frame
+                    .scheduler
+                    .rows()
+                    .is_some_and(|rows| rows.plan.lag != 0)
+                {
+                    return Ok(());
+                }
+                #[cfg(hevc_thread_diagnostics)]
+                {
+                    use crate::thread_diagnostics::{Barrier, barrier};
+                    for (active, reason) in dpb
+                        .resume_output_constraints()
+                        .into_iter()
+                        .zip([Barrier::OutputReorder, Barrier::OutputLatency])
+                    {
+                        if active {
+                            barrier(reason);
+                        }
+                    }
+                }
+                self.pictures.synchronize()?;
+                dpb.unshare();
+            }
+            return Ok(());
+        }
+        self.pictures.frame.scheduler.drain(
+            &mut self.pictures.summary,
+            &mut self.pictures.stream_remaining,
+            None,
+        )?;
+        dpb.unshare();
         let fixed = self
             .fixed
             .checked_add(dpb.heap_bytes()?)
@@ -495,10 +962,15 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
         self.pictures
             .summary
             .add(frame.stats, frame.inter_stats())?;
-        dpb.attach(frame.retain(self.pictures.timestamp, self.pictures.origin)?)
+        #[cfg(feature = "native-hevc-rows-private")]
+        let index = frame.index();
+        dpb.attach(frame.retain(self.pictures.timestamp, self.pictures.origin)?)?;
+        #[cfg(feature = "native-hevc-rows-private")]
+        self.pictures.frame.scheduler.confirm(index)?;
+        Ok(())
     }
 
-    fn slice(&mut self, input: SliceInput<'_>, dpb: &Dpb) -> Result<()> {
+    fn slice(&mut self, input: SliceInput<'_>, dpb: &mut Dpb) -> Result<()> {
         if input.header.first {
             if self.incoming_origin.is_some() && self.incoming_origin == self.pictures.origin {
                 return Err(Error::InvalidData("multiple_pictures_in_access_unit"));
@@ -527,11 +999,76 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
             }
             return Ok(());
         }
-        let fixed = self
-            .fixed
-            .checked_add(dpb.heap_bytes()?)
-            .and_then(|n| n.checked_add(self.pictures.external_memory))
-            .ok_or(Error::Limit("reconstruction_memory"))?;
+        #[cfg(hevc_thread_diagnostics)]
+        if input.header.first {
+            crate::thread_diagnostics::row_picture(
+                input.index,
+                dpb.current_identity(input.index)?.poc,
+                input.picture,
+            )?;
+        }
+        crate::thread_diagnostic!(picture input.index);
+        #[cfg(feature = "native-hevc-rows-private")]
+        if input.header.first
+            && self.pictures.frame.scheduler.rows().is_some_and(|rows| {
+                rows.plan.lag == 0
+                    && rows.serial_received == rows.returned
+                    && rows.pending.is_empty()
+            })
+        {
+            self.pictures.frame.scheduler.rows = None;
+        }
+        #[cfg(feature = "native-hevc-rows-private")]
+        if self.pictures.frame.scheduler.rows().is_some()
+            && (input.picture.tiles
+                || input.picture.wpp
+                || self
+                    .pictures
+                    .frame
+                    .scheduler
+                    .rows()
+                    .is_some_and(|rows| rows.plan.lag == 0))
+        {
+            self.row_settle(dpb, input.scratch_bytes)?;
+            dpb.unshare();
+            self.pictures.frame.cache.clear();
+            self.pictures.frame.scheduler.enabled = false;
+        }
+        #[cfg(hevc_thread_diagnostics)]
+        if input.header.first {
+            match input.header.slice_type {
+                Some(0) => crate::thread_diagnostic!(event PictureB),
+                Some(1) => crate::thread_diagnostic!(event PictureP),
+                Some(2) => crate::thread_diagnostic!(event PictureI),
+                _ => {}
+            }
+        }
+        if !self.pictures.frame.scheduler.enabled || input.picture.wpp {
+            if input.picture.wpp {
+                crate::thread_diagnostic!(barrier Wpp);
+            } else {
+                crate::thread_diagnostic!(barrier WorkersDisabled);
+            }
+            self.pictures.synchronize()?;
+            dpb.unshare();
+        }
+        #[cfg(feature = "native-hevc-rows-private")]
+        let row_references = self.pictures.frame.scheduler.enabled
+            && self
+                .pictures
+                .frame
+                .scheduler
+                .rows()
+                .is_some_and(|rows| rows.plan.lag != 0);
+        #[cfg(not(feature = "native-hevc-rows-private"))]
+        let row_references = false;
+        if !row_references {
+            self.pictures.frame.scheduler.required_references(
+                dpb,
+                &mut self.pictures.summary,
+                &mut self.pictures.stream_remaining,
+            )?;
+        }
         if self.pictures.frame.is_none() {
             let bytes = (u64::from(input.picture.visible_width)
                 * u64::from(input.picture.visible_height))
@@ -543,20 +1080,147 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
                 return Err(Error::Limit("output_frame_bytes"));
             }
             let identity = dpb.current_identity(input.index)?;
+            #[cfg(feature = "native-hevc-rows-private")]
+            {
+                self.row_admit(
+                    &input,
+                    dpb,
+                    usize::try_from(bytes).map_err(|_| Error::Limit("output_frame_bytes"))?,
+                )?;
+                if self.pictures.frame.scheduler.rows().is_some_and(|rows| {
+                    rows.plan.lag == 0 || input.picture.tiles || input.picture.wpp
+                }) {
+                    self.pictures.frame.scheduler.enabled = false;
+                }
+            }
+            let fixed = self
+                .fixed
+                .checked_add(dpb.heap_bytes()?)
+                .and_then(|n| n.checked_add(self.pictures.external_memory))
+                .ok_or(Error::Limit("reconstruction_memory"))?;
             self.pictures.frame.prepare()?;
-            let mut frame = Frame::new_full(
+            let optional = self.pictures.frame.scheduler.bytes(Some(dpb))?;
+            let create = Frame::new_full(
                 &input,
                 identity.poc,
                 dpb.current_references(),
-                fixed,
+                fixed
+                    .checked_add(optional)
+                    .ok_or(Error::Limit("reconstruction_memory"))?,
                 self.pictures.limits.max_memory_bytes,
                 Some(&mut self.pictures.frame.cache),
-            )?;
+            );
+            let mut frame = match create {
+                Err(Error::Limit("reconstruction_memory")) if optional != 0 => {
+                    crate::thread_diagnostic!(barrier MemoryFrame);
+                    self.pictures.synchronize()?;
+                    dpb.unshare();
+                    Frame::new_full(
+                        &input,
+                        identity.poc,
+                        dpb.current_references(),
+                        self.fixed + dpb.heap_bytes()? + self.pictures.external_memory,
+                        self.pictures.limits.max_memory_bytes,
+                        Some(&mut self.pictures.frame.cache),
+                    )?
+                }
+                result => result?,
+            };
             frame.deadline = self.pictures.limits.deadline;
             self.pictures.frame.put(frame)?;
             self.pictures.picture_remaining = self.pictures.limits.max_picture_bins;
         }
-        let Slots { active, cache } = &mut self.pictures.frame;
+        if self.pictures.frame.scheduler.enabled && !input.picture.wpp {
+            self.pictures.frame.cache.clear();
+            if self
+                .pictures
+                .frame
+                .scheduler
+                .full(self.pictures.limits.threads)
+            {
+                crate::thread_diagnostic!(barrier WindowFull);
+                self.pictures.frame.scheduler.drain(
+                    &mut self.pictures.summary,
+                    &mut self.pictures.stream_remaining,
+                    None,
+                )?;
+                dpb.unshare();
+            }
+            let fixed = self.fixed
+                + dpb.heap_bytes()?
+                + self.pictures.external_memory
+                + self.pictures.frame.scheduler.bytes(Some(dpb))?
+                - self.pictures.frame.scheduler.current_reservation()
+                + dpb.sharing_bytes();
+            let Slots {
+                active, scheduler, ..
+            } = &mut self.pictures.frame;
+            let frame = active.first().ok_or(Error::Internal("picture_job_frame"))?;
+            if scheduler.queue(
+                input,
+                frame,
+                fixed,
+                self.pictures.limits.max_memory_bytes,
+                self.pictures.stream_remaining,
+                self.pictures.picture_remaining,
+            )? {
+                if !self.pictures.frame.scheduler.references(
+                    dpb,
+                    &mut self.pictures.summary,
+                    &mut self.pictures.stream_remaining,
+                )? {
+                    self.pictures.frame.scheduler.discard_current();
+                } else {
+                    self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(
+                        self.fixed
+                            + dpb.heap_bytes()?
+                            + self.pictures.external_memory
+                            + self
+                                .pictures
+                                .frame
+                                .as_ref()
+                                .map_or(Ok(0), Frame::heap_bytes)?
+                            + self.pictures.frame.scheduler.bytes(Some(dpb))?,
+                    );
+                    return Ok(());
+                }
+            }
+            self.pictures.synchronize()?;
+            dpb.unshare();
+        }
+        let fixed = self.fixed + dpb.heap_bytes()? + self.pictures.external_memory;
+        #[cfg(feature = "native-hevc-rows-private")]
+        let fixed = if self.pictures.frame.scheduler.rows().is_some() {
+            fixed
+                .checked_add(self.pictures.frame.scheduler.bytes(Some(dpb))?)
+                .ok_or(Error::Limit("reconstruction_memory"))?
+        } else {
+            fixed
+        };
+        let decode_limit = self.pictures.limits.max_memory_bytes;
+        let decode_threads = self.pictures.limits.threads;
+        #[cfg(feature = "native-hevc-rows-private")]
+        let decode_limit = match self.pictures.frame.scheduler.rows() {
+            Some(rows) => rows
+                .plan
+                .lag
+                .checked_mul(rows.plan.frame_bytes)
+                .and_then(|debt| rows.plan.reserved.checked_add(debt))
+                .and_then(|limit| {
+                    limit.checked_sub(rows.plan.ceiling.checked_mul(rows::ATOMIC_RUNTIME_BYTES)?)
+                })
+                .filter(|limit| *limit <= decode_limit)
+                .ok_or(Error::Internal("row_admission"))?,
+            None => decode_limit,
+        };
+        #[cfg(feature = "native-hevc-rows-private")]
+        let decode_threads = self
+            .pictures
+            .frame
+            .scheduler
+            .rows()
+            .map_or(decode_threads, |rows| decode_threads.min(rows.plan.ceiling));
+        let Slots { active, cache, .. } = &mut self.pictures.frame;
         let frame = active
             .first_mut()
             .ok_or(Error::InvalidData("missing_working_picture"))?;
@@ -571,14 +1235,18 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
                 dpb,
                 &mut budget,
                 fixed,
-                self.pictures.limits.max_memory_bytes,
-                self.pictures.limits.threads,
+                decode_limit,
+                decode_threads,
                 Some(cache),
             )
         });
         let consumed = allowance - budget;
         self.pictures.stream_remaining -= consumed;
         self.pictures.picture_remaining -= consumed;
+        #[cfg(feature = "native-hevc-rows-private")]
+        if self.pictures.frame.scheduler.rows().is_some() {
+            self.pictures.frame.cache.clear();
+        }
         match result {
             Ok(peak) => {
                 self.pictures.summary.memory_bytes = self
@@ -597,7 +1265,17 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
     }
 
     fn sei(&mut self, info: SeiInfo, dpb: &Dpb, scratch_bytes: usize) -> Result<()> {
-        let Slots { active, cache } = &mut self.pictures.frame;
+        if info.picture_hash.is_none() && info.reserved_hashes == 0 {
+            return Ok(());
+        }
+        if self.pictures.frame.scheduler.queue_hash(info) {
+            return Ok(());
+        }
+        if self.pictures.frame.scheduler.has_input() {
+            crate::thread_diagnostic!(barrier DuplicateHash);
+            self.pictures.synchronize()?;
+        }
+        let Slots { active, cache, .. } = &mut self.pictures.frame;
         if let Some(frame) = active.first_mut() {
             let fixed = self
                 .fixed
@@ -637,8 +1315,22 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
     }
 
     fn output(&mut self, emission: Emission<'_>, scratch_bytes: usize) -> Result<()> {
+        #[cfg(feature = "native-hevc-rows-private")]
+        if self.pictures.frame.scheduler.rows().is_some() {
+            return self.row_output(emission, scratch_bytes);
+        }
+        self.pictures.frame.scheduler.drain(
+            &mut self.pictures.summary,
+            &mut self.pictures.stream_remaining,
+            Some(emission.event.picture_index),
+        )?;
         let samples = emission
             .picture
+            .or_else(|| {
+                emission
+                    .publication
+                    .and_then(|publication| publication.picture())
+            })
             .ok_or(Error::InvalidData("missing_output_samples"))?;
         let picture = samples.view();
         let frame = self
@@ -648,9 +1340,18 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
             .map_or(Ok(0), Frame::heap_bytes)?;
         let codec_bytes = self
             .fixed
-            .checked_add(emission.retained_bytes)
+            .checked_add(emission.dpb.heap_bytes()?)
             .and_then(|n| n.checked_add(frame))
             .and_then(|n| n.checked_add(scratch_bytes))
+            .and_then(|n| {
+                n.checked_add(
+                    self.pictures
+                        .frame
+                        .scheduler
+                        .bytes(Some(emission.dpb))
+                        .ok()?,
+                )
+            })
             .ok_or(Error::Limit("reconstruction_memory"))?;
         let mut memory = OutputMemory {
             codec_bytes,
@@ -658,7 +1359,7 @@ impl<F: FnMut(DecodedPicture<'_>, &mut OutputMemory<'_>) -> Result<()>> PictureO
             limit: self.pictures.limits.max_memory_bytes,
             reclaim: Some(&mut self.pictures.frame.cache),
         };
-        (self.emit)(
+        self.emit.output(
             DecodedPicture {
                 index: picture.index,
                 poc: emission.event.poc,
@@ -808,12 +1509,50 @@ mod tests {
     use super::*;
 
     #[test]
+    fn requested_workers_respect_the_cpu_cap_and_unavailable_cpu_fallback() {
+        for (requested, available, expected) in [
+            (16, Some(4), 4),
+            (8, Some(4), 4),
+            (2, Some(4), 2),
+            (0, Some(4), 1),
+            (usize::MAX, Some(64), 16),
+            (16, Some(1), 1),
+            (16, None, 1),
+            (0, None, 1),
+        ] {
+            assert_eq!(
+                worker_count(requested, available.and_then(core::num::NonZeroUsize::new)),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn public_worker_boundaries_normalize_limits_and_existing_sessions() -> Result<()> {
+        let expected = worker_count(usize::MAX, std::thread::available_parallelism().ok());
+        let mut decoder = PictureDecoder::new(DecodeLimits {
+            threads: usize::MAX,
+            ..DecodeLimits::default()
+        });
+        assert_eq!(decoder.limits.threads, expected);
+        decoder.initialize()?;
+        decoder = decoder.with_threads(0);
+        assert_eq!(decoder.limits.threads, 1);
+        assert_eq!(decoder.session[0].pictures.limits.threads, 1);
+        decoder = decoder.with_threads(usize::MAX);
+        assert_eq!(decoder.limits.threads, expected);
+        assert_eq!(decoder.session[0].pictures.limits.threads, expected);
+        Ok(())
+    }
+
+    #[test]
     fn cached_storage_fits_the_unchanged_cold_state_envelope() -> Result<()> {
         let mut decoder = PictureDecoder::new(DecodeLimits::default());
         let cold = decoder.fixed_memory()?;
         for stage in 0..3 {
             let capacity = decoder.session.capacity().max(1);
-            let reserved = (capacity + 1) * core::mem::size_of::<Session<Option<Frame>>>();
+            let reserved =
+                (capacity + 1) * core::mem::size_of::<Session<Option<Frame>, SerialAccounting>>();
             let physical = capacity * core::mem::size_of::<Session>();
             let active = decoder
                 .session
@@ -874,6 +1613,91 @@ mod tests {
     }
 
     #[test]
+    fn skipped_picture_scratch_preserves_cold_rbsp_and_entry_limits_with_idle_workers() -> Result<()>
+    {
+        fn seed_cache(sets: &[Vec<u8>; 3], cra: &[u8]) -> Result<Cache> {
+            let mut core = StreamCore::new(Limits::default());
+            for set in sets {
+                core.read_nal(set, |_| Ok(()))?;
+            }
+            let mut cache = Cache::default();
+            core.read_selected(
+                cra,
+                |_| Ok(()),
+                Some(0),
+                usize::MAX,
+                |input| {
+                    cache
+                        .frames_for_test()
+                        .push(Frame::new(&input, 0, usize::MAX)?);
+                    Ok(())
+                },
+            )?;
+            assert_eq!(cache.frames_for_test().len(), 1);
+            Ok(cache)
+        }
+        fn prepare_decoder(
+            decoder: &mut PictureDecoder,
+            sets: &[Vec<u8>; 3],
+            cra: &[u8],
+            cache: Cache,
+        ) -> Result<()> {
+            let session = &mut decoder.session[0];
+            session.core = StreamCore::new(Limits::default());
+            for set in sets {
+                session.core.read_nal(set, |_| Ok(()))?;
+            }
+            session.core.read_nal(cra, |_| Ok(()))?;
+            session.pictures.frame.cache = cache;
+            Ok(())
+        }
+        let sets = crate::tests::synthetic_parameter_nals_with_wpp(true);
+        let cra = crate::tests::intra_first_with_wpp(21, 1, Some(0));
+        let retained = seed_cache(&sets, &cra)?.retained_bytes(0, usize::MAX)?;
+        assert!(retained > 0);
+        for entries in [0, 1] {
+            let skipped = crate::tests::intra_first_with_wpp(8, 0, Some(entries));
+            let rbsp = crate::nal::rbsp(&skipped, &Limits::default())?;
+            let required = (skipped.len() - 2).max(rbsp.capacity() + entries as usize * 8);
+            for warm in [false, true] {
+                for extra in [0, retained] {
+                    for below in [true, false] {
+                        let cache = if warm {
+                            seed_cache(&sets, &cra)?
+                        } else {
+                            Cache::default()
+                        };
+                        let mut decoder = PictureDecoder::new(DecodeLimits::default());
+                        decoder.initialize()?;
+                        prepare_decoder(&mut decoder, &sets, &cra, cache)?;
+                        let fixed = decoder.fixed_memory()?;
+                        let session = &mut decoder.session[0];
+                        let mandatory = fixed + session.core.heap_bytes()?;
+                        session.pictures.limits.max_memory_bytes =
+                            mandatory + required + extra - usize::from(below);
+                        let result = decoder.read_nal(&skipped, None, |_| {
+                            Err(Error::Internal("unexpected_output"))
+                        });
+                        if below && extra == 0 {
+                            assert_eq!(result, Err(Error::Limit("reconstruction_memory")));
+                        } else {
+                            result?;
+                            let session = &mut decoder.session[0];
+                            assert_eq!(session.pictures.summary.skipped_pictures, 1);
+                            assert_eq!(session.pictures.skipped, Some(1));
+                            assert!(session.pictures.frame.is_none());
+                            let kept =
+                                session.pictures.frame.cache.retained_bytes(0, usize::MAX)?;
+                            assert_eq!(kept != 0, warm && extra == retained && !below);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn skipped_hash_messages_never_receive_checked_sample_credit() -> Result<()> {
         let mut decoder = PictureDecoder::new(DecodeLimits::default());
         decoder.initialize()?;
@@ -891,6 +1715,8 @@ mod tests {
             fixed,
             incoming_timestamp: None,
             incoming_origin: None,
+            #[cfg(feature = "native-hevc-rows-private")]
+            activation: None,
             emit: &mut emit,
         };
         let mut dpb = Dpb::new_reconstruction();

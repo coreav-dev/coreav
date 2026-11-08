@@ -11,7 +11,7 @@ publish = false
 
 [features]
 default = []
-native-hevc = ["dep:coreav-hevc", "coreav-hevc/native-hevc"]
+native-hevc = ["dep:coreav-hevc", "coreav-hevc/native-hevc-rows-private", "coreav-decode/native-hevc-private"]
 
 [dependencies]
 coreav-decode = { path = "../coreav-decode" }
@@ -19,6 +19,7 @@ coreav-frame = { path = "../coreav-frame" }
 coreav-hevc = { path = "../coreav-hevc", default-features = false, optional = true }
 
 [dev-dependencies]
+coreav-counting-alloc = { path = "../../tools/counting-alloc" }
 serde_json.workspace = true
 md-5 = "0.10"
 sha2 = "0.10"

@@ -71,6 +71,14 @@ jobs:
       - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc -p coreav-backend-hevc --no-default-features
       - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc -p coreav-backend-hevc -p coreav-thumbnail --features native-hevc --all-targets
       - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc --features native-hevc,scalar --all-targets
+      - name: Check diagnostic-only extraction and row reads
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          RUSTFLAGS='--cfg hevc_thread_diagnostics' cargo test --locked -p coreav-hevc -p coreav-kernels-hevc --features native-hevc --lib | tee "$RUNNER_TEMP/hevc-diagnostic-tests.log"
+          grep -Fx 'test decoder::scheduler::tests::header_only_dependency_replay_distinguishes_chains_and_siblings ... ok' "$RUNNER_TEMP/hevc-diagnostic-tests.log"
+          grep -Fx 'test decoder::scheduler::tests::row_dependency_trace_observes_generated_predictions ... ok' "$RUNNER_TEMP/hevc-diagnostic-tests.log"
+          grep -Fx 'test inter::tests::diagnostic_read_bounds_match_interpolation_support ... ok' "$RUNNER_TEMP/hevc-diagnostic-tests.log"
       - run: cargo clippy --locked -p coreav-hevc -p coreav-kernels-hevc -p coreav-backend-hevc -p coreav-thumbnail --features native-hevc --all-targets -- -D warnings
       - name: Check the opt-in CLI registration with and without default features
         run: |
@@ -86,6 +94,10 @@ jobs:
           if grep -E 'coreav-(kernels-)?hevc' "$RUNNER_TEMP/backend-off.txt"; then exit 1; fi
           cargo tree --locked -p coreav-cli -e normal,build > "$RUNNER_TEMP/default-consumer.txt"
           if grep -E 'coreav-(kernels-|backend-)?hevc' "$RUNNER_TEMP/default-consumer.txt"; then exit 1; fi
+          for feature in release-default release-full; do
+            cargo tree --locked -p coreav-cli --no-default-features --features "$feature" -e normal,build,features > "$RUNNER_TEMP/$feature.txt"
+            if grep -E 'native-hevc-private|coreav-(kernels-|backend-)?hevc' "$RUNNER_TEMP/$feature.txt"; then exit 1; fi
+          done
       - name: Check Linux acquisition and subprocess isolation
         if: runner.os == 'Linux'
         run: python3 -m unittest discover -s scripts/tests -p 'test_hevc*.py'

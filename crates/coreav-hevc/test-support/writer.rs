@@ -48,7 +48,7 @@ impl Writer {
 
     pub(crate) fn rbsp(mut self) -> Vec<u8> {
         self.flag(true);
-        while !self.len().is_multiple_of(8) {
+        while self.len() & 7 != 0 {
             self.flag(false);
         }
         self.bytes()
