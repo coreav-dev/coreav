@@ -4,7 +4,7 @@ The checked luma and chroma interfaces retain their fixed four-line arrays, erro
 
 ## Dispatch and ownership
 
-Use the existing cached `Avx2` capability to dispatch only eight-bit calls into the private `simd/deblock.rs` family. Its safe methods accept the same fixed-size arrays, not pointers. They validate every sample before checking QP and offset parameters, preserving sample-error precedence. Shared safe threshold and four-line decision functions remain in `filter.rs`. Unsupported CPUs and the `scalar` feature keep scalar arithmetic; the latter compiles no SIMD module.
+Use the existing cached `Avx2` capability to dispatch only eight-bit calls into the private `simd/deblock.rs` family. Its safe methods accept the same fixed-size arrays, not pointers. Luma validates samples before QP parameters; chroma retains its QP-before-sample error order. Shared safe threshold and four-line decision functions remain in `filter.rs`. Unsupported CPUs and the `scalar` feature keep scalar arithmetic; the latter compiles no SIMD module.
 
 The alternative was dispatch after scalar sample validation. That leaves repeated sample checks and array conversion on the hot path. Dispatching the whole checked kernel lets the bounded vector loads also validate samples, without changing the public API or moving driver control into unsafe code. Scalar references remain callable through the existing test-support feature for differential fuzzing.
 

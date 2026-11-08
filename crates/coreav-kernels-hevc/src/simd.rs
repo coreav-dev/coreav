@@ -2,6 +2,7 @@ use crate::{Error, inter};
 use core::arch::x86_64::*;
 use std::sync::OnceLock;
 
+mod deblock;
 mod loop_filter;
 
 #[derive(Clone, Copy)]

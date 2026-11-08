@@ -54,6 +54,9 @@ pub use filter::{
 };
 #[cfg(all(feature = "native-hevc", feature = "test-support"))]
 #[doc(hidden)]
+pub use filter::{deblock_chroma_scalar, deblock_luma_scalar};
+#[cfg(all(feature = "native-hevc", feature = "test-support"))]
+#[doc(hidden)]
 pub use inter::interpolate_inter_scalar;
 #[cfg(feature = "native-hevc")]
 pub use inter::{

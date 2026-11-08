@@ -22,7 +22,7 @@ impl BoundaryStrength {
     }
 }
 
-fn thresholds(
+pub(super) fn thresholds(
     depth: BitDepth,
     qp: i32,
     offsets: [i32; 2],
@@ -46,7 +46,7 @@ fn thresholds(
     ))
 }
 
-fn tc(index: i32) -> i32 {
+pub(super) fn tc(index: i32) -> i32 {
     match index.clamp(0, 53) {
         0..=17 => 0,
         18..=26 => 1,
@@ -70,12 +70,12 @@ fn tc(index: i32) -> i32 {
     }
 }
 
-fn curvature(line: [u16; 8]) -> [i32; 2] {
+pub(super) fn curvature(line: [u16; 8]) -> [i32; 2] {
     let [_, p2, p1, p0, q0, q1, q2, _] = line.map(i32::from);
     [(p2 - 2 * p1 + p0).abs(), (q2 - 2 * q1 + q0).abs()]
 }
 
-fn strong(line: [u16; 8], beta: i32, tc: i32) -> bool {
+pub(super) fn strong(line: [u16; 8], beta: i32, tc: i32) -> bool {
     let [p3, _, _, p0, q0, _, _, q3] = line.map(i32::from);
     let [dp, dq] = curvature(line);
     2 * (dp + dq) < beta >> 2
@@ -98,6 +98,26 @@ pub fn deblock_luma(
 /// Filters four luma edge lines with the supplied normative boundary strength.
 /// QP, offsets and samples are validated even when strength is zero.
 pub fn deblock_luma_with_strength(
+    depth: BitDepth,
+    edge: [[u16; 8]; 4],
+    qp: i32,
+    offsets: [i32; 2],
+    strength: BoundaryStrength,
+    protected: [bool; 2],
+) -> Result<[[u16; 8]; 4], Error> {
+    #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+    let avx2 = (depth.bits() == 8)
+        .then(crate::simd::Avx2::detect)
+        .flatten();
+    #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+    if let Some(avx2) = avx2 {
+        return avx2.deblock_luma(edge, qp, offsets, strength, protected);
+    }
+    deblock_luma_scalar(depth, edge, qp, offsets, strength, protected)
+}
+
+#[doc(hidden)]
+pub fn deblock_luma_scalar(
     depth: BitDepth,
     edge: [[u16; 8]; 4],
     qp: i32,
@@ -179,6 +199,25 @@ pub fn deblock_luma_with_strength(
 /// Filters four chroma edge lines ordered p1,p0,q0,q1.
 /// `qp` includes only the averaged luma QP and picture-level chroma offset.
 pub fn deblock_chroma(
+    depth: BitDepth,
+    edge: [[u16; 4]; 4],
+    qp: i32,
+    tc_offset: i32,
+    protected: [bool; 2],
+) -> Result<[[u16; 4]; 4], Error> {
+    #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+    let avx2 = (depth.bits() == 8)
+        .then(crate::simd::Avx2::detect)
+        .flatten();
+    #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+    if let Some(avx2) = avx2 {
+        return avx2.deblock_chroma(edge, qp, tc_offset, protected);
+    }
+    deblock_chroma_scalar(depth, edge, qp, tc_offset, protected)
+}
+
+#[doc(hidden)]
+pub fn deblock_chroma_scalar(
     depth: BitDepth,
     edge: [[u16; 4]; 4],
     qp: i32,
@@ -386,6 +425,109 @@ impl SaoEdge {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deblock_matches_scalar_across_parameters_and_protection() -> Result<(), Error> {
+        let patterns: [[u16; 8]; 6] = [
+            [100, 100, 100, 100, 104, 104, 104, 104],
+            [100, 100, 100, 100, 140, 140, 140, 140],
+            [255, 255, 255, 254, 255, 255, 255, 255],
+            [0, 0, 0, 1, 0, 0, 0, 0],
+            [0, 255, 0, 255, 0, 255, 0, 255],
+            [12, 10, 14, 14, 21, 19, 18, 20],
+        ];
+        for bits in [8, 10] {
+            let depth = BitDepth::new(bits)?;
+            for qp in -25i32..=64 {
+                for beta in -7i32..=7 {
+                    for tc in -7i32..=7 {
+                        let pattern = patterns[(qp + beta + tc).rem_euclid(6) as usize];
+                        let edge = core::array::from_fn(|row| {
+                            core::array::from_fn(|column| {
+                                let value = pattern[column]
+                                    .saturating_add(row as u16 * if column >= 4 { 2 } else { 1 })
+                                    .min(255);
+                                value << (bits - 8)
+                            })
+                        });
+                        let chroma = edge.map(|line| [line[2], line[3], line[4], line[5]]);
+                        for protection in 0..4 {
+                            let protected = [protection & 1 != 0, protection & 2 != 0];
+                            for strength in [
+                                BoundaryStrength::Zero,
+                                BoundaryStrength::One,
+                                BoundaryStrength::Two,
+                            ] {
+                                assert_eq!(
+                                    deblock_luma_with_strength(
+                                        depth,
+                                        edge,
+                                        qp,
+                                        [beta, tc],
+                                        strength,
+                                        protected
+                                    ),
+                                    deblock_luma_scalar(
+                                        depth,
+                                        edge,
+                                        qp,
+                                        [beta, tc],
+                                        strength,
+                                        protected
+                                    ),
+                                    "{bits} {qp} {beta} {tc} {strength:?} {protected:?}"
+                                );
+                            }
+                            assert_eq!(
+                                deblock_chroma(depth, chroma, qp, tc, protected),
+                                deblock_chroma_scalar(depth, chroma, qp, tc, protected),
+                                "{bits} {qp} {tc} {protected:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn deblock_matches_scalar_for_every_sample_word_and_error_order() -> Result<(), Error> {
+        for bits in [8, 10] {
+            let depth = BitDepth::new(bits)?;
+            for sample in 0..=u16::MAX {
+                let mut edge = [[0; 8]; 4];
+                edge[usize::from(sample) % 4][usize::from(sample / 4) % 8] = sample;
+                let mut chroma = [[0; 4]; 4];
+                chroma[usize::from(sample) % 4][usize::from(sample / 4) % 4] = sample;
+                for qp in [i32::MIN, 26, i32::MAX] {
+                    assert_eq!(
+                        deblock_luma_with_strength(
+                            depth,
+                            edge,
+                            qp,
+                            [0; 2],
+                            BoundaryStrength::Two,
+                            [false; 2]
+                        ),
+                        deblock_luma_scalar(
+                            depth,
+                            edge,
+                            qp,
+                            [0; 2],
+                            BoundaryStrength::Two,
+                            [false; 2]
+                        )
+                    );
+                    assert_eq!(
+                        deblock_chroma(depth, chroma, qp, 0, [false; 2]),
+                        deblock_chroma_scalar(depth, chroma, qp, 0, [false; 2])
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
 
     #[test]
     fn sao_rows_cover_bands_offsets_tails_and_clipping() -> Result<(), Error> {
