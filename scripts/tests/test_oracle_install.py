@@ -191,6 +191,25 @@ class OracleInstall(unittest.TestCase):
 
 
 class OracleArchiveWorkflow(unittest.TestCase):
+    def test_hevc_consumers_share_the_wasm_archive_cache(self):
+        wasm = self.data(ROOT / '.github/workflows/wasm.yml')['jobs']['wasm-module']['steps']
+        shared, = [step for step in wasm if step.get('uses') == './.github/actions/oracle-cache']
+        self.assertFalse(any(step.get('uses', '').startswith('actions/cache@') and
+                             'coreav-oracle-bin' in str(step.get('with', {}).get('path', ''))
+                             for step in wasm))
+        jobs = self.data(ROOT / '.github/workflows/hevc-conformance.yml')['jobs']
+        for name in ('hevc-smoke', 'hevc-vectors', 'profile-census'):
+            with self.subTest(job=name):
+                steps = jobs[name]['steps']
+                cache, = [step for step in steps if step.get('uses') == shared['uses']]
+                self.assertEqual(cache, shared)
+                installer, = [step for step in steps if any(
+                    workflow_check.calls_installer(line, workflow_check.CI_ORACLE_PIN[1])
+                    for line in step.get('run', '').splitlines())]
+                self.assertLess(steps.index(cache), steps.index(installer))
+                self.assertNotIn('cache-hit', installer.get('if', ''))
+                self.assertNotIn('secrets.', str(installer))
+
     def test_image_controls_use_the_secretless_ci_installer(self):
         data = self.data(ROOT / '.github/workflows/png-bmp-yuv.yml')
         steps = data['jobs']['image-synthetic-controls']['steps']
@@ -256,6 +275,8 @@ class OracleArchiveWorkflow(unittest.TestCase):
         data = self.data(action / 'action.yml')
         pin, cache = data['runs']['steps']
         self.assertEqual(cache['with']['key'], 'oracle-archive-${{ steps.pin.outputs.sha256 }}')
+        self.assertEqual(cache['with']['path'],
+                         '${{ runner.temp }}/coreav-oracle-archive/${{ steps.pin.outputs.sha256 }}.tar.xz')
         self.assertNotIn('restore-keys', cache['with'])
         with tempfile.TemporaryDirectory() as directory:
             output, env = Path(directory) / 'output', Path(directory) / 'env'
