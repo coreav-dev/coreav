@@ -30,7 +30,10 @@ use crate::{Error, LimitKind, Limits, Pcm, Plane};
 pub mod encode;
 mod md5;
 mod prepared;
+mod rewrite;
+pub use crate::crc::crc16_update;
 pub use prepared::{PreparedStream, prepare_stream};
+pub use rewrite::FrameHeader;
 
 /// The streaminfo metadata block (RFC 9639 8.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

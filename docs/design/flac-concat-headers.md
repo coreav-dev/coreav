@@ -4,7 +4,7 @@
 
 ## Plan
 
-Survey bounded frame headers before building the output tables. Reuse the audio crate's RFC parser and read at most 16 bytes per packet. When the joined headers already describe a continuous stream, keep the packet bytes. Otherwise rewrite every header to variable blocking with the cumulative sample number. Copy subframes through the existing fixed window and update CRC-8 and CRC-16 without buffering or decoding frames. Preserve an invalid frame's CRC-16 error syndrome rather than concealing corruption.
+Survey bounded frame headers during the existing first packet listing, before building the output tables. Reuse the audio crate's RFC parser and read at most 16 bytes per packet, without adding a listing or changing the work-limit admission. When the joined headers already describe a continuous stream, keep the packet bytes. Otherwise rewrite every header to variable blocking with the cumulative sample number. Copy subframes through the existing fixed window and update CRC-8 and CRC-16 without buffering or decoding frames. Preserve an invalid frame's CRC-16 error syndrome rather than concealing corruption.
 
 The survey and table passes share each input's packet-work budget. The rewritten sizes determine sample tables and chunk offsets before publication. A changed input or a size disagreement fails the temporary output. Single-input copies and the native `join` command retain their current packet-copy behavior. Unparseable headers retain packet copy rather than adding a new native refusal; the conformance guarantee concerns valid FLAC inputs with established sample clocks. Existing refusals for internal blocks below 16 samples are unchanged, because headers cannot repair those blocks.
 
