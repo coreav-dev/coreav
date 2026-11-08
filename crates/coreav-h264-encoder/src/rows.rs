@@ -38,6 +38,7 @@ impl<'a> Neighbours<'a> {
         })
     }
 
+    #[inline(always)]
     fn tiles(
         &self,
         source: Plane<'_>,
