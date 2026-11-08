@@ -191,6 +191,39 @@ class OracleInstall(unittest.TestCase):
 
 
 class OracleArchiveWorkflow(unittest.TestCase):
+    def test_local_actions_cannot_keep_the_frozen_installer(self):
+        consumers = 0
+        for path in (ROOT / '.github/actions').glob('*/action.y*ml'):
+            steps = self.data(path).get('runs', {}).get('steps', [])
+            with self.subTest(action=str(path.relative_to(ROOT))):
+                self.assertFalse(any(workflow_check.calls_installer(line)
+                                     for step in steps for line in step.get('run', '').splitlines()))
+                for index, step in enumerate(steps):
+                    if not any(workflow_check.calls_installer(line, workflow_check.CI_ORACLE_PIN[1])
+                               for line in step.get('run', '').splitlines()):
+                        continue
+                    cache, = [s for s in steps[:index] if s.get('uses') == './.github/actions/oracle-cache']
+                    self.assertEqual(cache.get('if'), step.get('if'))
+                    self.assertNotIn('ffmpeg-cache', step.get('if', ''))
+                    consumers += 1
+        self.assertGreater(consumers, 0)
+
+    def test_fixture_producers_compute_the_same_cache_key(self):
+        action = self.data(ROOT / '.github/actions/ci-fixtures/action.yml')['runs']['steps']
+        wasm = self.data(ROOT / '.github/workflows/wasm.yml')['jobs']['wasm-module']['steps']
+        keys = []
+        for steps, name in ((action, 'key'), (wasm, 'fixtures-key')):
+            script, = [step['run'] for step in steps if step.get('id') == name]
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / 'output'
+                run = subprocess.run(['bash', '-euo', 'pipefail', '-c', script], cwd=ROOT,
+                                     env=os.environ | {'GITHUB_OUTPUT': str(output)},
+                                     capture_output=True, text=True, timeout=30)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                key, = [line for line in output.read_text().splitlines() if line.startswith('key=')]
+                keys.append(key)
+        self.assertEqual(*keys)
+
     def test_hevc_consumers_share_the_wasm_archive_cache(self):
         wasm = self.data(ROOT / '.github/workflows/wasm.yml')['jobs']['wasm-module']['steps']
         shared, = [step for step in wasm if step.get('uses') == './.github/actions/oracle-cache']

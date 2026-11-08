@@ -17,7 +17,7 @@ runs:
         set -euo pipefail
         helpers=$(grep -o '\$SCRIPTS/[A-Za-z0-9_.-]*' scripts/gen-fixtures.sh | sed 's|^\$SCRIPTS/|scripts/|' | sort -u)
         support=$(python3 -I -B -c 'import sys; sys.path.insert(0, "scripts"); from test_oracle import SUPPORT; print(" ".join("scripts/" + name for name in SUPPORT))')
-        identity="$(cat scripts/gen-fixtures.sh scripts/install-oracle-ffmpeg.sh scripts/oracle-ffmpeg.env $helpers $support | sha256sum | cut -c1-32)"
+        identity="$(cat scripts/gen-fixtures.sh scripts/install-ci-oracle-ffmpeg.sh scripts/oracle-ffmpeg.env $helpers $support | sha256sum | cut -c1-32)"
         composed="$(cat docs/design/composed-opus-aac-v2.json scripts/composed_audio.py scripts/composed_audio_fixtures.py scripts/install-oracle-ffmpeg.sh $support | sha256sum | cut -c1-32)"
         comparator="$(python3 -I -c 'import json; print(json.load(open("docs/design/composed-opus-aac-v2.json"))["opus_compare"]["sha256"])')"
         echo "key=linux-x64-fixtures-$identity" >> "$GITHUB_OUTPUT"
@@ -49,12 +49,17 @@ runs:
       with:
         path: ${{ runner.temp }}/coreav-oracle-bin
         key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
-    - name: Install pinned FFmpeg, ffprobe and MediaInfo
+    - name: Cache the pinned oracle archive
+      if: inputs.fresh == 'true' || steps.fixtures.outputs.cache-hit != 'true' || (inputs.composed == 'true' && steps.composed.outputs.cache-hit != 'true')
+      uses: ./.github/actions/oracle-cache
+    - name: Install pinned FFmpeg and ffprobe
+      if: inputs.fresh == 'true' || steps.fixtures.outputs.cache-hit != 'true' || (inputs.composed == 'true' && steps.composed.outputs.cache-hit != 'true')
+      shell: bash
+      run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+    - name: Install pinned MediaInfo
       if: (inputs.fresh == 'true' || steps.fixtures.outputs.cache-hit != 'true' || (inputs.composed == 'true' && steps.composed.outputs.cache-hit != 'true')) && steps.ffmpeg-cache.outputs.cache-hit != 'true'
       shell: bash
-      run: |
-        scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
-        scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      run: scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
     - name: Generate all required fixtures
       if: inputs.fresh == 'true' || steps.fixtures.outputs.cache-hit != 'true'
       shell: bash

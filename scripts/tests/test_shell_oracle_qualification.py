@@ -187,7 +187,7 @@ if mode == 'three':
 class FixtureCacheInputs(unittest.TestCase):
     def test_both_fixture_cache_keys_bind_every_owner_support_file(self):
         generator = (ROOT / 'scripts/gen-fixtures.sh').read_text()
-        inputs = {'scripts/gen-fixtures.sh', 'scripts/install-oracle-ffmpeg.sh',
+        inputs = {'scripts/gen-fixtures.sh', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-ci-oracle-ffmpeg.sh',
                   'scripts/oracle-ffmpeg.env', *('scripts/' + name for name in test_oracle.SUPPORT),
                   'docs/design/composed-opus-aac-v2.json', 'scripts/composed_audio.py', 'scripts/composed_audio_fixtures.py',
                   *('scripts/' + name for name in re.findall(r'\$SCRIPTS/([A-Za-z0-9_.-]+)', generator))}
