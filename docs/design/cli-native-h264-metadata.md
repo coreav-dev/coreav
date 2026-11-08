@@ -12,6 +12,8 @@ This admits every supported rational cadence represented exactly by the source c
 
 Only the native branch uses the derived rate. Other encoders retain their existing rate selection and snapping. MP4 sample timestamps and the final duration continue to come from the existing presentation ledger.
 
+The exact source-clock interval must also fit the positive 32-bit MP4 sample-duration field. A reducible rate does not make an oversized stored interval representable. Such inputs retain the existing path rather than rewriting the source clock or replacing the final duration with a guessed tick.
+
 ## Declared sample aspect
 
 Validate the original source ratio before the shared aspect helper can narrow its terms. Reduce positive ratios exactly and use `SampleAspectRatio::new` to enforce the library's represented bounds. Absent or unspecified `(0, 1)` ratios retain the default, as do square pixels, preserving previously eligible native output. Unsupported ratios or an unrepresentable MP4 display size cause native ineligibility and the unchanged fallback.

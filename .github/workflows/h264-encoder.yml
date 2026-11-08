@@ -11,6 +11,7 @@ on:
       - crates/coreav-transcode/**
       - crates/coreav-frame/**
       - scripts/native_h264_cli.py
+      - scripts/track_boxes.py
       - crates/coreav-kernels-h264/**
       - crates/coreav-h264/**
       - scripts/h264_g1*
@@ -38,6 +39,7 @@ on:
       - crates/coreav-transcode/**
       - crates/coreav-frame/**
       - scripts/native_h264_cli.py
+      - scripts/track_boxes.py
       - crates/coreav-kernels-h264/**
       - crates/coreav-h264/**
       - scripts/h264_g1*
@@ -94,6 +96,8 @@ jobs:
           cp target/release/coreav "$RUNNER_TEMP/default-base"
           cargo build --locked --release -p coreav-cli --features native-h264
           cp target/release/coreav "$RUNNER_TEMP/external-base"
+          cargo build --locked --release -p coreav-cli --features native-h264-encoder,native-h264
+          cp target/release/coreav "$RUNNER_TEMP/native-base"
       - name: Keep native encoding out of default and release builds
         run: |
           set -euo pipefail
@@ -132,6 +136,7 @@ jobs:
             --default-candidate "$RUNNER_TEMP/default-candidate" \
             --baseline-default "$RUNNER_TEMP/default-base" \
             --baseline-external "$RUNNER_TEMP/external-base" \
+            --baseline-native "$RUNNER_TEMP/native-base" \
             --driver target/release/examples/p \
             --ffmpeg "$RUNNER_TEMP/cli-oracles/ffmpeg" \
             --output "$RUNNER_TEMP/native-cli"
