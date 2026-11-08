@@ -49,6 +49,37 @@ def entry_aspect(data):
     return track_boxes.child(data, parent, b'pasp')
 
 
+def terminal_duration(data, ticks):
+    parents = []
+    parent = (0, len(data))
+    for kind in (b'moov', b'trak', b'mdia', b'minf', b'stbl'):
+        parent = track_boxes.child(data, parent, kind)
+        if parent is None:
+            raise ValueError('missing generated sample table parent')
+        start, end = parent
+        same(struct.unpack_from('>I', data, start - 8)[0], end - start + 8, 'generated 32-bit parent')
+        parents.append(parent)
+    same(parents[0][1], len(data), 'generated movie follows media')
+    table = track_boxes.child(data, parent, b'stts')
+    if table is None or table[1] - table[0] != 16:
+        raise ValueError('expected one generated duration run')
+    start, end = table
+    same(struct.unpack_from('>I', data, start - 8)[0], end - start + 8, 'generated 32-bit duration box')
+    version, entries, count, delta = struct.unpack_from('>IIII', data, start)
+    same((version, entries), (0, 1), 'generated duration header')
+    if not count or not delta:
+        raise ValueError('empty generated duration run')
+    changed = bytearray(data)
+    if count == 1:
+        struct.pack_into('>I', changed, start + 12, ticks)
+    else:
+        changed[start:end] = struct.pack('>IIIIII', 0, 2, count - 1, delta, 1, ticks)
+        struct.pack_into('>I', changed, start - 8, end - start + 16)
+        for parent_start, parent_end in parents:
+            struct.pack_into('>I', changed, parent_start - 8, parent_end - parent_start + 16)
+    return bytes(changed)
+
+
 def sps_metadata(nal):
     r = syntax.rbsp(nal)
     same(r.u(24), 0x42c033, 'native SPS profile constraints and level')
@@ -173,6 +204,7 @@ def verify(args):
         ('30000/1001', '16/15', 4), ('60000/1001', '17/13', 4),
         ('25/2', '65535/65534', 4), ('1000/33', '40/33', 4), ('30/1', '4/3', 4),
         ('30000/1001', '16/15', 1),
+        ('25/1', '17/13', 1),
     ]):
         rate, sar = Fraction(rate), Fraction(sar)
         path = source(f'metadata-{index}', rate=str(rate), frames=frames, extra=('-vf', f'setsar={sar}:max=65535'))
@@ -237,6 +269,12 @@ def verify(args):
     struct.pack_into('>II', data, pasp[0], 0, 1)
     unspecified.write_bytes(data)
     legacy_sources.append(('unspecified', unspecified))
+    one_clock = source('legacy-one-clock', frames=1, extra=('-video_track_timescale', '30'))
+    one_zero = root / 'legacy-one-zero.mp4'
+    one_zero.write_bytes(terminal_duration(one_clock.read_bytes(), 0))
+    final_zero = root / 'legacy-final-zero.mp4'
+    final_zero.write_bytes(terminal_duration(source_path.read_bytes(), 0))
+    legacy_sources.extend([('one-zero-duration', one_zero), ('final-zero-duration', final_zero)])
     for label, path in legacy_sources:
         previous = []
         for index, executable in enumerate((args.baseline_native, args.candidate)):
@@ -244,6 +282,7 @@ def verify(args):
             run([executable, '--native-h264-encoder', 'ffmpeg', '-i', path, '-an', '-c:v', 'libx264', output], env=native_only)
             previous.append(output.read_bytes())
         same(*previous, f'unchanged previously eligible {label} bytes')
+    print('native base comparisons: ' + ', '.join(label for label, _ in legacy_sources))
 
     flat = root / 'gop.yuv'
     flat.write_bytes(bytes([128]) * (384 * 251))
@@ -300,6 +339,23 @@ def verify(args):
     compare(variable, (), 'variable-native-clock')
     rounded = source('rounded-clock', rate='30000/1001', extra=('-video_track_timescale', '1000'))
     compare(rounded, (), 'rounded-clock')
+    for label, parameters in [
+        ('zero-duration-new-rate', dict(rate='25', frames=1, extra=('-video_track_timescale', '25'))),
+        ('zero-duration-new-aspect', dict(frames=1, extra=('-video_track_timescale', '30', '-vf', 'setsar=4/3'))),
+    ]:
+        original = source(label + '-source', **parameters)
+        path = root / f'{label}.mp4'
+        path.write_bytes(terminal_duration(original.read_bytes(), 0))
+        output = root / f'{label}-native-only.mp4'
+        rejected = run([args.candidate, '--native-h264-encoder', 'ffmpeg', '-i', path,
+                        '-an', '-c:v', 'libx264', output], env=native_only, success=False)
+        same(rejected.returncode, 4, 'new metadata cannot inherit the legacy zero-duration default')
+        if output.exists() or b'no encoder program' not in rejected.stderr:
+            raise ValueError('zero-duration control failed outside the existing encoder fallback')
+        compare(path, (), label)
+    last_unequal = root / 'unequal-final-duration.mp4'
+    last_unequal.write_bytes(terminal_duration(source_path.read_bytes(), 1024))
+    compare(last_unequal, (), 'unequal-final-duration')
     for label, sar in [('unsupported-aspect', (65536, 65535)), ('display-overflow', (65535, 1))]:
         data = bytearray(square_bytes)
         struct.pack_into('>II', data, pasp[0], *sar)
@@ -354,7 +410,7 @@ def verify(args):
             run([args.default_candidate, 'ffmpeg', '-i', source_path, *command, output], env=environment)
             same(output.read_bytes(), outputs[0], 'default-build bytes against base')
 
-    (root / 'summary.json').write_text(json.dumps(dict(native=rows, metadata=metadata_rows, legacy_native_cases=len(legacy_sources), gop_frames=251, fallback_cases=fallback_cases,
+    (root / 'summary.json').write_text(json.dumps(dict(native=rows, metadata=metadata_rows, legacy_native_cases=len(legacy_sources), legacy_native_shapes=[label for label, _ in legacy_sources], gop_frames=251, fallback_cases=fallback_cases,
                                                      default_bytes_unchanged=True), indent=2) + '\n')
     print(f'native CLI: {len(rows)} conformance cases, {len(metadata_rows)} exact rate/SAR cases, thread identity, fallback and default byte checks passed')
 

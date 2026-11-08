@@ -555,7 +555,11 @@ fn execute<S: Source, W: Write>(
                     if options.matroska_output.is_some() {
                         return Err(Error::NativeIneligible("native H.264 requires MP4 output"));
                     }
-                    let frame_rate = native_timing(&presented, &video)?;
+                    let source_rate = options
+                        .frame_rates
+                        .iter()
+                        .find_map(|(index, rate)| (*index == video.stream_index).then_some(*rate));
+                    let frame_rate = native_timing(&presented, &video, source_rate)?;
                     (H264Program::Native(native), frame_rate)
                 }
                 None => (external()?, frame_rate),
@@ -1859,14 +1863,49 @@ fn native_rate(
 }
 
 #[cfg(feature = "h264-native")]
-fn native_timing(presented: &Presented, video: &VideoStream) -> Result<FrameRate, Error> {
+fn legacy_native_rate(
+    presented: &Presented,
+    time_base: Rational,
+    aspect: Option<(u64, u64)>,
+    source_rate: Option<FrameRate>,
+) -> Option<FrameRate> {
+    let rate = FrameRate { num: 30, den: 1 };
+    (aspect.is_none_or(|(n, d)| n == 0 || d == 0 || n == d)
+        && source_rate.is_none_or(|r| r.den > 0 && r.den.checked_mul(30) == Some(r.num))
+        && presented.times.windows(2).all(|w| match w {
+            [a, b] => native_interval(i128::from(*b) - i128::from(*a), time_base, rate),
+            _ => false,
+        })
+        && native_interval(
+            i128::from(presented.last_duration(&presented.times, Some(presented.last))),
+            time_base,
+            rate,
+        ))
+    .then_some(rate)
+}
+
+#[cfg(feature = "h264-native")]
+fn native_timing(
+    presented: &Presented,
+    video: &VideoStream,
+    source_rate: Option<FrameRate>,
+) -> Result<FrameRate, Error> {
     let size = video.stream.width.zip(video.stream.height);
     if !size.is_some_and(|(w, h)| native_size(w, h))
         || presented.times.len() != video.packets.iter().filter(|p| p.presented).count()
-        || presented.times.len() != presented.distinct.len()
     {
         return Err(Error::NativeIneligible(
             "native H.264 needs fixed-size constant-rate input",
+        ));
+    }
+    if let Some(rate) =
+        legacy_native_rate(presented, video.time_base, video.pixel_aspect, source_rate)
+    {
+        return Ok(rate);
+    }
+    if presented.times.len() != presented.distinct.len() {
+        return Err(Error::NativeIneligible(
+            "native H.264 needs distinct presentation timestamps",
         ));
     }
     let duration = video
@@ -2478,6 +2517,57 @@ mod tests {
             last: times.last().copied().unwrap_or(0),
             times,
         }
+    }
+
+    #[cfg(feature = "h264-native")]
+    #[test]
+    fn legacy_native_clock_keeps_only_preexisting_timing_defaults() {
+        let time_base = Rational::new(1, 30).unwrap();
+        for times in [&[0][..], &[0, 1, 2][..]] {
+            let mut clock = presented(times, 1);
+            clock.durations.clear();
+            for aspect in [None, Some((1, 1)), Some((0, 1)), Some((1, 0))] {
+                for hint in [
+                    None,
+                    Some(FrameRate { num: 30, den: 1 }),
+                    Some(FrameRate { num: 60, den: 2 }),
+                ] {
+                    assert_eq!(
+                        legacy_native_rate(&clock, time_base, aspect, hint).map(|r| (r.num, r.den)),
+                        Some((30, 1))
+                    );
+                }
+            }
+            for hint in [
+                FrameRate { num: 25, den: 1 },
+                FrameRate { num: 0, den: 0 },
+                FrameRate {
+                    num: 1,
+                    den: u32::MAX,
+                },
+            ] {
+                assert!(legacy_native_rate(&clock, time_base, None, Some(hint)).is_none());
+            }
+            assert!(legacy_native_rate(&clock, time_base, Some((4, 3)), None).is_none());
+            assert!(
+                legacy_native_rate(&clock, Rational::new(1, 25).unwrap(), None, None).is_none()
+            );
+        }
+        assert!(legacy_native_rate(&presented(&[0, 1, 2], 2), time_base, None, None).is_none());
+        assert!(legacy_native_rate(&presented(&[0], 2), time_base, None, None).is_none());
+        let strict = native_rate(&[0], Some(2), time_base).unwrap();
+        assert_eq!((strict.num, strict.den), (15, 1));
+        let strict = native_rate(&[0], Some(1), Rational::new(1, 25).unwrap()).unwrap();
+        assert_eq!((strict.num, strict.den), (25, 1));
+        let mut repeated = presented(&[0, 1, 2], 1);
+        repeated.pts = [0].into_iter().collect();
+        repeated.distinct = vec![0];
+        repeated.last = 0;
+        repeated.durations = [(0, 1)].into_iter().collect();
+        assert_eq!(
+            legacy_native_rate(&repeated, time_base, None, None).map(|r| (r.num, r.den)),
+            Some((30, 1))
+        );
     }
 
     #[test]

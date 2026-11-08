@@ -10,6 +10,22 @@ import native_h264_cli as cli
 
 
 class NativeCli(unittest.TestCase):
+    def test_terminal_duration_changes_only_the_last_generated_sample(self):
+        def box(kind, body):
+            return struct.pack('>I4s', len(body) + 8, kind) + body
+
+        def movie(payload):
+            for kind in (b'stbl', b'minf', b'mdia', b'trak', b'moov'):
+                payload = box(kind, payload)
+            return box(b'mdat', b'unchanged encoded pictures') + payload
+
+        for count in (1, 4):
+            original = movie(box(b'stts', struct.pack('>IIII', 0, 1, count, 512)))
+            for duration in (0, 1024):
+                pairs = (1, count, duration) if count == 1 else (2, count - 1, 512, 1, duration)
+                expected = movie(box(b'stts', struct.pack('>' + 'I' * (len(pairs) + 1), 0, *pairs)))
+                self.assertEqual(cli.terminal_duration(original, duration), expected)
+
     def test_explicit_sps_sample_aspect_rejects_zero_terms_with_a_label(self):
         def sps(width, height):
             bits = (f'{0x42c033:024b}' + '110110100111101111111111'
