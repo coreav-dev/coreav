@@ -5,6 +5,11 @@ run-name: HEVC reference ${{ inputs.candidate }} (${{ inputs.only || 'all' }}, c
 on:
   workflow_dispatch:
     inputs:
+      interpolation_ceiling:
+        description: Count the interior reference copy ceiling only
+        required: false
+        default: false
+        type: boolean
       inverse:
         description: Run the same-host inverse reconstruction comparison
         required: false
@@ -45,7 +50,7 @@ permissions:
 
 jobs:
   inverse-comparison:
-    if: inputs.inverse
+    if: inputs.interpolation_ceiling != true && inputs.inverse
     uses: ./.github/workflows/hevc-inverse-reference.yml
     with:
       baseline: ${{ inputs.baseline }}
@@ -54,7 +59,7 @@ jobs:
     secrets: inherit
 
   reference:
-    if: ${{ !inputs.inverse && inputs.baseline == '' && !inputs.sanitizer_only }}
+    if: ${{ !inputs.interpolation_ceiling && !inputs.inverse && inputs.baseline == '' && !inputs.sanitizer_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
@@ -128,7 +133,7 @@ jobs:
           retention-days: 30
 
   threading:
-    if: ${{ !inputs.inverse && (inputs.baseline != '' || inputs.sanitizer_only) }}
+    if: ${{ !inputs.interpolation_ceiling && !inputs.inverse && (inputs.baseline != '' || inputs.sanitizer_only) }}
     uses: ./.github/workflows/hevc-threading.yml
     with:
       candidate: ${{ inputs.candidate }}
@@ -137,3 +142,85 @@ jobs:
       only: ${{ inputs.only }}
       frames: ${{ fromJSON(inputs.frames) }}
     secrets: inherit
+
+  interpolation-ceiling:
+    if: inputs.interpolation_ceiling
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CANDIDATE: ${{ inputs.candidate }}
+      BASELINE: ${{ inputs.baseline }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: .
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: baseline
+          ref: ${{ inputs.baseline }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Admit exact owned arms before credentials
+        run: |
+          set -euo pipefail
+          test "$(git -C . rev-parse HEAD)" = "$CANDIDATE"
+          test "$(git -C baseline rev-parse HEAD)" = "$BASELINE"
+          test -n "$(git -C . branch -r --contains "$CANDIDATE")"
+          git -C baseline merge-base --is-ancestor "$BASELINE" origin/main
+          python3 -I scripts/hevc_interpolation_copy_ceiling.py self-test
+          python3 -m unittest discover -s scripts/tests -p test_reference_hevc.py
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Build both exact arms with identical settings
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG: 1
+          CARGO_INCREMENTAL: 0
+        run: |
+          set -euo pipefail
+          cp bench/hevc-reference/decode.rs baseline/crates/coreav-hevc/examples/reference.rs
+          cp bench/hevc-reference/decode.rs crates/coreav-hevc/examples/reference.rs
+          (cd baseline && CARGO_TARGET_DIR="$RUNNER_TEMP/target-baseline" cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+          (cd "$GITHUB_WORKSPACE" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-ablated" cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+          mkdir -p "$RUNNER_TEMP/counts"
+          rustc -Vv > "$RUNNER_TEMP/counts/compiler.txt"
+          grep -qw avx2 /proc/cpuinfo
+          (cd "$GITHUB_WORKSPACE" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-ablated" cargo test --locked -p coreav-kernels-hevc --features native-hevc)
+          (cd "$GITHUB_WORKSPACE" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-ablated" cargo test --locked -p coreav-kernels-hevc --features native-hevc,scalar)
+      - name: Install instruction counter
+        run: sudo apt-get update -qq && sudo apt-get install -y valgrind
+      - uses: ./.github/actions/oracle-cache
+      - name: Install the pinned binary oracle
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Verify pixels and count only the interior reference copy erasure
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          python3 -I scripts/hevc_interpolation_copy_ceiling.py \
+            --baseline "$RUNNER_TEMP/target-baseline/release/examples/reference" \
+            --ablated "$RUNNER_TEMP/target-ablated/release/examples/reference" \
+            --baseline-sha "$BASELINE" --ablated-sha "$CANDIDATE" \
+            --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/counts"
+      - name: Seal private counts without publishing inputs or figures
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/counts" "$RUNNER_TEMP/sealed"
+          tar -czf "$RUNNER_TEMP/counts.tgz" -C "$RUNNER_TEMP/counts" .
+          openssl rand -hex -out "$RUNNER_TEMP/key.txt" 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:"$RUNNER_TEMP/key.txt" -in "$RUNNER_TEMP/counts.tgz" -out "$RUNNER_TEMP/sealed/counts.tgz.enc"
+          openssl pkeyutl -encrypt -pubin -inkey bench/hevc-interpolation-copy/evidence-public.pem -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in "$RUNNER_TEMP/key.txt" -out "$RUNNER_TEMP/sealed/key.txt.enc"
+          shred -u "$RUNNER_TEMP/key.txt" "$RUNNER_TEMP/counts.tgz"
+          rm -rf "$RUNNER_TEMP/counts"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: interpolation-copy-ceiling-sealed
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: error
+          retention-days: 1
