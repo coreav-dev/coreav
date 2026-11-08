@@ -10,6 +10,51 @@ use std::sync::Arc;
 
 pub(super) const ATOMIC_RUNTIME_BYTES: usize = 65536;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn virtual_receive_offsets_follow_unreturned_old_geometry_debt() -> Result<()> {
+        let mut owner = Rows::allocate(
+            Plan {
+                ceiling: 4,
+                workers: 4,
+                lag: 3,
+                frame_bytes: 384,
+                reserved: 1 << 20,
+            },
+            (0, [0; 32]),
+            0,
+            3,
+        )?;
+        let rows = &mut owner[0];
+        rows.validated = 0;
+        let first = rows.receive()?;
+        assert_eq!(first.consume, Some(0));
+        assert!(!first.pop);
+        let second = rows.receive()?;
+        assert_eq!(second.consume, Some(1));
+        assert!(!second.pop);
+        rows.validated = 1;
+        let third = rows.receive()?;
+        assert_eq!(third.consume, Some(2));
+        assert!(third.pop);
+        assert_eq!(rows.debt()?, 2);
+        let empty = rows.receive()?;
+        assert!(empty.consume.is_none());
+        assert!(!empty.pop);
+        rows.validated = 3;
+        for debt in [1, 0] {
+            let catch_up = rows.receive()?;
+            assert!(catch_up.consume.is_none());
+            assert!(catch_up.pop);
+            assert_eq!(rows.debt()?, debt);
+        }
+        Ok(())
+    }
+}
+
 pub(super) struct Pending {
     pub(super) header: OutputHeader,
     pub(super) publication: Arc<Publication>,
