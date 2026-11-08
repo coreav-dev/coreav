@@ -62,12 +62,36 @@ pub(crate) fn intra(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn picture(
     data: &mut [u8],
     width: usize,
     height: usize,
     qp: u8,
     chroma: bool,
+    record: impl Fn(usize, usize) -> Result<Record>,
+) -> Result<()> {
+    let n = if chroma { 8 } else { 16 };
+    filter(data, width, qp, chroma, 0..height / n, record)
+}
+
+pub(crate) fn row(
+    data: &mut [u8],
+    width: usize,
+    qp: u8,
+    chroma: bool,
+    my: usize,
+    record: impl Fn(usize, usize) -> Result<Record>,
+) -> Result<()> {
+    filter(data, width, qp, chroma, my..my + 1, record)
+}
+
+fn filter(
+    data: &mut [u8],
+    width: usize,
+    qp: u8,
+    chroma: bool,
+    rows: std::ops::Range<usize>,
     record: impl Fn(usize, usize) -> Result<Record>,
 ) -> Result<()> {
     let index = usize::from(qp);
@@ -86,7 +110,8 @@ pub(crate) fn picture(
     } else {
         (16, Reach::Luma)
     };
-    for y in (0..height).step_by(n) {
+    for my in rows {
+        let y = my * n;
         for x in (0..width).step_by(n) {
             let q = record(x / n, y / n)?;
             let left = if x != 0 {
@@ -150,6 +175,49 @@ mod tests {
         (0..side * side)
             .map(|p| row[if vertical { p % side } else { p / side }])
             .collect()
+    }
+
+    #[test]
+    fn incremental_rows_match_whole_picture_with_mixed_edges() {
+        for chroma in [false, true] {
+            let n = if chroma { 8 } else { 16 };
+            for (columns, rows) in [(1, 1), (1, 5), (5, 1), (5, 4)] {
+                let width = columns * n;
+                let height = rows * n;
+                let raw: Vec<_> = (0..width * height)
+                    .map(|p| 100 + ((p % width / 4 + p / width / 4) % 5) as u8 * 2)
+                    .collect();
+                let record = |mx, my| {
+                    let mut record = Record::default();
+                    if (mx + my) % 3 != 0 {
+                        record.motion.intra = false;
+                        record.nonzero = if mx % 2 == 0 { 0x55aa } else { 0 };
+                        for (p, mv) in record.motion.vectors.iter_mut().enumerate() {
+                            mv.x = (p % 4) as i32 * 4;
+                            mv.y = (p / 4) as i32 * 4;
+                        }
+                    }
+                    Ok(record)
+                };
+                for qp in [10, 22, 28, 40, 51] {
+                    let mut expected = raw.clone();
+                    picture(&mut expected, width, height, qp, chroma, record).unwrap();
+                    let mut incremental = vec![0; raw.len()];
+                    for my in 0..rows {
+                        let start = my * n * width;
+                        let end = start + n * width;
+                        incremental[start..end].copy_from_slice(&raw[start..end]);
+                        row(&mut incremental, width, qp, chroma, my, |mx, y| {
+                            assert!(y <= my);
+                            record(mx, y)
+                        })
+                        .unwrap();
+                        assert!(incremental[end..].iter().all(|&p| p == 0));
+                    }
+                    assert_eq!(incremental, expected);
+                }
+            }
+        }
     }
 
     #[test]

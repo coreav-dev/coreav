@@ -8,6 +8,7 @@ pub(crate) fn fill<T: Send + Sync>(
     height: usize,
     threads: usize,
     compute: impl Fn(usize, &[OnceLock<T>]) -> Result<()> + Sync,
+    mut consume: impl FnMut(usize, &[OnceLock<T>]) -> Result<()>,
 ) -> Result<Vec<OnceLock<T>>> {
     if width == 0 || height == 0 || threads == 0 {
         return Err(Error::Internal);
@@ -21,9 +22,19 @@ pub(crate) fn fill<T: Send + Sync>(
     let workers = threads.min(height).min(width.div_ceil(2));
     if workers == 1 {
         return std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            for address in 0..table.len() {
-                compute(address, &table)?;
+            let mut consumed = Ok(());
+            for row in 0..height {
+                for address in row * width..(row + 1) * width {
+                    compute(address, &table)?;
+                }
+                if consumed.is_ok() {
+                    consumed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        consume(row, &table)
+                    }))
+                    .unwrap_or(Err(Error::Internal));
+                }
             }
+            consumed?;
             Ok(table)
         }))
         .unwrap_or(Err(Error::Internal));
@@ -42,7 +53,8 @@ pub(crate) fn fill<T: Send + Sync>(
         .map_err(|_| Error::Allocation)?;
     outcomes.resize_with(height, OnceLock::new);
     let next_row = std::sync::atomic::AtomicUsize::new(0);
-    let work = || {
+    let (complete, completed) = mpsc::sync_channel(height);
+    let work = |complete: mpsc::SyncSender<()>| {
         loop {
             let row = next_row.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             if row >= height {
@@ -91,6 +103,7 @@ pub(crate) fn fill<T: Send + Sync>(
             if let Some(outcome) = outcomes.get(row) {
                 let _ = outcome.set(result);
             }
+            let _ = complete.send(());
         }
     };
     std::thread::scope(|scope| -> Result<()> {
@@ -99,29 +112,51 @@ pub(crate) fn fill<T: Send + Sync>(
             .try_reserve_exact(workers)
             .map_err(|_| Error::Allocation)?;
         for _ in 0..workers {
+            let complete = complete.clone();
             #[cfg(test)]
             let handle = if tests::SPAWN_LIMIT.with(|limit| handles.len() >= limit.get()) {
                 Err(std::io::Error::other("injected thread start refusal"))
             } else {
-                std::thread::Builder::new().spawn_scoped(scope, work)
+                std::thread::Builder::new().spawn_scoped(scope, move || work(complete))
             };
             #[cfg(not(test))]
-            let handle = std::thread::Builder::new().spawn_scoped(scope, work);
+            let handle = std::thread::Builder::new().spawn_scoped(scope, move || work(complete));
             match handle {
                 Ok(handle) => handles.push(handle),
                 Err(_) => break,
             }
         }
         if handles.is_empty() {
-            work();
+            work(complete.clone());
         }
+        drop(complete);
+        let mut consumed = Ok(());
+        for (row, outcome) in outcomes.iter().enumerate() {
+            while outcome.get().is_none() {
+                if completed.recv().is_err() {
+                    consumed = Err(Error::Internal);
+                    break;
+                }
+            }
+            if consumed.is_ok() && matches!(outcome.get(), Some(Ok(()))) {
+                consumed =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| consume(row, &table)))
+                        .unwrap_or(Err(Error::Internal));
+            } else if consumed.is_ok() {
+                consumed = Err(Error::Internal);
+            }
+        }
+        let mut joined = Ok(());
         for handle in handles {
-            handle.join().map_err(|_| Error::Internal)?;
+            if handle.join().is_err() {
+                joined = Err(Error::Internal);
+            }
         }
         for outcome in &outcomes {
             (*outcome.get().ok_or(Error::Internal)?)?;
         }
-        Ok(())
+        joined?;
+        consumed
     })?;
     Ok(table)
 }
@@ -133,13 +168,19 @@ fn run<T: Send + Sync>(
     threads: usize,
     compute: impl Fn(usize, &[OnceLock<T>]) -> Result<T> + Sync,
 ) -> Result<Vec<OnceLock<T>>> {
-    fill(width, height, threads, |address, table| {
-        table
-            .get(address)
-            .ok_or(Error::Internal)?
-            .set(compute(address, table)?)
-            .map_err(|_| Error::Internal)
-    })
+    fill(
+        width,
+        height,
+        threads,
+        |address, table| {
+            table
+                .get(address)
+                .ok_or(Error::Internal)?
+                .set(compute(address, table)?)
+                .map_err(|_| Error::Internal)
+        },
+        |_, _| Ok(()),
+    )
 }
 
 #[cfg(test)]
@@ -150,6 +191,103 @@ mod tests {
 
     std::thread_local! {
         pub(super) static SPAWN_LIMIT: std::cell::Cell<usize> = const { std::cell::Cell::new(usize::MAX) };
+    }
+
+    #[test]
+    fn caller_consumes_ordered_rows_before_later_decisions_finish() {
+        for threads in [1, 2, 3, 8] {
+            let width = 12;
+            let (consumed, ready) = mpsc::sync_channel(1);
+            let ready = Mutex::new(ready);
+            let mut rows = Vec::new();
+            let table = fill(
+                width,
+                8,
+                threads,
+                |address, table| {
+                    if address == width {
+                        ready
+                            .lock()
+                            .unwrap()
+                            .recv_timeout(std::time::Duration::from_secs(5))
+                            .unwrap();
+                    }
+                    table[address].set(address).map_err(|_| Error::Internal)
+                },
+                |row, table| {
+                    assert_eq!(row, rows.len());
+                    rows.push(row);
+                    for (address, slot) in table
+                        .iter()
+                        .enumerate()
+                        .take((row + 1) * width)
+                        .skip(row * width)
+                    {
+                        assert_eq!(slot.get(), Some(&address));
+                    }
+                    if row == 0 {
+                        assert!(table[width].get().is_none());
+                        consumed.send(()).unwrap();
+                    }
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(rows, (0..8).collect::<Vec<_>>());
+            for (address, slot) in table.iter().enumerate() {
+                assert_eq!(slot.get(), Some(&address));
+            }
+        }
+    }
+
+    #[test]
+    fn consumer_failures_finish_decisions_and_keep_raster_error_precedence() {
+        for threads in [1, 2, 3, 8] {
+            for limit in [0, 1, 2, usize::MAX] {
+                for unwind in [false, true] {
+                    for decision_failure in [None, Some(11), Some(29), Some(95)] {
+                        let previous = SPAWN_LIMIT.with(|value| value.replace(limit));
+                        let calls = AtomicUsize::new(0);
+                        let mut consumed = 0;
+                        let result = fill(
+                            12,
+                            8,
+                            threads,
+                            |address, table| {
+                                calls.fetch_add(1, Ordering::Relaxed);
+                                if Some(address) == decision_failure {
+                                    return Err(Error::Coefficient);
+                                }
+                                table[address].set(address).map_err(|_| Error::Internal)
+                            },
+                            |row, _| {
+                                consumed += 1;
+                                assert_eq!(row, 0);
+                                if unwind {
+                                    panic!("injected consumer unwind");
+                                }
+                                Err(Error::Syntax)
+                            },
+                        );
+                        SPAWN_LIMIT.with(|value| value.set(previous));
+                        assert_eq!(
+                            result.err(),
+                            Some(if decision_failure.is_some() {
+                                Error::Coefficient
+                            } else if unwind {
+                                Error::Internal
+                            } else {
+                                Error::Syntax
+                            })
+                        );
+                        if decision_failure.is_none() {
+                            assert_eq!(consumed, 1);
+                            assert_eq!(calls.load(Ordering::Relaxed), 96);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]
