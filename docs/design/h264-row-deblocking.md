@@ -10,6 +10,8 @@ The caller remembers a consumer error or panic, stops consuming, and joins every
 
 The requested worker count still limits decision workers, with the existing geometry cap. The caller now does useful work concurrently but adds no operating-system thread. It can compete with decision workers on a limited CPU set, so the serial deblocking fraction is not a predicted speedup.
 
+Macroblock computation has one non-generic, non-inlined entry point, so changing the consumer's type cannot change the worker's inlining context. At one requested worker the scheduler returns the complete decision table before invoking the picture consumer once. Parallel pictures invoke that same consumer with one-row ranges. The consumer flushes any final skip run before filtering, retaining the serial staging order.
+
 Band barriers would simplify completion ownership but add repeated spawning and idle boundaries. Moving mutable strips between workers would complicate border ownership while immutable candidates remain necessary. This design keeps the existing bounded decision table and picture allocations instead.
 
 Verification compares complete streams and reconstructions with the post-ownership baseline at one, two, three and eight workers in automatic and scalar builds. Scheduler tests cover ordered overlap, decision and consumer failures and panics, raster error precedence, and zero or partial thread-start refusal. Row filtering is compared with whole-picture filtering on mixed edges and narrow pictures. Alternating explicit-SHA native reference calls at one and four workers must show an improvement beyond variation before this change ships.
