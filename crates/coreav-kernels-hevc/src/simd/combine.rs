@@ -1,7 +1,19 @@
 use super::Avx2;
+use crate::{Error, Rect};
 use core::arch::x86_64::*;
 
 impl Avx2 {
+    pub(crate) fn validate_combine(
+        self,
+        first: Rect<'_, i32>,
+        second: Option<Rect<'_, i32>>,
+        minimum: i32,
+        maximum: i32,
+    ) -> Result<(), Error> {
+        unsafe { validate_predictors(first, second, minimum, maximum) }
+    }
+
+    #[cfg(test)]
     pub(crate) fn combine_samples_in_range(
         self,
         samples: &[i32],
@@ -12,6 +24,25 @@ impl Avx2 {
     }
 }
 
+#[target_feature(enable = "avx2")]
+unsafe fn validate_predictors(
+    first: Rect<'_, i32>,
+    second: Option<Rect<'_, i32>>,
+    minimum: i32,
+    maximum: i32,
+) -> Result<(), Error> {
+    for input in [Some(first), second].into_iter().flatten() {
+        for row in input.data.chunks(input.stride).take(input.height) {
+            let samples = row.get(..input.width).ok_or(Error::Buffer)?;
+            if !unsafe { samples_in_range(samples, minimum, maximum) } {
+                return Err(Error::Sample);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[inline]
 #[target_feature(enable = "avx2")]
 unsafe fn samples_in_range(samples: &[i32], minimum: i32, maximum: i32) -> bool {
     let minimum_vector = _mm256_set1_epi32(minimum);
