@@ -394,24 +394,27 @@ fn combine(
     let upper = (88 * max_sample) >> (depth.bits() - 8);
     let minimum = (88 * lower - 24 * upper) >> 6;
     let maximum = (88 * upper - 24 * lower) >> 6;
+    #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+    let vector = if depth.bits() == 8 && first.width >= 8 {
+        super::simd::Avx2::detect()
+    } else {
+        None
+    };
+    let in_range = |row: &[i32]| {
+        #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+        if let Some(vector) = vector {
+            return vector.combine_samples_in_range(row, minimum, maximum);
+        }
+        row.iter().all(|value| (minimum..=maximum).contains(value))
+    };
     for row in first.data.chunks(first.stride).take(first.height) {
-        if row
-            .get(..first.width)
-            .ok_or(Error::Buffer)?
-            .iter()
-            .any(|value| !(minimum..=maximum).contains(value))
-        {
+        if !in_range(row.get(..first.width).ok_or(Error::Buffer)?) {
             return Err(Error::Sample);
         }
     }
     if let Some((_, other)) = second {
         for row in other.data.chunks(other.stride).take(other.height) {
-            if row
-                .get(..other.width)
-                .ok_or(Error::Buffer)?
-                .iter()
-                .any(|value| !(minimum..=maximum).contains(value))
-            {
+            if !in_range(row.get(..other.width).ok_or(Error::Buffer)?) {
                 return Err(Error::Sample);
             }
         }

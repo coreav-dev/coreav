@@ -37,7 +37,17 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
             }
         }
         if data[8] & 0xc0 == 0xc0 && side == usize::from(data[0] & 2 != 0) {
-            *buffer.last_mut().unwrap() = i32::MAX;
+            let index = if data[14] & 1 == 0 {
+                buffer.len() - 1
+            } else {
+                offset + usize::from(data[15]) % height * stride + usize::from(data[16]) % width
+            };
+            buffer[index] = match data[17] & 3 {
+                0 => i32::MAX,
+                1 => i32::MIN,
+                2 => minimum - 1,
+                _ => maximum + 1,
+            };
         }
     }
     let denom = data[1] % 8;
