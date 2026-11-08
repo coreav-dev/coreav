@@ -376,6 +376,102 @@ fn combine(
     weight: PredictionWeight,
     first: Rect<'_, i32>,
     second: Option<(PredictionWeight, Rect<'_, i32>)>,
+    output: RectMut<'_, u16>,
+) -> Result<(), Error> {
+    if first.width != output.width || first.height != output.height {
+        return Err(Error::Rectangle);
+    }
+    if let Some((other_weight, other)) = second {
+        if other.width != output.width || other.height != output.height {
+            return Err(Error::Rectangle);
+        }
+        if other_weight.denom != weight.denom {
+            return Err(Error::Weight);
+        }
+    }
+    let max_sample = i32::from(depth.max_sample());
+    let lower = (-24 * max_sample) >> (depth.bits() - 8);
+    let upper = (88 * max_sample) >> (depth.bits() - 8);
+    let minimum = (88 * lower - 24 * upper) >> 6;
+    let maximum = (88 * upper - 24 * lower) >> 6;
+    for row in first.data.chunks(first.stride).take(first.height) {
+        if row
+            .get(..first.width)
+            .ok_or(Error::Buffer)?
+            .iter()
+            .any(|value| !(minimum..=maximum).contains(value))
+        {
+            return Err(Error::Sample);
+        }
+    }
+    if let Some((_, other)) = second {
+        for row in other.data.chunks(other.stride).take(other.height) {
+            if row
+                .get(..other.width)
+                .ok_or(Error::Buffer)?
+                .iter()
+                .any(|value| !(minimum..=maximum).contains(value))
+            {
+                return Err(Error::Sample);
+            }
+        }
+    }
+    let width = output.width;
+    let height = output.height;
+    let shift = weight.denom + 14 - depth.bits();
+    let offset = i32::from(weight.offset) << (depth.bits() - 8);
+    let first_weight = i32::from(weight.weight);
+    if let Some((other_weight, other)) = second {
+        let second_weight = i32::from(other_weight.weight);
+        let other_offset = i32::from(other_weight.offset) << (depth.bits() - 8);
+        let bias = (offset + other_offset + 1) << shift;
+        for ((first, other), output) in first
+            .data
+            .chunks(first.stride)
+            .zip(other.data.chunks(other.stride))
+            .zip(output.data.chunks_mut(output.stride))
+            .take(height)
+        {
+            for ((&first, &other), output) in first
+                .get(..width)
+                .ok_or(Error::Buffer)?
+                .iter()
+                .zip(other.get(..width).ok_or(Error::Buffer)?)
+                .zip(output.get_mut(..width).ok_or(Error::Buffer)?)
+            {
+                let sample = (first * first_weight + other * second_weight + bias) >> (shift + 1);
+                *output = sample.clamp(0, max_sample) as u16;
+            }
+        }
+    } else {
+        let rounding = 1 << (shift - 1);
+        for (first, output) in first
+            .data
+            .chunks(first.stride)
+            .zip(output.data.chunks_mut(output.stride))
+            .take(height)
+        {
+            for (&first, output) in first
+                .get(..width)
+                .ok_or(Error::Buffer)?
+                .iter()
+                .zip(output.get_mut(..width).ok_or(Error::Buffer)?)
+            {
+                let sample = ((first * first_weight + rounding) >> shift) + offset;
+                *output = sample.clamp(0, max_sample) as u16;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn combine_reference(
+    depth: BitDepth,
+    weight: PredictionWeight,
+    first: Rect<'_, i32>,
+    second: Option<(PredictionWeight, Rect<'_, i32>)>,
     mut output: RectMut<'_, u16>,
 ) -> Result<(), Error> {
     if first.width != output.width || first.height != output.height {

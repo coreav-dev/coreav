@@ -281,7 +281,7 @@ jobs:
   kernel-differential:
     if: github.event_name == 'workflow_dispatch' && !inputs.scalar
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -299,7 +299,7 @@ jobs:
       - name: Prepare bounded kernel differential targets
         run: |
           scripts/fuzz_run.sh setup
-          printf '%s\n' 'crates/coreav-kernels-hevc/fuzz horizontal' 'crates/coreav-kernels-hevc/fuzz vertical' 'crates/coreav-kernels-hevc/fuzz sao' 'crates/coreav-kernels-hevc/fuzz intra' 'crates/coreav-kernels-hevc/fuzz deblock' > "$RUNNER_TEMP/interpolation-plan.txt"
+          printf '%s\n' 'crates/coreav-kernels-hevc/fuzz horizontal' 'crates/coreav-kernels-hevc/fuzz vertical' 'crates/coreav-kernels-hevc/fuzz sao' 'crates/coreav-kernels-hevc/fuzz intra' 'crates/coreav-kernels-hevc/fuzz deblock' 'crates/coreav-kernels-hevc/fuzz combine' > "$RUNNER_TEMP/interpolation-plan.txt"
           scripts/fuzz_run.sh build "$RUNNER_TEMP/interpolation-plan.txt"
       - id: differential
         name: Compare automatic and scalar kernels for ten minutes per target

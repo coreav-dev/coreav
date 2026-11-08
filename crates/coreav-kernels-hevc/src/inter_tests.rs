@@ -2,6 +2,91 @@ use crate::*;
 use std::{vec, vec::Vec};
 
 #[test]
+fn combination_rows_match_literal_full_domain_and_exact_extents() {
+    let mut seed = 0x943a_1807_u32;
+    let deltas = [-128, -127, -1, 0, 1, 126, 127];
+    let offsets = [-128, -1, 0, 1, 127];
+    for (bits, minimum, maximum) in [(8, -16830, 33150), (10, -16880, 33247)] {
+        let depth = BitDepth::new(bits).unwrap();
+        for width in 1..=64 {
+            let height = 3;
+            let first_stride = width + 3;
+            let second_stride = width + 5;
+            let output_stride = width + 1;
+            let mut first = vec![i32::MIN; 1 + first_stride * (height - 1) + width];
+            let mut second = vec![i32::MAX; 1 + second_stride * (height - 1) + width];
+            for y in 0..height {
+                for x in 0..width {
+                    for (data, stride) in [(&mut first, first_stride), (&mut second, second_stride)]
+                    {
+                        seed ^= seed << 13;
+                        seed ^= seed >> 17;
+                        seed ^= seed << 5;
+                        data[1 + y * stride + x] = match x % 4 {
+                            0 => minimum,
+                            1 => maximum,
+                            2 => 0,
+                            _ => minimum + (seed % (maximum - minimum + 1) as u32) as i32,
+                        };
+                    }
+                }
+            }
+            let first = Rect::new(&first[1..], first_stride, width, height).unwrap();
+            let second = Rect::new(&second[1..], second_stride, width, height).unwrap();
+            for denom in 0..=7 {
+                for case in 0..49 {
+                    let weight = PredictionWeight::new(
+                        denom,
+                        (1 << denom) + deltas[case % 7],
+                        offsets[case % 5],
+                    )
+                    .unwrap();
+                    let other_weight = PredictionWeight::new(
+                        denom,
+                        (1 << denom) + deltas[case / 7],
+                        offsets[(case / 5) % 5],
+                    )
+                    .unwrap();
+                    for bi in [false, true] {
+                        let mut actual = vec![999; 1 + output_stride * (height - 1) + width];
+                        let mut expected = actual.clone();
+                        let other = bi.then_some((other_weight, second));
+                        let result = if bi {
+                            weight_bi(
+                                depth,
+                                weight,
+                                other_weight,
+                                first,
+                                second,
+                                RectMut::new(&mut actual[1..], output_stride, width, height)
+                                    .unwrap(),
+                            )
+                        } else {
+                            weight_uni(
+                                depth,
+                                weight,
+                                first,
+                                RectMut::new(&mut actual[1..], output_stride, width, height)
+                                    .unwrap(),
+                            )
+                        };
+                        let reference = inter::combine_reference(
+                            depth,
+                            weight,
+                            first,
+                            other,
+                            RectMut::new(&mut expected[1..], output_stride, width, height).unwrap(),
+                        );
+                        assert_eq!(result, reference, "{bits}/{width}/{denom}/{case}/{bi}");
+                        assert_eq!(actual, expected, "{bits}/{width}/{denom}/{case}/{bi}");
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn automatic_and_scalar_match_all_widths_phases_and_tails() {
     let mut seed = 0x18a5_92c3_u32;
     for bits in [8, 10] {
