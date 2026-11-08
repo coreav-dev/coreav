@@ -1,0 +1,123 @@
+name: hevc-inverse-reference
+run-name: HEVC inverse reference ${{ inputs.candidate }}
+# workflow-check: not required
+
+on:
+  workflow_call:
+    inputs:
+      baseline:
+        required: true
+        type: string
+      candidate:
+        required: true
+        type: string
+      only:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Exact baseline decoder commit
+        required: true
+        type: string
+      candidate:
+        description: Exact candidate decoder commit
+        required: true
+        type: string
+      only:
+        description: Comma-separated reference input IDs
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  inverse-reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      BASELINE: ${{ inputs.baseline }}
+      CANDIDATE: ${{ inputs.candidate }}
+      ONLY: ${{ inputs.only }}
+    steps:
+      - name: Validate dispatch inputs
+        run: |
+          set -euo pipefail
+          [[ "$BASELINE" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
+          input='(c0[0-3]|d(0[0-9]|1[0-9]|2[0-5]))'
+          pattern="^${input}(,${input})*$"
+          [[ "$ONLY" =~ $pattern ]]
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          path: driver
+      - name: Check reference boundaries
+        run: |
+          python3 -m unittest discover -s driver/scripts/tests -p test_reference_hevc.py
+          python3 -m unittest discover -s driver/scripts/tests -p test_hevc_inverse_reference.py
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ env.BASELINE }}
+          path: baseline
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ env.CANDIDATE }}
+          path: candidate
+      - name: Admit exact repository commits before builds and credentials
+        run: |
+          set -euo pipefail
+          for arm in baseline candidate; do
+            sha="$BASELINE"
+            if [ "$arm" = candidate ]; then sha="$CANDIDATE"; fi
+            test "$(git -C "$arm" rev-parse HEAD)" = "$sha"
+            git -C "$arm" fetch --quiet --unshallow --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+            test -n "$(git -C "$arm" branch -r --contains "$sha")"
+          done
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Build and test explicit decoder arms
+        run: |
+          set -euo pipefail
+          for arm in baseline candidate; do
+            cp driver/bench/hevc-reference/decode.rs "$arm/crates/coreav-hevc/examples/reference.rs"
+            (cd "$arm" && CARGO_PROFILE_RELEASE_DEBUG=1 cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+          done
+          cd candidate
+          cargo test --locked -p coreav-kernels-hevc --features native-hevc
+          cargo test --locked -p coreav-kernels-hevc --features native-hevc,scalar
+          cargo clippy --locked -p coreav-kernels-hevc --all-targets --features native-hevc -- -D warnings
+          rustc -Vv > "$RUNNER_TEMP/compiler.txt"
+      - name: Install profiling tools
+        run: sudo apt-get update -qq && sudo apt-get install -y valgrind
+      - name: Install the qualified pinned oracle
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: driver/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Verify pixels before rotated same-host reference calls
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          python3 -I driver/scripts/hevc_inverse_reference.py \
+            --baseline "$PWD/baseline/target/release/examples/reference" --baseline-sha "$BASELINE" \
+            --candidate "$PWD/candidate/target/release/examples/reference" --candidate-sha "$CANDIDATE" \
+            --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/reference" --only "$ONLY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hevc-inverse-reference-${{ env.CANDIDATE }}
+          path: |
+            ${{ runner.temp }}/reference/results.json
+            ${{ runner.temp }}/compiler.txt
+          if-no-files-found: error
+          retention-days: 30

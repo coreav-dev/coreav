@@ -182,7 +182,7 @@ def profile(args, source, record, directory):
     totals = re.search(r'^summary: (.+)$', text, re.M)[1].split()
     record['instructions'] = int(totals[events.index('Ir')])
     annotation, _ = command(['callgrind_annotate', '--auto=no', '--inclusive=no', '--show=Ir',
-                              '--threshold=95', output])
+                              '--threshold=100', output])
     hot = []
     for line in annotation.decode().splitlines():
         match = re.match(r'^\s*([\d,]+)\s+\(\s*([\d.]+)%\)\s+.*?:((?:coreav_|<coreav_).*)$', line)
@@ -192,7 +192,7 @@ def profile(args, source, record, directory):
                             function=symbol))
     if not hot:
         raise ValueError('profile_symbols_missing')
-    record['hotspots'] = hot[:15]
+    record['hotspots'] = hot
 
 
 def fetch(entry, directory, budget):
