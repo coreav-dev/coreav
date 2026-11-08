@@ -72,6 +72,7 @@ jobs:
           PY
           test "$(git -C main rev-parse HEAD)" = "$BASELINE"
           git -C main merge-base --is-ancestor "$BASELINE" origin/main
+          grep -qw avx2 /proc/cpuinfo
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
