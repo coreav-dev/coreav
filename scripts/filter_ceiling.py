@@ -184,7 +184,7 @@ def run(args):
                 row = dict(id=identity, source_sha256=original_sha, complete=False)
                 report['files'].append(row)
                 save()
-                expected = ref.verify(binaries['main'], oracle, original)
+                expected = ref.verify(binaries['main'], oracle, original, timeout=1800)
                 if not 0 < expected['frames'] <= args.frames or args.depth and expected['depth'] != args.depth:
                     raise ValueError('unexpected_prefix_or_depth')
                 if args.audit_only:
@@ -197,7 +197,7 @@ def run(args):
                 ref.command([oracle.ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin',
                     '-i', original, '-map', '0:v:0', '-frames:v', str(args.frames), '-c:v', 'copy',
                     '-bsf:v', 'filter_units=remove_types=40', '-f', 'hevc', '-y', source])
-                if ref.verify(binaries['main'], oracle, source) != expected:
+                if ref.verify(binaries['main'], oracle, source, timeout=1800) != expected:
                     raise ValueError('suffix_removal_changed_pixels')
                 row.update(expected, prepared_sha256=ref.conformance.digest(source),
                            original_prefix_sha256=ref.conformance.digest(original), calls={})
