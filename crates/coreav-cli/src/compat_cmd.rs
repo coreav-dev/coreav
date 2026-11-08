@@ -165,6 +165,37 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
     }
 }
 
+#[cfg(feature = "native-h264-encoder")]
+pub fn run_ffmpeg_native(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
+    let text = match strings("ffmpeg", args) {
+        Ok(text) => text,
+        Err(code) => return code,
+    };
+    match ffmpeg::native_h264::run(&text, strict_safe) {
+        Ok(Some(_)) => ExitCode::SUCCESS,
+        Ok(None) => run_ffmpeg(args, strict_safe),
+        Err(Stop::Failed(failure)) => {
+            let json = failure.to_json();
+            let text = json
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .map_or_else(|| json.to_string(), str::to_owned);
+            message("ffmpeg", &text);
+            ExitCode::from(if failure.is_io() {
+                EXIT_IO
+            } else {
+                EXIT_REJECTED
+            })
+        }
+        Err(Stop::Refused(Refusal::Usage(text))) => {
+            message("ffmpeg", &text);
+            ExitCode::from(EXIT_USAGE)
+        }
+        Err(Stop::Refused(Refusal::Help)) => print_usage(ffmpeg::USAGE),
+        Err(Stop::Refused(Refusal::NotNative(_))) => run_ffmpeg(args, strict_safe),
+    }
+}
+
 pub(super) struct EncodedInput {
     path: std::path::PathBuf,
     file: Option<std::fs::File>,

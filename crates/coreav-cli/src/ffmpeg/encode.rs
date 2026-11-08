@@ -301,6 +301,8 @@ pub fn request(
         }
     };
     Ok(Request {
+        #[cfg(feature = "native-h264-encoder")]
+        native_h264: None,
         matroska_output: command.muxer.matroska(),
         crf,
         bitrate,
@@ -573,7 +575,15 @@ pub fn write(
     encoder: Encoder,
     strict_safe: StrictSafe,
 ) -> Result<serde_json::Value, Stop> {
-    write_inner(command, job, encoder, strict_safe, None)
+    write_inner(
+        command,
+        job,
+        encoder,
+        strict_safe,
+        None,
+        #[cfg(feature = "native-h264-encoder")]
+        None,
+    )
 }
 
 pub(super) fn write_inner(
@@ -582,8 +592,16 @@ pub(super) fn write_inner(
     encoder: Encoder,
     strict_safe: StrictSafe,
     capture: Option<&Path>,
+    #[cfg(feature = "native-h264-encoder")] native: Option<
+        coreav_transcode::native_h264::NativeH264,
+    >,
 ) -> Result<serde_json::Value, Stop> {
     let request = request(command, job, encoder, strict_safe)?;
+    #[cfg(feature = "native-h264-encoder")]
+    let request = Request {
+        native_h264: native,
+        ..request
+    };
     #[cfg(feature = "input-capture")]
     let request = {
         let mut request = request;

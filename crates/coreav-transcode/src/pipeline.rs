@@ -117,6 +117,9 @@ pub enum SourceKind {
 /// What [`transcode`] does.
 #[derive(Clone, Debug)]
 pub struct TranscodeOptions {
+    /// Prefer native H.264 only within its supported envelope.
+    #[cfg(feature = "h264-native")]
+    pub native_h264: Option<crate::native_h264::NativeH264>,
     /// Matroska/WebM output instead of the default MP4 output.
     pub matroska_output: Option<coreav_mkv::DocType>,
     /// The encoder's rate control: CRF 23 by default.
@@ -186,6 +189,8 @@ pub struct TranscodeOptions {
 impl Default for TranscodeOptions {
     fn default() -> Self {
         Self {
+            #[cfg(feature = "h264-native")]
+            native_h264: None,
             matroska_output: None,
             rate: RateControl::Crf(23.0),
             preset: "medium".into(),
@@ -274,6 +279,8 @@ pub struct Summary {
 /// removed, and the caller discards what was written to its output.
 #[derive(Debug)]
 pub enum Error {
+    /// Native encoding cannot preserve the requested properties; no output is published.
+    NativeIneligible(&'static str),
     /// The MP4/MOV parser rejected the source or could not read it.
     Isobmff(coreav_isobmff::Error),
     /// The Matroska parser rejected the source or could not read it.
@@ -308,6 +315,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::NativeIneligible(what) => write!(f, "native H.264 is ineligible: {what}"),
             Self::Isobmff(e) => write!(f, "{e}"),
             Self::Matroska(e) => write!(f, "{e}"),
             Self::Invalid(what) => write!(f, "invalid structure: {what}"),
@@ -405,10 +413,26 @@ enum PreparedVideo {
     H264 {
         presented: Presented,
         frame_rate: FrameRate,
-        program: EncoderProgram,
+        program: H264Program,
     },
     #[cfg(feature = "svt-av1")]
     Av1(av1_input::Plan),
+}
+
+enum H264Program {
+    External(EncoderProgram),
+    #[cfg(feature = "h264-native")]
+    Native(crate::native_h264::NativeH264),
+}
+
+impl H264Program {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::External(program) => program.name(),
+            #[cfg(feature = "h264-native")]
+            Self::Native(_) => "coreav-h264",
+        }
+    }
 }
 
 struct CompletedJob {
@@ -507,9 +531,7 @@ fn execute<S: Source, W: Write>(
         VideoMode::H264 => {
             let presented = Presented::of(&video)?;
             let frame_rate = presented.frame_rate(video.time_base);
-            let program = find_encoder(options.encoder, options.x264.clone(), options.ffmpeg.clone())
-        .ok_or_else(|| {
-            unsupported(match options.encoder {
+            let missing = match options.encoder {
                 EncoderChoice::X264 => "no x264 program: install one, or name it with --x264",
                 EncoderChoice::Ffmpeg => {
                     "no ffmpeg program: install one with libx264, or name it with --ffmpeg"
@@ -517,8 +539,29 @@ fn execute<S: Source, W: Write>(
                 EncoderChoice::Auto => {
                     "no encoder program: install x264 or ffmpeg with libx264, or name one with --x264 or --ffmpeg"
                 }
-            })
-        })?;
+            };
+            let external = || {
+                find_encoder(
+                    options.encoder,
+                    options.x264.clone(),
+                    options.ffmpeg.clone(),
+                )
+                .map(H264Program::External)
+                .ok_or_else(|| unsupported(missing))
+            };
+            #[cfg(feature = "h264-native")]
+            let program = match options.native_h264 {
+                Some(native) => {
+                    if options.matroska_output.is_some() {
+                        return Err(Error::NativeIneligible("native H.264 requires MP4 output"));
+                    }
+                    native_timing(&presented, &video)?;
+                    H264Program::Native(native)
+                }
+                None => external()?,
+            };
+            #[cfg(not(feature = "h264-native"))]
+            let program = external()?;
             PreparedVideo::H264 {
                 presented,
                 frame_rate,
@@ -586,7 +629,7 @@ fn execute<S: Source, W: Write>(
     // decoder leaves one out (docs/design/transcode.md).
     let timecodes = match &prepared {
         PreparedVideo::H264 {
-            program: EncoderProgram::X264(_),
+            program: H264Program::External(EncoderProgram::X264(_)),
             presented,
             ..
         } => {
@@ -1351,20 +1394,52 @@ impl VideoRun<'_> {
     }
 }
 
+enum H264Encoder {
+    External(Box<Encoder<SpoolSink>>),
+    #[cfg(feature = "h264-native")]
+    Native(Box<crate::native_h264::Encoder<SpoolSink>>),
+}
+
+impl H264Encoder {
+    fn frames_sent(&self) -> u64 {
+        match self {
+            Self::External(encoder) => encoder.frames_sent(),
+            #[cfg(feature = "h264-native")]
+            Self::Native(encoder) => encoder.frames_sent(),
+        }
+    }
+
+    fn finish(self) -> Result<SpoolSink, Error> {
+        match self {
+            Self::External(encoder) => encoder.finish().map_err(Error::Encode),
+            #[cfg(feature = "h264-native")]
+            Self::Native(encoder) => Ok(encoder.finish()),
+        }
+    }
+
+    fn send_frame_at(&mut self, pixels: Pixels, time: i64) -> Result<(), Error> {
+        match self {
+            Self::External(encoder) => encoder.send_frame_at(pixels, time).map_err(Error::Encode),
+            #[cfg(feature = "h264-native")]
+            Self::Native(encoder) => encoder.send_frame(pixels),
+        }
+    }
+}
+
 /// The transcode's state while frames come.
 struct Run<'a> {
     options: &'a TranscodeOptions,
     video: &'a VideoStream,
     presented: Presented,
     frame_rate: FrameRate,
-    program: EncoderProgram,
+    program: H264Program,
     launcher: Option<&'a ExecLauncher>,
     deadline: Instant,
     spool: &'a Spool,
     /// x264's timecode file.
     timecodes: Option<PathBuf>,
     /// The encoder, once the first presented frame started it.
-    encoder: Option<(Encoder<SpoolSink>, EncoderSettings)>,
+    encoder: Option<(H264Encoder, EncoderSettings)>,
     /// The first presented frame's decoded size.
     first_size: Option<(u32, u32)>,
     /// Frames sent, for the reader's picture limit.
@@ -1392,7 +1467,7 @@ impl Run<'_> {
             return Err(unsupported("the decoder returned no presented frame"));
         };
         let frames = encoder.frames_sent();
-        let sink = encoder.finish().map_err(Error::Encode)?;
+        let sink = encoder.finish()?;
         let encoded = sink.close(frames)?;
         let config = encoded.config;
         if config.width != settings.width || config.height != settings.height {
@@ -1486,33 +1561,74 @@ impl Run<'_> {
             },
         };
         let decoded = Frame { pixels, ..frame };
+        #[cfg(feature = "h264-native")]
+        if self.options.native_h264.is_some() {
+            let color = self.video.stream.color.or(decoded.color);
+            if decoded.format() != PixelFormat::YUV420P
+                || !native_size(decoded.width(), decoded.height())
+                || color
+                    .chroma_location
+                    .is_some_and(|c| c != coreav_frame::ChromaLocation::Left)
+                || self.sent_pts.last().is_some_and(|last| {
+                    !native_interval(i128::from(time) - i128::from(*last), self.video.time_base)
+                })
+            {
+                return Err(Error::NativeIneligible(
+                    "the decoded picture is outside native H.264 limits",
+                ));
+            }
+        }
         if self.encoder.is_none() {
             let settings = self.settings(&decoded)?;
             let sink = SpoolSink::new(self.spool, Arc::clone(&self.sent), self.options)?;
-            let limits = EncoderLimits::new(encoder_memory(
-                &settings,
-                self.options.decode_limits.max_memory_bytes,
-                host_memory(),
-            ));
-            let encoder = Encoder::spawn(
-                &self.program,
-                &settings,
-                self.launcher,
-                &limits,
-                self.deadline,
-                sink,
-            )
-            .map_err(|e| match e.kind {
-                // A format or size the encoder does not take: refused before
-                // it starts.
-                ErrorKind::Unsupported => Error::Unsupported(e.message),
-                _ => Error::Encode(e),
-            })?;
+            let encoder = match &self.program {
+                H264Program::External(program) => {
+                    let limits = EncoderLimits::new(encoder_memory(
+                        &settings,
+                        self.options.decode_limits.max_memory_bytes,
+                        host_memory(),
+                    ));
+                    H264Encoder::External(Box::new(
+                        Encoder::spawn(
+                            program,
+                            &settings,
+                            self.launcher,
+                            &limits,
+                            self.deadline,
+                            sink,
+                        )
+                        .map_err(|e| match e.kind {
+                            // A format or size the encoder does not take: refused before
+                            // it starts.
+                            ErrorKind::Unsupported => Error::Unsupported(e.message),
+                            _ => Error::Encode(e),
+                        })?,
+                    ))
+                }
+                #[cfg(feature = "h264-native")]
+                H264Program::Native(request) => {
+                    H264Encoder::Native(Box::new(crate::native_h264::Encoder::new(
+                        &settings,
+                        *request,
+                        self.options.max_spool_bytes,
+                        sink,
+                    )?))
+                }
+            };
             self.encoder = Some((encoder, settings));
         }
         let Some((encoder, settings)) = self.encoder.as_mut() else {
             return Err(encode_error("the encoder is gone".into()));
         };
+        #[cfg(feature = "h264-native")]
+        if self.options.native_h264.is_some()
+            && crate::native_h264::color(self.video.stream.color.or(decoded.color))
+                != settings.color
+        {
+            return Err(Error::NativeIneligible(
+                "the color description changes within the stream",
+            ));
+        }
         if decoded.format() != settings.format {
             return Err(unsupported(format!(
                 "the pixel format changed within the stream, from {:?} to {:?}",
@@ -1560,7 +1676,12 @@ impl Run<'_> {
         // Before the frame is queued: the encoder may write its picture as
         // soon as the writer thread has written the frame.
         self.sent.fetch_add(1, Ordering::SeqCst);
-        encoder.send_frame_at(pixels, time).map_err(Error::Encode)?;
+        let encoded = encoder.send_frame_at(pixels, time);
+        #[cfg(feature = "h264-native")]
+        if self.options.native_h264.is_some() && Instant::now() >= self.deadline {
+            return Err(timed_out());
+        }
+        encoded?;
         self.sent_pts.push(time);
         self.last = Some((pts, time));
         Ok(())
@@ -1612,6 +1733,12 @@ impl Run<'_> {
         };
         let sample_aspect = sample_aspect(self.video.pixel_aspect, (width, height), scaled_to);
         let color = output_color(self.video.stream.color.or(frame.color));
+        #[cfg(feature = "h264-native")]
+        let color = if self.options.native_h264.is_some() {
+            crate::native_h264::color(self.video.stream.color.or(frame.color))
+        } else {
+            color
+        };
         let (num, den) = time_base_terms(self.video.time_base)?;
         let settings = EncoderSettings {
             timing: Timing::Timestamps {
@@ -1638,7 +1765,7 @@ impl Run<'_> {
         })?;
         // FFmpeg reads each frame from one Matroska block, which its reader
         // caps; x264 takes every size up to 16,384 a side (`MAX_SIZE`).
-        if let EncoderProgram::Ffmpeg(_) = self.program {
+        if let H264Program::External(EncoderProgram::Ffmpeg(_)) = self.program {
             let bytes = settings
                 .frame_bytes()
                 .map_err(|e| Error::Unsupported(e.message))?;
@@ -1652,6 +1779,44 @@ impl Run<'_> {
         }
         Ok(settings)
     }
+}
+
+#[cfg(feature = "h264-native")]
+fn native_size(width: u32, height: u32) -> bool {
+    (16..=1920).contains(&width)
+        && (16..=1080).contains(&height)
+        && width % 2 == 0
+        && height % 2 == 0
+}
+
+#[cfg(feature = "h264-native")]
+fn native_interval(ticks: i128, time_base: Rational) -> bool {
+    ticks > 0
+        && ticks
+            .checked_mul(time_base.num)
+            .and_then(|n| n.checked_mul(30))
+            == Some(i128::from(time_base.den))
+}
+
+#[cfg(feature = "h264-native")]
+fn native_timing(presented: &Presented, video: &VideoStream) -> Result<(), Error> {
+    let size = video.stream.width.zip(video.stream.height);
+    if !size.is_some_and(|(w, h)| native_size(w, h))
+        || presented.times.len() != video.packets.iter().filter(|p| p.presented).count()
+        || presented.times.windows(2).any(|w| match w {
+            [a, b] => !native_interval(i128::from(*b) - i128::from(*a), video.time_base),
+            _ => true,
+        })
+        || !native_interval(
+            i128::from(presented.last_duration(&presented.times, Some(presented.last))),
+            video.time_base,
+        )
+    {
+        return Err(Error::NativeIneligible(
+            "native H.264 needs fixed-size constant 30 fps input",
+        ));
+    }
+    Ok(())
 }
 
 /// The colour description the encoder signals: the frames', without the
@@ -1903,6 +2068,31 @@ impl Sink for SpoolSink {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "h264-native")]
+    #[test]
+    fn native_h264_geometry_and_timing_are_exact_not_snapped() {
+        use super::{native_interval, native_size};
+        use coreav_isobmff::Rational;
+        for (w, h) in [(16, 16), (1920, 1080), (18, 34)] {
+            assert!(native_size(w, h));
+        }
+        for (w, h) in [
+            (14, 16),
+            (16, 1082),
+            (1922, 1080),
+            (17, 16),
+            (16, 17),
+            (3840, 2160),
+        ] {
+            assert!(!native_size(w, h));
+        }
+        let time_base = Rational::new(1, 15360).unwrap();
+        assert!(native_interval(512, time_base));
+        for ticks in [-1, 0, 511, 513, i128::MAX] {
+            assert!(!native_interval(ticks, time_base));
+        }
+        assert!(!native_interval(1, Rational::new(1001, 30000).unwrap()));
+    }
     use super::*;
 
     #[test]

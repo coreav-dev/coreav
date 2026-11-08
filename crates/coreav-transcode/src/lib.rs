@@ -34,6 +34,8 @@ pub mod contract;
 pub mod encoder;
 pub mod ffv1;
 pub mod mp3;
+#[cfg(feature = "h264-native")]
+pub mod native_h264;
 pub mod pipeline;
 pub mod rawmkv;
 pub mod scale;

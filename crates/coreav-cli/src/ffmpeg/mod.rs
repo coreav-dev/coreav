@@ -22,6 +22,8 @@ mod ffv1;
 mod frames;
 #[cfg(feature = "input-capture")]
 mod image_capture;
+#[cfg(feature = "native-h264-encoder")]
+pub mod native_h264;
 mod pcm;
 mod raw_audio;
 mod ts;
@@ -372,7 +374,29 @@ fn run_with_input(
     image_capture: Option<&Path>,
     spooled: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
-    let mut command = args::parse(args)?;
+    let command = args::parse(args)?;
+    run_command(
+        command,
+        strict_safe,
+        capture,
+        image_capture,
+        spooled,
+        #[cfg(feature = "native-h264-encoder")]
+        None,
+    )
+}
+
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
+fn run_command(
+    mut command: Command,
+    strict_safe: StrictSafe,
+    capture: Option<&Path>,
+    image_capture: Option<&Path>,
+    spooled: Option<&Path>,
+    #[cfg(feature = "native-h264-encoder")] native: Option<
+        coreav_transcode::native_h264::NativeH264,
+    >,
+) -> Result<serde_json::Value, Stop> {
     if let Some(input) = spooled {
         command.input = input.to_string_lossy().into_owned();
     }
@@ -441,6 +465,10 @@ fn run_with_input(
         return write(&command, &job);
     }
     let job = plan(&command, &report, list)?;
+    #[cfg(feature = "native-h264-encoder")]
+    if native.is_some() && !matches!(job, Job::Transcode(_)) {
+        return Err(Refusal::not_native("native H.264 requires video encoding").into());
+    }
     if image_capture.is_some()
         && !matches!(
             job,
@@ -473,11 +501,27 @@ fn run_with_input(
     }
     #[cfg(feature = "transcode")]
     if let Job::Transcode(transcode) = &job {
+        #[cfg(feature = "native-h264-encoder")]
+        if native.is_some() && !native_h264::source(&report, transcode.video) {
+            return Err(Refusal::not_native("the source is outside native H.264 limits").into());
+        }
         if capture.is_some() && transcode.audio_encoder != Some(args::AudioEncoder::Aac) {
             return Err(Refusal::not_native("input capture without a native AAC encode").into());
         }
         let encoder = encode::encoder(transcode, strict_safe)?;
-        return encode::write_inner(&command, transcode, encoder, strict_safe, capture);
+        return encode::write_inner(
+            &command,
+            transcode,
+            encoder,
+            strict_safe,
+            capture,
+            #[cfg(feature = "native-h264-encoder")]
+            native,
+        );
+    }
+    #[cfg(feature = "native-h264-encoder")]
+    if native.is_some() {
+        return Err(Refusal::not_native("native H.264 requires video encoding").into());
     }
     if capture.is_some() {
         return Err(Refusal::not_native("input capture without a native AAC encode").into());

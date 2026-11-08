@@ -40,6 +40,7 @@ ffmpeg-fallback = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker
 # in this process. Opt-in and never in a default build: decoding H.264 may
 # need a patent licence where you are (docs/design/h264.md, "Packaging").
 native-h264 = ["thumbnail", "transcode", "dep:coreav-backend-h264"]
+native-h264-encoder = ["transcode", "coreav-transcode/h264-native"]
 # Experimental native profile-0 VP9, not in a default or release build.
 native-vp9 = ["thumbnail", "transcode", "dep:coreav-backend-vp9"]
 native-hevc = ["thumbnail", "transcode", "dep:coreav-backend-hevc", "coreav-backend-hevc/native-hevc"]

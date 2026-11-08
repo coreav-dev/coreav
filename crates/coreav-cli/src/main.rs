@@ -107,6 +107,11 @@ struct Cli {
     /// refused (exit status 4).
     #[arg(long)]
     strict_safe: bool,
+    /// Prefer native Constrained Baseline H.264 for eligible ffmpeg commands;
+    /// other commands keep the external encoder. Requires a decoder backend.
+    #[cfg(feature = "native-h264-encoder")]
+    #[arg(long)]
+    native_h264_encoder: bool,
     #[cfg(feature = "input-capture")]
     #[arg(long, hide = true)]
     capture_encoder_input: Option<PathBuf>,
@@ -1014,6 +1019,19 @@ impl<W: Write> Write for Watched<W> {
 /// Runs the command `cli` describes.
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 fn run(cli: Cli, this: Option<PathBuf>, host: CommandHost) -> ExitCode {
+    #[cfg(feature = "native-h264-encoder")]
+    if cli.native_h264_encoder {
+        #[cfg(feature = "input-capture")]
+        if cli.capture_encoder_input.is_some() {
+            return usage("native H.264 selection cannot capture an external encoder's input");
+        }
+        return match &cli.command {
+            Command::Ffmpeg(args) => {
+                compat_cmd::run_ffmpeg_native(&args.args, StrictSafe::new(cli.strict_safe))
+            }
+            _ => usage("--native-h264-encoder requires the ffmpeg command"),
+        };
+    }
     #[cfg(feature = "input-capture")]
     if let Some(target) = cli.capture_encoder_input.as_ref() {
         return match &cli.command {
@@ -1161,6 +1179,8 @@ fn run_transcode(
         }
     }
     let request = transcode::Request {
+        #[cfg(feature = "native-h264-encoder")]
+        native_h264: None,
         matroska_output: None,
         crf: args.crf,
         bitrate: args.bitrate,

@@ -76,6 +76,9 @@ fn diagnostic_backends(host: Option<DiagnosticHost>) -> Vec<Box<dyn coreav_decod
 /// What `coreav transcode` asks for, from its arguments.
 #[derive(Clone, Debug)]
 pub struct Request {
+    /// Explicit opt-in native H.264 preference.
+    #[cfg(feature = "native-h264-encoder")]
+    pub native_h264: Option<coreav_transcode::native_h264::NativeH264>,
     /// Matroska output profile, or the default MP4 output.
     pub matroska_output: Option<coreav_mkv::DocType>,
     /// `--crf`.
@@ -182,6 +185,8 @@ pub fn make<S: Source>(
     };
     let (frame_rates, timeout) = source_rates(&mut source, Duration::from_secs(request.timeout))?;
     let options = TranscodeOptions {
+        #[cfg(feature = "native-h264-encoder")]
+        native_h264: request.native_h264,
         matroska_output: request.matroska_output,
         rate: match (request.bitrate, request.crf) {
             (Some(kbps), _) => RateControl::Bitrate(kbps),
@@ -499,6 +504,7 @@ fn document_common(
 pub(crate) fn failure(error: coreav_transcode::Error) -> WriteFailure {
     use coreav_transcode::Error as E;
     match error {
+        E::NativeIneligible(what) => WriteFailure::Rejected(Failure::Unsupported(what.into())),
         E::Isobmff(e) => WriteFailure::Rejected(Failure::Library(e)),
         E::Matroska(e) => WriteFailure::Rejected(Failure::Matroska(e)),
         E::Invalid(what) => WriteFailure::Rejected(Failure::Invalid(what)),
