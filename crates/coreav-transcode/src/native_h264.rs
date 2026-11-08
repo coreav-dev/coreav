@@ -48,6 +48,8 @@ impl<S: Sink> Encoder<S> {
         }
         let c = settings.color;
         let settings_native = Settings {
+            frame_rate: Default::default(),
+            sample_aspect_ratio: Default::default(),
             width: settings.width as usize,
             height: settings.height as usize,
             rate_mode: request.rate,
