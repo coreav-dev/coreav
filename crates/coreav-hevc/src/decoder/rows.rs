@@ -632,7 +632,7 @@ impl<F: super::Delivery> super::Observer<'_, F> {
             .rows()
             .map_or(Ok(0), Rows::debt)?;
         if debt == 0 {
-            self.pictures.frame.scheduler.rows = None;
+            self.pictures.frame.scheduler.retire_rows()?;
         } else if let Some(rows) = self.pictures.frame.scheduler.rows_mut() {
             rows.pending = Vec::new();
         }
@@ -767,16 +767,14 @@ impl<F: super::Delivery> super::Observer<'_, F> {
                 Err(Error::Limit("row_admission"))
             };
         };
-        if plan.lag == 0 {
-            pending = Vec::new();
-            self.pictures.frame.scheduler.release_row_jobs();
-        }
-        if let Some(rows) = self.pictures.frame.scheduler.rows_mut() {
-            rows.identity = identity;
-            rows.plan = plan;
-            rows.pending = pending;
-            rows.operation_limit = operation_limit;
-            rows.reconciled = rows.reconciled.max(input.index);
+        if reuse {
+            self.pictures.frame.scheduler.replace_row_plan(
+                identity,
+                plan,
+                pending,
+                operation_limit,
+                input.index,
+            )?;
         } else {
             self.pictures.frame.scheduler.rows = Some(owner.ok_or(Error::Internal("row_owner"))?);
         }

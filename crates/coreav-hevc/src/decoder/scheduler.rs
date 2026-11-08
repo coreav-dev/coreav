@@ -607,6 +607,41 @@ impl Scheduler {
             self.jobs = Vec::new();
         }
     }
+
+    #[cfg(feature = "native-hevc-rows-private")]
+    pub(super) fn retire_rows(&mut self) -> Result<()> {
+        if !self.jobs.is_empty() || self.rows().is_some_and(|rows| !rows.pending.is_empty()) {
+            return Err(Error::Internal("row_retirement"));
+        }
+        self.rows = None;
+        self.release_row_jobs();
+        Ok(())
+    }
+
+    #[cfg(feature = "native-hevc-rows-private")]
+    pub(super) fn replace_row_plan(
+        &mut self,
+        identity: (u32, [u8; 32]),
+        plan: super::rows::Plan,
+        mut pending: Vec<super::rows::Pending>,
+        operation_limit: usize,
+        current: u64,
+    ) -> Result<()> {
+        if !self.jobs.is_empty() {
+            return Err(Error::Internal("row_job_storage"));
+        }
+        if plan.lag == 0 {
+            pending = Vec::new();
+            self.release_row_jobs();
+        }
+        let rows = self.rows_mut().ok_or(Error::Internal("row_owner"))?;
+        rows.identity = identity;
+        rows.plan = plan;
+        rows.pending = pending;
+        rows.operation_limit = operation_limit;
+        rows.reconciled = rows.reconciled.max(current);
+        Ok(())
+    }
     #[cfg(feature = "native-hevc-rows-private")]
     pub(super) fn rows(&self) -> Option<&super::rows::Rows> {
         self.rows.as_deref().and_then(|rows| rows.first())

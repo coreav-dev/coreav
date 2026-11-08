@@ -1017,8 +1017,7 @@ impl<F: Delivery> PictureObserver for Observer<'_, F> {
                     && rows.pending.is_empty()
             })
         {
-            self.pictures.frame.scheduler.rows = None;
-            self.pictures.frame.scheduler.release_row_jobs();
+            self.pictures.frame.scheduler.retire_rows()?;
         }
         #[cfg(feature = "native-hevc-rows-private")]
         if self.pictures.frame.scheduler.rows().is_some()

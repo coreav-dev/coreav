@@ -188,6 +188,61 @@ fn dependent_raster_job_reads_a_building_predecessor_before_its_first_publicatio
 
 #[cfg(feature = "native-hevc-rows-private")]
 #[test]
+fn zero_lag_and_retirement_release_optional_record_capacities() -> Result<()> {
+    use super::super::rows::{Pending, Plan, Rows};
+    for reduce_first in [false, true] {
+        let plan = Plan {
+            ceiling: 4,
+            workers: 4,
+            lag: 3,
+            frame_bytes: 384,
+            reserved: 1 << 20,
+        };
+        let pending = || -> Result<Vec<Pending>> {
+            let mut records = Vec::new();
+            records
+                .try_reserve_exact(4)
+                .map_err(|_| Error::Limit("picture_allocation"))?;
+            Ok(records)
+        };
+        let mut scheduler = Scheduler::default();
+        assert!(
+            scheduler
+                .rows
+                .replace(Rows::allocate(plan, (0, [0; 32]), 0, 0, pending()?, 4)?)
+                .is_none()
+        );
+        let jobs = scheduler.reserve_row_jobs(4)?;
+        assert!(jobs > 0);
+        assert!(scheduler.bytes(None)? > core::mem::size_of::<Rows>() + jobs);
+        if reduce_first {
+            scheduler.replace_row_plan(
+                (1, [1; 32]),
+                Plan {
+                    workers: 1,
+                    lag: 0,
+                    ..plan
+                },
+                pending()?,
+                4,
+                1,
+            )?;
+            let rows = scheduler.rows().ok_or(Error::Internal("row_owner"))?;
+            assert_eq!(rows.plan.lag, 0);
+            assert_eq!(rows.pending.capacity(), 0);
+            assert_eq!(scheduler.jobs.capacity(), 0);
+            assert_eq!(scheduler.bytes(None)?, core::mem::size_of::<Rows>());
+        }
+        scheduler.retire_rows()?;
+        assert!(scheduler.rows().is_none());
+        assert_eq!(scheduler.jobs.capacity(), 0);
+        assert_eq!(scheduler.bytes(None)?, 0);
+    }
+    Ok(())
+}
+
+#[cfg(feature = "native-hevc-rows-private")]
+#[test]
 fn capacity_probe_mismatch_preserves_legacy_frames_and_summary() -> Result<()> {
     let nals = raster_stream(true)?;
     let limits = DecodeLimits {
