@@ -149,12 +149,10 @@ fn score_rows(
     motion_cost: u64,
     cutoff: Option<u64>,
 ) -> Result<Option<u64>> {
+    let sad = crate::kernels::Sad::new(width)?;
     let mut score = motion_cost;
     for (original, predicted) in source.chunks(STRIDE).zip(predicted.chunks(stride)) {
-        score += crate::kernels::sad(
-            original.get(..width).ok_or(Error::Internal)?,
-            predicted.get(..width).ok_or(Error::Internal)?,
-        )?;
+        score += sad.row(original, predicted)?;
         if cutoff.is_some_and(|limit| score > limit) {
             return Ok(None);
         }
@@ -1926,6 +1924,126 @@ mod tests {
             Some((16, 8, mv))
         );
         assert!(motions.ranked.contains(&Some((16, 8, mv))));
+    }
+
+    fn per_row_scores(
+        source: &[u8],
+        predicted: &[u8],
+        stride: usize,
+        width: usize,
+        motion_cost: u64,
+        cutoff: Option<u64>,
+    ) -> Result<Option<u64>> {
+        let mut score = motion_cost;
+        for (original, predicted) in source.chunks(STRIDE).zip(predicted.chunks(stride)) {
+            score += crate::kernels::sad(
+                original.get(..width).ok_or(Error::Internal)?,
+                predicted.get(..width).ok_or(Error::Internal)?,
+            )?;
+            if cutoff.is_some_and(|limit| score > limit) {
+                return Ok(None);
+            }
+        }
+        Ok(Some(score))
+    }
+
+    #[test]
+    fn block_sad_dispatch_matches_per_row_scores_cutoffs_and_failures() {
+        let mut seed = 0x5ad0_d15b_a7c4_e001u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let mut compared = 0;
+        for width in 0..=20 {
+            for height in 1..=16 {
+                for stride in [width.max(1), 16, 21, STRIDE, 64] {
+                    let extremes = next() % 4 == 0;
+                    let mut sample = || {
+                        let value = next();
+                        if extremes {
+                            [0, 255][value as usize % 2]
+                        } else {
+                            value as u8
+                        }
+                    };
+                    let source: Vec<u8> = (0..(height - 1) * STRIDE + width.max(1))
+                        .map(|_| sample())
+                        .collect();
+                    let predicted: Vec<u8> = (0..(height - 1) * stride + width.max(1) + 3)
+                        .map(|_| sample())
+                        .collect();
+                    let motion_cost = next() % 512;
+                    let mut prefixes = vec![motion_cost];
+                    if width <= 16 {
+                        for (row, original) in source.chunks(STRIDE).enumerate() {
+                            let start = row * stride;
+                            let total = original
+                                .iter()
+                                .take(width)
+                                .zip(&predicted[start..start + width])
+                                .map(|(&a, &b)| u64::from(a.abs_diff(b)))
+                                .sum::<u64>();
+                            prefixes.push(prefixes.last().unwrap() + total);
+                        }
+                        assert_eq!(
+                            score_rows(&source, &predicted, stride, width, motion_cost, None),
+                            Ok(Some(*prefixes.last().unwrap()))
+                        );
+                    }
+                    let mut cutoffs = vec![None, Some(0), Some(u64::MAX)];
+                    for &prefix in &prefixes {
+                        cutoffs.extend([prefix.checked_sub(1), Some(prefix), Some(prefix + 1)]);
+                    }
+                    let short = (height - 1) * stride + width.max(1) - 1;
+                    for cutoff in cutoffs {
+                        for (source, predicted) in [
+                            (&source[..], &predicted[..]),
+                            (&source[..source.len() - 1], &predicted[..]),
+                            (&source[..], &predicted[..short]),
+                        ] {
+                            assert_eq!(
+                                score_rows(source, predicted, stride, width, motion_cost, cutoff),
+                                per_row_scores(
+                                    source,
+                                    predicted,
+                                    stride,
+                                    width,
+                                    motion_cost,
+                                    cutoff
+                                ),
+                                "width {width} height {height} stride {stride} cutoff {cutoff:?}"
+                            );
+                            compared += 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(compared > 50_000);
+    }
+
+    #[test]
+    fn block_sad_keeps_row_cutoffs_equal_score_ties_and_admission() {
+        let source = [10u8; STRIDE * 3 + 16];
+        let mut predicted = [0u8; 16 * 4];
+        let rows = |predicted: &[u8], cutoff| score_rows(&source, predicted, 16, 16, 5, cutoff);
+        assert_eq!(rows(&predicted, None), Ok(Some(645)));
+        assert_eq!(rows(&predicted, Some(645)), Ok(Some(645)));
+        assert_eq!(rows(&predicted, Some(644)), Ok(None));
+        assert_eq!(rows(&predicted, Some(165)), Ok(None));
+        assert_eq!(rows(&predicted, Some(4)), Ok(None));
+        assert_eq!(rows(&predicted[..15], Some(0)), Err(Error::Internal));
+        predicted[16 * 3..].fill(10);
+        assert_eq!(rows(&predicted, Some(485)), Ok(Some(485)));
+        assert_eq!(rows(&predicted, Some(484)), Ok(None));
+        assert_eq!(
+            score_rows(&source, &predicted, 16, 17, 5, None),
+            Err(Error::Internal)
+        );
+        assert_eq!(score_rows(&[], &[], 16, 16, 7, Some(0)), Ok(Some(7)));
     }
 
     #[test]

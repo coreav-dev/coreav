@@ -16,19 +16,43 @@ pub(crate) fn pixels() -> Auto {
 }
 
 pub(crate) fn sad(a: &[u8], b: &[u8]) -> Result<u64> {
-    if a.len() != b.len() || a.len() > 16 {
+    if a.len() != b.len() {
         return Err(Error::Internal);
     }
+    Sad::new(a.len())?.row(a, b)
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct Sad {
+    width: usize,
     #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
-    {
-        if let Some(simd) = arithmetic() {
+    simd: Option<crate::simd::Avx2>,
+}
+
+impl Sad {
+    pub(crate) fn new(width: usize) -> Result<Self> {
+        if width > 16 {
+            return Err(Error::Internal);
+        }
+        Ok(Self {
+            width,
+            #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+            simd: arithmetic(),
+        })
+    }
+
+    pub(crate) fn row(self, a: &[u8], b: &[u8]) -> Result<u64> {
+        let a = a.get(..self.width).ok_or(Error::Internal)?;
+        let b = b.get(..self.width).ok_or(Error::Internal)?;
+        #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+        if let Some(simd) = self.simd {
             return Ok(simd.sad(a, b));
         }
+        Ok(a.iter()
+            .zip(b)
+            .map(|(&a, &b)| u64::from(a.abs_diff(b)))
+            .sum())
     }
-    Ok(a.iter()
-        .zip(b)
-        .map(|(&a, &b)| u64::from(a.abs_diff(b)))
-        .sum())
 }
 
 #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
@@ -235,6 +259,37 @@ mod tests {
         }
         assert_eq!(sad(&[0; 17], &[0; 17]), Err(Error::Internal));
         assert_eq!(sad(&[0; 16], &[0; 15]), Err(Error::Internal));
+    }
+
+    #[test]
+    fn block_sad_admits_width_once_and_reads_exactly_width_bytes_per_row() {
+        assert!(Sad::new(17).is_err());
+        let mut seed = 0x3c6e_f372_fe94_f82bu64;
+        for width in 0..=16 {
+            let block = Sad::new(width).unwrap();
+            for _ in 0..256 {
+                let mut a = [0; 24];
+                let mut b = [0; 24];
+                for v in a.iter_mut().chain(&mut b) {
+                    seed ^= seed << 13;
+                    seed ^= seed >> 7;
+                    seed ^= seed << 17;
+                    *v = seed as u8;
+                }
+                let want = a[..width]
+                    .iter()
+                    .zip(&b[..width])
+                    .map(|(&a, &b)| u64::from(a.abs_diff(b)))
+                    .sum();
+                assert_eq!(block.row(&a, &b), Ok(want));
+                assert_eq!(block.row(&a[..width], &b[..width]), Ok(want));
+                assert_eq!(sad(&a[..width], &b[..width]), Ok(want));
+                if width > 0 {
+                    assert_eq!(block.row(&a[..width - 1], &b), Err(Error::Internal));
+                    assert_eq!(block.row(&a, &b[..width - 1]), Err(Error::Internal));
+                }
+            }
+        }
     }
 
     #[test]
