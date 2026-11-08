@@ -230,6 +230,37 @@ elif name == 'docker':
 
 
 class MaturinWorkflow(unittest.TestCase):
+    def test_full_upstream_license_and_source_provenance_are_retained(self):
+        script = (ROOT / 'scripts/install-ci-maturin.sh').read_text()
+        lines = script.splitlines()
+        end = lines.index('# SOFTWARE.')
+        notice = '\n'.join(line.removeprefix('#').removeprefix(' ')
+                           for line in lines[1:end + 1]) + '\n'
+        self.assertEqual(hashlib.sha256(notice.encode()).hexdigest(),
+                         'f4a1e1b67d82997496952af1e970ebda93c5dfccfa41b4834f5bed8dbfb4b06f')
+        for marker in ('https://github.com/PyO3/maturin-action',
+                       'e83996d129638aa358a18fbd1dfb82f0b0fb5d3b', '# Ported:', '# New:', '# CI-only'):
+            self.assertIn(marker, script)
+
+    def test_built_wheels_refuse_ci_glue_and_missing_artifacts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'dist').mkdir()
+            command = ['bash', str(ROOT / 'scripts/install-ci-maturin.sh'),
+                       'verify-artifacts', 'linux-x86_64']
+            missing = subprocess.run(command, cwd=root, capture_output=True, text=True)
+            self.assertNotEqual(missing.returncode, 0)
+            self.assertIn('ci_maturin_missing_wheels', missing.stderr)
+            wheel = root / 'dist' / 'synthetic.whl'
+            with zipfile.ZipFile(wheel, 'w') as archive:
+                archive.writestr('coreav/__init__.py', '')
+            self.assertEqual(subprocess.run(command, cwd=root).returncode, 0)
+            with zipfile.ZipFile(wheel, 'a') as archive:
+                archive.writestr('coreav/install-ci-maturin.sh', 'CI-only glue')
+            copied = subprocess.run(command, cwd=root, capture_output=True, text=True)
+            self.assertNotEqual(copied.returncode, 0)
+            self.assertIn('ci_build_glue_in_wheel', copied.stderr)
+
     @classmethod
     def setUpClass(cls):
         cls.workflow = json.loads(subprocess.check_output([
@@ -257,6 +288,9 @@ class MaturinWorkflow(unittest.TestCase):
                 self.assertLess(cache, build)
                 self.assertEqual(shlex.split(steps[build]['run']),
                                  ['scripts/install-ci-maturin.sh', 'build', platform, *BUILD_ARGS])
+                verify, = [i for i, step in enumerate(steps)
+                           if step.get('run') == f'scripts/install-ci-maturin.sh verify-artifacts {platform}']
+                self.assertLess(build, verify)
                 self.assertEqual(jobs[platform]['runs-on'],
                                  'macos-15' if platform == 'macos-arm64' else 'ubuntu-24.04')
         self.assertIn('python3 -I -m unittest discover -s scripts/tests -p \'test_*.py\'',

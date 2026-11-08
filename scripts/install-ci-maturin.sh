@@ -1,9 +1,38 @@
 #!/usr/bin/env bash
+# MIT License
+#
+# Copyright (c) 2021-present PyO3 Project and Contributors
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# Upstream: https://github.com/PyO3/maturin-action
+# Revision: e83996d129638aa358a18fbd1dfb82f0b0fb5d3b
+# Ported: image/target mappings, Rust/uv and Python setup, patchelf/cffi,
+# target checks, environment prefixes and macOS SDK defaults.
+# New: pinned wheel acquisition, verified extraction, mode control,
+# verified-executable transport and regression coverage.
+# CI-only build glue; not an input to shipped packages or runtime notices.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/scripts/maturin.env"
-mode=${1:?expected metadata, install or build}
+mode=${1:?expected metadata, install, build or verify-artifacts}
 platform=${2:?expected linux-x86_64, linux-arm64 or macos-arm64}
 case "$platform" in
   linux-x86_64|linux-arm64)
@@ -19,6 +48,21 @@ esac
 
 if [[ "$mode" == metadata ]]; then
   printf 'tool=maturin-wheel\nversion=%s\nsha256=%s\n' "$MATURIN_VERSION" "$sha256"
+  exit 0
+fi
+if [[ "$mode" == verify-artifacts ]]; then
+  python3 -I - <<'PY'
+from pathlib import Path
+from zipfile import ZipFile
+
+wheels = list(Path('dist').glob('*.whl'))
+if not wheels:
+    raise SystemExit('reason=ci_maturin_missing_wheels')
+for wheel in wheels:
+    with ZipFile(wheel) as archive:
+        if any(Path(name).name == 'install-ci-maturin.sh' for name in archive.namelist()):
+            raise SystemExit('reason=ci_build_glue_in_wheel')
+PY
   exit 0
 fi
 if [[ "$mode" == build ]]; then
@@ -96,7 +140,7 @@ SH
   exit 0
 fi
 if [[ "$mode" != install ]]; then
-  echo "expected metadata, install or build" >&2
+  echo "expected metadata, install, build or verify-artifacts" >&2
   exit 1
 fi
 
