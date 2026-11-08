@@ -586,6 +586,27 @@ fn execute<S: Source, W: Write>(
             PreparedVideo::Av1(av1_input::Plan::new(&video, options, runtime, deadline)?)
         }
     };
+    #[cfg(feature = "h264-native")]
+    let native_cadence = match (&prepared, options.matroska_output) {
+        (
+            PreparedVideo::H264 {
+                frame_rate,
+                program: H264Program::Native(_),
+                ..
+            },
+            Some(_),
+        ) => Some(
+            coreav_isobmff_write::mkv_output::VideoCadence::new(
+                video.stream_index,
+                frame_rate.num,
+                frame_rate.den,
+            )
+            .map_err(native_matroska_error)?,
+        ),
+        _ => None,
+    };
+    #[cfg(not(feature = "h264-native"))]
+    let native_cadence = None;
     // Before the video: a stream that cannot be encoded is refused before
     // the video encoder starts.
     let encode = match &options.audio {
@@ -805,21 +826,7 @@ fn execute<S: Source, W: Write>(
             doc_type,
             streams,
         };
-        #[cfg(feature = "h264-native")]
-        let cadence = match (&completed.encoding, options.native_h264) {
-            (Encoding::H264 { frame_rate, .. }, Some(_)) => Some(
-                coreav_isobmff_write::mkv_output::VideoCadence::new(
-                    video.stream_index,
-                    frame_rate.num,
-                    frame_rate.den,
-                )
-                .map_err(native_matroska_error)?,
-            ),
-            _ => None,
-        };
-        #[cfg(not(feature = "h264-native"))]
-        let cadence = None;
-        let summary = match cadence {
+        let summary = match native_cadence {
             Some(cadence) => coreav_isobmff_write::mkv_output::write_output_with_video_cadence(
                 &mut source,
                 &output_options,
@@ -2250,6 +2257,141 @@ mod tests {
             coreav_mkv::Error::Overflow { offset: 0 },
         ] {
             assert!(matches!(native_matroska_error(error), Error::Matroska(_)));
+        }
+    }
+
+    #[cfg(feature = "h264-native")]
+    #[test]
+    fn native_matroska_cadence_is_refused_before_the_decoder_opens() {
+        use coreav_decode::{BackendKind, Decoder, Limits, StreamConfig, StreamTraits, Support};
+        use std::sync::atomic::AtomicUsize;
+        struct Opens(AtomicUsize);
+        impl Backend for Opens {
+            fn kind(&self) -> BackendKind {
+                BackendKind::Native
+            }
+            fn supports(&self, _: &StreamConfig, _: &StreamTraits) -> Support {
+                Support::Yes
+            }
+            fn open(
+                &self,
+                _: &StreamConfig,
+                _: &Limits,
+            ) -> Result<Box<dyn Decoder>, coreav_decode::Error> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Err(sink_error(ErrorKind::Unsupported, "counted"))
+            }
+        }
+        fn bx(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+            let size = u32::try_from(body.len() + 8).unwrap();
+            [&size.to_be_bytes()[..], kind, body].concat()
+        }
+        fn full(kind: &[u8; 4], flags: u32, body: &[u8]) -> Vec<u8> {
+            bx(kind, &[&flags.to_be_bytes()[..], body].concat())
+        }
+        fn words(values: &[u32]) -> Vec<u8> {
+            values.iter().flat_map(|v| v.to_be_bytes()).collect()
+        }
+        fn movie(timescale: u32) -> Vec<u8> {
+            let frames = 4u32;
+            let mut entry = vec![0u8; 6];
+            entry.extend_from_slice(&1u16.to_be_bytes());
+            entry.extend_from_slice(&[0u8; 16]);
+            entry.extend_from_slice(&[0, 16, 0, 16]);
+            entry.extend_from_slice(&[0u8; 50]);
+            entry.extend_from_slice(&bx(b"avcC", &[1, 66, 0, 30, 0xff, 0xe0, 0]));
+            let mut tkhd = words(&[0, 0, 1, 0, frames]);
+            tkhd.extend_from_slice(&[0u8; 16]);
+            tkhd.extend_from_slice(&words(&[0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x4000_0000]));
+            tkhd.extend_from_slice(&words(&[16 << 16, 16 << 16]));
+            let mut hdlr = words(&[0]);
+            hdlr.extend_from_slice(b"vide");
+            hdlr.extend_from_slice(&[0u8; 13]);
+            let dref = full(b"dref", 0, &[words(&[1]), full(b"url ", 1, &[])].concat());
+            let stbl = [
+                full(b"stsd", 0, &[words(&[1]), bx(b"avc1", &entry)].concat()),
+                full(b"stts", 0, &words(&[1, frames, 1])),
+                full(b"stsc", 0, &words(&[1, 1, frames, 1])),
+                full(b"stsz", 0, &words(&[8, frames])),
+                full(b"stco", 0, &words(&[1, 0])),
+            ]
+            .concat();
+            let minf = [
+                full(b"vmhd", 1, &[0; 8]),
+                bx(b"dinf", &dref),
+                bx(b"stbl", &stbl),
+            ]
+            .concat();
+            let mdia = [
+                full(
+                    b"mdhd",
+                    0,
+                    &[words(&[0, 0, timescale, frames]), vec![0x55, 0xc4, 0, 0]].concat(),
+                ),
+                full(b"hdlr", 0, &hdlr),
+                bx(b"minf", &minf),
+            ]
+            .concat();
+            let trak = bx(
+                b"trak",
+                &[full(b"tkhd", 3, &tkhd), bx(b"mdia", &mdia)].concat(),
+            );
+            let mut mvhd = words(&[0, 0, timescale, frames]);
+            mvhd.extend_from_slice(&[0u8; 76]);
+            mvhd.extend_from_slice(&words(&[2]));
+            let ftyp = bx(b"ftyp", b"isom\0\0\x02\0isom");
+            let moov = bx(b"moov", &[full(b"mvhd", 0, &mvhd), trak].concat());
+            let offset = u32::try_from(ftyp.len() + moov.len() + 8).unwrap();
+            let moov = moov
+                .windows(4)
+                .position(|w| w == b"stco")
+                .map(|at| {
+                    let mut moov = moov.clone();
+                    moov[at + 12..at + 16].copy_from_slice(&offset.to_be_bytes());
+                    moov
+                })
+                .unwrap();
+            [ftyp, moov, bx(b"mdat", &[0u8; 32])].concat()
+        }
+        let output =
+            std::env::temp_dir().join(format!("coreav-native-cadence-{}.mkv", std::process::id()));
+        for (timescale, doc_type, refused) in [
+            (1001, Some(coreav_mkv::DocType::Matroska), true),
+            (1000, Some(coreav_mkv::DocType::Matroska), false),
+            (1001, None, false),
+        ] {
+            let data = movie(timescale);
+            let backend = Opens(AtomicUsize::new(0));
+            let options = TranscodeOptions {
+                native_h264: Some(crate::native_h264::NativeH264 {
+                    rate: crate::native_h264::RateMode::Crf(23),
+                }),
+                matroska_output: doc_type,
+                ..TranscodeOptions::default()
+            };
+            let result = transcode(
+                coreav_isobmff::SliceSource::new(&data),
+                SourceKind::Mp4,
+                &options,
+                &[&backend],
+                None,
+                &output,
+                Vec::new(),
+            );
+            let opened = backend.0.load(Ordering::SeqCst);
+            if refused {
+                assert!(
+                    matches!(result, Err(Error::NativeIneligible(_))),
+                    "{timescale}: {result:?}"
+                );
+                assert_eq!(opened, 0, "{timescale}");
+            } else {
+                assert!(
+                    matches!(result, Err(Error::Decode(_))),
+                    "{timescale} {doc_type:?}: {result:?}"
+                );
+                assert_eq!(opened, 1, "{timescale} {doc_type:?}");
+            }
         }
     }
 
