@@ -5,6 +5,7 @@ use crate::motion::{Layout, Part};
 use coreav_kernels_h264::Block;
 
 const SPLIT_SATD: u64 = 64;
+const SETTLED_SPLIT_SATD: u64 = 2 * SPLIT_SATD;
 
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct Inter {
@@ -869,9 +870,14 @@ impl Search<'_> {
         }
         let ceiling = best.as_ref().map(|candidate| candidate.key.cost);
         let whole = self.propose(Layout::Whole, ceiling)?;
+        let bound = if settled {
+            SETTLED_SPLIT_SATD
+        } else {
+            SPLIT_SATD
+        };
         let split = if whole
             .as_ref()
-            .is_none_or(|plan| plan.2 > SPLIT_SATD << (self.decision.qp / 6))
+            .is_none_or(|plan| plan.2 > bound << (self.decision.qp / 6))
         {
             self.propose(Layout::Sub([0; 4]), ceiling)?
         } else {
@@ -1146,6 +1152,75 @@ mod tests {
                 .unwrap();
             assert_eq!(SEARCHES.with(|count| count.get()), searches);
         }
+    }
+
+    #[test]
+    fn settled_macroblocks_need_twice_the_satd_before_the_split_search() {
+        let mut reference = [
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+        ];
+        for plane in &mut reference {
+            plane.data.fill(128);
+        }
+        let csources = [Tile::empty(), Tile::empty()];
+        let mut settled_between_bounds = false;
+        for qp in [22, 28] {
+            for (noise, spike) in (0..8).flat_map(|noise| [0, 4, 8, 12].map(|spike| (noise, spike)))
+            {
+                let mut state = 99u32;
+                let mut source = Tile::empty();
+                for y in 0..16 {
+                    for x in 0..16 {
+                        state ^= state << 13;
+                        state ^= state >> 17;
+                        state ^= state << 5;
+                        let sample = (state % (2 * noise + 1)) as i32 - noise as i32;
+                        let peak = if x < 4 && y < 4 && (x + y) % 2 == 0 {
+                            spike
+                        } else {
+                            0
+                        };
+                        source.0[Tile::at(x, y)] = (128 + sample + peak) as u8;
+                    }
+                }
+                let decision = Decision {
+                    source: &source,
+                    csources: &csources,
+                    context: MbContext {
+                        top: None,
+                        left: None,
+                        p_slice: true,
+                    },
+                    qp,
+                    pending_skip: 0,
+                };
+                let search = Search {
+                    reference: &reference,
+                    decision: &decision,
+                    border: Border::default(),
+                    mx: 0,
+                    my: 0,
+                    previous: 0,
+                };
+                let whole = search.propose(Layout::Whole, None).unwrap().unwrap();
+                SEARCHES.with(|count| count.set(0));
+                let scope = search
+                    .candidates(&mut None, &mut Error::Coefficient)
+                    .unwrap();
+                let settled = scope == IntraScope::Sixteen;
+                let bound = if settled { 2 * SPLIT_SATD } else { SPLIT_SATD } << (qp / 6);
+                let expected = match scope {
+                    IntraScope::None => 0,
+                    _ => 1 + usize::from(whole.2 > bound),
+                };
+                assert_eq!(SEARCHES.with(|count| count.get()), expected);
+                settled_between_bounds |=
+                    settled && whole.2 > SPLIT_SATD << (qp / 6) && whole.2 <= bound;
+            }
+        }
+        assert!(settled_between_bounds);
     }
 
     #[test]
