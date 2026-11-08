@@ -62,6 +62,18 @@ pub(crate) struct Cabac<'a, 'b> {
 }
 
 impl<'a, 'b> Cabac<'a, 'b> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn snapshot(&self) -> (usize, u16, u16, bool, u8, u64) {
+        (
+            self.position(),
+            self.range,
+            self.offset,
+            self.last_bit,
+            self.phase as u8,
+            *self.remaining_bin_budget,
+        )
+    }
+
     pub(crate) fn new(bytes: &'a [u8], remaining_bin_budget: &'b mut u64) -> Result<Self> {
         let mut decoder = Self {
             input: Bits::new(bytes),
