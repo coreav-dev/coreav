@@ -1021,11 +1021,14 @@ pub(super) fn predict(
             width,
             height,
         )?;
-        let output = kernels::RectMut::new(&mut frame.scratch.inter_output, width, width, height)?;
-        match motion {
-            Motion::L0(_) => kernels::predict_uni(frame.depth, a, output)?,
-            Motion::L1(_) => kernels::predict_uni(frame.depth, b, output)?,
-            Motion::Bi(_) => kernels::predict_bi(frame.depth, a, b, output)?,
+        if nondefault {
+            let output =
+                kernels::RectMut::new(&mut frame.scratch.inter_output, width, width, height)?;
+            match motion {
+                Motion::L0(_) => kernels::predict_uni(frame.depth, a, output)?,
+                Motion::L1(_) => kernels::predict_uni(frame.depth, b, output)?,
+                Motion::Bi(_) => kernels::predict_bi(frame.depth, a, b, output)?,
+            }
         }
         let offset = y * plane_width + x;
         let plane = frame
@@ -1794,6 +1797,103 @@ mod tests {
         assert_eq!(morton(0, 0, 6, 2), morton(64, 64, 6, 2));
         assert!(morton(12, 4, 4, 2) < morton(0, 8, 4, 2));
         assert_eq!(morton(3, 3, 4, 2), morton(0, 0, 4, 2));
+    }
+
+    #[test]
+    fn comparison_prediction_is_only_populated_for_nondefault_components() -> Result<()> {
+        for bits in [8, 10] {
+            let fixture = Fixture::new(bits, 1)?;
+            let dpb = fixture.dpb()?;
+            for direction in 0..3 {
+                for weighting in [None, Some(false), Some(true)] {
+                    let changed_chroma = weighting == Some(true);
+                    let mut inter = controls([1, 1]);
+                    if let Some(nondefault) = weighting {
+                        let mut weights = crate::slice::Weights {
+                            denominators: [2; 2],
+                            lists: [[[crate::slice::Weight {
+                                weight: 4,
+                                offset: 0,
+                            }; 3]; 15]; 2],
+                        };
+                        if nondefault {
+                            for list in &mut weights.lists {
+                                list[0][1].weight = 8;
+                            }
+                        }
+                        inter.weights = Some(weights);
+                    }
+                    let input = fixture.input(0, inter);
+                    let mut frame = super::super::Frame::new_full(
+                        &input,
+                        2,
+                        dpb.current_references(),
+                        0,
+                        1_000_000,
+                        None,
+                    )?;
+                    for cell in &mut frame.cells {
+                        cell.slice = 1;
+                    }
+                    frame.scratch.inter_output.fill(u16::MAX);
+                    let pu = Pu {
+                        x: 8,
+                        y: 8,
+                        width: 8,
+                        height: 8,
+                    };
+                    let mut expected_planes = frame.planes.clone();
+                    for (component, plane) in expected_planes.iter_mut().enumerate() {
+                        let divisor = if component == 0 { 1 } else { 2 };
+                        let sample = (42 + component as u16)
+                            * if changed_chroma && component == 1 {
+                                2
+                            } else {
+                                1
+                            };
+                        for y in pu.y / divisor..(pu.y + pu.height) / divisor {
+                            for x in pu.x / divisor..(pu.x + pu.width) / divisor {
+                                plane[y * (64 / divisor) + x] = sample;
+                            }
+                        }
+                    }
+                    let mut walker = syntax::Walker {
+                        frame: &mut frame,
+                        input: &input,
+                        location: fixture.layout.at_raster(0)?,
+                        slice: 1,
+                        dpb: Some(&dpb),
+                    };
+                    let lists = state(&walker)?.2;
+                    let motion = match direction {
+                        0 => Motion::L0(lists.get(0, 0, ZERO)?),
+                        1 => Motion::L1(lists.get(1, 0, ZERO)?),
+                        _ => Motion::Bi([lists.get(0, 0, ZERO)?, lists.get(1, 0, ZERO)?]),
+                    };
+                    let mut expected_stats = walker.frame.inter_stats;
+                    expected_stats.prediction_units = 1;
+                    expected_stats.b_units = 1;
+                    expected_stats.bi_units = u64::from(direction == 2);
+                    expected_stats.weighted_units = u64::from(changed_chroma);
+                    expected_stats.weighted_changed_samples =
+                        if changed_chroma { [0, 16, 0] } else { [0; 3] };
+                    predict(&mut walker, pu, motion, false, false)?;
+                    assert_eq!(walker.frame.planes, expected_planes);
+                    assert_eq!(walker.frame.inter_stats, expected_stats);
+                    for (index, &sample) in walker.frame.scratch.inter_output.iter().enumerate() {
+                        assert_eq!(
+                            sample,
+                            if changed_chroma && index < 16 {
+                                43
+                            } else {
+                                u16::MAX
+                            }
+                        );
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]
