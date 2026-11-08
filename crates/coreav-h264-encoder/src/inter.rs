@@ -877,6 +877,11 @@ impl Search<'_> {
         } else {
             None
         };
+        let rank = [whole.as_ref(), split.as_ref()]
+            .into_iter()
+            .flatten()
+            .map(|plan| plan.2)
+            .min();
         let mut plans = [whole, split];
         plans.sort_by_key(|plan| plan.as_ref().map_or(usize::MAX, |plan| plan.0));
         let [first, second] = &mut plans;
@@ -912,7 +917,7 @@ impl Search<'_> {
         Ok(if settled {
             IntraScope::Sixteen
         } else {
-            IntraScope::Quick
+            IntraScope::Quick(rank.filter(|_| best.is_some()))
         })
     }
 }
@@ -1271,7 +1276,12 @@ mod tests {
                 consider(
                     &mut expected,
                     decision
-                        .quick_intra(&base, &csources, intra_availability(search.border), true)
+                        .quick_intra(
+                            &base,
+                            &csources,
+                            intra_availability(search.border),
+                            IntraScope::Quick(None),
+                        )
                         .unwrap(),
                 );
                 let mut best = Some(search.evaluate(skip).unwrap());
@@ -1281,7 +1291,7 @@ mod tests {
                         &base,
                         &csources,
                         intra_availability(search.border),
-                        IntraScope::Quick,
+                        IntraScope::Quick(None),
                         &mut best,
                         &mut Error::Coefficient,
                     )
