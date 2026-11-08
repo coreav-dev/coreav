@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Disposable first-picture instruction-removal experiment; not a decoder candidate."""
+"""Disposable instruction-removal experiment; not a decoder candidate."""
 
 import argparse
 import difflib
@@ -69,7 +69,7 @@ def count(binary, source, out, identity, arm, expected):
     path = out / f'{identity}-{arm}.callgrind'
     stdout, _ = ref.command(['valgrind', '--tool=callgrind', '--error-exitcode=99',
         '--collect-jumps=no', '--dump-instr=no', '--cache-sim=no',
-        f'--callgrind-out-file={path}', binary, source, 'decode'], timeout=1200)
+        f'--callgrind-out-file={path}', binary, source, 'decode'], timeout=1800)
     work = json.loads(stdout)
     if work != expected:
         raise ValueError('changed_decode_work')
@@ -91,7 +91,8 @@ def pixels(binary, source):
     rows = [json.loads(line) for line in stdout.splitlines()]
     if rows[-1].get('complete') is not True:
         raise ValueError('incomplete_pixel_work')
-    return [(row['output_bytes'], row['output_md5']) for row in rows if row.get('type') == 'picture']
+    return dict(pictures=[(row['output_bytes'], row['output_md5']) for row in rows if row.get('type') == 'picture'],
+                summary=rows[-1])
 
 
 def run(args):
@@ -100,13 +101,12 @@ def run(args):
     args.only = set(args.only.split(','))
     if not args.only or args.only - {f'd{i:02}' for i in range(26)} - {f'c{i:02}' for i in range(4)}:
         raise ValueError('invalid_input_ids')
-    args.frames = 1
     oracle = ref.test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
     args.out.mkdir(parents=True, exist_ok=True)
     binaries = {arm: args.binaries / arm for arm in ('main', 'deblock', 'sao10')}
-    report = dict(complete=False, baseline=args.baseline, frames_cap=1,
-        method='Physical kernel erasure, first picture only, suffix SEI removed equally in all arms; instruction reference, not timing or a correct decoder',
-        caveats='Deblock erasure also removes validation and can change downstream SAO classification work. SAO erasure preserves its source copy but removes validation. Neither is a realizable SIMD gain or a corpus-wide CPU share.',
+    report = dict(complete=False, baseline=args.baseline, frames_cap=args.frames, audit_only=args.audit_only,
+        method='Physical kernel erasure on matched picture prefixes, suffix SEI removed equally in all arms; instruction reference, not timing or a correct decoder',
+        caveats='Erasure also removes validation and changes reconstructed reference samples, so later prediction and SAO classification work can change. SAO erasure preserves its source copy. Whole-crate compiler decisions can change unrelated kernels. Neither is a realizable SIMD gain or a corpus-wide CPU share.',
         selected_ids=sorted(args.only), depth=args.depth,
         binaries={arm: ref.conformance.digest(path) for arm, path in binaries.items()},
         oracle=ref.oracle_pin.load()['BUILD'],
@@ -114,6 +114,9 @@ def run(args):
                            if line.startswith('model name')), kernel=platform.release(),
                   affinity=sorted(os.sched_getaffinity(0)), cores=os.cpu_count(), load=os.getloadavg()),
         files=[])
+    if args.audit_only:
+        report['method'] = 'Original decoder pixel verification and work counters on longer prefixes; no removal counts are repeated'
+        report['caveats'] = 'Only observes the selected prefixes; not a performance comparison'
     pool = ref.round_files.pool()
     pool.limits.max_requests = 4000
     pool.limits.max_bytes = 32 << 30
@@ -130,11 +133,17 @@ def run(args):
                 report['files'].append(row)
                 save()
                 expected = ref.verify(binaries['main'], oracle, original)
-                if expected['frames'] != 1 or expected['depth'] != args.depth:
+                if not 0 < expected['frames'] <= args.frames or expected['depth'] != args.depth:
                     raise ValueError('unexpected_prefix_or_depth')
+                if args.audit_only:
+                    check = pixels(binaries['main'], original)
+                    row.update(expected, check=check, complete=True)
+                    save()
+                    print(json.dumps(dict(id=identity, depth=args.depth, complete=True)), flush=True)
+                    continue
                 source = directory / f'{identity}-without-suffix.hevc'
                 ref.command([oracle.ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin',
-                    '-i', original, '-map', '0:v:0', '-frames:v', '1', '-c:v', 'copy',
+                    '-i', original, '-map', '0:v:0', '-frames:v', str(args.frames), '-c:v', 'copy',
                     '-bsf:v', 'filter_units=remove_types=40', '-f', 'hevc', '-y', source])
                 if ref.verify(binaries['main'], oracle, source) != expected:
                     raise ValueError('suffix_removal_changed_pixels')
@@ -142,11 +151,12 @@ def run(args):
                            original_prefix_sha256=ref.conformance.digest(original), calls={})
                 stdout, _ = ref.command([binaries['main'], source, 'decode'])
                 work = json.loads(stdout)
-                if work['pictures'] != 1 or work['decoded_pictures'] != 1 or work['bins'] <= 0:
+                if work['pictures'] != expected['frames'] or work['decoded_pictures'] < expected['frames'] or work['bins'] <= 0:
                     raise ValueError('incomplete_prefix_work')
-                main_pixels = pixels(binaries['main'], source)
-                row['pixel_equal_to_main'] = {arm: pixels(binary, source) == main_pixels
-                                             for arm, binary in binaries.items()}
+                row['checks'] = {arm: pixels(binary, source) for arm, binary in binaries.items()}
+                main_pixels = row['checks']['main']['pictures']
+                row['pixel_equal_to_main'] = {arm: check['pictures'] == main_pixels
+                                             for arm, check in row['checks'].items()}
                 if args.depth == 8 and not row['pixel_equal_to_main']['sao10']:
                     raise ValueError('sao10_erase_changed_eight_bit_pixels')
                 for arm, binary in binaries.items():
@@ -165,8 +175,9 @@ def run(args):
                 print(json.dumps(dict(id=identity, depth=args.depth, complete=True)), flush=True)
         if {row['id'] for row in report['files']} != args.only:
             raise ValueError('incomplete_input_set')
-        report['median_erased_percent'] = {arm: statistics.median(row['erased_percent'][arm] for row in report['files'])
-                                           for arm in ('deblock', 'sao10')}
+        if not args.audit_only:
+            report['median_erased_percent'] = {arm: statistics.median(row['erased_percent'][arm] for row in report['files'])
+                                               for arm in ('deblock', 'sao10')}
         report['complete'] = True
     finally:
         pool.close()
@@ -187,6 +198,8 @@ def main():
     run_parser.add_argument('--baseline', required=True)
     run_parser.add_argument('--only', required=True)
     run_parser.add_argument('--depth', type=int, choices=(8, 10), required=True)
+    run_parser.add_argument('--frames', type=int, choices=range(1, 33), default=1)
+    run_parser.add_argument('--audit-only', action='store_true')
     args = parser.parse_args()
     if args.action == 'erase':
         original = args.filter.read_text()

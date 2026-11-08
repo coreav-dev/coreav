@@ -17,6 +17,11 @@ on:
         description: Comma-separated ten-bit reference IDs
         required: true
         type: string
+      audit_only:
+        description: Inspect original decoder work without repeating removal counts
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -28,11 +33,12 @@ jobs:
       matrix:
         depth: [8, 10]
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 150
     env:
       BASELINE: ${{ inputs.baseline }}
       DEPTH: ${{ matrix.depth }}
       ONLY: ${{ matrix.depth == 8 && inputs.eight_ids || inputs.ten_ids }}
+      AUDIT_ONLY: ${{ inputs.audit_only }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -81,16 +87,18 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: driver/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
-      - name: Count first-picture physical-removal references
+      - name: Count matched-prefix physical-removal references
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: |
+          EXTRA=(--frames 1)
+          if [ "$AUDIT_ONLY" = true ]; then EXTRA=(--audit-only --frames 32); fi
           python3 -I driver/scripts/filter_ceiling.py run --baseline "$BASELINE" \
             --binaries "$RUNNER_TEMP/binaries" --oracle-bin "$RUNNER_TEMP/oracle" \
-            --out "$RUNNER_TEMP/ceiling" --only "$ONLY" --depth "$DEPTH"
+            --out "$RUNNER_TEMP/ceiling" --only "$ONLY" --depth "$DEPTH" "${EXTRA[@]}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
