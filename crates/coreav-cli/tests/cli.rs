@@ -2546,6 +2546,27 @@ fn media_on_standard_output_are_the_file_bytes() {
 #[cfg(any(unix, windows))]
 #[test]
 fn a_closed_standard_output_exits_141_quietly() {
+    const NAME: &str = "a_closed_standard_output_exits_141_quietly";
+    if std::env::var_os("COREAV_CLI_CLOSED_READER_PROBE").is_none() {
+        let result = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                NAME,
+                "--nocapture",
+                "--color",
+                "never",
+                "--test-threads=1",
+            ])
+            .env("COREAV_CLI_CLOSED_READER_PROBE", "1")
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{result:?}");
+        assert!(
+            String::from_utf8_lossy(&result.stdout).contains(&format!("test {NAME} ... ok")),
+            "{result:?}"
+        );
+        return;
+    }
     let mut commands = succeeding_commands("stdout_pipe");
     let movie = file("stdout_errors_pipe.mp4", &av_movie_with(aac_entry(), false));
     let movie = movie.to_str().unwrap().to_owned();
