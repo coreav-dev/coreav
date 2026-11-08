@@ -133,17 +133,108 @@ pub(crate) fn pred4x4(v: &mut IntraMut<'_>, mode: u8) {
     if v.n() != 4 {
         return;
     }
-    let nb = neighbours(v, 8);
-    let mut block = [0u8; 16];
-    match mode {
-        0 => copy_rows(&mut block, &nb.top, 4),
-        1 => fill_rows(&mut block, &nb.left, 4),
-        3..=8 => {
-            let table = SOURCES_4X4.get(usize::from(mode)).unwrap_or(&[0; 16]);
-            directional::<4>(&nb, table, &mut block);
+    let top = v.top();
+    let last = top.get(3).copied().unwrap_or(0);
+    let [a, b, c, d, e, f, g, h]: [u16; 8] =
+        core::array::from_fn(|p| u16::from(top.get(p).copied().unwrap_or(last)));
+    let [i, j, k, l]: [u16; 4] = core::array::from_fn(|p| u16::from(v.left(p)));
+    let x = u16::from(v.top_left());
+    let half = |a: u16, b: u16| ((a + b + 1) >> 1) as u8;
+    let quarter = |a: u16, b: u16, c: u16| ((a + 2 * b + c + 2) >> 2) as u8;
+    let block = match mode {
+        0 => [a, b, c, d, a, b, c, d, a, b, c, d, a, b, c, d].map(|v| v as u8),
+        1 => [i, i, i, i, j, j, j, j, k, k, k, k, l, l, l, l].map(|v| v as u8),
+        3 => {
+            let p0 = quarter(a, b, c);
+            let p1 = quarter(b, c, d);
+            let p2 = quarter(c, d, e);
+            let p3 = quarter(d, e, f);
+            let p4 = quarter(e, f, g);
+            let p5 = quarter(f, g, h);
+            let p6 = quarter(g, h, h);
+            [
+                p0, p1, p2, p3, p1, p2, p3, p4, p2, p3, p4, p5, p3, p4, p5, p6,
+            ]
         }
-        _ => block.fill(dc(&nb, 4) as u8),
-    }
+        4 => {
+            let p0 = quarter(i, x, a);
+            let p1 = quarter(x, a, b);
+            let p2 = quarter(a, b, c);
+            let p3 = quarter(b, c, d);
+            let p4 = quarter(x, i, j);
+            let p5 = quarter(i, j, k);
+            let p6 = quarter(j, k, l);
+            [
+                p0, p1, p2, p3, p4, p0, p1, p2, p5, p4, p0, p1, p6, p5, p4, p0,
+            ]
+        }
+        5 => {
+            let p0 = half(x, a);
+            let p1 = half(a, b);
+            let p2 = half(b, c);
+            let p3 = half(c, d);
+            let p4 = quarter(i, x, a);
+            let p5 = quarter(x, a, b);
+            let p6 = quarter(a, b, c);
+            let p7 = quarter(b, c, d);
+            let p8 = quarter(x, i, j);
+            let p9 = quarter(i, j, k);
+            [
+                p0, p1, p2, p3, p4, p5, p6, p7, p8, p0, p1, p2, p9, p4, p5, p6,
+            ]
+        }
+        6 => {
+            let p0 = half(x, i);
+            let p1 = half(i, j);
+            let p2 = half(j, k);
+            let p3 = half(k, l);
+            let p4 = quarter(a, x, i);
+            let p5 = quarter(x, i, j);
+            let p6 = quarter(i, j, k);
+            let p7 = quarter(j, k, l);
+            let p8 = quarter(x, a, b);
+            let p9 = quarter(a, b, c);
+            [
+                p0, p4, p8, p9, p1, p5, p0, p4, p2, p6, p1, p5, p3, p7, p2, p6,
+            ]
+        }
+        7 => {
+            let p0 = half(a, b);
+            let p1 = half(b, c);
+            let p2 = half(c, d);
+            let p3 = half(d, e);
+            let p4 = half(e, f);
+            let p5 = quarter(a, b, c);
+            let p6 = quarter(b, c, d);
+            let p7 = quarter(c, d, e);
+            let p8 = quarter(d, e, f);
+            let p9 = quarter(e, f, g);
+            [
+                p0, p1, p2, p3, p5, p6, p7, p8, p1, p2, p3, p4, p6, p7, p8, p9,
+            ]
+        }
+        8 => {
+            let p0 = half(i, j);
+            let p1 = quarter(i, j, k);
+            let p2 = half(j, k);
+            let p3 = quarter(j, k, l);
+            let p4 = half(k, l);
+            let p5 = quarter(k, l, l);
+            let p6 = l as u8;
+            [
+                p0, p1, p2, p3, p2, p3, p4, p5, p4, p5, p6, p6, p6, p6, p6, p6,
+            ]
+        }
+        _ => {
+            let dc = match (v.avail().top, v.avail().left) {
+                (true, true) => (a + b + c + d + i + j + k + l + 4) >> 3,
+                (true, false) => (a + b + c + d + 2) >> 2,
+                (false, true) => (i + j + k + l + 2) >> 2,
+                (false, false) => 128,
+            };
+            [dc as u8; 16]
+        }
+    };
     write_block(v, &block);
 }
 
@@ -257,7 +348,6 @@ pub(crate) const fn sources<const N: usize, const S: usize>() -> [[u8; S]; 9] {
     out
 }
 
-static SOURCES_4X4: [[u8; 16]; 9] = sources::<4, 16>();
 static SOURCES_8X8: [[u8; 64]; 9] = sources::<8, 64>();
 
 /// A directional prediction of an `N` by `N` block from its neighbours
