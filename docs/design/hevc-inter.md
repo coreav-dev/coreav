@@ -42,6 +42,8 @@ Store resolved motion at the required minimum prediction granularity. Each retai
 
 ## Scalar numerical work and filtering
 
+An unweighted comparison prediction is needed only when a component has effective nondefault weights, to count samples changed by explicit weighting. Guard its scratch rectangle and combination call with that per-component condition. Keep the actual destination prediction, validation, weighting, stores and all nondefault comparison statistics unchanged. Default or explicitly default weights do not populate unused comparison scratch; a later component cannot make an earlier component's comparison necessary.
+
 Add allocation-free safe kernels for reference-edge extension, luma quarter-sample eight-tap interpolation, chroma eighth-sample four-tap interpolation, unweighted uni/bi prediction and explicit weighted prediction at both depths. Preserve the normative internal precision, offsets, signed shifts, rounding and final clipping; do not clip an intermediate predictor as if it were a final sample. Checked source/destination geometry and bounded scratch prevent partial writes on rejected public inputs.
 
 Keep syntax and candidate derivation out of the kernel crate. The bitstream owner supplies resolved motion, reference views and effective weights. Cover every phase, integer/one-axis/two-axis paths, rectangular partitions, independent strides, picture edges, negative motion, extreme legal samples and weights with independently equation-derived expectations.
