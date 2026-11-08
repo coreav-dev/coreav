@@ -941,7 +941,10 @@ class AccountingAndGate(unittest.TestCase):
         self.assertIn('workflow_dispatch:', text)
         self.assertIn("if: github.event_name == 'workflow_dispatch'", text.split('  measure:', 1)[1])
         self.assertIn('COREAV_SHAPES_ORACLE="$RUNNER_TEMP/writer-oracle"', text)
-        self.assertIn('scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/writer-oracle"', text)
+        self.assertIn('scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/writer-oracle"', text)
+        controls = text.split('  probe-writer-controls:', 1)[1].split('\n  measure:', 1)[0]
+        self.assertLess(controls.index('uses: ./.github/actions/oracle-cache'),
+                        controls.index('scripts/install-ci-oracle-ffmpeg.sh'))
         self.assertIn(' '.join(run.BUILD), text)
         self.assertLess(text.index('candidate_not_merged'), text.index('cargo build'))
 

@@ -220,11 +220,8 @@ def verify_capture(directory, oracle, mode, coreav_decoder, install=False, hoste
     with tempfile.TemporaryDirectory() as temporary:
         temporary = Path(temporary)
         if install:
-            try:
-                run(["bash", str(ROOT / "scripts/install-ci-oracle-ffmpeg.sh"), str(oracle)],
-                    temporary, 1800, stdout="install-out", stderr="install-error")
-            except Invalid:
-                raise Invalid("oracle_install_failed") from None
+            run(["bash", str(ROOT / "scripts/install-oracle-ffmpeg.sh"), str(oracle)],
+                temporary, 1800, stdout="install-out", stderr="install-error")
         try:
             oracle = test_oracle.require(oracle / "ffmpeg", oracle / "ffprobe")
         except test_oracle.QualificationError:

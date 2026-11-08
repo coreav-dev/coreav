@@ -84,6 +84,7 @@ jobs:
           python3 -I scripts/oracle_pin.py --check
           python3 -I scripts/workflow_check_selftest.py
           python3 -I -m unittest discover -s scripts/tests -p 'test_oracle_install.py' -v
+          python3 -m unittest discover -s scripts/encoders/macos -p 'test_source_freeze.py' -v
           python3 -I -m unittest discover -s .github/actions/changed-paths/tests -p 'test_*.py'
           python3 -I scripts/pr_text_check_selftest.py
           python3 -I scripts/pr_shape_check_selftest.py
