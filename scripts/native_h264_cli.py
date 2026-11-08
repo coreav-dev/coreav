@@ -80,17 +80,19 @@ def oracle_rates(stream, rate, common):
 
 
 def unchanged_outputs(args, root, source_path, environment, fallback_environment, *, commands=None,
-                      containers=('mp4', 'mkv')):
+                      skip=()):
     if commands is None:
         commands = [('default-copy', ['-c', 'copy']),
                     ('external', ['-an', '-c:v', 'libx264', '-crf', '23'])]
     groups = {}
-    for container in containers:
+    for container in ('mp4', 'mkv'):
         for label, command in commands:
             for mode, candidate, baseline in (
                 ('unselected', args.candidate, args.baseline_external),
                 ('default', args.default_candidate, args.baseline_default),
             ):
+                if (container, mode) in skip:
+                    continue
                 previous = root / f'{label}-{mode}-base.{container}'
                 current = root / f'{label}-{mode}.{container}'
                 selected_environment = fallback_environment if container == 'mkv' else environment
@@ -104,15 +106,14 @@ def unchanged_outputs(args, root, source_path, environment, fallback_environment
 
 def edited_opus_matroska(args, ffmpeg, ffprobe, root, source_path, command, environment):
     expected, facts = opus_source_pcm(source_path, root / 'opus-source-edit-reference', ffmpeg, ffprobe)
-    for mode, candidate in (('unselected', args.candidate), ('default', args.default_candidate)):
-        output = root / f'opus-source-edit-{mode}.mkv'
-        run([candidate, 'ffmpeg', '-i', source_path, *command, output], env=environment)
-        try:
-            matroska.compare_opus_pcm(oracle_audio_pcm(ffmpeg, output, output.with_suffix('.opus.f32le')),
-                                      expected, facts)
-        except ValueError as error:
-            raise ValueError(f'ordinary-matroska/opus-source-edit/{mode}: {error}') from error
-    return dict(modes=['unselected', 'default'], declared_samples=facts['declared_samples'],
+    output = root / 'opus-source-edit-unselected.mkv'
+    run([args.candidate, 'ffmpeg', '-i', source_path, *command, output], env=environment)
+    try:
+        matroska.compare_opus_pcm(oracle_audio_pcm(ffmpeg, output, output.with_suffix('.opus.f32le')),
+                                  expected, facts)
+    except ValueError as error:
+        raise ValueError(f'ordinary-matroska/opus-source-edit/unselected: {error}') from error
+    return dict(mode='unselected', declared_samples=facts['declared_samples'],
                 start_samples=facts['start_samples'], pre_skip=facts['pre_skip'])
 
 
@@ -717,7 +718,7 @@ def verify(args):
     opus_edit_command = ['-c:v', 'libx264', '-c:a', 'copy', '-fps_mode', 'passthrough']
     for group, labels in unchanged_outputs(
         args, root, opus_edit_source, environment, fallback_environment,
-        commands=[('opus-source-edit', opus_edit_command)], containers=('mp4',),
+        commands=[('opus-source-edit', opus_edit_command)], skip={('mkv', 'unselected')},
     ).items():
         unchanged_groups[group].extend(labels)
     ordinary_opus_edit = edited_opus_matroska(args, tools.ffmpeg, tools.ffprobe, root, opus_edit_source,
