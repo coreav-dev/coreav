@@ -18,6 +18,11 @@ on:
         required: true
         type: number
         default: 16
+      diagnose:
+        description: Diagnose oracle qualification only, without instruction counting
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,6 +40,7 @@ jobs:
       BASELINE: ${{ inputs.baseline }}
       CASE: ${{ matrix.case }}
       FRAMES: ${{ inputs.frames }}
+      DIAGNOSE: ${{ inputs.diagnose }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -71,6 +77,7 @@ jobs:
           cp main/target/release/examples/reference "$RUNNER_TEMP/binaries/main"
           cp main/crates/coreav-kernels-hevc/src/filter.rs "$RUNNER_TEMP/kernel.rs"
           cp main/crates/coreav-hevc/src/reconstruction/filter.rs "$RUNNER_TEMP/driver.rs"
+          if [ "$DIAGNOSE" != true ]; then
           for ARM in deblock10 deblock-write deblock8-gather sao8-validation sao8-tail sao8-protection; do
             cp "$RUNNER_TEMP/kernel.rs" main/crates/coreav-kernels-hevc/src/filter.rs
             cp "$RUNNER_TEMP/driver.rs" main/crates/coreav-hevc/src/reconstruction/filter.rs
@@ -78,6 +85,7 @@ jobs:
             (cd main && cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
             cp main/target/release/examples/reference "$RUNNER_TEMP/binaries/$ARM"
           done
+          fi
           rustc -Vv > "$RUNNER_TEMP/count/compiler.txt"
       - name: Install instruction profiler
         run: sudo apt-get update -qq && sudo apt-get install -y valgrind
@@ -95,9 +103,15 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: |
-          python3 -I driver/scripts/filter_ceiling.py run --baseline "$BASELINE" --arms deblock10 deblock-write deblock8-gather sao8-validation sao8-tail sao8-protection \
-            --binaries "$RUNNER_TEMP/binaries" --oracle-bin "$RUNNER_TEMP/oracle" \
-            --only "$CASE" --depth 0 --frames "$FRAMES" --out "$RUNNER_TEMP/count"
+          if [ "$DIAGNOSE" = true ]; then
+            python3 -I driver/scripts/filter_oracle_diagnostic.py --baseline "$BASELINE" \
+              --native "$RUNNER_TEMP/binaries/main" --oracle-bin "$RUNNER_TEMP/oracle" \
+              --only "$CASE" --frames "$FRAMES" --out "$RUNNER_TEMP/count"
+          else
+            python3 -I driver/scripts/filter_ceiling.py run --baseline "$BASELINE" --arms deblock10 deblock-write deblock8-gather sao8-validation sao8-tail sao8-protection \
+              --binaries "$RUNNER_TEMP/binaries" --oracle-bin "$RUNNER_TEMP/oracle" \
+              --only "$CASE" --depth 0 --frames "$FRAMES" --out "$RUNNER_TEMP/count"
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
