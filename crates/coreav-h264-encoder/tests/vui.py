@@ -35,6 +35,20 @@ def main():
             stream = streams[0]
             for field in ('r_frame_rate', 'avg_frame_rate'):
                 if Fraction(stream[field]) != Fraction(num, den):
+                    anchor = args.fixtures / 'oracle-cadence.h264'
+                    subprocess.run([
+                        str(oracle.ffmpeg), '-v', 'error', '-f', 'lavfi', '-i',
+                        f'color=s=16x16:r={num}/{den}', '-frames:v', '64',
+                        '-c:v', 'libx264', '-g', '1', '-f', 'h264', '-y', str(anchor),
+                    ], check=True, timeout=30)
+                    for candidate in (source, anchor):
+                        diagnostic = subprocess.run([
+                            str(oracle.ffprobe), '-v', 'debug', '-show_streams',
+                            '-show_frames', '-of', 'json', str(candidate),
+                        ], check=True, capture_output=True, text=True, timeout=30)
+                        candidate.with_suffix('.probe.json').write_text(diagnostic.stdout)
+                        candidate.with_suffix('.probe.log').write_text(diagnostic.stderr)
+                        print(candidate.name, json.loads(diagnostic.stdout)['streams'], flush=True)
                     raise RuntimeError(f'{source.name}: {field}={stream[field]}, stream={stream}')
             if Fraction(stream['sample_aspect_ratio'].replace(':', '/')) != Fraction(width, height):
                 raise RuntimeError(f'{source.name}: SAR={stream["sample_aspect_ratio"]}')
