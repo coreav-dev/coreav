@@ -283,7 +283,8 @@ class WorkflowPrivacy(unittest.TestCase):
         self.assertIn("if: github.event_name == 'workflow_dispatch'", measure)
         self.assertLess(measure.index('Require private evidence retention'), measure.index('Acquire and replay'))
         self.assertIn("if: always() && steps.acquire.outcome != 'skipped'", measure)
-        self.assertIn('test_github_shapes_pns_free.py', workflow.split('  aac-controls:', 1)[1])
+        for name in ('test_github_shapes_pns_free.py', 'test_github_shapes_store.py'):
+            self.assertIn(name + ' -v', workflow.split('  aac-controls:', 1)[1])
         step = measure.split('      - name: Acquire and replay all registered shapes\n', 1)[1]
         block = step.split('        run: |\n', 1)[1].split('      - name:', 1)[0]
         script = '\n'.join(line[10:] for line in block.splitlines())

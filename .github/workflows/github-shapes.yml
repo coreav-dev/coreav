@@ -185,6 +185,7 @@ jobs:
           COREAV_SHAPES_AAC_DIAGNOSTIC: ${{ github.workspace }}/target/release/examples/pns_diagnostic
         run: |
           python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_github_shapes_aac.py
-          python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_github_shapes_pns_free.py
+          python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_github_shapes_pns_free.py -v
+          python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_github_shapes_store.py -v
           python3 -I -m unittest discover -s scripts/tests -p test_aac_pns.py
           python3 -I -m unittest discover -s scripts/tests -p test_aac_pcm_eligibility.py
