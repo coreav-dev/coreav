@@ -14,9 +14,9 @@ Both depths use the safe row implementation. This family adds no runtime capabil
 
 ## Predictor-domain validation
 
-An additional candidate changes only the range-validation pass, initially for eight-bit blocks with at least eight active samples per row. A cached private AVX2 capability selects signed comparisons over complete groups of eight `i32` predictors in `simd/combine.rs`. The safe scalar predicate checks every tail. Loads stay within the active borrowed row, without reading padding or writing output. Both predictors still finish validation before combination starts; shape and denominator checks retain their precedence.
+Range validation changes only for blocks with at least eight active samples per row, in both eight-bit and Main10 decoding. A cached private AVX2 capability selects signed comparisons over complete groups of eight `i32` predictors in `simd/combine.rs`. Dispatch occurs once before the validation loops, and one target-feature call covers both predictors. The safe scalar predicate checks every tail. Loads stay within the active borrowed row, without reading padding or writing output. Both predictors still finish validation before combination starts; shape and denominator checks retain their precedence.
 
-Combination products, shifts, clipping and stores remain in the existing safe implementation. Unsupported CPUs, narrow rows, Main10 and scalar-forced builds retain scalar validation. Full-output tests and the existing combination differential target compare valid and invalid lanes with the literal reference. Reference comparisons must show a useful gain without a control regression before retaining the candidate or extending it to Main10.
+Combination products, shifts, clipping and stores remain in the existing safe implementation. Unsupported CPUs, narrow rows and scalar-forced builds retain the original scalar validation loops. Full-output tests and the existing combination differential target compare valid and invalid lanes with the literal reference. Reference comparisons report every cell and any regressions; instruction counts distinguish extra shared-path work from timing or layout effects before scope decisions.
 
 ## Verification
 
