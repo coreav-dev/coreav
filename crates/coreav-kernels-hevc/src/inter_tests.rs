@@ -156,6 +156,88 @@ fn inter_scratch_fits_existing_reconstruction_envelope() {
     assert_eq!(SCRATCH_BYTES, 9_224);
 }
 
+#[test]
+fn interpolation_support_at_exact_row_extents_matches_equations_before_writes() {
+    for bits in [8, 10] {
+        for component in [Component::Luma, Component::Chroma] {
+            let (taps, first, limit) = if component == Component::Luma {
+                (8, 3, 64)
+            } else {
+                (4, 1, 32)
+            };
+            for width in [1, 7, 8, 9, 31, 32, 63, 64] {
+                if width > limit {
+                    continue;
+                }
+                let height = 2;
+                let reference_width = width + taps - 1;
+                let reference_height = height + taps - 1;
+                let source_stride = reference_width + 3;
+                let source_length = source_stride * (reference_height - 1) + reference_width;
+                let mut source = vec![u16::MAX; 1 + source_length];
+                for y in 0..reference_height {
+                    for x in 0..reference_width {
+                        source[1 + y * source_stride + x] =
+                            ((47 * x + 91 * y + 13 * x * y) % (1 << bits)) as u16;
+                    }
+                }
+                let stride = width + 3;
+                let length = stride * (height - 1) + width;
+                for origin in [first - 1, first, first + 1] {
+                    let request = config(bits, component, origin, first, 1, 1).unwrap();
+                    let mut output = vec![i32::MAX; 1 + length];
+                    let mut expected = output.clone();
+                    for y in 0..height {
+                        for x in 0..width {
+                            expected[1 + y * stride + x] = equation_sample(
+                                request,
+                                (
+                                    &source[1..],
+                                    source_stride,
+                                    reference_width,
+                                    reference_height,
+                                ),
+                                (x, y),
+                            )
+                            .unwrap();
+                        }
+                    }
+                    interpolate_inter(
+                        request,
+                        RefPlane::new(
+                            &source[1..],
+                            source_stride,
+                            reference_width,
+                            reference_height,
+                        )
+                        .unwrap(),
+                        RectMut::new(&mut output[1..], stride, width, height).unwrap(),
+                    )
+                    .unwrap();
+                    assert_eq!(output, expected, "{bits}/{component:?}/{width}/{origin}");
+                }
+                source[source_length] = 1 << bits;
+                let mut output = vec![i32::MAX; 1 + length];
+                assert_eq!(
+                    interpolate_inter(
+                        config(bits, component, first, first, 1, 1).unwrap(),
+                        RefPlane::new(
+                            &source[1..],
+                            source_stride,
+                            reference_width,
+                            reference_height,
+                        )
+                        .unwrap(),
+                        RectMut::new(&mut output[1..], stride, width, height).unwrap(),
+                    ),
+                    Err(Error::Sample)
+                );
+                assert_eq!(output, vec![i32::MAX; 1 + length]);
+            }
+        }
+    }
+}
+
 #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
 #[test]
 fn avx2_capability_matches_runtime_detection() {
