@@ -1056,17 +1056,14 @@ pub(crate) fn picture(
         FramePlane::new(e.coded_width / 2, e.coded_height / 2)?,
     ];
     let mb_width = e.coded_width / 16;
+    let mb_height = e.coded_height / 16;
     let mut writer = Bits::new(e.limits.access_unit_bytes);
     syntax::slice(&mut writer, e, slice)?;
     let mut pending_skip = 0;
     let mut previous_mv_count = e.previous_mv_count;
-    rows::decide(e, input, slice, |rows, candidates| {
-        for (address, slot) in candidates
-            .iter()
-            .enumerate()
-            .take(rows.end * mb_width)
-            .skip(rows.start * mb_width)
-        {
+    rows::decide(e, input, slice, |row, candidates| {
+        for address in row * mb_width..(row + 1) * mb_width {
+            let slot = candidates.get(address).ok_or(Error::Internal)?;
             let candidate = slot.get().ok_or(Error::Internal)?;
             let Candidate {
                 luma,
@@ -1098,11 +1095,13 @@ pub(crate) fn picture(
                     .commit(tile, mx * 8, my * 8, 8)?;
             }
         }
-        if rows.end * mb_width == candidates.len() && pending_skip != 0 {
-            writer.ue(pending_skip)?;
-            pending_skip = 0;
-        }
-        if e.settings.deblocking == Deblocking::Enabled {
+        if e.settings.deblocking == Deblocking::Enabled && (e.threads != 1 || row + 1 == mb_height)
+        {
+            let rows = if e.threads == 1 {
+                0..mb_height
+            } else {
+                row..row + 1
+            };
             for (c, plane) in planes.iter_mut().enumerate() {
                 let qp = if c == 0 {
                     slice.qp
@@ -1139,6 +1138,9 @@ pub(crate) fn picture(
         }
         Ok(())
     })?;
+    if pending_skip != 0 {
+        writer.ue(pending_skip)?;
+    }
     let visible = e.settings.width * e.settings.height * 3 / 2;
     let mut reconstruction = zeros(visible)?;
     let mut offset = 0;
