@@ -10,7 +10,13 @@ Every admitted internal predictor has magnitude at most 33,247. Effective weight
 
 ## Dispatch boundary
 
-Both depths use the safe row implementation. This family adds no runtime capability check, target-feature function or unsafe code. The `scalar` feature continues to exclude existing SIMD in other kernel families without changing these combination equations.
+Combination arithmetic for both depths uses the safe row implementation. The `scalar` feature excludes SIMD validation and the existing SIMD in other kernel families without changing these combination equations.
+
+## Predictor-domain validation
+
+Range validation changes only for blocks with at least eight active samples per row, in both eight-bit and Main10 decoding. A cached private AVX2 capability selects signed comparisons over complete groups of eight `i32` predictors in `simd/combine.rs`. Dispatch occurs once before the validation loops, and one target-feature call covers both predictors. The safe scalar predicate checks every tail. Loads stay within the active borrowed row, without reading padding or writing output. Both predictors still finish validation before combination starts; shape and denominator checks retain their precedence.
+
+Combination products, shifts, clipping and stores remain in the existing safe implementation. Unsupported CPUs, narrow rows and scalar-forced builds retain the original scalar validation loops. Full-output tests and the existing combination differential target compare valid and invalid lanes with the literal reference. Reference comparisons report every cell and any regressions; instruction counts distinguish extra shared-path work from timing or layout effects before scope decisions.
 
 ## Verification
 

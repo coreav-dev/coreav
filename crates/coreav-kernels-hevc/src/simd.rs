@@ -2,6 +2,7 @@ use crate::{Error, inter};
 use core::arch::x86_64::*;
 use std::sync::OnceLock;
 
+mod combine;
 mod deblock;
 mod loop_filter;
 
