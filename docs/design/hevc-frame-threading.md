@@ -4,7 +4,7 @@
 
 This note describes bounded picture-level concurrency in the opt-in native HEVC decoder. The existing decoder thread option remains the only CLI control. Build defaults, syntax admission, decoder isolation, filter arithmetic and prediction arithmetic stay unchanged.
 
-Start with pictures whose complete references are available. This can overlap independent intra pictures and pictures sharing older completed anchors, including streams without WPP or tiles. It cannot overlap a chain in which each picture references its immediate predecessor. No input-coverage or speed claim follows from adding a queue. Verification must observe simultaneous picture reconstruction and report the actual eligible-picture share.
+The initial complete-reference stage overlapped independent intra pictures and pictures sharing older completed anchors, including streams without WPP or tiles. It could not overlap a chain in which each picture references its immediate predecessor. The current raster-row bridge below adds dependent-chain overlap. No input-coverage or speed claim follows from adding a queue. Verification must observe simultaneous picture reconstruction and report the actual eligible-picture share.
 
 ## Current boundary
 
@@ -66,9 +66,9 @@ Replay four-worker row tasks with equal row costs including amortized filtering 
 
 Report row-unit work, span and scheduled steps, normalized picture steps, peak workers and the lag-three pending-record bound for both submission timings. Row variants hypothetically replace the current full-reference input gate with row readiness; the control retains that gate. Distinguish the modeled serial-work/steps ratio from the four-worker DAG ceiling `min(4, work / span)`. Both are conditional model quantities, not measured speedups or a byte-budget proof. Keep the original source and prepared-input hashes and the request cap; no pipeline or reference-publication change follows from collecting the trace.
 
-## Raster-row amendment: design only
+## Raster-row amendment: design rationale
 
-This amendment selects filtered raster-row publication for design review, not implementation. It builds on the actual-read model rather than the rejected serial-exact output journal below. Existing `PictureDecoder` methods, their callback behavior, typed cold admission, build defaults and the supported API remain unchanged. Only the contained native-backend bridge may select this path. Implementation requires separate clearance of the output/budget rule, row ownership and filter ordering.
+This amendment specifies the filtered raster-row bridge described under “Current bridge implementation”. It builds on the actual-read model rather than the rejected serial-exact output journal below. Existing `PictureDecoder` methods, their callback behavior, typed cold admission, build defaults and the supported API remain unchanged. Only the contained native-backend bridge may select this path.
 
 ### Output contract and caller boundary
 
@@ -84,11 +84,11 @@ The implementation needs an ordinal ledger derived from the existing normative o
 
 ### Row ownership: selected conservative shape
 
-Complete-reference jobs now use a bounded raster producer when its extra buffers and row-store record fit within the job's existing full-component SAO allowance. Conversion moves the full planes and cells into the shared backing, retains one CTU metadata vector and reuses the original scratch. If conversion cannot fit, it returns the unchanged frame for the whole-picture path. The producer owns filter ordering, saved borders and row commits. Complete-reference barriers and output timing remain unchanged. Dependent-picture row overlap, bounded output lag and its admission policy are not active yet.
+The first producer stage converted complete-reference jobs when its extra buffers and row-store record fit within the job's existing full-component SAO allowance. Conversion moves the full planes and cells into the shared backing, retains one CTU metadata vector and reuses the original scratch. If conversion cannot fit, it returns the unchanged frame for the whole-picture path. The producer owns filter ordering, saved borders and row commits. The current native bridge also uses its row publications for dependent-picture overlap, with bounded output lag and continuation admission.
 
 Considered immutable separately allocated row bands versus one contiguous picture store. Separate immutable bands would replace the current plane owner and require a gather/window interface in interpolation and output packing. Select a shared contiguous store with read locks for consumers and short write holds only for band commits/publication. The producer reconstructs a bounded band privately without holding the store lock, including while waiting for another reference, then copies that band into the backing store. This is a charged transient row-band copy, not a retained second full picture. Readers must not stall behind an entire row's reconstruction or reference wait. The row model does not measure these copy/lock costs. Do not add unsafe aliases to make it look like the model.
 
-The private row store uses coded index, POC and generation to identify its backing. Its progress owner separates reconstructed motion from filtered samples. Scoped reference guards expose only the requested capability. The caller-owned row window and ordinal ledger remain unimplemented. The ordinary `Dpb` and `StreamCore` layouts stay unchanged. Instead of a second identity table, the existing heap publication optionally owns a row store on the threaded path. Complete stores move their vectors into the ordinary retained-picture owner without copying sample planes. Outstanding guards and owners keep that generation alive through the transition.
+The private row store uses coded index, POC and generation to identify its backing. Its progress owner separates reconstructed motion from filtered samples. Scoped reference guards expose only the requested capability. `decoder::rows::Rows` owns the bounded pending window and ordinal ledger. The ordinary `Dpb` and `StreamCore` layouts stay unchanged. Instead of a second identity table, the existing heap publication optionally owns a row store on the threaded path. Complete stores move their vectors into the ordinary retained-picture owner without copying sample planes. Outstanding guards and owners keep that generation alive through the transition.
 
 The ownership sketch is not code to compile. Frontiers are exclusive luma-row endpoints and advance only after a complete CTU row, including a partial final row. Zero publishes no row:
 
@@ -291,13 +291,13 @@ Use the existing test-only `coreav-counting-alloc` allocator with `measure_proce
 - Do not copy a working picture into each picture job. Move its buffer owner. For reused WPP frames, replace whole-frame `reset_private` copies with a proved row-local initialization and publication rule. Stale samples, cells or filter records must not become available to prediction. Full-frame zero fills are not the intended optimization.
 - Preserve scratch admission for skipped pictures. RBSP and entry-array storage is allocated before temporal extraction or RASL suppression is known. Compare its success and refusal boundaries with independent cold decoding, both with and without retained worker storage. Do not remove a charge because no sample frame exists.
 
-## Alternatives
+## Initial alternatives
 
-Incremental reference rows offer overlap in dependent picture chains. They require separate publication of motion fields and filtered samples, waiting for actual motion-compensation footprints including fractional-filter halos and edge replication. A fixed row lead is insufficient. Current finalization performs whole-picture vertical and horizontal deblocking followed by SAO, so useful early publication also requires a separate filtering control-flow and storage redesign. That work is outside this first implementation.
+Incremental reference rows offer overlap in dependent picture chains. They require separate publication of motion fields and filtered samples, waiting for actual motion-compensation footprints including fractional-filter halos and edge replication. A fixed row lead is insufficient. The initial complete-reference stage retained whole-picture finalization. The raster-row amendment above implements the filtering control flow and storage needed for early publication.
 
 A syntax-ahead pipeline could overlap entropy decoding with the previous picture's reconstruction while retaining complete-reference publication. It requires a bounded command representation and syntax-only neighbour state. The current traversal immediately resolves motion, predicts and reconstructs residuals, so this is a different front-end and reconstruction split, not a scheduler-only shortcut.
 
-Choose complete-reference jobs because they retain existing filtering and CTU semantics behind a small scheduled-input boundary. Accept limited DAG width rather than combining several ownership redesigns in one change. Tile scheduling follows separately unless the same ready-job and publication machinery applies without another ownership change.
+The initial stage chose complete-reference jobs to retain existing filtering and CTU semantics behind a small scheduled-input boundary. The current native bridge extends that boundary with dependent row publication. Tile scheduling remains separate unless the same ready-job and publication machinery applies without another ownership change.
 
 ## Verification before timing
 
