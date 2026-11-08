@@ -1,0 +1,135 @@
+name: hevc-native-rows
+run-name: Native HEVC rows ${{ inputs.candidate }} (${{ inputs.mode }})
+# workflow-check: not required
+
+on:
+  workflow_call:
+    inputs:
+      candidate:
+        required: true
+        type: string
+      mode:
+        type: string
+        default: all
+      only:
+        type: string
+        default: ''
+      frames:
+        type: number
+        default: 32
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: Exact decoder commit
+        required: true
+        type: string
+      mode:
+        description: Native reference calls, complete checks, or both
+        type: choice
+        options: [all, reference, checks]
+        default: all
+      only:
+        description: Optional comma-separated non-wavefront input IDs for reference calls
+        type: string
+        default: ''
+      frames:
+        description: Maximum pictures per reference input
+        type: number
+        default: 32
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE: ${{ inputs.candidate }}
+  ONLY: ${{ inputs.only }}
+  FRAMES: ${{ inputs.frames }}
+
+jobs:
+  reference:
+    if: inputs.mode == 'all' || inputs.mode == 'reference'
+    name: hevc-native-rows-reference (${{ matrix.shard }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(inputs.only != '' && '[0]' || '[0,1,2]') }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.candidate }}
+          fetch-depth: 0
+      - name: Admit exact candidate and bounded reference selection
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$CANDIDATE"
+          test -n "$(git branch -r --contains "$CANDIDATE")"
+          python3 -I - "$ONLY" "$FRAMES" <<'PY'
+          import sys
+          sys.path.insert(0, 'scripts')
+          from hevc_threading import ROW_INPUT_IDS
+          selected = set(sys.argv[1].split(',')) if sys.argv[1] else set(ROW_INPUT_IDS)
+          if not selected or not selected <= set(ROW_INPUT_IDS) or not 1 <= int(sys.argv[2]) <= 32:
+              raise SystemExit('invalid_native_rows_selection')
+          PY
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Check the actual native driver before release building
+        run: |
+          set -euo pipefail
+          cargo test --locked -p coreav-backend-hevc --features native-hevc,test-support --example reference
+          cargo build --locked --release -p coreav-backend-hevc --features native-hevc,test-support --example reference
+      - name: Install the pinned binary oracle
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Verify every worker count before paired native reference calls
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          python3 -I scripts/hevc_threading.py native-reference \
+            --native "$PWD/target/release/examples/reference" --oracle-bin "$RUNNER_TEMP/oracle" \
+            --out "$RUNNER_TEMP/private/native" --candidate "$CANDIDATE" \
+            --shard-index '${{ matrix.shard }}' --shard-count '${{ inputs.only != '' && 1 || 3 }}' \
+            --only "$ONLY" --frames "$FRAMES" > "$RUNNER_TEMP/private/native.log" 2>&1
+      - name: Retain private reference results
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          [ -d private ] || exit 0
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/bench/hevc-conformance/evidence-public.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hevc-native-rows-reference-${{ matrix.shard }}-${{ inputs.candidate }}
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: error
+          retention-days: 7
+
+  checks:
+    if: inputs.mode == 'all' || inputs.mode == 'checks'
+    uses: ./.github/workflows/hevc-threading.yml
+    with:
+      candidate: ${{ inputs.candidate }}
+      baseline: ''
+      frames: 32
+    secrets: inherit

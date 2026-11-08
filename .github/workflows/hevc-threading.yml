@@ -144,7 +144,7 @@ jobs:
           retention-days: 7
 
   reference:
-    if: '!inputs.sanitizer_only && !inputs.thread_diagnostics_only && !inputs.thread_dependencies_only && !inputs.thread_rows_only'
+    if: ${{ inputs.baseline != '' && !inputs.sanitizer_only && !inputs.thread_diagnostics_only && !inputs.thread_dependencies_only && !inputs.thread_rows_only }}
     name: hevc-threading-reference (${{ matrix.shard }})
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -246,6 +246,7 @@ jobs:
         with:
           toolchain: stable
       - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example decode
+      - run: cargo build --locked --release -p coreav-backend-hevc --features native-hevc,test-support --example reference
       - run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Prepare complete conformance references
         run: |
@@ -256,13 +257,25 @@ jobs:
           python3 -I scripts/hevc_conformance.py acquire --dest "$RUNNER_TEMP/data" > "$RUNNER_TEMP/private/acquire.log" 2>&1
           python3 -I scripts/hevc_conformance.py manifest --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/archives.json" > "$RUNNER_TEMP/private/manifest.log" 2>&1
           python3 -I scripts/hevc_conformance.py run --registration "$RUNNER_TEMP/private/archives.json" --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/census" --parser "$PWD/target/release/examples/headers" --oracle-bin "$RUNNER_TEMP/oracle" --synthetic-data "$RUNNER_TEMP/synthetic" > "$RUNNER_TEMP/private/census.log" 2>&1
-      - name: Compare complete outputs at one two four and eight threads
+      - name: Prepare qualified complete outputs for the selected native boundary
         run: |
           set -euo pipefail
-          for threads in 1 2 4 8; do
+          counts='1 2 4 8'
+          if [ -z "$BASELINE" ]; then counts=1; fi
+          for threads in $counts; do
             python3 -I scripts/hevc_decode.py --registration "$RUNNER_TEMP/private/archives.json" --census "$RUNNER_TEMP/private/census/census.json" --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/threads-$threads" --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/decode" --oracle-bin "$RUNNER_TEMP/oracle" --threads "$threads" > "$RUNNER_TEMP/private/threads-$threads.log" 2>&1
           done
-          python3 -I scripts/hevc_threading.py compare-conformance --root "$RUNNER_TEMP/private" --out "$RUNNER_TEMP/private/thread-comparison.json"
+          if [ -n "$BASELINE" ]; then
+            python3 -I scripts/hevc_threading.py compare-conformance --root "$RUNNER_TEMP/private" --out "$RUNNER_TEMP/private/thread-comparison.json"
+          fi
+      - name: Compare real native row output at every worker boundary
+        run: |
+          set -euo pipefail
+          python3 -I scripts/hevc_threading.py native-conformance \
+            --registration "$RUNNER_TEMP/private/archives.json" --census "$RUNNER_TEMP/private/census/census.json" \
+            --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/native-rows" \
+            --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/reference" \
+            --scalar-result "$RUNNER_TEMP/private/threads-1/result.json" > "$RUNNER_TEMP/private/native-rows.log" 2>&1
       - name: Seal conformance records
         if: always()
         run: |
@@ -306,7 +319,11 @@ jobs:
           sudo sysctl vm.mmap_rnd_bits=28
           for repeat in $(seq 1 20); do
             for group in wavefront decoder::scheduler::tests; do
-              cargo +nightly test --locked -Zbuild-std --target x86_64-unknown-linux-gnu -p coreav-hevc --features native-hevc --lib "$group" | tee "$RUNNER_TEMP/threading-tests.log"
+              cargo +nightly test --locked -Zbuild-std --target x86_64-unknown-linux-gnu -p coreav-hevc --features native-hevc-rows-private --lib "$group" | tee "$RUNNER_TEMP/threading-tests.log"
               grep -Eq '^test result: ok\. [1-9][0-9]* passed;' "$RUNNER_TEMP/threading-tests.log"
+              if [ "$group" = decoder::scheduler::tests ]; then
+                grep -F 'test decoder::scheduler::tests::dependent_raster_job_reads_a_building_predecessor_before_its_first_publication ... ok' "$RUNNER_TEMP/threading-tests.log"
+                grep -F 'test decoder::scheduler::tests::capacity_probe_mismatch_preserves_legacy_frames_and_summary ... ok' "$RUNNER_TEMP/threading-tests.log"
+              fi
             done
           done

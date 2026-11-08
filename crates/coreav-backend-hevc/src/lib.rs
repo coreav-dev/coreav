@@ -5,6 +5,9 @@
 
 mod configuration;
 mod output;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod test_support;
 
 use std::time::Instant;
 
@@ -334,6 +337,8 @@ impl NativeDecoder {
         if count == 0 {
             return Err(invalid("empty HEVC access unit"));
         }
+        #[cfg(feature = "test-support")]
+        test_support::admitted(decoder);
         self.output.check()
     }
 
@@ -353,9 +358,11 @@ impl NativeDecoder {
             output: &mut self.output,
             error: None,
         };
-        decoder
+        let _summary = decoder
             .finish_rows(&mut sink)
             .map_err(|error| sink.finish(error))?;
+        #[cfg(feature = "test-support")]
+        test_support::completed(_summary);
         self.output.check()?;
         if !decoder.has_native_rows() {
             self.decoder = None;

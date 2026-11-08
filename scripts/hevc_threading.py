@@ -17,6 +17,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import hevc_reference as reference
 import hevc_conformance as conformance
 import hevc_decode
+import hevc_boundary
 import hevc_dependency
 import hevc_row_dependency
 import oracle_pin
@@ -285,6 +286,251 @@ def compare_conformance(root):
                 normalized_sha256=hashlib.sha256(canonical).hexdigest())
 
 
+SEMANTIC_FIELDS = ('headers', 'decoded_pictures', 'skipped_pictures', 'skipped_picture_hashes',
+                   'skipped_reserved_hashes', 'stats', 'inter')
+
+
+def native_receipt(stdout, threads, *, check):
+    def counters(value):
+        if isinstance(value, dict):
+            return all(isinstance(key, str) and counters(item) for key, item in value.items())
+        if isinstance(value, list):
+            return all(counters(item) for item in value)
+        return type(value) is int and 0 <= value <= (1 << 64) - 1
+    rows = [json.loads(line, object_pairs_hook=conformance.unique_object) for line in stdout.splitlines()]
+    conformance.require(rows and all(isinstance(row, dict) for row in rows), 'native_rows_records')
+    record = rows[-1]
+    conformance.require(record.get('type') == 'summary' and record.get('complete') is True
+                        and record.get('boundary') is True and record.get('backend') == 'native',
+                        'native_rows_completion')
+    fields = ('pictures', 'decoded_pictures', 'bins', 'requested_threads', 'host_threads', 'thread_limit',
+              'max_workers', 'parallel_pictures', 'frame_parallel_pictures', 'max_memory_bytes',
+              'memory_bytes', 'input_bytes', 'sent_packets')
+    conformance.require(all(type(record.get(key)) is int and 0 <= record[key] <= (1 << 64) - 1 for key in fields),
+                        'native_rows_counts')
+    conformance.require(record['requested_threads'] == threads and record['host_threads'] > 0
+                        and record['thread_limit'] == min(threads or 16, record['host_threads'], 16)
+                        and 1 <= record['max_workers'] <= record['thread_limit']
+                        and 0 < record['pictures'] <= record['decoded_pictures'] and record['bins'] > 0
+                        and 0 <= record['frame_parallel_pictures'] <= record['parallel_pictures']
+                        <= record['decoded_pictures'] and record['frame_parallel_pictures'] != 1
+                        and (record['parallel_pictures'] == 0 or record['max_workers'] > 1)
+                        and record['max_memory_bytes'] > 0 and record['input_bytes'] > 0
+                        and 0 < record['memory_bytes'] <= record['max_memory_bytes']
+                        and record['sent_packets'] > 0, 'native_rows_count_identity')
+    semantic = record.get('semantic')
+    conformance.require(isinstance(semantic, dict) and set(semantic) == set(SEMANTIC_FIELDS)
+                        and isinstance(semantic.get('headers'), dict) and isinstance(semantic.get('stats'), dict)
+                        and isinstance(semantic.get('inter'), dict)
+                        and semantic['decoded_pictures'] == record['decoded_pictures']
+                        and semantic['headers'].get('pictures') == semantic['decoded_pictures'] + semantic['skipped_pictures']
+                        and semantic['headers'].get('nals', 0) >= semantic['headers']['pictures']
+                        and semantic['stats'].get('ctus', 0) >= semantic['decoded_pictures']
+                        and semantic['headers'].get('output_pictures') == record['pictures']
+                        and semantic['stats'].get('bins') == record['bins'], 'native_rows_semantic_identity')
+    warnings = semantic['headers'].get('warnings')
+    conformance.require(isinstance(warnings, dict) and set(warnings) == {
+        'profile_bit_depth', 'invalid_sample_aspect_ratio', 'temporal_nesting_nal_type'}
+        and all(type(value) is bool for value in warnings.values())
+        and counters({**semantic, 'headers': {key: value for key, value in semantic['headers'].items()
+                                            if key != 'warnings'}}), 'native_rows_semantic_types')
+    admissions = record.get('admissions')
+    conformance.require(isinstance(admissions, list) and (record['thread_limit'] != 1 or not admissions)
+                        and (record['thread_limit'] != 1 or record['parallel_pictures'] == 0), 'native_rows_admissions')
+    for admission in admissions:
+        conformance.require(isinstance(admission, dict)
+                            and all(type(admission.get(key)) is int and admission[key] >= 0 for key in
+                                    ('ceiling', 'workers', 'lag', 'frame_bytes', 'reserved_bytes', 'limit_bytes', 'sps_id'))
+                            and 1 <= admission['workers'] <= admission['ceiling'] == record['thread_limit']
+                            and admission['lag'] < admission['workers'] and admission['frame_bytes'] > 0
+                            and admission['limit_bytes'] == record['max_memory_bytes']
+                            and admission['reserved_bytes'] + admission['lag'] * admission['frame_bytes']
+                            <= admission['limit_bytes'] and admission['sps_id'] <= 15
+                            and isinstance(admission.get('sps_sha256'), list) and len(admission['sps_sha256']) == 32
+                            and all(type(byte) is int and 0 <= byte <= 255 for byte in admission['sps_sha256']),
+                            'native_rows_admission_bound')
+    conformance.require((check and len(rows) == record['pictures'] + 1
+                         and all(row.get('type') == 'picture' for row in rows[:-1]))
+                        or (not check and len(rows) == 1), 'native_rows_output_denominator')
+    if check:
+        conformance.require(isinstance(record.get('output_md5'), str)
+                            and re.fullmatch('[0-9a-f]{32}', record['output_md5']) is not None
+                            and record.get('output_bytes') == sum(frame.get('output_bytes', 0) for frame in rows[:-1])
+                            and all(hevc_boundary.valid_frame(frame) for frame in rows[:-1]),
+                            'native_rows_frame_receipt')
+    else:
+        conformance.require(record.get('output_md5') is None and record.get('output_bytes') is None,
+                            'native_rows_decode_did_not_disable_hashing')
+    return rows[:-1], record
+
+
+def native_conformance(argv):
+    parser = argparse.ArgumentParser(description='Compare real native row output with qualified complete receipts')
+    for name in ('registration', 'census', 'data', 'out', 'parser', 'native', 'scalar-result'):
+        parser.add_argument('--' + name, required=True, type=pathlib.Path)
+    args = parser.parse_args(argv)
+    conformance.require(sys.platform == 'linux', 'linux_actions_required')
+    raw = conformance.read_json(args.scalar_result)
+    conformance.require(raw.get('complete') is True and raw.get('passed') is True
+                        and raw.get('scope') == 'complete_c1', 'complete_scalar_c1_required')
+    conformance.require(all(raw['identities'][name] == conformance.digest(path) for name, path in (
+        ('registration', args.registration), ('census', args.census), ('parser', args.parser),
+        ('acquisition', args.data / 'acquisition.json'))), 'native_rows_reference_identity')
+    selected = hevc_decode.streams(args, conformance.read_json(args.census))
+    identities = [dict(test=item['case']['test'], sha256=item['member']['sha256']) for item in selected]
+    conformance.require(identities == raw['denominator'] and len(selected) == len(raw['results']),
+                        'native_rows_membership')
+    args.out.mkdir(parents=True, exist_ok=False)
+    report = dict(complete=False, passed=False, scope='native_rows_complete_c1',
+                  native_sha256=conformance.digest(args.native), reference_sha256=conformance.digest(args.scalar_result),
+                  streams=len(selected), results=[])
+    try:
+        for ordinal, (stream, expected) in enumerate(zip(selected, raw['results'])):
+            source = stream['source']
+            conformance.require(expected.get('complete') is True and conformance.digest(source) == expected['sha256']
+                                == stream['member']['sha256'] and expected['test'] == stream['case']['test'],
+                                'native_rows_source_identity')
+            row = dict(sha256=expected['sha256'], threads={})
+            report['results'].append(row)
+            for threads in (1, 2, 4, 8, 0):
+                code, output, _ = conformance.child([args.native, source, 'check', str(threads)],
+                    args.out / str(ordinal), f'native-{threads}', timeout=600)
+                conformance.require(code == 0, 'native_rows_decode')
+                frames, summary = native_receipt(output.read_bytes(), threads, check=True)
+                hevc_boundary.compare_frames(output, expected['pictures'], expected['summary'], coded_clock=True)
+                conformance.require(summary['input_bytes'] == source.stat().st_size
+                                    and normalized(summary['semantic']) == normalized({key: expected['summary'][key]
+                                                                                     for key in SEMANTIC_FIELDS}),
+                                    'native_rows_semantic_mismatch')
+                row['threads'][str(threads)] = dict(outputs=len(frames), semantic=summary['semantic'],
+                    admissions=summary['admissions'], max_workers=summary['max_workers'],
+                    frame_parallel_pictures=summary['frame_parallel_pictures'], memory_bytes=summary['memory_bytes'],
+                    max_memory_bytes=summary['max_memory_bytes'])
+            conformance.require(conformance.digest(source) == expected['sha256'], 'native_rows_source_changed')
+            conformance.write_json(args.out / 'result.json', report)
+        conformance.require(conformance.digest(args.native) == report['native_sha256']
+                            and conformance.digest(args.scalar_result) == report['reference_sha256'],
+                            'native_rows_run_identity_changed')
+        report['coverage'] = {str(threads): dict(
+            admitted_streams=sum(bool(row['threads'][str(threads)]['admissions']) for row in report['results']),
+            overlap_streams=sum(row['threads'][str(threads)]['frame_parallel_pictures'] > 0 for row in report['results']),
+            frame_parallel_pictures=sum(row['threads'][str(threads)]['frame_parallel_pictures'] for row in report['results']))
+            for threads in (1, 2, 4, 8, 0)}
+        conformance.require(all(report['coverage'][str(threads)]['admitted_streams'] > 0
+                                and report['coverage'][str(threads)]['overlap_streams'] > 0 for threads in (2, 4, 8)),
+                            'native_rows_real_coverage_missing')
+        report.update(complete=True, passed=True)
+    finally:
+        conformance.write_json(args.out / 'result.json', report)
+    return 0
+
+
+def measure_native(args, oracle, source, identity):
+    row = dict(id=identity, input_sha256=conformance.digest(source), status='checking',
+               load_average_before=list(os.getloadavg()))
+    row.update(reference.verify(args.native, oracle, source, timeout=600))
+    expected = None
+    for threads in (1, 2, 4, 8, 0):
+        stdout, _ = reference.command([args.native, source, 'check', threads], timeout=600)
+        frames, summary = native_receipt(stdout, threads, check=True)
+        signature = dict(frames=frames, semantic=summary['semantic'], output_md5=summary['output_md5'])
+        if expected is None:
+            expected = signature
+            row['work'] = {key: summary[key] for key in ('pictures', 'decoded_pictures', 'bins')}
+            conformance.require(summary['pictures'] == row['frames'] and summary['output_md5'] == row['output_md5'],
+                                'native_rows_oracle_identity')
+        conformance.require(signature == expected and summary['input_bytes'] == source.stat().st_size,
+                            'native_rows_thread_output_mismatch')
+    commands = {f'candidate_{threads}': [args.native, source, 'decode', threads] for threads in (1, 4, 0)}
+    commands['ffmpeg_one'] = reference.ffmpeg_command(oracle.ffmpeg, source, True,
+        ['-progress', 'pipe:1', '-f', 'null', '-'])
+    commands['ffmpeg_default'] = reference.ffmpeg_command(oracle.ffmpeg, source, False,
+        ['-progress', 'pipe:1', '-f', 'null', '-'])
+    names = tuple(commands)
+    calls = []
+    for repeat in range(-1, args.repeats):
+        offset = max(0, repeat) % len(names)
+        order = names[offset:] + names[:offset]
+        if repeat % 2:
+            order = tuple(reversed(order))
+        for name in order:
+            stdout, receipt = reference.command(commands[name], timeout=600)
+            reference.check_work('coreav' if name.startswith('candidate_') else name, stdout, row['frames'])
+            if name.startswith('candidate_'):
+                _, summary = native_receipt(stdout, int(name.split('_')[1]), check=False)
+                conformance.require({key: summary[key] for key in row['work']} == row['work']
+                                    and summary['semantic'] == expected['semantic'], 'native_rows_timed_work_mismatch')
+                receipt.update({key: summary[key] for key in ('requested_threads', 'thread_limit', 'host_threads',
+                    'max_memory_bytes', 'memory_bytes', 'max_workers', 'parallel_pictures', 'frame_parallel_pictures', 'admissions')})
+            calls.append(dict(arm=name, repeat=repeat, **receipt))
+    conformance.require(conformance.digest(source) == row['input_sha256'], 'native_rows_input_changed')
+    row.update(status='timed', calls=[call for call in calls if call['repeat'] >= 0],
+               warmups=[call for call in calls if call['repeat'] < 0])
+    return row
+
+
+def native_reference(argv):
+    parser = argparse.ArgumentParser(description='Measure the real native row pipeline against its one-worker arm')
+    for name in ('native', 'oracle-bin', 'out'):
+        parser.add_argument('--' + name, required=True, type=pathlib.Path)
+    parser.add_argument('--candidate', required=True)
+    parser.add_argument('--shard-index', type=int, default=0)
+    parser.add_argument('--shard-count', type=int, default=1)
+    parser.add_argument('--only', default='')
+    parser.add_argument('--frames', type=int, choices=range(1, 33), default=32)
+    parser.add_argument('--repeats', type=int, choices=range(3, 10), default=5)
+    args = parser.parse_args(argv)
+    if re.fullmatch('[0-9a-f]{40}', args.candidate) is None or not 0 <= args.shard_index < args.shard_count <= 24:
+        parser.error('invalid_native_rows_identity_or_shard')
+    selected = set(args.only.split(',')) if args.only else set(ROW_INPUT_IDS)
+    if not selected <= set(ROW_INPUT_IDS):
+        parser.error('native_rows_requires_non_wavefront_inputs')
+    args.only = {identity for index, identity in enumerate(ROW_INPUT_IDS)
+                 if index % args.shard_count == args.shard_index and identity in selected}
+    if not args.only:
+        parser.error('empty_shard')
+    conformance.require(sys.platform == 'linux', 'linux_actions_required')
+    oracle = test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
+    args.out.mkdir(parents=True, exist_ok=False)
+    report = dict(candidate=args.candidate, native_sha256=conformance.digest(args.native),
+        oracle=oracle_pin.load()['BUILD'], selected_ids=sorted(args.only), frames_cap=args.frames,
+        repeats=args.repeats,
+        scope='real native packet boundary; same-head one-worker baseline; automatic/four-worker calls; '
+              'startup, framing, packing and teardown included; shared-host reference figures, not speed bars',
+        host=dict(cpu=next(line.split(':', 1)[1].strip() for line in pathlib.Path('/proc/cpuinfo').read_text().splitlines()
+                           if line.startswith('model name')), cores=os.cpu_count(),
+                  affinity=sorted(os.sched_getaffinity(0)), kernel=platform.release(), load_average=list(os.getloadavg())),
+        complete=False, passed=True, files=[])
+    pool = round_files.pool()
+    pool.limits.max_requests = 4000 // args.shard_count
+    pool.limits.max_bytes = (32 << 30) // args.shard_count
+    try:
+        with tempfile.TemporaryDirectory(prefix='hevc-native-rows-') as temp:
+            for identity, source, original_sha in reference.inputs(args, oracle, pathlib.Path(temp), pool):
+                try:
+                    row = measure_native(args, oracle, source, identity)
+                except (ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+                    row = dict(id=identity, status='failed', failure=str(error) if isinstance(error, ValueError)
+                               else type(error).__name__)
+                    report['passed'] = False
+                row['source_sha256'] = original_sha
+                report['files'].append(row)
+                conformance.write_json(args.out / 'results.json', report)
+                print(json.dumps(dict(id=identity, status=row['status'], failure=row.get('failure'))), flush=True)
+                if not report['passed']:
+                    break
+            report['complete'] = {row['id'] for row in report['files']} == args.only
+        conformance.require(conformance.digest(args.native) == report['native_sha256'], 'native_rows_binary_changed')
+    except BaseException:
+        report['passed'] = False
+        raise
+    finally:
+        pool.close()
+        report['r2_requests'] = pool.limits.requests
+        conformance.write_json(args.out / 'results.json', report)
+    return 0 if report['complete'] and report['passed'] else 1
+
+
 def signature(binary, source, threads):
     stdout, _ = reference.command([binary, source, 'check', threads], timeout=600)
     rows = [json.loads(line) for line in stdout.splitlines()]
@@ -366,6 +612,10 @@ def measure(args, oracle, source, identity):
 
 
 def main():
+    if sys.argv[1:2] == ['native-conformance']:
+        return native_conformance(sys.argv[2:])
+    if sys.argv[1:2] == ['native-reference']:
+        return native_reference(sys.argv[2:])
     if sys.argv[1:2] == ['diagnostics']:
         return diagnostics(sys.argv[2:])
     if sys.argv[1:2] == ['census']:

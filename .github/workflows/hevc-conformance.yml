@@ -70,6 +70,11 @@ jobs:
           toolchain: stable
       - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc -p coreav-backend-hevc --no-default-features
       - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc -p coreav-backend-hevc -p coreav-thumbnail --features native-hevc --all-targets
+      - name: Exercise the real native reference driver on generated pixels
+        run: |
+          set -euo pipefail
+          cargo test --locked -p coreav-backend-hevc --features native-hevc,test-support --example reference | tee "$RUNNER_TEMP/native-reference-tests.log"
+          grep -F 'test tests::native_reference_checks_generated_depths_at_every_worker_boundary ... ok' "$RUNNER_TEMP/native-reference-tests.log"
       - run: cargo test --locked -p coreav-hevc -p coreav-kernels-hevc --features native-hevc,scalar --all-targets
       - name: Check diagnostic-only extraction and row reads
         if: runner.os == 'Linux'

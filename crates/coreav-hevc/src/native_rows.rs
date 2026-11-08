@@ -1,5 +1,18 @@
 use crate::{DecodedPicture, OutputMemory, PictureInfo, Result};
 
+#[cfg(feature = "test-support")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Admission {
+    pub sps_id: u32,
+    pub sps_hash: [u8; 32],
+    pub ceiling: usize,
+    pub workers: usize,
+    pub lag: usize,
+    pub frame_bytes: usize,
+    pub reserved_bytes: usize,
+    pub limit_bytes: usize,
+}
+
 #[derive(Clone, Copy)]
 pub struct OutputHeader {
     pub index: u64,

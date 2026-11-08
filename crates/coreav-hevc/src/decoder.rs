@@ -412,6 +412,22 @@ impl PictureDecoder {
             .is_some_and(|session| session.pictures.frame.scheduler.rows().is_some())
     }
 
+    #[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn native_row_admission(&self) -> Option<crate::native_rows::Admission> {
+        let rows = self.session.first()?.pictures.frame.scheduler.rows()?;
+        Some(crate::native_rows::Admission {
+            sps_id: rows.identity.0,
+            sps_hash: rows.identity.1,
+            ceiling: rows.plan.ceiling,
+            workers: rows.plan.workers,
+            lag: rows.plan.lag,
+            frame_bytes: rows.plan.frame_bytes,
+            reserved_bytes: rows.plan.reserved,
+            limit_bytes: self.limits.max_memory_bytes,
+        })
+    }
+
     #[cfg(feature = "native-hevc-rows-private")]
     #[doc(hidden)]
     pub fn receive_rows(&mut self) -> Result<Option<crate::native_rows::RowReceive>> {
