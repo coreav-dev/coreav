@@ -21,10 +21,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         decoded,
         deblocking,
         interval,
+        metadata @ ..,
     ] = args.as_slice()
     else {
         return Err(
-            "usage: p WIDTH HEIGHT QP_OR_crf:N FRAMES INPUT OUTPUT RECON DECODED DEBLOCKING INTERVAL".into(),
+            "usage: p WIDTH HEIGHT QP_OR_crf:N FRAMES INPUT OUTPUT RECON DECODED DEBLOCKING INTERVAL [FPS_NUM FPS_DEN SAR_NUM SAR_DEN]".into(),
         );
     };
     let deblocking = if deblocking.parse::<bool>()? {
@@ -35,9 +36,21 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let width = width.parse::<usize>()?;
     let height = height.parse::<usize>()?;
     let frames = frames.parse::<u64>()?;
+    let (frame_rate, sample_aspect_ratio) = match metadata {
+        [] => (Default::default(), Default::default()),
+        [num, den, sar_num, sar_den] => (
+            coreav_h264_encoder::FrameRate::new(num.parse()?, den.parse()?)?,
+            if sar_num == "0" && sar_den == "1" {
+                Default::default()
+            } else {
+                coreav_h264_encoder::SampleAspectRatio::new(sar_num.parse()?, sar_den.parse()?)?
+            },
+        ),
+        _ => return Err("expected four optional timing and aspect terms".into()),
+    };
     let settings = Settings {
-        frame_rate: Default::default(),
-        sample_aspect_ratio: Default::default(),
+        frame_rate,
+        sample_aspect_ratio,
         width,
         height,
         rate_mode: match qp.strip_prefix("crf:") {

@@ -167,7 +167,7 @@ fn normalized(stderr: &[u8]) -> String {
     result
 }
 
-fn probe(program: &Path, path: &Path) -> (Value, String) {
+pub fn probe(program: &Path, path: &Path) -> (Value, String) {
     let output = Command::new(program)
         .args(["-v", "error"])
         .args(include_str!("../../../../scripts/oracle-audio-args.txt").split_whitespace())
@@ -283,16 +283,18 @@ fn packet_record(native: &Value, oracle: &Value, pos: usize, payload: &[u8], vid
 fn streams(actual: &Value, expected: &Value, tracks: &[Track], sizes: &[(usize, usize)]) {
     let mut adjusted = expected.clone();
     for (index, track) in tracks.iter().enumerate() {
-        if track.avcc.is_some() {
-            assert_eq!(actual[index]["codec_tag_string"], "avc1");
-            assert_eq!(actual[index]["codec_tag"], "0x31637661");
+        if track.avcc.is_some() || expected[index]["codec_name"] == "flac" {
+            if track.avcc.is_some() {
+                assert_eq!(actual[index]["codec_tag_string"], "avc1");
+                assert_eq!(actual[index]["codec_tag"], "0x31637661");
+            }
             let native = bitrate(sizes[index].0, track.media_clock);
             let oracle = bitrate(sizes[index].1, track.media_clock);
             assert_eq!(actual[index]["bit_rate"], native);
             assert_eq!(expected[index]["bit_rate"], oracle);
             assert_ne!(
                 native, oracle,
-                "the measured SPS/PPS payload difference remains visible"
+                "the measured frame-header payload difference remains visible"
             );
             eprintln!("stream {index} bit_rate native={native} oracle={oracle}");
             adjusted[index]["bit_rate"] = json!(native);
@@ -341,6 +343,8 @@ fn streams(actual: &Value, expected: &Value, tracks: &[Track], sizes: &[(usize, 
             assert_ne!(&oracle[18..], &[0; 16]);
             let mut combined = oracle.clone();
             combined[..2].copy_from_slice(&768u16.to_be_bytes());
+            combined[4..7].copy_from_slice(&272u32.to_be_bytes()[1..]);
+            combined[7..10].copy_from_slice(&386u32.to_be_bytes()[1..]);
             let packed = (integer(&oracle[10..18]) & !((1 << 36) - 1)) | 192_000;
             combined[10..18].copy_from_slice(&packed.to_be_bytes());
             combined[18..].fill(0);
@@ -578,6 +582,8 @@ pub fn compare(
     let mut sample_indices = vec![0; native_tracks.len()];
     let mut observed_idrs = Vec::new();
     let mut removed_before = 0;
+    let mut flac_growth = 0;
+    let mut flac_samples = 0;
     let mut native_at = native_mdat.start;
     let mut oracle_at = oracle_mdat.start;
     let mut positions = Vec::new();
@@ -592,7 +598,7 @@ pub fn compare(
         assert_eq!(oracle_pos, oracle_at, "oracle samples tile mdat exactly");
         assert_eq!(
             native_pos - native_mdat.start,
-            oracle_pos - oracle_mdat.start - removed_before
+            oracle_pos - oracle_mdat.start - removed_before + flac_growth
         );
         positions.push((stream, sample_indices[stream], native_pos, oracle_pos));
         if let Some(avcc) = &native_tracks[stream].avcc {
@@ -609,37 +615,40 @@ pub fn compare(
                 observed_idrs.push(sample_indices[stream]);
             }
             removed_before += oracle_payload.len() - native_payload.len();
+        } else if case == "audio-copy-flac" {
+            use coreav_audio::flac::{FrameHeader, crc16_update};
+            let frame = sample_indices[stream];
+            let native = FrameHeader::parse(native_payload).unwrap();
+            let oracle = FrameHeader::parse(oracle_payload).unwrap();
+            assert!(native.variable);
+            assert!(!oracle.variable);
+            assert_eq!(native.number, flac_samples);
+            assert_eq!(oracle.number as usize, frame % 94);
+            assert_eq!(native.block_size, oracle.block_size);
+            assert_eq!(crc16_update(0, native_payload), 0);
+            assert_eq!(crc16_update(0, oracle_payload), 0);
+            assert_eq!(
+                &native_payload[native.bytes().len()..native_payload.len() - 2],
+                &oracle_payload[oracle.bytes().len()..oracle_payload.len() - 2],
+                "all FLAC subframe bytes"
+            );
+            let mut header = [0; 16];
+            let len = oracle.renumber(flac_samples, &mut header).unwrap();
+            assert_eq!(native.bytes(), &header[..len]);
+            let block = native.block_size as usize;
+            assert_eq!(block, if frame % 94 == 93 { 768 } else { 1024 });
+            flac_samples += u64::from(native.block_size);
+            flac_growth += native_payload.len() - oracle_payload.len();
+            flac_frames.push((block, native_payload.len()));
         } else {
             assert_eq!(native_payload, oracle_payload, "every audio packet byte");
-            if case == "audio-copy-flac" {
-                let frame = sample_indices[stream];
-                assert_eq!(native_payload[0], 0xff);
-                assert_eq!(native_payload[1] & 0xfe, 0xf8);
-                assert_eq!(
-                    native_payload[1] & 1,
-                    0,
-                    "known MP4 packet-copy deviation shared with the oracle: FLAC retains fixed-block strategy, not standalone-stream conformance"
-                );
-                assert_eq!(
-                    usize::from(native_payload[4]),
-                    frame % 94,
-                    "known MP4 packet-copy deviation shared with the oracle: the frame number resets at input two"
-                );
-                let block = match native_payload[2] >> 4 {
-                    10 => 1024,
-                    7 => integer(&native_payload[5..7]) as usize + 1,
-                    code => panic!("unexpected generated FLAC block-size code {code}"),
-                };
-                assert_eq!(block, if frame % 94 == 93 { 768 } else { 1024 });
-                flac_frames.push((block, native_payload.len()));
-            }
         }
         packet_record(
             native,
             oracle,
             native_pos,
             native_payload,
-            native_tracks[stream].avcc.is_some(),
+            native_tracks[stream].avcc.is_some() || case == "audio-copy-flac",
         );
         sample_indices[stream] += 1;
         sizes[stream].0 += native_payload.len();
@@ -662,8 +671,9 @@ pub fn compare(
             flac_frames.iter().map(|(block, _)| *block).max(),
             Some(1024)
         );
-        assert_eq!(flac_frames.iter().map(|(_, bytes)| *bytes).min(), Some(269));
-        assert_eq!(flac_frames.iter().map(|(_, bytes)| *bytes).max(), Some(383));
+        assert_eq!(flac_frames.iter().map(|(_, bytes)| *bytes).min(), Some(272));
+        assert_eq!(flac_frames.iter().map(|(_, bytes)| *bytes).max(), Some(386));
+        assert_eq!(flac_samples, 192_000);
     }
     assert_ne!(
         native_mdat.start, oracle_mdat.start,
