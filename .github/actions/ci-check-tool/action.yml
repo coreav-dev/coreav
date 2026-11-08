@@ -1,0 +1,34 @@
+name: Install a pinned CI check tool
+description: Restore and verify the pinned archive before installation
+inputs:
+  tool:
+    description: actionlint or cargo-deny
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: pin
+      shell: bash
+      env:
+        TOOL: ${{ inputs.tool }}
+      run: |
+        set -euo pipefail
+        source "$GITHUB_ACTION_PATH/../../../scripts/ci-tools.env"
+        case "$TOOL" in
+          actionlint) version=$ACTIONLINT_VERSION; sha256=$ACTIONLINT_SHA256 ;;
+          cargo-deny) version=$CARGO_DENY_VERSION; sha256=$CARGO_DENY_SHA256 ;;
+          *) echo 'reason=ci_check_tool_unknown' >&2; exit 2 ;;
+        esac
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+    - uses: ./.github/actions/ci-archive-cache
+      with:
+        tool: ${{ inputs.tool }}
+        version: ${{ steps.pin.outputs.version }}
+        sha256: ${{ steps.pin.outputs.sha256 }}
+    - shell: bash
+      env:
+        TOOL: ${{ inputs.tool }}
+      run: |
+        bash "$GITHUB_ACTION_PATH/../../../scripts/install-ci-check-tool.sh" "$TOOL" "$RUNNER_TEMP/coreav-ci-tools"
+        echo "$RUNNER_TEMP/coreav-ci-tools" >> "$GITHUB_PATH"
