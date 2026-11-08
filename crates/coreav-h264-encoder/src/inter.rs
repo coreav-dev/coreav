@@ -2074,6 +2074,8 @@ mod tests {
 
     fn settings(deblocking: Deblocking) -> Settings {
         Settings {
+            frame_rate: Default::default(),
+            sample_aspect_ratio: Default::default(),
             width: 16,
             height: 16,
             rate_mode: crate::RateMode::FixedQp(28),

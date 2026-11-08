@@ -204,6 +204,8 @@ mod tests {
     #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
     fn unavailable_wavefront_neighbours_are_refused_before_border_reads() {
         let settings = crate::Settings {
+            frame_rate: Default::default(),
+            sample_aspect_ratio: Default::default(),
             width: 64,
             height: 48,
             rate_mode: crate::RateMode::FixedQp(28),
