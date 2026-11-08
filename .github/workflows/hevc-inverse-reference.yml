@@ -41,6 +41,14 @@ jobs:
       CANDIDATE: ${{ inputs.candidate }}
       ONLY: ${{ inputs.only }}
     steps:
+      - name: Validate dispatch inputs
+        run: |
+          set -euo pipefail
+          [[ "$BASELINE" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
+          input='(c0[0-3]|d(0[0-9]|1[0-9]|2[0-5]))'
+          pattern="^${input}(,${input})*$"
+          [[ "$ONLY" =~ $pattern ]]
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false

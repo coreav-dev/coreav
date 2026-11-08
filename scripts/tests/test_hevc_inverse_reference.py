@@ -1,5 +1,8 @@
 import pathlib
+import os
+import subprocess
 import sys
+import textwrap
 import unittest
 from unittest.mock import patch
 
@@ -75,6 +78,27 @@ class InverseReference(unittest.TestCase):
             self.assertIn(name + ': ${{ inputs.' + name + ' }}', text)
         reusable = (SCRIPTS.parent / '.github/workflows/hevc-inverse-reference.yml').read_text()
         self.assertIn('  workflow_call:', reusable)
+
+    def test_dispatch_rejects_invalid_inputs_before_checkout_or_build(self):
+        text = (SCRIPTS.parent / '.github/workflows/hevc-inverse-reference.yml').read_text()
+        validation = text.index('      - name: Validate dispatch inputs')
+        self.assertLess(validation, text.index('actions/checkout@'))
+        self.assertLess(validation, text.index('cargo build'))
+        self.assertLess(validation, text.index('secrets.'))
+        script = text[validation:].split('        run: |\n', 1)[1].split('      - uses:', 1)[0]
+        script = textwrap.dedent(script)
+        valid = dict(BASELINE='a' * 40, CANDIDATE='b' * 40, ONLY='c00,d25')
+        for name, value in [('BASELINE', 'a' * 39), ('CANDIDATE', 'g' * 40),
+                            ('ONLY', ''), ('ONLY', 'c04'), ('ONLY', 'd26'),
+                            ('ONLY', 'c00,'), ('ONLY', 'c00, d01')]:
+            with self.subTest(name=name, value=value):
+                result = subprocess.run(['bash', '-c', script], capture_output=True,
+                                        env={**os.environ, **valid, name: value}, timeout=5)
+                self.assertNotEqual(result.returncode, 0)
+        for only in [f'c{i:02}' for i in range(4)] + [f'd{i:02}' for i in range(26)] + ['c00,d25,c00']:
+            result = subprocess.run(['bash', '-c', script], capture_output=True,
+                                    env={**os.environ, **valid, 'ONLY': only}, timeout=5)
+            self.assertEqual(result.returncode, 0, only)
 
 
 if __name__ == '__main__':
