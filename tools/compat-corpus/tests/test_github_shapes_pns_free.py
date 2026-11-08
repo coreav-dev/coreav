@@ -117,7 +117,8 @@ class GateControls(Controls):
                     for i in range(len(call) - 1)])
 
     def test_all_generation_faults_stop_before_any_shape(self):
-        faults = {'pns_present': 'pns_present', 'scan_incomplete': 'scan_incomplete',
+        faults = {'generate_failed': 'generate_failed', 'original_generate_failed': 'generate_failed',
+            'pns_present': 'pns_present', 'scan_incomplete': 'scan_incomplete',
             'missing_channel': 'scan_incomplete', 'invalid_noise': 'scan_incomplete',
             'scan_failed': 'scan_failed', 'packet_count': 'packet_count',
             'extra_stream': 'configuration', 'carriage_failed': 'carriage',
@@ -132,6 +133,8 @@ class GateControls(Controls):
                           'lock_sha256': run.digest(run.ROOT / 'Cargo.lock')})
 
         def generate(folder, ffmpeg, env, execute, registration):
+            if fault.endswith('generate_failed'):
+                raise ValueError('fixture_generation')
             folder.mkdir()
             for name in ('source.mp4', 'source.mkv'):
                 (folder / name).write_bytes(b'data')
@@ -141,17 +144,21 @@ class GateControls(Controls):
                 opts = types.SimpleNamespace(commit='a' * 40, registration=fixtures.PNS_FREE,
                     build_record=build, bundle=self.root / fault, **{name: str(binary)
                         for name in ('coreav', 'ffmpeg', 'ffprobe', 'x264', 'pns_diagnostic')})
+                if fault == 'original_generate_failed':
+                    opts.registration = fixtures.ORIGINAL
                 with mock.patch.object(run, 'merged_source'), \
                      mock.patch.object(run.platform, 'system', return_value='Linux'), \
                      mock.patch.object(run.platform, 'machine', return_value='x86_64'), \
                      mock.patch.dict(os.environ, {'GITHUB_ACTIONS': 'true'}), \
                      mock.patch.object(run, 'verify_programs', return_value=identity), \
                      mock.patch.object(fixtures, 'generate', side_effect=generate), \
-                     mock.patch.object(run, 'execute', side_effect=FakeScan(fault)), \
+                     mock.patch.object(run, 'execute', side_effect=FakeScan(fault)) as scanner, \
                      mock.patch.object(run, 'acquire_one') as acquire, \
                      self.assertRaisesRegex(run.EvidenceError, 'fixture_generation:' + reason):
                     run.run(opts)
                 acquire.assert_not_called()
+                if fault.endswith('generate_failed'):
+                    scanner.assert_not_called()
                 self.assertFalse((opts.bundle / 'calls').exists())
 
 
@@ -291,6 +298,8 @@ class WorkflowPrivacy(unittest.TestCase):
 
     def test_paired_run_stops_on_pns_free_failure_and_keeps_results_private(self):
         workflow = (run.ROOT / '.github/workflows/github-shapes.yml').read_text()
+        note = (run.ROOT / 'docs/design/github-shapes-200-pns-free.md').read_text()
+        self.assertIn('The workflow accepts only the paired selection.', note)
         measure = workflow.split('  measure:\n', 1)[1].split('  aac-controls:\n', 1)[0]
         self.assertNotIn('upload-artifact', measure)
         self.assertIn('[ "$REGISTRATION" = paired ]', measure)

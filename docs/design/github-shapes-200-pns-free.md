@@ -34,7 +34,7 @@ The per-command `exact_without_pns` guard stays unchanged. If it fails, that com
 
 ## Paired acquisition
 
-One main-only workflow dispatch selects both recipes at one clean merged main SHA. It acquires each recipe once in separate evidence directories using the same build and pinned programs. The original recipe is a pairing control, not a retry of an earlier acquisition. The workflow also accepts either registration explicitly; every bundle and summary names its selected registration so evidence cannot be judged under the other recipe.
+One main-only workflow dispatch selects both recipes at one clean merged main SHA. It acquires each recipe once in separate evidence directories using the same build and pinned programs. The original recipe is a pairing control, not a retry of an earlier acquisition. The workflow accepts only the paired selection. The CLI selects each registration explicitly, and every bundle and summary names its selected registration so evidence cannot be judged under the other recipe.
 
 The host remains GitHub-hosted `ubuntu-24.04`, Linux x86-64. The build remains `cargo build --release --locked -p coreav-cli --features release-full`. FFmpeg 9.0.2, ffprobe and x264 retain the original pins and qualification. Build identities, dependencies, timeouts, fallback restrictions, program-start rules, accounting and failure handling stay unchanged. Failures remain misses. A replacement acquisition is allowed only for a recorded infrastructure or harness fault, with the failed evidence retained.
 

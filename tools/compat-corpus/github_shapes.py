@@ -591,6 +591,9 @@ def run(opts):
     env = environment()
     try:
         fixtures.generate(bundle / 'fixtures', programs['$FFMPEG'], env, execute, opts.registration)
+    except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError):
+        raise EvidenceError('fixture_generation:generate_failed') from None
+    try:
         scans = {name: pns_gate.scan_fixture(bundle / 'fixtures' / name, bundle / 'pns-gate' / name,
                     programs, env, execute) for name in ('source.mp4', 'source.mkv')
                  if opts.registration == fixtures.PNS_FREE}
