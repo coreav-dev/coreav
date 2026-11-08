@@ -263,9 +263,248 @@ pub fn sao_sample(
     Ok(depth.clip(i64::from(sample) + i64::from(*offsets.get(index).ok_or(Error::Buffer)?)))
 }
 
+/// Validated band offsets shared by a complete SAO block.
+#[derive(Clone, Copy, Debug)]
+pub struct SaoBand {
+    depth: BitDepth,
+    offsets: [i16; 4],
+    position: u8,
+}
+
+impl SaoBand {
+    /// Validates the four offsets and the starting band position.
+    pub fn new(depth: BitDepth, offsets: [i16; 4], position: u8) -> Result<Self, Error> {
+        sao_sample(depth, 0, offsets, SaoClass::Band(position))?;
+        Ok(Self {
+            depth,
+            offsets,
+            position,
+        })
+    }
+
+    /// Filters an in-place row and returns its changed-sample count.
+    /// Every sample is validated before any output is written.
+    pub fn apply(self, samples: &mut [u16]) -> Result<u64, Error> {
+        if samples.iter().any(|v| *v > self.depth.max_sample()) {
+            return Err(Error::Sample);
+        }
+        let (lanes, changed) = (0, 0);
+        #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+        let (lanes, changed) = if self.depth.bits() == 8 {
+            crate::simd::Avx2::detect().map_or((lanes, changed), |avx2| {
+                avx2.sao_band(samples, self.offsets, self.position)
+            })
+        } else {
+            (lanes, changed)
+        };
+        let mut changed = changed;
+        for sample in samples.get_mut(lanes..).ok_or(Error::Buffer)? {
+            let original = *sample;
+            let index =
+                ((original >> (self.depth.bits() - 5)) + 32 - u16::from(self.position)) & 31;
+            if let Some(&offset) = self.offsets.get(usize::from(index)) {
+                *sample = self.depth.clip(i64::from(original) + i64::from(offset));
+            }
+            changed += u64::from(original != *sample);
+        }
+        Ok(changed)
+    }
+}
+
+/// Validated edge offsets shared by a complete SAO block.
+#[derive(Clone, Copy, Debug)]
+pub struct SaoEdge {
+    depth: BitDepth,
+    offsets: [i16; 4],
+}
+
+impl SaoEdge {
+    /// Validates the four offsets.
+    pub fn new(depth: BitDepth, offsets: [i16; 4]) -> Result<Self, Error> {
+        sao_sample(depth, 0, offsets, SaoClass::Edge([0; 2]))?;
+        Ok(Self { depth, offsets })
+    }
+
+    /// Filters equal-length source and neighbour rows into a disjoint output.
+    /// All lengths and samples are validated before any output is written.
+    pub fn apply(
+        self,
+        source: &[u16],
+        neighbours: [&[u16]; 2],
+        output: &mut [u16],
+    ) -> Result<u64, Error> {
+        if source.len() != output.len() || neighbours.iter().any(|row| row.len() != source.len()) {
+            return Err(Error::Buffer);
+        }
+        if source
+            .iter()
+            .chain(neighbours.into_iter().flatten())
+            .any(|v| *v > self.depth.max_sample())
+        {
+            return Err(Error::Sample);
+        }
+        let (lanes, changed) = (0, 0);
+        #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
+        let (lanes, changed) = if self.depth.bits() == 8 {
+            if let Some(avx2) = crate::simd::Avx2::detect() {
+                avx2.sao_edge(source, neighbours, output, self.offsets)?
+            } else {
+                (lanes, changed)
+            }
+        } else {
+            (lanes, changed)
+        };
+        let mut changed = changed;
+        let source = source.get(lanes..).ok_or(Error::Buffer)?;
+        let neighbours = [
+            neighbours[0].get(lanes..).ok_or(Error::Buffer)?,
+            neighbours[1].get(lanes..).ok_or(Error::Buffer)?,
+        ];
+        let output = output.get_mut(lanes..).ok_or(Error::Buffer)?;
+        for (((&sample, &a), &b), destination) in source
+            .iter()
+            .zip(neighbours[0])
+            .zip(neighbours[1])
+            .zip(output)
+        {
+            let sign = (i32::from(sample) - i32::from(a)).signum()
+                + (i32::from(sample) - i32::from(b)).signum();
+            let offset = match sign {
+                -2 => self.offsets[0],
+                -1 => self.offsets[1],
+                0 => 0,
+                1 => self.offsets[2],
+                _ => self.offsets[3],
+            };
+            *destination = self.depth.clip(i64::from(sample) + i64::from(offset));
+            changed += u64::from(sample != *destination);
+        }
+        Ok(changed)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sao_rows_cover_bands_offsets_tails_and_clipping() -> Result<(), Error> {
+        for bits in [8, 10] {
+            let depth = BitDepth::new(bits)?;
+            let maximum = (1i16 << (bits - 5)) - 1;
+            for position in 0..32 {
+                for offset in -maximum..=maximum {
+                    let offsets = [offset, -offset, maximum, -maximum];
+                    let band = SaoBand::new(depth, offsets, position)?;
+                    let input: std::vec::Vec<_> = (0..=depth.max_sample()).collect();
+                    let mut output = input.clone();
+                    let expected: std::vec::Vec<_> = input
+                        .iter()
+                        .map(|v| sao_sample(depth, *v, offsets, SaoClass::Band(position)))
+                        .collect::<Result<_, _>>()?;
+                    let changed = band.apply(&mut output)?;
+                    assert_eq!(output, expected);
+                    assert_eq!(
+                        changed,
+                        input.iter().zip(&expected).filter(|(a, b)| a != b).count() as u64
+                    );
+                }
+            }
+            for len in 0..65 {
+                let mut output = [0u16; 67];
+                for start in 0..3 {
+                    let row = output.get_mut(start..start + len).ok_or(Error::Buffer)?;
+                    assert_eq!(SaoBand::new(depth, [1; 4], 0)?.apply(row)?, len as u64);
+                    row.fill(0);
+                }
+            }
+            for offset in -maximum..=maximum {
+                let offsets = [offset; 4];
+                let edge = SaoEdge::new(depth, offsets)?;
+                for sample in 0..=depth.max_sample() {
+                    let source = [sample; 19];
+                    for a in [
+                        sample.saturating_sub(1),
+                        sample,
+                        (sample + 1).min(depth.max_sample()),
+                    ] {
+                        for b in [
+                            sample.saturating_sub(1),
+                            sample,
+                            (sample + 1).min(depth.max_sample()),
+                        ] {
+                            let expected =
+                                sao_sample(depth, sample, offsets, SaoClass::Edge([a, b]))?;
+                            let mut output = [0; 19];
+                            assert_eq!(
+                                edge.apply(&source, [&[a; 19], &[b; 19]], &mut output)?,
+                                u64::from(sample != expected) * 19
+                            );
+                            assert_eq!(output, [expected; 19]);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn sao_edge_exhausts_eight_bit_sample_triples() -> Result<(), Error> {
+        let depth = BitDepth::new(8)?;
+        let offsets = [7, -7, 5, -5];
+        let edge = SaoEdge::new(depth, offsets)?;
+        let b: std::vec::Vec<_> = (0..256).collect();
+        for sample in 0..256 {
+            for a in 0..256 {
+                let mut output = [0; 256];
+                edge.apply(&[sample; 256], [&[a; 256], &b], &mut output)?;
+                for (&b, &value) in b.iter().zip(&output) {
+                    assert_eq!(
+                        value,
+                        sao_sample(depth, sample, offsets, SaoClass::Edge([a, b]))?
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn sao_row_refusals_never_write_output() -> Result<(), Error> {
+        for bits in [8, 10] {
+            let depth = BitDepth::new(bits)?;
+            assert!(SaoBand::new(depth, [0; 4], 32).is_err());
+            let invalid = 1 << (bits - 5);
+            assert!(SaoBand::new(depth, [invalid; 4], 0).is_err());
+            assert!(SaoEdge::new(depth, [-invalid; 4]).is_err());
+            let band = SaoBand::new(depth, [1; 4], 0)?;
+            let mut samples = [0; 33];
+            *samples.last_mut().ok_or(Error::Buffer)? = depth.max_sample() + 1;
+            let original = samples;
+            assert_eq!(band.apply(&mut samples), Err(Error::Sample));
+            assert_eq!(samples, original);
+            let edge = SaoEdge::new(depth, [1; 4])?;
+            let mut output = [123; 33];
+            for neighbours in [[&samples[..], &[0; 33][..]], [&[0; 33][..], &samples[..]]] {
+                assert_eq!(
+                    edge.apply(&[0; 33], neighbours, &mut output),
+                    Err(Error::Sample)
+                );
+                assert_eq!(output, [123; 33]);
+            }
+            assert_eq!(
+                edge.apply(&samples, [&[0; 33]; 2], &mut output),
+                Err(Error::Sample)
+            );
+            assert_eq!(
+                edge.apply(&[0; 33], [&[0; 32], &[0; 33]], &mut output),
+                Err(Error::Buffer)
+            );
+            assert_eq!(output, [123; 33]);
+        }
+        Ok(())
+    }
 
     #[test]
     fn inter_strength_uses_its_own_tc_index_and_zero_never_filters() -> Result<(), Error> {

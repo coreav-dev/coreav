@@ -30,3 +30,10 @@ bench = false
 
 [lints.rust]
 unsafe_code = "forbid"
+
+[[bin]]
+name = "sao"
+path = "fuzz_targets/sao.rs"
+test = false
+doc = false
+bench = false
