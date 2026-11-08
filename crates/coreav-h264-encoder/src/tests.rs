@@ -137,7 +137,7 @@ fn vui_rationals_preserve_syntax_and_native_picture_roundtrips() {
             )
             .with_mode(coreav_h264::Mode::EveryPicture);
             let mut stream = Vec::new();
-            for _ in 0..3 {
+            for _ in 0..64 {
                 let au = encoder.encode(picture).unwrap();
                 let mut r = nal_reader(&au.nals[0]);
                 assert_eq!(r.u(24), 0x42c033);
@@ -175,7 +175,7 @@ fn vui_rationals_preserve_syntax_and_native_picture_roundtrips() {
             }
             decoder.flush().unwrap();
             let pictures = decoder.take_pictures();
-            assert_eq!(pictures.len(), 3);
+            assert_eq!(pictures.len(), 64);
             for picture in pictures {
                 let (cb, cr) = picture.chroma();
                 assert!(

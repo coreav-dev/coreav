@@ -128,6 +128,7 @@ jobs:
           name: h264-encoder-conformance
           path: |
             ${{ runner.temp }}/g1-conformance
+            ${{ runner.temp }}/vui
             ${{ runner.temp }}/deblock-conformance
             ${{ runner.temp }}/g1-oracles/jm-build.txt
           if-no-files-found: ignore

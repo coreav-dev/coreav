@@ -35,7 +35,7 @@ def main():
             stream = streams[0]
             for field in ('r_frame_rate', 'avg_frame_rate'):
                 if Fraction(stream[field]) != Fraction(num, den):
-                    raise RuntimeError(f'{source.name}: {field}={stream[field]}')
+                    raise RuntimeError(f'{source.name}: {field}={stream[field]}, stream={stream}')
             if Fraction(stream['sample_aspect_ratio'].replace(':', '/')) != Fraction(width, height):
                 raise RuntimeError(f'{source.name}: SAR={stream["sample_aspect_ratio"]}')
             count += 1
