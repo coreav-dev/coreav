@@ -22,19 +22,12 @@ pub(crate) fn fill<T: Send + Sync>(
     let workers = threads.min(height).min(width.div_ceil(2));
     if workers == 1 {
         return std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut consumed = Ok(());
-            for row in 0..height {
-                for address in row * width..(row + 1) * width {
-                    compute(address, &table)?;
-                }
-                if consumed.is_ok() {
-                    consumed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        consume(row, &table)
-                    }))
-                    .unwrap_or(Err(Error::Internal));
-                }
+            for address in 0..table.len() {
+                compute(address, &table)?;
             }
-            consumed?;
+            for row in 0..height {
+                consume(row, &table)?;
+            }
             Ok(table)
         }))
         .unwrap_or(Err(Error::Internal));
@@ -195,7 +188,7 @@ mod tests {
 
     #[test]
     fn caller_consumes_ordered_rows_before_later_decisions_finish() {
-        for threads in [1, 2, 3, 8] {
+        for threads in [2, 3, 8] {
             let width = 12;
             let (consumed, ready) = mpsc::sync_channel(1);
             let ready = Mutex::new(ready);

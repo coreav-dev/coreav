@@ -72,10 +72,11 @@ pub(crate) fn picture(
     record: impl Fn(usize, usize) -> Result<Record>,
 ) -> Result<()> {
     let n = if chroma { 8 } else { 16 };
-    filter(data, width, qp, chroma, 0..height / n, record)
+    rows(data, width, qp, chroma, 0..height / n, record)
 }
 
-pub(crate) fn row(
+#[cfg(test)]
+fn row(
     data: &mut [u8],
     width: usize,
     qp: u8,
@@ -83,10 +84,10 @@ pub(crate) fn row(
     my: usize,
     record: impl Fn(usize, usize) -> Result<Record>,
 ) -> Result<()> {
-    filter(data, width, qp, chroma, my..my + 1, record)
+    rows(data, width, qp, chroma, my..my + 1, record)
 }
 
-fn filter(
+pub(crate) fn rows(
     data: &mut [u8],
     width: usize,
     qp: u8,

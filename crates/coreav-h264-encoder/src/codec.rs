@@ -1056,6 +1056,7 @@ pub(crate) fn picture(
         FramePlane::new(e.coded_width / 2, e.coded_height / 2)?,
     ];
     let mb_width = e.coded_width / 16;
+    let mb_height = e.coded_height / 16;
     let mut writer = Bits::new(e.limits.access_unit_bytes);
     syntax::slice(&mut writer, e, slice)?;
     let mut pending_skip = 0;
@@ -1094,30 +1095,45 @@ pub(crate) fn picture(
                     .commit(tile, mx * 8, my * 8, 8)?;
             }
         }
-        if e.settings.deblocking == Deblocking::Enabled {
+        if e.settings.deblocking == Deblocking::Enabled && (e.threads != 1 || row + 1 == mb_height)
+        {
+            let rows = if e.threads == 1 {
+                0..mb_height
+            } else {
+                row..row + 1
+            };
             for (c, plane) in planes.iter_mut().enumerate() {
                 let qp = if c == 0 {
                     slice.qp
                 } else {
                     t::chroma_qp(slice.qp)
                 };
-                deblock::row(&mut plane.data, plane.width, qp, c != 0, row, |mx, my| {
-                    let n = &candidates
-                        .get(my * mb_width + mx)
-                        .and_then(std::sync::OnceLock::get)
-                        .ok_or(Error::Internal)?
-                        .state;
-                    let mut nonzero = 0;
-                    for (p, &count) in n.counts.first().ok_or(Error::Internal)?.iter().enumerate() {
-                        if count != 0 {
-                            nonzero |= 1 << p;
+                deblock::rows(
+                    &mut plane.data,
+                    plane.width,
+                    qp,
+                    c != 0,
+                    rows.clone(),
+                    |mx, my| {
+                        let n = &candidates
+                            .get(my * mb_width + mx)
+                            .and_then(std::sync::OnceLock::get)
+                            .ok_or(Error::Internal)?
+                            .state;
+                        let mut nonzero = 0;
+                        for (p, &count) in
+                            n.counts.first().ok_or(Error::Internal)?.iter().enumerate()
+                        {
+                            if count != 0 {
+                                nonzero |= 1 << p;
+                            }
                         }
-                    }
-                    Ok(deblock::Record {
-                        motion: n.motion,
-                        nonzero,
-                    })
-                })?;
+                        Ok(deblock::Record {
+                            motion: n.motion,
+                            nonzero,
+                        })
+                    },
+                )?;
             }
         }
         Ok(())
