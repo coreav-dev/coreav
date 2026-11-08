@@ -135,69 +135,20 @@ pub(crate) fn pred4x4(v: &mut IntraMut<'_>, mode: u8) {
     }
     let top = v.top();
     let last = top.get(3).copied().unwrap_or(0);
-    let [a, b, c, d, e, f, g, h]: [u16; 8] =
-        core::array::from_fn(|p| u16::from(top.get(p).copied().unwrap_or(last)));
-    let [i, j, k, l]: [u16; 4] = core::array::from_fn(|p| u16::from(v.left(p)));
+    let top: [u16; 8] = core::array::from_fn(|p| u16::from(top.get(p).copied().unwrap_or(last)));
+    let left: [u16; 4] = core::array::from_fn(|p| u16::from(v.left(p)));
+    let [a, b, c, d, e, f, g, _] = top;
+    let [i, j, k, l] = left;
     let x = u16::from(v.top_left());
     let half = |a: u16, b: u16| ((a + b + 1) >> 1) as u8;
     let quarter = |a: u16, b: u16, c: u16| ((a + 2 * b + c + 2) >> 2) as u8;
     let block = match mode {
         0 => [a, b, c, d, a, b, c, d, a, b, c, d, a, b, c, d].map(|v| v as u8),
         1 => [i, i, i, i, j, j, j, j, k, k, k, k, l, l, l, l].map(|v| v as u8),
-        3 => {
-            let p0 = quarter(a, b, c);
-            let p1 = quarter(b, c, d);
-            let p2 = quarter(c, d, e);
-            let p3 = quarter(d, e, f);
-            let p4 = quarter(e, f, g);
-            let p5 = quarter(f, g, h);
-            let p6 = quarter(g, h, h);
-            [
-                p0, p1, p2, p3, p1, p2, p3, p4, p2, p3, p4, p5, p3, p4, p5, p6,
-            ]
-        }
-        4 => {
-            let p0 = quarter(i, x, a);
-            let p1 = quarter(x, a, b);
-            let p2 = quarter(a, b, c);
-            let p3 = quarter(b, c, d);
-            let p4 = quarter(x, i, j);
-            let p5 = quarter(i, j, k);
-            let p6 = quarter(j, k, l);
-            [
-                p0, p1, p2, p3, p4, p0, p1, p2, p5, p4, p0, p1, p6, p5, p4, p0,
-            ]
-        }
-        5 => {
-            let p0 = half(x, a);
-            let p1 = half(a, b);
-            let p2 = half(b, c);
-            let p3 = half(c, d);
-            let p4 = quarter(i, x, a);
-            let p5 = quarter(x, a, b);
-            let p6 = quarter(a, b, c);
-            let p7 = quarter(b, c, d);
-            let p8 = quarter(x, i, j);
-            let p9 = quarter(i, j, k);
-            [
-                p0, p1, p2, p3, p4, p5, p6, p7, p8, p0, p1, p2, p9, p4, p5, p6,
-            ]
-        }
-        6 => {
-            let p0 = half(x, i);
-            let p1 = half(i, j);
-            let p2 = half(j, k);
-            let p3 = half(k, l);
-            let p4 = quarter(a, x, i);
-            let p5 = quarter(x, i, j);
-            let p6 = quarter(i, j, k);
-            let p7 = quarter(j, k, l);
-            let p8 = quarter(x, a, b);
-            let p9 = quarter(a, b, c);
-            [
-                p0, p4, p8, p9, p1, p5, p0, p4, p2, p6, p1, p5, p3, p7, p2, p6,
-            ]
-        }
+        3 => directional4::<3>(&top, &left, x),
+        4 => directional4::<4>(&top, &left, x),
+        5 => directional4::<5>(&top, &left, x),
+        6 => directional4::<6>(&top, &left, x),
         7 => {
             let p0 = half(a, b);
             let p1 = half(b, c);
@@ -236,6 +187,90 @@ pub(crate) fn pred4x4(v: &mut IntraMut<'_>, mode: u8) {
         }
     };
     write_block(v, &block);
+}
+
+#[inline(always)]
+fn directional4<const MODE: u8>(top: &[u16; 8], left: &[u16; 4], top_left: u16) -> [u8; 16] {
+    let p = |x: i32, y: i32| {
+        if y < 0 {
+            if x < 0 {
+                top_left
+            } else {
+                top.get(x as usize).copied().unwrap_or(0)
+            }
+        } else {
+            left.get(y as usize).copied().unwrap_or(0)
+        }
+    };
+    [
+        directional4_sample::<MODE, 0, 0>(&p),
+        directional4_sample::<MODE, 1, 0>(&p),
+        directional4_sample::<MODE, 2, 0>(&p),
+        directional4_sample::<MODE, 3, 0>(&p),
+        directional4_sample::<MODE, 0, 1>(&p),
+        directional4_sample::<MODE, 1, 1>(&p),
+        directional4_sample::<MODE, 2, 1>(&p),
+        directional4_sample::<MODE, 3, 1>(&p),
+        directional4_sample::<MODE, 0, 2>(&p),
+        directional4_sample::<MODE, 1, 2>(&p),
+        directional4_sample::<MODE, 2, 2>(&p),
+        directional4_sample::<MODE, 3, 2>(&p),
+        directional4_sample::<MODE, 0, 3>(&p),
+        directional4_sample::<MODE, 1, 3>(&p),
+        directional4_sample::<MODE, 2, 3>(&p),
+        directional4_sample::<MODE, 3, 3>(&p),
+    ]
+}
+
+#[inline(always)]
+fn directional4_sample<const MODE: u8, const X: i32, const Y: i32>(
+    p: &impl Fn(i32, i32) -> u16,
+) -> u8 {
+    let sample = match MODE {
+        3 => {
+            if X == 3 && Y == 3 {
+                (p(6, -1) + 3 * p(7, -1) + 2) >> 2
+            } else {
+                (p(X + Y, -1) + 2 * p(X + Y + 1, -1) + p(X + Y + 2, -1) + 2) >> 2
+            }
+        }
+        4 => {
+            if X > Y {
+                (p(X - Y - 2, -1) + 2 * p(X - Y - 1, -1) + p(X - Y, -1) + 2) >> 2
+            } else if X < Y {
+                (p(-1, Y - X - 2) + 2 * p(-1, Y - X - 1) + p(-1, Y - X) + 2) >> 2
+            } else {
+                (p(0, -1) + 2 * p(-1, -1) + p(-1, 0) + 2) >> 2
+            }
+        }
+        5 => {
+            let z = 2 * X - Y;
+            if z >= 0 && z % 2 == 0 {
+                (p(X - (Y >> 1) - 1, -1) + p(X - (Y >> 1), -1) + 1) >> 1
+            } else if z >= 0 {
+                (p(X - (Y >> 1) - 2, -1) + 2 * p(X - (Y >> 1) - 1, -1) + p(X - (Y >> 1), -1) + 2)
+                    >> 2
+            } else if z == -1 {
+                (p(-1, 0) + 2 * p(-1, -1) + p(0, -1) + 2) >> 2
+            } else {
+                (p(-1, Y - 1) + 2 * p(-1, Y - 2) + p(-1, Y - 3) + 2) >> 2
+            }
+        }
+        _ => {
+            let z = 2 * Y - X;
+            if z >= 0 && z % 2 == 0 {
+                (p(-1, Y - (X >> 1) - 1) + p(-1, Y - (X >> 1)) + 1) >> 1
+            } else if z >= 0 {
+                (p(-1, Y - (X >> 1) - 2) + 2 * p(-1, Y - (X >> 1) - 1) + p(-1, Y - (X >> 1)) + 2)
+                    >> 2
+            } else if z == -1 {
+                (p(-1, 0) + 2 * p(-1, -1) + p(0, -1) + 2) >> 2
+            } else {
+                (p(X - 1, -1) + 2 * p(X - 2, -1) + p(X - 3, -1) + 2) >> 2
+            }
+        }
+    };
+    sample as u8
 }
 
 /// The length of the edge line of an `n` by `n` block: `n` samples left of
