@@ -6,6 +6,8 @@ use bits::Bits;
 
 fn settings(width: usize, height: usize, qp: u8) -> Settings {
     Settings {
+        frame_rate: FrameRate::default(),
+        sample_aspect_ratio: SampleAspectRatio::default(),
         width,
         height,
         rate_mode: RateMode::FixedQp(qp),
@@ -18,6 +20,182 @@ fn settings(width: usize, height: usize, qp: u8) -> Settings {
             matrix: 1,
             chroma_location: 0,
         },
+    }
+}
+
+#[test]
+fn rational_signalling_rejects_zero_and_unrepresentable_values() {
+    for (num, den) in [(0, 1), (1, 0), (0, 0), (u32::MAX, 1), (1 << 31, 1)] {
+        assert_eq!(FrameRate::new(num, den), Err(Error::Settings));
+    }
+    for (num, den) in [
+        (0, 1),
+        (1, 0),
+        (0, 0),
+        (65536, 1),
+        (1, 65536),
+        (u32::MAX, 2),
+    ] {
+        assert_eq!(SampleAspectRatio::new(num, den), Err(Error::Settings));
+    }
+    assert_eq!(
+        FrameRate::new(60000, 2002).unwrap().as_ratio(),
+        (30000, 1001)
+    );
+    assert_eq!(
+        FrameRate::new(u32::MAX, u32::MAX).unwrap().as_ratio(),
+        (1, 1)
+    );
+    assert_eq!(
+        FrameRate::new(u32::MAX / 2, u32::MAX).unwrap().as_ratio(),
+        (u32::MAX / 2, u32::MAX)
+    );
+    for (num, den, tick, scale) in [
+        (u32::MAX, u32::MAX - 1, (u32::MAX - 1) / 2, u32::MAX),
+        (1, u32::MAX, u32::MAX, 2),
+        (u32::MAX / 2, u32::MAX, u32::MAX, u32::MAX - 1),
+    ] {
+        let rate = FrameRate::new(num, den).unwrap();
+        assert_eq!(rate.timing(), (tick, u64::from(scale)));
+        let mut s = settings(16, 16, 26);
+        s.frame_rate = rate;
+        let encoder = Encoder::new(s, Limits::default()).unwrap();
+        let mut bits = Bits::new(1000);
+        syntax::sps(&mut bits, &encoder).unwrap();
+        assert!(!bits.nal(0x67).unwrap().is_empty());
+    }
+    assert_eq!(
+        SampleAspectRatio::new(80000, 66000).unwrap().as_ratio(),
+        (40, 33)
+    );
+    assert_eq!(
+        SampleAspectRatio::new(u32::MAX, u32::MAX)
+            .unwrap()
+            .as_ratio(),
+        (1, 1)
+    );
+    let mut s = settings(1920, 1080, 26);
+    s.frame_rate = FrameRate::new(983040, 8160).unwrap();
+    assert!(Encoder::new(s, Limits::default()).is_ok());
+    s.frame_rate = FrameRate::new(983041, 8160).unwrap();
+    assert!(matches!(
+        Encoder::new(s, Limits::default()),
+        Err(Error::Limit)
+    ));
+}
+
+#[test]
+fn vui_rationals_preserve_syntax_and_native_picture_roundtrips() {
+    let sars = [
+        (1, 1),
+        (12, 11),
+        (10, 11),
+        (16, 11),
+        (40, 33),
+        (24, 11),
+        (20, 11),
+        (32, 11),
+        (80, 33),
+        (18, 11),
+        (15, 11),
+        (64, 33),
+        (160, 99),
+        (4, 3),
+        (3, 2),
+        (2, 1),
+        (17, 13),
+        (65535, 65534),
+    ];
+    let output = std::env::var_os("H264_VUI_FIXTURE_DIR").map(std::path::PathBuf::from);
+    if let Some(path) = &output {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    let y = [128; 256];
+    let uv = [128; 64];
+    let picture = Picture {
+        y: Plane::new(&y, 16, 16, 16).unwrap(),
+        cb: Plane::new(&uv, 8, 8, 8).unwrap(),
+        cr: Plane::new(&uv, 8, 8, 8).unwrap(),
+    };
+    for (num, den) in [
+        (24000, 1001),
+        (25, 1),
+        (30000, 1001),
+        (50, 1),
+        (60, 1),
+        (30, 1),
+        (25, 2),
+    ] {
+        for (index, (width, height)) in sars.into_iter().enumerate() {
+            let mut s = settings(16, 16, 26);
+            s.frame_rate = FrameRate::new(num, den).unwrap();
+            s.sample_aspect_ratio = SampleAspectRatio::new(width, height).unwrap();
+            let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+            let mut decoder = coreav_h264::Decoder::with_kernels(
+                coreav_h264::Scalar,
+                coreav_h264::Limits::default(),
+            )
+            .with_mode(coreav_h264::Mode::EveryPicture);
+            let mut stream = Vec::new();
+            for _ in 0..3 {
+                let au = encoder.encode(picture).unwrap();
+                let mut r = nal_reader(&au.nals[0]);
+                assert_eq!(r.u(24), 0x42c033);
+                for expected in [0, 0, 2, 1] {
+                    assert_eq!(r.ue(), expected);
+                }
+                assert_eq!(r.bit(), 0);
+                assert_eq!(r.ue(), 0);
+                assert_eq!(r.ue(), 0);
+                assert_eq!(r.u(4), 0b1101);
+                assert_eq!(r.bit(), 1);
+                assert_eq!(r.u(8), if index < 16 { index as u32 + 1 } else { 255 });
+                if index >= 16 {
+                    assert_eq!(r.u(16), width);
+                    assert_eq!(r.u(16), height);
+                }
+                assert_eq!(r.bit(), 0);
+                assert_eq!(r.bit(), 1);
+                assert_eq!(r.u(5), 0b10101);
+                assert_eq!(r.u(24), 0x010101);
+                assert_eq!(r.bit(), 1);
+                assert_eq!(r.ue(), 0);
+                assert_eq!(r.ue(), 0);
+                assert_eq!(r.bit(), 1);
+                assert_eq!(r.u(32), if den % 2 == 0 { den / 2 } else { den });
+                assert_eq!(r.u(32), if den % 2 == 0 { num } else { 2 * num });
+                assert_eq!(r.bit(), 1);
+                assert_eq!(r.u(4), 0);
+                for nal in &au.nals {
+                    stream.extend_from_slice(&[0, 0, 0, 1]);
+                    stream.extend_from_slice(nal);
+                    decoder.decode_nal(nal).unwrap();
+                }
+                decoder.end_access_unit().unwrap();
+            }
+            decoder.flush().unwrap();
+            let pictures = decoder.take_pictures();
+            assert_eq!(pictures.len(), 3);
+            for picture in pictures {
+                let (cb, cr) = picture.chroma();
+                assert!(
+                    picture
+                        .luma()
+                        .rows()
+                        .chain(cb.rows())
+                        .chain(cr.rows())
+                        .flatten()
+                        .all(|&sample| sample == 128)
+                );
+            }
+            if let Some(path) = &output {
+                std::fs::write(
+                    path.join(format!("{num}-{den}-{width}-{height}.h264")),
+                    stream,
+                )
+                .unwrap();
+            }
+        }
     }
 }
 
