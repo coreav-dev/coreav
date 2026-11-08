@@ -111,6 +111,15 @@ class OracleInstall(unittest.TestCase):
         self.assert_installed(self.install())
         self.assertEqual(self.requests, [])
 
+    def test_second_install_in_one_job_reuses_verified_bytes_without_credentials(self):
+        self.assert_installed(self.install())
+        self.statuses = [503, 404]
+        for name in self.programs:
+            (self.dest / name).write_bytes(b'unverified replacement')
+        self.assert_installed(self.install())
+        self.assertEqual(self.requests, [200])
+        self.assertEqual(self.statuses, [503, 404])
+
     def test_corrupt_cache_is_replaced_only_with_verified_download(self):
         self.cache.parent.mkdir()
         self.cache.write_bytes(b'corrupt cache')
@@ -182,6 +191,34 @@ class OracleInstall(unittest.TestCase):
 
 
 class OracleArchiveWorkflow(unittest.TestCase):
+    def test_image_controls_use_the_secretless_ci_installer(self):
+        data = self.data(ROOT / '.github/workflows/png-bmp-yuv.yml')
+        steps = data['jobs']['image-synthetic-controls']['steps']
+        cache = next(i for i, step in enumerate(steps) if step.get('uses') == './.github/actions/oracle-cache')
+        installer = next(i for i, step in enumerate(steps) if any(
+            workflow_check.calls_installer(line, workflow_check.CI_ORACLE_PIN[1])
+            for line in step.get('run', '').splitlines()))
+        self.assertLess(cache, installer)
+        self.assertFalse(any(name.startswith('R2_') for name in steps[installer].get('env', {})))
+
+    def test_videotoolbox_modes_share_one_provisioned_archive_cache(self):
+        data = self.data(ROOT / '.github/workflows/videotoolbox.yml')
+        steps = data['jobs']['verify']['steps']
+        cache = next(i for i, step in enumerate(steps) if step.get('uses') == './.github/actions/oracle-cache')
+        installer = next(i for i, step in enumerate(steps) if any(
+            workflow_check.calls_installer(line, workflow_check.CI_ORACLE_PIN[1])
+            for line in step.get('run', '').splitlines()))
+        replay = next(i for i, step in enumerate(steps)
+                      if 'scripts/encoders/macos/smoke.py verify' in step.get('run', ''))
+        self.assertLess(cache, installer)
+        self.assertLess(installer, replay)
+        self.assertIn('for mode in hardware software any', steps[replay]['run'])
+        self.assertNotIn('--install-oracle', steps[replay]['run'])
+        triggers = data.get('on', data.get('true'))
+        for event in ('push', 'pull_request'):
+            for path in workflow_check.CI_ORACLE_PIN:
+                self.assertIn(path, triggers[event]['paths'])
+
     def test_historical_measurements_keep_the_frozen_installer(self):
         rosters = {'github-shapes.yml': ('measure',),
                    'codec-coverage.yml': ('coverage-v1', 'coverage-v1-fixtures',

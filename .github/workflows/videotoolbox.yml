@@ -16,6 +16,8 @@ on:
       - deny.toml
       - scripts/encoders/macos/**
       - scripts/install-oracle-ffmpeg.sh
+      - scripts/install-ci-oracle-ffmpeg.sh
+      - .github/actions/oracle-cache/action.yml
       - scripts/oracle-ffmpeg.env
       - scripts/oracle_pin.py
       - scripts/install-oracle-ffmpeg-macos.sh
@@ -36,6 +38,8 @@ on:
       - deny.toml
       - scripts/encoders/macos/**
       - scripts/install-oracle-ffmpeg.sh
+      - scripts/install-ci-oracle-ffmpeg.sh
+      - .github/actions/oracle-cache/action.yml
       - scripts/oracle-ffmpeg.env
       - scripts/oracle_pin.py
       - scripts/install-oracle-ffmpeg-macos.sh
@@ -131,6 +135,9 @@ jobs:
           rust-version: stable
       - name: Test Linux evidence replay and child cleanup
         run: python3 -m unittest discover -s scripts/encoders/macos -p 'test_*.py' -v
+      - uses: ./.github/actions/oracle-cache
+      - name: Install the pinned Linux replay oracle
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Decode with the existing pinned Linux oracle
         shell: bash
         run: |
@@ -143,7 +150,7 @@ jobs:
             fi
             python3 scripts/encoders/macos/smoke.py verify \
               --capture "captures/$mode" --mode "$mode" \
-              --oracle-bin "$RUNNER_TEMP/oracle" --install-oracle \
+              --oracle-bin "$RUNNER_TEMP/oracle" \
               --coreav-decoder crates/coreav-backend-apple/target/dist/examples/videotoolbox \
               --report "reports/$mode.json" "$@"
           done

@@ -537,7 +537,11 @@ class Smoke(unittest.TestCase):
                 result = smoke.verify_capture(capture, oracle, "hardware", decoder, True)
             owner.assert_called_once_with(oracle.resolve() / "ffmpeg", oracle.resolve() / "ffprobe")
             self.assertEqual(result["status"], "verified")
-            self.assertTrue(any("install-oracle-ffmpeg.sh" in str(arg) for command in commands for arg in command))
+            self.assertEqual(commands[0], ["bash", str(smoke.ROOT / "scripts/install-ci-oracle-ffmpeg.sh"),
+                                           str(oracle.resolve())])
+            with mock.patch.object(smoke, "run", side_effect=evidence.Invalid("child_failure")), \
+                    self.assertRaisesRegex(evidence.Invalid, "oracle_install_failed"):
+                smoke.verify_capture(capture, oracle, "hardware", decoder, True)
             self.assertEqual([command[0] for command in commands[1:]],
                              [str(selected.ffmpeg), str(selected.ffprobe), str(decoder.resolve())])
             decode = next(command for command in commands if str(command[0]).endswith("ffmpeg"))
