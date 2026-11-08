@@ -332,6 +332,15 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+fn native_matroska_error(error: coreav_mkv::Error) -> Error {
+    match error {
+        coreav_mkv::Error::Unsupported { .. } => {
+            Error::NativeIneligible("the native Matroska cadence or track cannot be represented")
+        }
+        error => Error::Matroska(error),
+    }
+}
+
 impl From<coreav_thumbnail::Error> for Error {
     fn from(e: coreav_thumbnail::Error) -> Self {
         use coreav_thumbnail::Error as T;
@@ -552,8 +561,8 @@ fn execute<S: Source, W: Write>(
             #[cfg(feature = "h264-native")]
             let (program, frame_rate) = match options.native_h264 {
                 Some(native) => {
-                    if options.matroska_output.is_some() {
-                        return Err(Error::NativeIneligible("native H.264 requires MP4 output"));
+                    if options.matroska_output == Some(coreav_mkv::DocType::Webm) {
+                        return Err(Error::NativeIneligible("native H.264 cannot write WebM"));
                     }
                     let source_rate = options
                         .frame_rates
@@ -791,21 +800,47 @@ fn execute<S: Source, W: Write>(
         ),
     };
     let remux = if let Some(doc_type) = options.matroska_output {
-        Remuxed::OutputMatroska(
-            coreav_isobmff_write::mkv_output::write_output(
+        let output_options = coreav_isobmff_write::mkv_output::OutputOptions {
+            matroska_source: kind == SourceKind::Matroska,
+            doc_type,
+            streams,
+        };
+        #[cfg(feature = "h264-native")]
+        let cadence = match (&completed.encoding, options.native_h264) {
+            (Encoding::H264 { frame_rate, .. }, Some(_)) => Some(
+                coreav_isobmff_write::mkv_output::VideoCadence::new(
+                    video.stream_index,
+                    frame_rate.num,
+                    frame_rate.den,
+                )
+                .map_err(native_matroska_error)?,
+            ),
+            _ => None,
+        };
+        #[cfg(not(feature = "h264-native"))]
+        let cadence = None;
+        let summary = match cadence {
+            Some(cadence) => coreav_isobmff_write::mkv_output::write_output_with_video_cadence(
                 &mut source,
-                &coreav_isobmff_write::mkv_output::OutputOptions {
-                    matroska_source: kind == SourceKind::Matroska,
-                    doc_type,
-                    streams,
-                },
+                &output_options,
+                &options.isobmff_limits,
+                &options.matroska_limits,
+                replacements,
+                cadence,
+                out,
+            )
+            .map_err(native_matroska_error)?,
+            None => coreav_isobmff_write::mkv_output::write_output(
+                &mut source,
+                &output_options,
                 &options.isobmff_limits,
                 &options.matroska_limits,
                 replacements,
                 out,
             )
             .map_err(Error::Matroska)?,
-        )
+        };
+        Remuxed::OutputMatroska(summary)
     } else {
         match kind {
             SourceKind::Mp4 => Remuxed::Mp4(
@@ -2196,6 +2231,27 @@ mod tests {
         ));
     }
     use super::*;
+
+    #[test]
+    fn native_matroska_retry_keeps_io_and_malformed_errors_terminal() {
+        assert!(matches!(
+            native_matroska_error(coreav_mkv::Error::Unsupported {
+                reason: "rounded presentation times collide",
+            }),
+            Error::NativeIneligible(_)
+        ));
+        for error in [
+            coreav_mkv::Error::Io(std::io::ErrorKind::UnexpectedEof),
+            coreav_mkv::Error::InvalidElement {
+                offset: 0,
+                id: 0,
+                reason: "invalid block",
+            },
+            coreav_mkv::Error::Overflow { offset: 0 },
+        ] {
+            assert!(matches!(native_matroska_error(error), Error::Matroska(_)));
+        }
+    }
 
     #[cfg(feature = "h264-native")]
     #[test]

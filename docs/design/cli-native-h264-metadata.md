@@ -2,7 +2,7 @@
 
 ## Scope
 
-Extend the explicit MP4 encoder preference from coreav-dev/coreav#509 using the checked timing and sample-aspect types from coreav-dev/coreav#511. Admit supported positive constant rational frame rates and declared non-square sample aspects. Keep the default build, release feature sets, unflagged commands, original fallback arguments, command deadline, geometry, pixel-format and color exclusions unchanged. Matroska output remains separate work.
+Extend the explicit MP4 encoder preference from coreav-dev/coreav#509 using the checked timing and sample-aspect types from coreav-dev/coreav#511. Admit supported positive constant rational frame rates and declared non-square sample aspects. Keep the default build, release feature sets, unflagged commands, original fallback arguments, command deadline, geometry, pixel-format and color exclusions unchanged. Matroska output is covered by the separate [cadence design](cli-native-h264-matroska.md).
 
 ## Exact presentation clock
 

@@ -12,11 +12,15 @@ For native H.264 Matroska replacements only, derive DefaultDuration from the enc
 
 The exact rational remains in the H.264 VUI. DefaultDuration differs from its exact period by at most half a nanosecond, and each absolute block PTS retains the existing millisecond quantization rather than accumulating rounding drift. Common rates must read back exactly through the pinned oracle; unusual rates are checked against the independently parsed integer duration and timestamp quantization, not an assumed ffprobe fraction.
 
+For nominal 29/7 fps, the pinned oracle reports `r_frame_rate=58/7` and `avg_frame_rate=29/7`. This one field-clock readback is recorded explicitly; the independent SPS check still requires `time_scale / (2 * num_units_in_tick) = 29/7` (AVC E.2.1), and DefaultDuration still requires the rounded nominal frame period (RFC 9559 Section 5.1.4.1.13). No other guessed rate is accepted by this generated comparison.
+
 New native Matroska admission requires a nominal period of at least one millisecond and strictly increasing output PTS after rounding. Higher rates or collisions retain their previous external path. No native Matroska command exists before this change, so these boundaries do not move an existing native command. Keep the merged native timing predicate, including its legacy single-picture and terminal-zero defaults, unchanged for MP4.
 
 ## Boundary
 
-Add a checked video-cadence value and an explicit writer entrypoint for one H.264 video replacement. Existing writer calls retain their current behavior. The new entrypoint validates that the named stream is the actual video replacement, supplies its nominal default duration, and rejects rounded timestamp collisions before publication. Audio packets, source offsets, stream selection, display dimensions, codec private data, cluster policy and all other writer paths remain unchanged.
+Add a checked video-cadence value and an explicit writer entrypoint for one H.264 video replacement. Existing writer calls retain their current behavior. The new entrypoint validates that the named stream is the actual video replacement, supplies its nominal default duration, and rejects rounded timestamp collisions before publication. Audio payloads, stream selection, display dimensions and cluster policy remain unchanged.
+
+For copied Opus from ISO base media, this new entrypoint follows the original source edit list, not the informative dOps PreSkip field (Opus ISO mapping Sections 4.3.2 and 4.4). It carries that edit's trim into CodecDelay and OpusHead and retains its declared terminal presentation. The ordinary writer still takes the greater of the edit trim and PreSkip; correcting that existing path is separate work. In particular, media time zero with PreSkip of 312 and a declared 7,992-sample presentation retains all 7,992 samples in native Matroska, instead of the ordinary writer's 7,680 samples. Native MP4 remains byte-identical to its actual base.
 
 The transcode pipeline uses that entrypoint only for a completed native H.264 Matroska encode, with the admitted encoder frame rate. MP4 never constructs the cadence override. Unsupported native cadence retries the unchanged external command under the original deadline; I/O, malformed-input and timeout errors remain terminal.
 
@@ -34,5 +38,6 @@ The transcode pipeline uses that entrypoint only for a completed native H.264 Ma
 - https://www.rfc-editor.org/rfc/rfc9559.html#section-5.1.4.1.13
 - https://www.matroska.org/technical/notes.html
 - https://www.matroska.org/technical/elements.html
+- https://www.opus-codec.org/docs/opus_in_isobmff.html
 
 Refs coreav-dev/coreav#25.

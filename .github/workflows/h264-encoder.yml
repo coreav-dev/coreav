@@ -9,8 +9,11 @@ on:
       - crates/coreav-h264-encoder/**
       - crates/coreav-cli/**
       - crates/coreav-transcode/**
+      - crates/coreav-isobmff-write/**
       - crates/coreav-frame/**
       - scripts/native_h264_cli.py
+      - scripts/native_h264_matroska.py
+      - scripts/tests/test_native_h264_cli.py
       - scripts/track_boxes.py
       - crates/coreav-kernels-h264/**
       - crates/coreav-h264/**
@@ -42,8 +45,11 @@ on:
       - crates/coreav-h264-encoder/**
       - crates/coreav-cli/**
       - crates/coreav-transcode/**
+      - crates/coreav-isobmff-write/**
       - crates/coreav-frame/**
       - scripts/native_h264_cli.py
+      - scripts/native_h264_matroska.py
+      - scripts/tests/test_native_h264_cli.py
       - scripts/track_boxes.py
       - crates/coreav-kernels-h264/**
       - crates/coreav-h264/**
@@ -110,6 +116,8 @@ jobs:
       - name: Preserve base-build byte references
         run: |
           cd ../baseline
+          git rev-parse HEAD
+          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.base.sha || github.sha }}'
           cargo build --locked --release -p coreav-cli
           cp target/release/coreav "$RUNNER_TEMP/default-base"
           cargo build --locked --release -p coreav-cli --features native-h264
@@ -134,6 +142,7 @@ jobs:
           cargo test --locked --release -p coreav-cli --features native-h264-encoder,native-h264 --lib ffmpeg -- --nocapture
           cargo test --locked --release -p coreav-cli --features native-h264-encoder,native-h264 --test docs_site --test strict_safe_limit --test ffprobe_limits --test native_h264_cli
           cargo test --locked --release -p coreav-transcode --features h264-native --lib
+          cargo test --locked --release -p coreav-isobmff-write --lib mkv_output
           cargo clippy --locked -p coreav-cli --features native-h264-encoder,native-h264 --all-targets -- -D warnings
           cargo build --locked --release -p coreav-cli --features native-h264-encoder,native-h264
           cargo build --locked --release -p coreav-h264-encoder --features full --example p
@@ -157,6 +166,7 @@ jobs:
             --baseline-default "$RUNNER_TEMP/default-base" \
             --baseline-external "$RUNNER_TEMP/external-base" \
             --baseline-native "$RUNNER_TEMP/native-base" \
+            --baseline-revision "$(git -C ../baseline rev-parse HEAD)" \
             --driver target/release/examples/p \
             --ffmpeg "$RUNNER_TEMP/cli-oracles/ffmpeg" \
             --output "$RUNNER_TEMP/native-cli"

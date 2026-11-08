@@ -4,15 +4,24 @@ use super::{
 };
 use coreav_isobmff::{Allowlist, EditList, Limits, TrackKind};
 
+pub(super) struct IsoOptions<'a> {
+    pub output: &'a OutputOptions,
+    pub preserve_opus_edit: bool,
+}
+
 pub(super) fn isobmff<S: Source>(
     source: &mut S,
-    options: &OutputOptions,
+    options: IsoOptions<'_>,
     limits: &Limits,
     mkv_limits: &coreav_mkv::Limits,
     replacements: &[(usize, Track)],
     total: &mut usize,
     metadata: &mut MetadataBudget,
 ) -> Result<Vec<InputTrack>, Error> {
+    let IsoOptions {
+        output: options,
+        preserve_opus_edit,
+    } = options;
     let probe_limits = Limits {
         max_retained_bytes: limits
             .max_retained_bytes
@@ -121,7 +130,7 @@ pub(super) fn isobmff<S: Source>(
         };
         let mut trim =
             u64::try_from(media).map_err(|_| unsupported("a negative media edit time"))?;
-        if replacement.is_none() && d.codec == coreav_isobmff::Codec::Opus {
+        if replacement.is_none() && d.codec == coreav_isobmff::Codec::Opus && !preserve_opus_edit {
             let skip = header
                 .private
                 .get(10..12)
