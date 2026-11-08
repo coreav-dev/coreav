@@ -315,6 +315,7 @@ jobs:
         run: |
           python3 -I -m unittest discover -s scripts/tests -p 'test_ffv1*.py'
           cargo run --locked -p coreav-ffv1 --example fixtures -- "$RUNNER_TEMP/ffv1-fixtures"
+          cargo test --locked -p coreav-backend-ffmpeg --test decode ffv1_odd_dimensions_match_source_bytes -- --ignored
           cargo build --locked -p coreav-cli --features native-h264
           python3 -I scripts/ffv1_check.py \
             --ffmpeg "$RUNNER_TEMP/coreav-encoders/ffmpeg" \
@@ -376,6 +377,15 @@ jobs:
       # (`coreav ffmpeg`'s encode, `coreav transcode`), which
       # `cargo test --workspace` does not build.
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --lib
+      - name: Compare complete MP3 files with the pinned oracle
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
+          COREAV_FFPROBE: ${{ runner.temp }}/coreav-encoders/ffprobe
+        run: |
+          set -euo pipefail
+          cargo test --locked -p coreav-cli --features ffmpeg-fallback --test transcode ffmpeg_mp3_information_headers_match_complete_oracle_files -- --exact --nocapture --color never 2>&1 | tee "$RUNNER_TEMP/mp3-information.log"
+          grep -F 'test ffmpeg_mp3_information_headers_match_complete_oracle_files ... ok' "$RUNNER_TEMP/mp3-information.log"
       # The AAC LC pipeline and command, with the opt-in feature
       # (docs/design/audio-decode.md, "AAC-LC").
       - run: |

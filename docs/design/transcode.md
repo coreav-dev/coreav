@@ -879,7 +879,12 @@ terminal errors. The real encode retains its complete Matroska readback.
    entry (the stream's rate, 16-bit sample size) with an `esds` box
    (ISO/IEC 14496-1 7.2.6.5: object type 0x40, an audio stream, the
    `AudioSpecificConfig` as read), media timescale the sample rate, every
-   frame a 1,024-tick sync sample, an edit list that presents the decoded
+   frame a 1,024-tick sync sample by default. The `coreav ffmpeg` adapter
+   enables `TranscodeOptions::aac_mp4_tail`: a partially presented final
+   frame ends at the delay plus the submitted sample count. Native
+   `coreav transcode` retains complete frame durations and its existing
+   output bytes; both representations are valid. Wholly padded final
+   frames, stored encoder frames and Matroska output stay unchanged. An edit list presents the decoded
    samples from movie time 0 (from a Matroska stream's start, after an
    empty edit, as for Opus) and leaves out the delay and the padding (the
    edit's media time is the delay), and a `roll` group of distance −1,
@@ -1051,6 +1056,36 @@ inferred from a different library's version.
 The fixed delay and flush contract is qualified against the pinned
 FFmpeg build, not independently signalled by raw MP3 frames. An operator's
 custom libmp3lame build with a changed encoder delay is outside this contract.
+
+**Information-frame byte parity.** The TOC describes approximate seek
+positions, not an ISO-mandated rounding algorithm. The
+[Xing header description](https://teslabs.com/openplayer/docs/docs/specs/mp3_structure.pdf)
+defines each entry as a position scaled by 256 over the MPEG audio byte
+length; the Info Tag specification retains that layout for CBR.
+Compatibility with the pinned FFmpeg requires an additional rounding
+choice, established from generated files rather than implementation source.
+For `N` audio frames, let `S` be the smallest power of two such that
+`floor(N / S) < 400`, and let `K = floor(N / S)`. Entry zero is zero.
+For percentiles `p = 1..99`, the chosen byte position is immediately after
+audio frame `S * (floor(K * p / 100) + 1)`, counting frames from one.
+The position includes the information frame but excludes ID3. Scale it by
+256 over the total MPEG audio byte count, truncate, and clamp to 255.
+Below 400 frames this differs from ceiling at exact integer percentiles.
+At and above 400 frames it also retains the oracle's coarser seek positions.
+The information frame uses mono or ordinary stereo, not the audio frame's
+joint-stereo mode. Constant-rate output retains its encoded bitrate as a
+minimum; quality-selected output uses the smallest frame that holds the
+tag. The `Info` versus `Xing` identifier follows observed audio bitrate
+variation, so constant-bitrate silence in quality mode still writes `Info`.
+Short information frames retain the oracle's 190-byte checksum span with
+zero extension, without publishing those extra bytes.
+The regression compares complete output files from lossless inputs in CBR
+and VBR modes. It checks the reference's actual audio-frame count before
+comparing bytes, with counts around integer percentiles and seek-table
+resolution changes at 400, 800 and 1,600 frames. The matrix includes mono
+and stereo, MPEG-1, MPEG-2 and MPEG-2.5, tonal and silent input, with no change to encoder selection
+or native command admission. Existing non-frame-aligned EOF differences
+remain outside complete-file equality.
 
 The compatibility surface is `-c:a` or `-acodec libmp3lame`, default MP3
 encoding for `.mp3` or `-f mp3`, `-b:a` and `-q:a`/`-qscale:a`, with `-vn`

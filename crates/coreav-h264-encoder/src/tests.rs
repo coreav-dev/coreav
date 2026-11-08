@@ -6,9 +6,11 @@ use bits::Bits;
 
 fn settings(width: usize, height: usize, qp: u8) -> Settings {
     Settings {
+        frame_rate: FrameRate::default(),
+        sample_aspect_ratio: SampleAspectRatio::default(),
         width,
         height,
-        qp,
+        rate_mode: RateMode::FixedQp(qp),
         deblocking: Deblocking::Disabled,
         gop: Gop::AllIntra,
         colour: Colour {
@@ -18,6 +20,183 @@ fn settings(width: usize, height: usize, qp: u8) -> Settings {
             matrix: 1,
             chroma_location: 0,
         },
+    }
+}
+
+#[test]
+fn rational_signalling_rejects_zero_and_unrepresentable_values() {
+    for (num, den) in [(0, 1), (1, 0), (0, 0), (u32::MAX, 1), (1 << 31, 1)] {
+        assert_eq!(FrameRate::new(num, den), Err(Error::Settings));
+    }
+    for (num, den) in [
+        (0, 1),
+        (1, 0),
+        (0, 0),
+        (65536, 1),
+        (1, 65536),
+        (u32::MAX, 2),
+    ] {
+        assert_eq!(SampleAspectRatio::new(num, den), Err(Error::Settings));
+    }
+    assert_eq!(
+        FrameRate::new(60000, 2002).unwrap().as_ratio(),
+        (30000, 1001)
+    );
+    assert_eq!(
+        FrameRate::new(u32::MAX, u32::MAX).unwrap().as_ratio(),
+        (1, 1)
+    );
+    assert_eq!(
+        FrameRate::new(u32::MAX / 2, u32::MAX).unwrap().as_ratio(),
+        (u32::MAX / 2, u32::MAX)
+    );
+    for (num, den, tick, scale) in [
+        (u32::MAX, u32::MAX - 1, (u32::MAX - 1) / 2, u32::MAX),
+        (1, u32::MAX, u32::MAX, 2),
+        (u32::MAX / 2, u32::MAX, u32::MAX, u32::MAX - 1),
+    ] {
+        let rate = FrameRate::new(num, den).unwrap();
+        assert_eq!(rate.timing(), (tick, u64::from(scale)));
+        let mut s = settings(16, 16, 26);
+        s.frame_rate = rate;
+        let encoder = Encoder::new(s, Limits::default()).unwrap();
+        let mut bits = Bits::new(1000);
+        syntax::sps(&mut bits, &encoder).unwrap();
+        assert!(!bits.nal(0x67).unwrap().is_empty());
+    }
+    assert_eq!(
+        SampleAspectRatio::new(80000, 66000).unwrap().as_ratio(),
+        (40, 33)
+    );
+    assert_eq!(
+        SampleAspectRatio::new(u32::MAX, u32::MAX)
+            .unwrap()
+            .as_ratio(),
+        (1, 1)
+    );
+    let mut s = settings(1920, 1080, 26);
+    s.frame_rate = FrameRate::new(983040, 8160).unwrap();
+    assert!(Encoder::new(s, Limits::default()).is_ok());
+    s.frame_rate = FrameRate::new(983041, 8160).unwrap();
+    assert!(matches!(
+        Encoder::new(s, Limits::default()),
+        Err(Error::Limit)
+    ));
+}
+
+#[test]
+fn vui_rationals_preserve_syntax_and_native_picture_roundtrips() {
+    let sars = [
+        (1, 1),
+        (12, 11),
+        (10, 11),
+        (16, 11),
+        (40, 33),
+        (24, 11),
+        (20, 11),
+        (32, 11),
+        (80, 33),
+        (18, 11),
+        (15, 11),
+        (64, 33),
+        (160, 99),
+        (4, 3),
+        (3, 2),
+        (2, 1),
+        (17, 13),
+        (65535, 65534),
+    ];
+    let output = std::env::var_os("H264_VUI_FIXTURE_DIR").map(std::path::PathBuf::from);
+    if let Some(path) = &output {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    let y = [128; 256];
+    let uv = [128; 64];
+    let picture = Picture {
+        y: Plane::new(&y, 16, 16, 16).unwrap(),
+        cb: Plane::new(&uv, 8, 8, 8).unwrap(),
+        cr: Plane::new(&uv, 8, 8, 8).unwrap(),
+    };
+    for (num, den) in [
+        (24000, 1001),
+        (25, 1),
+        (30000, 1001),
+        (50, 1),
+        (60, 1),
+        (30, 1),
+        (25, 2),
+    ] {
+        for (index, (width, height)) in sars.into_iter().enumerate() {
+            let mut s = settings(16, 16, 26);
+            s.frame_rate = FrameRate::new(num, den).unwrap();
+            s.sample_aspect_ratio = SampleAspectRatio::new(width, height).unwrap();
+            s.gop = Gop::Fixed { idr_interval: 32 };
+            let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+            let mut decoder = coreav_h264::Decoder::with_kernels(
+                coreav_h264::Scalar,
+                coreav_h264::Limits::default(),
+            )
+            .with_mode(coreav_h264::Mode::EveryPicture);
+            let mut stream = Vec::new();
+            for _ in 0..64 {
+                let au = encoder.encode(picture).unwrap();
+                let mut r = nal_reader(&au.nals[0]);
+                assert_eq!(r.u(24), 0x42c033);
+                for expected in [0, 0, 2, 1] {
+                    assert_eq!(r.ue(), expected);
+                }
+                assert_eq!(r.bit(), 0);
+                assert_eq!(r.ue(), 0);
+                assert_eq!(r.ue(), 0);
+                assert_eq!(r.u(4), 0b1101);
+                assert_eq!(r.bit(), 1);
+                assert_eq!(r.u(8), if index < 16 { index as u32 + 1 } else { 255 });
+                if index >= 16 {
+                    assert_eq!(r.u(16), width);
+                    assert_eq!(r.u(16), height);
+                }
+                assert_eq!(r.bit(), 0);
+                assert_eq!(r.bit(), 1);
+                assert_eq!(r.u(5), 0b10101);
+                assert_eq!(r.u(24), 0x010101);
+                assert_eq!(r.bit(), 1);
+                assert_eq!(r.ue(), 0);
+                assert_eq!(r.ue(), 0);
+                assert_eq!(r.bit(), 1);
+                assert_eq!(r.u(32), if den % 2 == 0 { den / 2 } else { den });
+                assert_eq!(r.u(32), if den % 2 == 0 { num } else { 2 * num });
+                assert_eq!(r.bit(), 1);
+                assert_eq!(r.u(4), 0);
+                for nal in &au.nals {
+                    stream.extend_from_slice(&[0, 0, 0, 1]);
+                    stream.extend_from_slice(nal);
+                    decoder.decode_nal(nal).unwrap();
+                }
+                decoder.end_access_unit().unwrap();
+            }
+            decoder.flush().unwrap();
+            let pictures = decoder.take_pictures();
+            assert_eq!(pictures.len(), 64);
+            for picture in pictures {
+                let (cb, cr) = picture.chroma();
+                assert!(
+                    picture
+                        .luma()
+                        .rows()
+                        .chain(cb.rows())
+                        .chain(cr.rows())
+                        .flatten()
+                        .all(|&sample| sample == 128)
+                );
+            }
+            if let Some(path) = &output {
+                std::fs::write(
+                    path.join(format!("{num}-{den}-{width}-{height}.h264")),
+                    stream,
+                )
+                .unwrap();
+            }
+        }
     }
 }
 
@@ -881,4 +1060,256 @@ fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
             }
         }
     }
+}
+
+fn slice_qp(nal: &[u8]) -> u8 {
+    let mut r = nal_reader(nal);
+    r.ue();
+    r.ue();
+    r.ue();
+    r.u(4);
+    if nal[0] == 0x65 {
+        r.ue();
+        r.u(2);
+    } else {
+        r.u(3);
+    }
+    let code = r.ue();
+    let delta = if code % 2 == 0 {
+        -(code as i32 / 2)
+    } else {
+        (code as i32 + 1) / 2
+    };
+    (26 + delta) as u8
+}
+
+fn raw_picture(raw: &[u8], width: usize, height: usize) -> Picture<'_> {
+    let (y, uv) = raw.split_at(width * height);
+    let (cb, cr) = uv.split_at(width * height / 4);
+    Picture {
+        y: Plane::new(y, width, width, height).unwrap(),
+        cb: Plane::new(cb, width / 2, width / 2, height / 2).unwrap(),
+        cr: Plane::new(cr, width / 2, width / 2, height / 2).unwrap(),
+    }
+}
+
+#[test]
+fn rate_modes_validate_quality_at_the_boundary() {
+    assert_eq!(RateMode::default(), RateMode::FixedQp(26));
+    for value in 0..=255 {
+        for mode in [RateMode::FixedQp(value), RateMode::Crf(value)] {
+            let mut s = settings(16, 16, 26);
+            s.rate_mode = mode;
+            let result = Encoder::with_threads(s, Limits::default(), 1);
+            if (10..=51).contains(&value) {
+                assert!(result.is_ok());
+            } else {
+                assert!(matches!(result, Err(Error::Settings)));
+            }
+        }
+    }
+}
+
+#[test]
+fn crf_activity_bands_offsets_clamps_and_quality_order() {
+    for (amplitude, correction) in [
+        (0, -1),
+        (7, -1),
+        (8, 0),
+        (11, 0),
+        (12, 1),
+        (23, 1),
+        (24, 2),
+        (47, 2),
+        (48, 2),
+        (127, 2),
+    ] {
+        let mut raw = vec![0; 19 * 18 - 1];
+        for y in 0..18 {
+            for x in 0..18 {
+                raw[y * 19 + x] = if x % 2 == 0 {
+                    128 - amplitude
+                } else {
+                    128 + amplitude
+                };
+            }
+        }
+        let plane = Plane::new(&raw, 19, 18, 18).unwrap();
+        for idr in [false, true] {
+            let mut previous = 0;
+            for crf in 10..=51 {
+                let qp = crate::rate::picture_qp(RateMode::Crf(crf), plane, idr).unwrap();
+                let expected =
+                    (i16::from(crf) + (correction - i16::from(idr)).max(-1)).clamp(10, 51) as u8;
+                assert_eq!(qp, expected);
+                assert!(qp >= previous);
+                previous = qp;
+                assert_eq!(
+                    crate::rate::picture_qp(RateMode::FixedQp(crf), plane, idr).unwrap(),
+                    crf
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn crf_streams_preserve_worker_identity_and_failed_call_state() {
+    for (width, height) in [(16, 80), (18, 34), (64, 80)] {
+        for deblocking in [Deblocking::Disabled, Deblocking::Enabled] {
+            for crf in [10, 23, 51] {
+                let mut s = settings(width, height, 26);
+                s.rate_mode = RateMode::Crf(crf);
+                s.gop = Gop::Fixed { idr_interval: 3 };
+                s.deblocking = deblocking;
+                let mut encoders: Vec<_> = [1, 2, 8]
+                    .into_iter()
+                    .map(|n| Encoder::with_threads(s, Limits::default(), n).unwrap())
+                    .collect();
+                let mut control = Encoder::with_threads(s, Limits::default(), 1).unwrap();
+                for frame in 0..5 {
+                    let amplitude = [0, 9, 18, 30, 50][frame];
+                    let mut raw = vec![128; width * height * 3 / 2];
+                    for (at, value) in raw.iter_mut().enumerate() {
+                        *value = if at % 2 == 0 {
+                            128 - amplitude
+                        } else {
+                            128 + amplitude
+                        };
+                    }
+                    let picture = raw_picture(&raw, width, height);
+                    let mut outputs = Vec::new();
+                    for encoder in &mut encoders {
+                        let old = encoder.limits.total_bytes;
+                        encoder.limits.total_bytes = 0;
+                        assert!(matches!(encoder.encode(picture), Err(Error::Limit)));
+                        encoder.limits.total_bytes = old;
+                        outputs.push(encoder.encode(picture).unwrap());
+                    }
+                    let correction = [-1, 0, 1, 2, 2][frame];
+                    let expected_qp = (i16::from(crf)
+                        + (correction - i16::from(frame % 3 == 0)).max(-1))
+                    .clamp(10, 51) as u8;
+                    assert_eq!(slice_qp(&outputs[0].nals[2]), expected_qp);
+                    let expected = control.encode(picture).unwrap();
+                    assert_eq!(outputs[0].nals, expected.nals);
+                    assert_eq!(outputs[0].reconstruction, expected.reconstruction);
+                    for other in &outputs[1..] {
+                        assert_eq!(other.nals, outputs[0].nals);
+                        assert_eq!(other.reconstruction, outputs[0].reconstruction);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn crf_widely_separated_values_have_expected_sequence_trends() {
+    let (width, height) = (32, 48);
+    let mut totals = Vec::new();
+    for crf in [16, 40] {
+        let mut s = settings(width, height, 26);
+        s.rate_mode = RateMode::Crf(crf);
+        s.gop = Gop::Fixed { idr_interval: 3 };
+        s.deblocking = Deblocking::Enabled;
+        let mut encoder = Encoder::with_threads(s, Limits::default(), 1).unwrap();
+        let (mut bytes, mut sse) = (0usize, 0u64);
+        for frame in 0..6 {
+            let raw: Vec<_> = (0..width * height * 3 / 2)
+                .map(|p| (32 + (p % width * 3 + p / width * 5 + frame * 7) % 190) as u8)
+                .collect();
+            let au = encoder.encode(raw_picture(&raw, width, height)).unwrap();
+            bytes += au.nals.iter().map(Vec::len).sum::<usize>();
+            sse += raw
+                .iter()
+                .zip(&au.reconstruction)
+                .map(|(&a, &b)| i64::from(a).abs_diff(i64::from(b)).pow(2))
+                .sum::<u64>();
+        }
+        totals.push((bytes, sse));
+    }
+    assert!(totals[0].0 > totals[1].0);
+    assert!(totals[0].1 < totals[1].1);
+}
+
+#[test]
+fn low_activity_crf_never_stacks_refresh_and_activity_quality_boosts() {
+    let (width, height) = (32, 48);
+    for crf in [10u8, 18, 23, 28, 51] {
+        let mut s = settings(width, height, crf.saturating_sub(1).max(10));
+        s.gop = Gop::Fixed { idr_interval: 3 };
+        s.deblocking = Deblocking::Enabled;
+        let mut cqp = Encoder::with_threads(s, Limits::default(), 1).unwrap();
+        s.rate_mode = RateMode::Crf(crf);
+        let mut quality = Encoder::with_threads(s, Limits::default(), 8).unwrap();
+        for frame in 0..6 {
+            let raw: Vec<_> = (0..width * height * 3 / 2)
+                .map(|p| (112 + (p % width + p / width + frame) % 16) as u8)
+                .collect();
+            let picture = raw_picture(&raw, width, height);
+            let fixed = cqp.encode(picture).unwrap();
+            let adaptive = quality.encode(picture).unwrap();
+            assert_eq!(adaptive.nals, fixed.nals);
+            assert_eq!(adaptive.reconstruction, fixed.reconstruction);
+        }
+    }
+}
+
+#[test]
+fn eight_worker_textured_multirow_p_pictures_match_independent_decoding() {
+    let (width, height) = (320, 128);
+    let mut settings = settings(width, height, 27);
+    settings.gop = Gop::Fixed { idr_interval: 32 };
+    settings.deblocking = Deblocking::Enabled;
+    let mut encoder = Encoder::with_threads(settings, Limits::default(), 8).unwrap();
+    let mut decoder =
+        coreav_h264::Decoder::with_kernels(coreav_h264::Scalar, coreav_h264::Limits::default())
+            .with_mode(coreav_h264::Mode::EveryPicture);
+    let mut expected = Vec::new();
+    let chroma = vec![128; width * height / 4];
+    for frame in 0..4 {
+        let y: Vec<_> = (0..width * height)
+            .map(|p| {
+                if frame == 0 {
+                    128
+                } else {
+                    let (x, y) = (p % width + frame * 3, p / width);
+                    (16 + (x * 13 + y * 7 + x / 7 * (y / 3) * 11 + frame * 19) % 224) as u8
+                }
+            })
+            .collect();
+        let output = encoder
+            .encode(Picture {
+                y: Plane::new(&y, width, width, height).unwrap(),
+                cb: Plane::new(&chroma, width / 2, width / 2, height / 2).unwrap(),
+                cr: Plane::new(&chroma, width / 2, width / 2, height / 2).unwrap(),
+            })
+            .unwrap();
+        let mut syntax = nal_reader(&output.nals[2]);
+        assert_eq!(syntax.ue(), 0);
+        assert_eq!(syntax.ue(), if frame == 0 { 7 } else { 5 });
+        expected.push(output.reconstruction);
+        for nal in &output.nals {
+            decoder.decode_nal(nal).unwrap();
+        }
+        decoder.end_access_unit().unwrap();
+    }
+    decoder.flush().unwrap();
+    let decoded = decoder.take_pictures();
+    assert_eq!(decoded.len(), expected.len());
+    for (frame, reference) in decoded.iter().zip(expected) {
+        let (cb, cr) = frame.chroma();
+        let actual: Vec<_> = frame
+            .luma()
+            .rows()
+            .chain(cb.rows())
+            .chain(cr.rows())
+            .flatten()
+            .copied()
+            .collect();
+        assert_eq!(actual, reference);
+    }
+    assert!(decoder.warnings().is_empty());
+    assert_eq!(decoder.warnings_dropped(), 0);
 }

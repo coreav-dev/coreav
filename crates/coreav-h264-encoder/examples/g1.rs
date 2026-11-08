@@ -48,9 +48,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let height = height.parse::<usize>()?;
     let frames = frames.parse::<u64>()?;
     let settings = Settings {
+        frame_rate: Default::default(),
+        sample_aspect_ratio: Default::default(),
         width,
         height,
-        qp: qp.parse()?,
+        rate_mode: coreav_h264_encoder::RateMode::FixedQp(qp.parse()?),
         deblocking,
         gop: Gop::AllIntra,
         colour: Colour {

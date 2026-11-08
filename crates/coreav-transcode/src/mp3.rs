@@ -140,6 +140,7 @@ pub(crate) struct Info {
     software: String,
     delay: u32,
     padding: u32,
+    bit_rate: Option<u32>,
     variable: bool,
     music_crc: u16,
 }
@@ -258,6 +259,7 @@ pub fn read_output<S: Source>(
     let mut offset = u64::from(size) + 10;
     let mut first = None;
     let mut first_rate = None;
+    let mut variable = false;
     let mut music_crc = 0;
     let mut bytes = Vec::new();
     while offset < length {
@@ -280,7 +282,8 @@ pub fn read_output<S: Source>(
         {
             return Err(refused("a frame does not match its size, rate or channels"));
         }
-        if !expected.variable && first_rate.is_some_and(|rate| rate != header.bit_rate) {
+        variable |= first_rate.is_some_and(|rate| rate != header.bit_rate);
+        if !expected.variable && variable {
             return Err(refused(
                 "different frame bit rates in a constant-rate encode",
             ));
@@ -331,7 +334,8 @@ pub fn read_output<S: Source>(
             software,
             delay: 576,
             padding: 576 + u32::from(expected.guard),
-            variable: expected.variable,
+            bit_rate: if expected.variable { None } else { first_rate },
+            variable,
             music_crc,
         },
     })
@@ -431,14 +435,15 @@ pub(crate) fn info_frame(info: &Info, sizes: &[u32]) -> Result<Vec<u8>, ReadErro
         (_, 1) => 9,
         _ => 17,
     };
-    let needed = (4 + side + 120 + 36).max(190);
-    let base = 0xffe0_0000 | (info.header & 0x001e_0cc0) | (1 << 16);
+    let needed = 4 + side + 120 + 36;
+    let channel_mode = if original.channels() == 1 { 3 << 6 } else { 0 };
+    let base = 0xffe0_0000 | (info.header & 0x001e_0c00) | (1 << 16) | channel_mode;
     let mut selected = None;
     for index in 1..15u32 {
         let word = base | (index << 12);
         let header = Header::parse(&word.to_be_bytes()).map_err(|e| refused(e.to_string()))?;
         if header.frame_bytes().is_some_and(|size| size >= needed)
-            && header.bit_rate >= original.bit_rate
+            && info.bit_rate.is_none_or(|rate| header.bit_rate >= rate)
         {
             selected = Some((word, header.frame_bytes().unwrap_or(0)));
             break;
@@ -460,10 +465,16 @@ pub(crate) fn info_frame(info: &Info, sizes: &[u32]) -> Result<Vec<u8>, ReadErro
     out.extend_from_slice(&15u32.to_be_bytes());
     out.extend_from_slice(&frame_count.to_be_bytes());
     out.extend_from_slice(&total.to_be_bytes());
+    let mut stride = 1usize;
+    while sizes.len() / stride >= 400 {
+        stride *= 2;
+    }
+    let seek_points = sizes.len() / stride;
     let mut offset = u64::try_from(size).unwrap_or(u64::MAX);
     let mut frame = 0usize;
-    for percent in 0..100usize {
-        let target = sizes.len().saturating_mul(percent).div_ceil(100);
+    out.push(0);
+    for percent in 1..100usize {
+        let target = (seek_points * percent / 100 + 1) * stride;
         while frame < target {
             offset += u64::from(
                 *sizes
@@ -472,11 +483,7 @@ pub(crate) fn info_frame(info: &Info, sizes: &[u32]) -> Result<Vec<u8>, ReadErro
             );
             frame += 1;
         }
-        out.push(if percent == 0 {
-            0
-        } else {
-            u8::try_from((offset * 256 / u64::from(total)).min(255)).unwrap_or(255)
-        });
+        out.push(u8::try_from((offset * 256 / u64::from(total)).min(255)).unwrap_or(255));
     }
     out.extend_from_slice(&0u32.to_be_bytes());
     let encoder = info.encoder.as_bytes();
@@ -493,7 +500,7 @@ pub(crate) fn info_frame(info: &Info, sizes: &[u32]) -> Result<Vec<u8>, ReadErro
     out.extend_from_slice(&info.music_crc.to_be_bytes());
     let checksum_at = out.len();
     out.extend_from_slice(&[0, 0]);
-    out.resize(size, 0);
+    out.resize(size.max(190), 0);
     let checksum = crc(
         0,
         out.get(..190)
@@ -502,6 +509,7 @@ pub(crate) fn info_frame(info: &Info, sizes: &[u32]) -> Result<Vec<u8>, ReadErro
     out.get_mut(checksum_at..checksum_at + 2)
         .ok_or_else(|| refused("information-frame CRC offset"))?
         .copy_from_slice(&checksum.to_be_bytes());
+    out.truncate(size);
     Ok(out)
 }
 
@@ -516,6 +524,7 @@ pub(crate) mod tests {
             software: "Lavf1.2.3".into(),
             delay: 576,
             padding: 576,
+            bit_rate: None,
             variable: false,
             music_crc: 0,
         };

@@ -21,7 +21,7 @@ class HevcSimdWorkflow(unittest.TestCase):
         self.assertIn("if: github.event_name == 'workflow_dispatch' && !inputs.scalar", job)
         self.assertIn('os: [ubuntu-24.04, macos-15]', job)
         self.assertIn('grep -qw avx2 /proc/cpuinfo', job)
-        for target in ('horizontal', 'vertical'):
+        for target in ('horizontal', 'vertical', 'sao'):
             self.assertIn('crates/coreav-kernels-hevc/fuzz ' + target, job)
         self.assertIn('600 "$RUNNER_TEMP/fuzz"', job)
         self.assertIn('scripts/fuzz_upload.py "$RUNNER_TEMP/fuzz/findings"', job)

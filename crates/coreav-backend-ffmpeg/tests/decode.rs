@@ -126,6 +126,116 @@ fn decode(file: &Path, codec: Codec, kind: ConfigKind) -> (Vec<u8>, Vec<i64>) {
 }
 
 #[test]
+#[ignore = "needs pinned ffmpeg"]
+fn ffv1_odd_dimensions_match_source_bytes() {
+    let dir = std::env::temp_dir().join(format!("coreav-ffv1-decode-{}", std::process::id()));
+    std::fs::create_dir(&dir).expect("dir");
+    for (format, vertical) in [("yuv420p", 2usize), ("yuv422p", 1)] {
+        for (width, height) in [(854usize, 480usize), (640, 483), (855, 483)] {
+            let frame_bytes = width * height + 2 * width.div_ceil(2) * height.div_ceil(vertical);
+            let original: Vec<u8> = (0..frame_bytes * 2)
+                .map(|index| (index.wrapping_mul(73) ^ (index >> 9)) as u8)
+                .collect();
+            let raw = dir.join("source.raw");
+            std::fs::write(&raw, &original).expect("source");
+            let file = generate(
+                &dir,
+                &format!("{format}-{width}-{height}.mkv"),
+                &[
+                    "-f",
+                    "rawvideo",
+                    "-pixel_format",
+                    format,
+                    "-video_size",
+                    &format!("{width}x{height}"),
+                    "-framerate",
+                    "25",
+                    "-i",
+                    raw.to_str().expect("path"),
+                    "-frames:v",
+                    "2",
+                    "-c:v",
+                    "ffv1",
+                    "-level",
+                    "3",
+                    "-coder",
+                    "1",
+                    "-slices",
+                    "9",
+                    "-slicecrc",
+                    "1",
+                    "-threads",
+                    "1",
+                ],
+            );
+            let bytes = std::fs::read(file).expect("encoded file");
+            let segment = coreav_mkv::probe(
+                coreav_mkv::SliceSource::new(&bytes),
+                &Default::default(),
+                &coreav_mkv::Allowlist::new(&[coreav_mkv::Codec::Ffv1]),
+            )
+            .expect("Matroska");
+            assert_eq!(segment.tracks.len(), 1);
+            let stream = StreamConfig {
+                width: Some(width as u32),
+                height: Some(height as u32),
+                config: Some(CodecConfig {
+                    kind: ConfigKind::MatroskaPrivate,
+                    data: segment.tracks[0]
+                        .codec_private
+                        .clone()
+                        .expect("configuration"),
+                }),
+                ..StreamConfig::new(Codec::Ffv1)
+            };
+            let options = FfmpegOptions {
+                program: ffmpeg(),
+                threads: Some(2),
+            };
+            let mut decoder =
+                FfmpegDecoder::open(&options, &stream, &Limits::default()).expect("open");
+            let packets = segment
+                .packets(coreav_mkv::SliceSource::new(&bytes), &Default::default())
+                .collect::<Result<Vec<_>, _>>()
+                .expect("packets");
+            assert_eq!(packets.len(), 2);
+            let mut decoded = Vec::new();
+            for packet in packets.iter().map(Some).chain(std::iter::once(None)) {
+                if let Some(packet) = packet {
+                    assert_eq!(packet.stripped, 0);
+                    let start = packet.offset as usize;
+                    decoder
+                        .send_packet(&Packet {
+                            data: &bytes[start..start + packet.stored_size as usize],
+                            pts: packet.pts,
+                            dts: packet.dts,
+                            keyframe: packet.keyframe,
+                            discard: false,
+                        })
+                        .expect("send");
+                } else {
+                    decoder.send_eof().expect("eof");
+                }
+                while let Some(frame) = decoder.receive_frame().expect("receive") {
+                    let picture = frame.to_cpu().expect("cpu");
+                    assert_eq!(
+                        (picture.width(), picture.height()),
+                        (width as u32, height as u32)
+                    );
+                    picture.write_packed(&mut decoded).expect("packed");
+                }
+            }
+            assert_eq!(decoded.len(), original.len());
+            assert!(
+                decoded == original,
+                "{format} {width}x{height}: decoded pixels differ"
+            );
+        }
+    }
+    std::fs::remove_dir_all(dir).expect("cleanup");
+}
+
+#[test]
 #[ignore = "needs ffmpeg"]
 fn h264_with_b_frames_matches_ffmpeg() {
     let dir = std::env::temp_dir().join(format!("coreav-ffmpeg-{}", std::process::id()));

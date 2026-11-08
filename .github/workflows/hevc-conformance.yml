@@ -281,7 +281,7 @@ jobs:
   kernel-differential:
     if: github.event_name == 'workflow_dispatch' && !inputs.scalar
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -296,13 +296,13 @@ jobs:
       - name: Require AVX2 on the vector execution host
         if: runner.os == 'Linux'
         run: grep -qw avx2 /proc/cpuinfo
-      - name: Prepare bounded interpolation differential targets
+      - name: Prepare bounded prediction differential targets
         run: |
           scripts/fuzz_run.sh setup
-          printf '%s\n' 'crates/coreav-kernels-hevc/fuzz horizontal' 'crates/coreav-kernels-hevc/fuzz vertical' > "$RUNNER_TEMP/interpolation-plan.txt"
+          printf '%s\n' 'crates/coreav-kernels-hevc/fuzz horizontal' 'crates/coreav-kernels-hevc/fuzz vertical' 'crates/coreav-kernels-hevc/fuzz sao' 'crates/coreav-kernels-hevc/fuzz intra' > "$RUNNER_TEMP/interpolation-plan.txt"
           scripts/fuzz_run.sh build "$RUNNER_TEMP/interpolation-plan.txt"
       - id: differential
-        name: Compare automatic and scalar interpolation for ten minutes per target
+        name: Compare automatic and scalar kernels for ten minutes per target
         env:
           ASAN_OPTIONS: quarantine_size_mb=64
         run: scripts/fuzz_run.sh run "$RUNNER_TEMP/interpolation-plan.txt" 600 "$RUNNER_TEMP/fuzz"

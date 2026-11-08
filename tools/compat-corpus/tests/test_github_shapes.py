@@ -111,6 +111,7 @@ class AcquisitionAndReplay(unittest.TestCase):
         fixture = self.bundle / 'fixtures'
         fixture.mkdir()
         (fixture / 'source.mp4').write_bytes(b'synthetic control, not media')
+        run.write(fixture / 'commands.json', run.fixtures.recipe(run.fixtures.ORIGINAL))
         self.fake = self.root / 'fake'
         self.fake.write_text('#!' + sys.executable + '\nimport sys\n' +
                              'print(\'{"format":{"control_sentinel":"control result"}}\' if "json" in sys.argv '
@@ -189,7 +190,7 @@ class AcquisitionAndReplay(unittest.TestCase):
         self.assertEqual(self.judge(), 'reference_failed')
 
     def test_replay_checks_inventory_and_recomputes_instead_of_trusting_labels(self):
-        opts = types.SimpleNamespace(bundle=self.bundle, scratch=self.root / 'scratch',
+        opts = types.SimpleNamespace(bundle=self.bundle, scratch=self.root / 'scratch', registration=run.fixtures.ORIGINAL,
                                      summary=self.root / 'summary.json', **{
                                          k: str(self.fake) for k in ('coreav', 'ffmpeg', 'ffprobe', 'x264', 'pns_diagnostic')})
         identity = {'coreav': {'sha256': run.digest(self.fake)}}
@@ -202,7 +203,7 @@ class AcquisitionAndReplay(unittest.TestCase):
             entry['shape']['options'].append(['-wrapper-unresolved', '<value>'])
             records.append({'rank': entry['rank'], 'uninstantiable': 'lost_construction'})
         run.write(self.bundle / 'records.json', records)
-        manifest = {'method': {}, 'programs': identity, 'features': run.FEATURES,
+        manifest = {'registration': run.fixtures.ORIGINAL, 'method': {}, 'programs': identity, 'features': run.FEATURES,
                     'build_command': run.BUILD, 'build': build, 'commit': 'a' * 40,
                     'inventory': run.inventory(self.bundle)}
         run.write(self.bundle / 'manifest.json', manifest)
@@ -296,13 +297,68 @@ class ExactPredicate(unittest.TestCase):
 
     def test_packet_timing_uses_output_stream_and_rational_clocks(self):
         doc = {'streams': [{'index': 1, 'time_base': '1/10'}],
-               'packets': [{'stream_index': 1, 'data_hash': 'SHA256:test', 'pts': 3, 'dts': 2, 'duration': 1}]}
+               'packets': [{'stream_index': 1, 'data_hash': 'SHA256:test', 'pts': 3, 'dts': 2, 'duration': 1,
+                            'flags': 'K__'}]}
         with mock.patch.object(decoded_output, 'invoke', return_value=(0, json.dumps(doc).encode(), b'')):
-            self.assertEqual(run.packet_rows('output', 'probe', {}, ()), [(1, 'SHA256:test', '3/10', '1/5', '1/10')])
+            self.assertEqual(run.packet_rows('output', 'probe', {}, ()), [(1, 'SHA256:test', '3/10', '1/5', '1/10', True)])
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
             (folder / 'command.stderr').write_text('Stream #0:7 -> #1:0 (copy)\nStream #0:1 -> #0:2 (copy)\n')
             self.assertEqual(run.jobs(folder), {(1, 0): 'copy', (0, 2): 'copy'})
+
+    def test_missing_packet_flags_cannot_supply_exact_keyframe_evidence(self):
+        document = {'streams': [{'index': 0, 'time_base': '1/10'}],
+                    'packets': [{'stream_index': 0, 'data_hash': 'SHA256:control', 'pts': 0,
+                                 'dts': 0, 'duration': 1}]}
+        with mock.patch.object(decoded_output, 'invoke', return_value=(0, json.dumps(document).encode(), b'')):
+            with self.assertRaises(KeyError):
+                run.packet_rows('output', 'probe', {}, ())
+
+    def test_exact_copy_rejects_each_keyframe_only_difference(self):
+        command = inputs.instantiate(shape('ffmpeg'))
+        sps, pps = Avc1Carriage.SPS, Avc1Carriage.PPS
+        config = b'\x01\x42\x00\x0a\xff\xe1' + len(sps).to_bytes(2, 'big') + sps + (
+            b'\x01' + len(pps).to_bytes(2, 'big') + pps)
+        video = {'index': 0, 'time_base': '1/10', 'codec_type': 'video', 'codec_name': 'h264',
+                 'codec_tag_string': 'avc1', 'extradata': Avc1Carriage.dump(config), 'extradata_size': len(config),
+                 'extradata_hash': 'SHA256:' + hashlib.sha256(config).hexdigest()}
+        document = {'streams': [video, {'index': 1, 'time_base': '1/10', 'codec_type': 'audio', 'codec_name': 'aac'}],
+                    'packets': []}
+        for pts in (0, 1):
+            for index, payload in enumerate((Avc1Carriage.sample(Avc1Carriage.SLICE), b'audio')):
+                document['packets'].append({'stream_index': index, 'pts': pts, 'dts': pts, 'duration': 1,
+                    'flags': 'K__', 'size': str(len(payload)), 'data': Avc1Carriage.dump(payload),
+                    'data_hash': 'SHA256:' + hashlib.sha256(payload).hexdigest()})
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            for arm in ('reference', 'candidate'):
+                folder = base / arm
+                folder.mkdir()
+                (folder / 'output0.mp4').write_bytes(b'control')
+                (folder / 'command.stderr').write_text(
+                    'Stream #0:0 -> #0:0 (copy)\nStream #0:1 -> #0:1 (copy)\n')
+            candidate = copy.deepcopy(document)
+            def invoke(argv, env, **kwargs):
+                source = Path(argv[argv.index('-i') + 1])
+                return 0, json.dumps(candidate if source.parent.name == 'candidate' else document).encode(), b''
+            with mock.patch.object(decoded_output, 'probe', return_value=document), \
+                 mock.patch.object(decoded_output, 'compare', return_value=('verified', 'exact')), \
+                 mock.patch.object(decoded_output, 'invoke', side_effect=invoke):
+                def result():
+                    return run.compare_outputs(command, base, {'$FFMPEG': 'ffmpeg', '$FFPROBE': 'ffprobe'}, {}, base)
+                self.assertEqual(result(), 'counted')
+                for index in range(len(candidate['packets'])):
+                    for ours, theirs in (('___', 'K__'), ('K__', '___')):
+                        with self.subTest(packet=index, ours=ours, theirs=theirs):
+                            candidate['packets'][index]['flags'] = ours
+                            document['packets'][index]['flags'] = theirs
+                            normalized = copy.deepcopy(candidate)
+                            normalized['packets'][index]['flags'] = theirs
+                            self.assertEqual(normalized, document)
+                            self.assertEqual(result(), 'different')
+                    candidate['packets'][index]['flags'] = document['packets'][index]['flags'] = 'K__'
+                candidate['packets'][0]['flags'] = 'KD_'
+                self.assertEqual(result(), 'counted')
 
 
 class Avc1Carriage(unittest.TestCase):
@@ -321,7 +377,7 @@ class Avc1Carriage(unittest.TestCase):
 
     def packet(self, data, index=0, pts=0):
         return {'stream_index': index, 'pts': pts, 'dts': pts, 'duration': 1, 'size': str(len(data)),
-                'data': self.dump(data), 'data_hash': 'SHA256:' + hashlib.sha256(data).hexdigest()}
+                'data': self.dump(data), 'data_hash': 'SHA256:' + hashlib.sha256(data).hexdigest(), 'flags': 'K__'}
 
     def configuration(self, data, document):
         stream = document['streams'][0]
@@ -440,6 +496,26 @@ class Avc1Carriage(unittest.TestCase):
         self.actual['streams'][0]['time_base'] = '1/20'
         self.actual['packets'][0]['duration'] = 2
         self.actual['streams'][0]['duration_ts'] = 2
+        self.assertFalse(self.compatible())
+
+    def test_compatible_copy_rejects_each_keyframe_only_difference(self):
+        for document in (self.actual, self.reference):
+            document['packets'].extend([self.packet(self.sample(self.SLICE), pts=1), self.packet(b'audio', 1, pts=1)])
+        self.assertTrue(self.compatible())
+        for index in range(len(self.actual['packets'])):
+            for ours, theirs in (('___', 'K__'), ('K__', '___')):
+                with self.subTest(packet=index, ours=ours, theirs=theirs):
+                    self.actual['packets'][index]['flags'] = ours
+                    self.reference['packets'][index]['flags'] = theirs
+                    self.assertFalse(self.compatible())
+            self.actual['packets'][index]['flags'] = self.reference['packets'][index]['flags'] = 'K__'
+        self.actual['packets'][0]['flags'] = 'KD_'
+        self.assertTrue(self.compatible())
+
+    def test_missing_packet_flags_cannot_supply_compatible_keyframe_evidence(self):
+        for document in (self.actual, self.reference):
+            for packet in document['packets']:
+                del packet['flags']
         self.assertFalse(self.compatible())
 
     def test_decoded_pixels_samples_and_all_audio_frame_timelines_stay_exact(self):

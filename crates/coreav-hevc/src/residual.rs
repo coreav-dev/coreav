@@ -1,6 +1,10 @@
 use crate::cabac::{Cabac, Context, Initialization};
 use crate::{Error, Result};
 
+#[cfg(any(test, feature = "test-support"))]
+mod reference;
+mod scan;
+
 const LAST_INIT: [u8; 18] = [
     110, 110, 124, 125, 140, 153, 125, 127, 140, 109, 111, 143, 127, 111, 79, 108, 123, 63,
 ];
@@ -44,7 +48,7 @@ const GREATER2_P_INIT: [u8; 6] = [107, 167, 91, 122, 107, 167];
 const GREATER2_B_INIT: [u8; 6] = [107, 167, 91, 107, 107, 167];
 const SIGNIFICANCE_4X4: [usize; 15] = [0, 1, 4, 5, 2, 3, 4, 5, 6, 6, 8, 8, 7, 7, 8];
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Contexts {
     transform_skip: [Context; 2],
     last_x: [Context; 18],
@@ -146,6 +150,7 @@ pub(crate) struct Decoded {
     pub sign_hidden_groups: u64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct LevelState {
     greater1: u8,
     hidden_groups: u64,
@@ -208,12 +213,14 @@ fn decode_block(
         core::mem::swap(&mut last_x, &mut last_y);
     }
     let group_side = side / 4;
-    let last_group = scan_index(group_side, scan, (last_x / 4, last_y / 4))?;
-    let last_position = scan_index(4, scan, (last_x % 4, last_y % 4))?;
+    let group_scan = scan.order(group_side)?;
+    let coefficient_scan = scan.order(4)?;
+    let last_group = group_scan.index((last_x / 4, last_y / 4))?;
+    let last_position = coefficient_scan.index((last_x % 4, last_y % 4))?;
     let mut coded_groups = [false; 64];
     let mut level_state = LevelState::new(1);
     for group in (0..=last_group).rev() {
-        let (gx, gy) = scan_coordinate(group_side, scan, group)?;
+        let (gx, gy) = group_scan.coordinate(group)?;
         let neighbours = group_neighbours(&coded_groups, group_side, gx, gy)?;
         let coded = if group == last_group || group == 0 {
             true
@@ -242,7 +249,7 @@ fn decode_block(
         };
         let mut infer_dc = group != last_group && group != 0;
         for (position, coefficient) in coefficients.iter_mut().enumerate().take(end).rev() {
-            let (x, y) = scan_coordinate(4, scan, position)?;
+            let (x, y) = coefficient_scan.coordinate(position)?;
             coefficient.significant = if position == 0 && infer_dc {
                 true
             } else {
@@ -266,7 +273,7 @@ fn decode_block(
             &mut level_state,
         )?;
         for (position, level) in levels.into_iter().enumerate() {
-            let (x, y) = scan_coordinate(4, scan, position)?;
+            let (x, y) = coefficient_scan.coordinate(position)?;
             *output
                 .get_mut((gy * 4 + y) * side + gx * 4 + x)
                 .ok_or(Error::InvalidData("residual_output"))? = level;
@@ -286,7 +293,17 @@ fn decision(bins: &mut impl Bins, contexts: &mut [Context], index: usize) -> Res
     )
 }
 
-fn scan_coordinate(side: usize, scan: Scan, mut position: usize) -> Result<(usize, usize)> {
+#[cfg(test)]
+fn scan_coordinate(side: usize, scan: Scan, position: usize) -> Result<(usize, usize)> {
+    scan.order(side)?.coordinate(position)
+}
+
+#[cfg(test)]
+fn arithmetic_scan_coordinate(
+    side: usize,
+    scan: Scan,
+    mut position: usize,
+) -> Result<(usize, usize)> {
     if !matches!(side, 1 | 2 | 4 | 8) || position >= side * side {
         return Err(Error::InvalidData("residual_scan"));
     }
@@ -307,13 +324,9 @@ fn scan_coordinate(side: usize, scan: Scan, mut position: usize) -> Result<(usiz
     Err(Error::InvalidData("residual_scan"))
 }
 
+#[cfg(test)]
 fn scan_index(side: usize, scan: Scan, coordinate: (usize, usize)) -> Result<usize> {
-    for position in 0..side * side {
-        if scan_coordinate(side, scan, position)? == coordinate {
-            return Ok(position);
-        }
-    }
-    Err(Error::InvalidData("residual_last"))
+    scan.order(side)?.index(coordinate)
 }
 
 fn last_context(block: Block, bin_index: usize) -> usize {
@@ -411,7 +424,7 @@ fn significance_context(block: Block, x: usize, y: usize, neighbours: u8) -> Res
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct Coefficient {
     significant: bool,
     greater1: bool,
@@ -431,6 +444,17 @@ fn advance_greater_context(context: u8, flag: bool) -> u8 {
     }
 }
 
+fn significant_positions(mut mask: u16) -> impl Iterator<Item = usize> {
+    core::iter::from_fn(move || {
+        if mask == 0 {
+            return None;
+        }
+        let position = 15 - mask.leading_zeros() as usize;
+        mask ^= 1 << position;
+        Some(position)
+    })
+}
+
 fn decode_levels(
     bins: &mut impl Bins,
     contexts: &mut Contexts,
@@ -446,10 +470,12 @@ fn decode_levels(
     let mut first = 16;
     let mut last = 0;
     let mut first_greater1 = None;
+    let mut significance = 0u16;
     for (position, coefficient) in coefficients.iter_mut().enumerate().rev() {
         if !coefficient.significant {
             continue;
         }
+        significance |= 1 << position;
         if count == 0 {
             last = position;
         }
@@ -479,22 +505,25 @@ fn decode_levels(
     }
     let hidden = sign_data_hiding && last - first > 3;
     state.hidden_groups += u64::from(hidden);
-    for (position, coefficient) in coefficients.iter_mut().enumerate().rev() {
-        if coefficient.significant && !(hidden && position == first) {
+    for position in significant_positions(significance) {
+        let coefficient = coefficients
+            .get_mut(position)
+            .ok_or(Error::InvalidData("residual_coefficient"))?;
+        if !(hidden && position == first) {
             coefficient.negative = bins.bypass()?;
         }
     }
     let mut levels = [0; 16];
-    let mut significant_count = 0;
     let mut sum = 0;
     let mut rice = 0;
     let mut previous_abs = 0;
-    for (position, (coefficient, level)) in
-        coefficients.iter().zip(levels.iter_mut()).enumerate().rev()
-    {
-        if !coefficient.significant {
-            continue;
-        }
+    for (significant_count, position) in significant_positions(significance).enumerate() {
+        let coefficient = coefficients
+            .get(position)
+            .ok_or(Error::InvalidData("residual_coefficient"))?;
+        let level = levels
+            .get_mut(position)
+            .ok_or(Error::InvalidData("residual_coefficient"))?;
         let base = 1 + u32::from(coefficient.greater1) + u32::from(coefficient.greater2);
         let threshold = if significant_count < 8 {
             if Some(position) == first_greater1 {
@@ -520,7 +549,6 @@ fn decode_levels(
         sum += magnitude;
         let negative = coefficient.negative || (hidden && position == first && sum & 1 != 0);
         *level = signed_level(magnitude, negative)?;
-        significant_count += 1;
     }
     Ok(levels)
 }
@@ -530,6 +558,73 @@ fn signed_level(magnitude: u32, negative: bool) -> Result<i16> {
         i32::try_from(magnitude).map_err(|_| Error::InvalidData("coefficient_level"))?;
     i16::try_from(if negative { -magnitude } else { magnitude })
         .map_err(|_| Error::InvalidData("coefficient_level"))
+}
+
+#[cfg(any(test, feature = "test-support"))]
+#[doc = "Compares sparse and serial coefficient-level parsing on bounded input."]
+pub fn coefficient_levels_match_reference(data: &[u8]) -> bool {
+    let Some(header) = data.get(..3) else {
+        return true;
+    };
+    let Some(source) = data.get(3..data.len().min(4099)) else {
+        return true;
+    };
+    let mut header = header.iter().copied();
+    let mask = u16::from(header.next().unwrap_or(0)) | (u16::from(header.next().unwrap_or(0)) << 8);
+    let choice = header.next().unwrap_or(0);
+    let mut sparse_coefficients = [Coefficient::default(); 16];
+    for (position, coefficient) in sparse_coefficients.iter_mut().enumerate() {
+        coefficient.significant = mask & (1 << position) != 0;
+    }
+    let mut serial_coefficients = sparse_coefficients;
+    let initialization = match choice % 3 {
+        0 => Initialization::I,
+        1 => Initialization::P,
+        _ => Initialization::B,
+    };
+    let mut sparse_contexts = Contexts::new(i32::from(choice >> 2), initialization);
+    let mut serial_contexts = sparse_contexts;
+    let component = if choice & 1 == 0 {
+        Component::Luma
+    } else {
+        Component::Chroma
+    };
+    let group = usize::from(choice & 63);
+    let mut sparse_state = LevelState::new((choice >> 4) & 3);
+    let mut serial_state = sparse_state;
+    let mut sparse_budget = u64::from(choice & 15) * 32;
+    let mut serial_budget = sparse_budget;
+    let (mut sparse, mut serial) = match (
+        Cabac::new(source, &mut sparse_budget),
+        Cabac::new(source, &mut serial_budget),
+    ) {
+        (Ok(sparse), Ok(serial)) => (sparse, serial),
+        (Err(a), Err(b)) => return a == b,
+        _ => return false,
+    };
+    let a = decode_levels(
+        &mut sparse,
+        &mut sparse_contexts,
+        &mut sparse_coefficients,
+        component,
+        group,
+        choice & 2 != 0,
+        &mut sparse_state,
+    );
+    let b = reference::decode_levels(
+        &mut serial,
+        &mut serial_contexts,
+        &mut serial_coefficients,
+        component,
+        group,
+        choice & 2 != 0,
+        &mut serial_state,
+    );
+    a == b
+        && sparse_coefficients == serial_coefficients
+        && sparse_contexts == serial_contexts
+        && sparse_state == serial_state
+        && sparse.snapshot() == serial.snapshot()
 }
 
 fn next_rice(previous_rice: u8, previous_abs: u32) -> u8 {
@@ -562,6 +657,51 @@ fn remaining_level(bins: &mut impl Bins, rice: u8) -> Result<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn significant_positions_cover_every_mask_in_reverse_scan_order() {
+        for mask in 0..=u16::MAX {
+            let expected: Vec<usize> = (0..16)
+                .rev()
+                .filter(|position| mask & (1 << position) != 0)
+                .collect();
+            assert_eq!(significant_positions(mask).collect::<Vec<_>>(), expected);
+        }
+    }
+
+    #[test]
+    fn sparse_levels_match_serial_for_every_significance_mask() {
+        for mask in 0..=u16::MAX {
+            for choice in 0x3c..=0x3f {
+                for payload in [0, 0xaa] {
+                    let mut data = [payload; 35];
+                    data[0] = mask as u8;
+                    data[1] = (mask >> 8) as u8;
+                    data[2] = choice;
+                    data[3] = 0;
+                    assert!(coefficient_levels_match_reference(&data));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn sparse_levels_preserve_prefix_failures_and_bin_budgets() {
+        for mask in [0u16, 1, 0x80, 0x8000, 0x8101, 0x5555, 0xaaaa, 0xffff] {
+            for choice in [0, 1, 2, 3, 0x3c, 0x3d, 0x3e, 0x3f, 0xff] {
+                for payload in [0, 0x55, 0xaa, 0xff] {
+                    let mut data = [payload; 35];
+                    data[0] = mask as u8;
+                    data[1] = (mask >> 8) as u8;
+                    data[2] = choice;
+                    data[3] = 0;
+                    for len in 0..=data.len() {
+                        assert!(coefficient_levels_match_reference(&data[..len]));
+                    }
+                }
+            }
+        }
+    }
 
     #[derive(Debug)]
     enum Bin {
@@ -813,6 +953,7 @@ mod tests {
                 let mut visited = [false; 64];
                 for position in 0..side * side {
                     let (x, y) = scan_coordinate(side, scan, position)?;
+                    assert_eq!((x, y), arithmetic_scan_coordinate(side, scan, position)?);
                     assert!(x < side && y < side);
                     assert_eq!(visited.get(y * side + x), Some(&false));
                     if let Some(entry) = visited.get_mut(y * side + x) {

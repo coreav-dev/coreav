@@ -101,6 +101,11 @@ pub struct Request {
     pub opus: Option<OpusRequest>,
     /// `--audio aac`: one audio stream encoded to AAC-LC instead.
     pub aac: Option<AacRequest>,
+    /// Match the FFmpeg adapter's terminal AAC sample timing in MP4.
+    pub aac_mp4_tail: bool,
+    /// Optional metadata bitrate for MP4-sourced copied AAC, MP3 and Opus.
+    /// `None` preserves metadata rather than normalizing from the source clock.
+    pub copied_audio_bit_rate: Option<coreav_isobmff_write::CopiedAudioBitRate>,
     /// Optional actual AAC-encoder stdin capture.
     #[cfg(feature = "input-capture")]
     pub input_capture: Option<coreav_transcode::capture::Target>,
@@ -210,6 +215,8 @@ pub fn make<S: Source>(
             (None, false, None, None) => AudioMode::Copy,
         },
         left_out_covers: request.left_out_covers.clone(),
+        aac_mp4_tail: request.aac_mp4_tail,
+        copied_audio_bit_rate: request.copied_audio_bit_rate,
         encoder: request.encoder.choice(),
         x264: request.x264.clone(),
         ffmpeg: request.ffmpeg.clone(),

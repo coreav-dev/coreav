@@ -1178,6 +1178,8 @@ fn run_transcode(
             stream: None,
             bitrate: args.audio_bitrate.map(|k| k * 1000),
         }),
+        aac_mp4_tail: false,
+        copied_audio_bit_rate: None,
         #[cfg(feature = "input-capture")]
         input_capture: None,
         pixel_format: None,
@@ -1597,6 +1599,7 @@ fn run_remux(args: &RemuxArgs, metadata: Metadata) -> ExitCode {
         }
     };
     let options = RemuxOptions {
+        copied_audio_bit_rate: None,
         interleave_packets: false,
         video_origin: None,
         rebuild_durations: false,

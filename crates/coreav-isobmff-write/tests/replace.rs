@@ -1386,6 +1386,7 @@ impl EncodedStream {
             start,
             priming: 312,
             presented: total - 312,
+            aac_mp4_tail: false,
             roll: 4,
             data: SliceSource::new(&self.data),
         }
@@ -1623,6 +1624,7 @@ fn aac_replacement(
         start: 0,
         priming: 1024,
         presented: aac.samples.len() as u64 * 1024 - 1024 - 300,
+        aac_mp4_tail: false,
         roll: 1,
         data: SliceSource::new(&aac.data),
     }
@@ -1644,6 +1646,7 @@ fn assert_aac_track(out: &[u8], movie: &Movie, index: usize, aac: &EncodedStream
     assert_eq!((empty, media_time), (0, 1024));
     let written = packets(out, movie, index);
     assert_eq!(written.len(), aac.samples.len());
+    assert_eq!(track.mdhd_duration, aac.samples.len() as u64 * 1024);
     let mut at = 0;
     for (p, s) in written.iter().zip(&aac.samples) {
         assert_eq!((p.size, p.duration, p.keyframe), (s.size, 1024, true));
@@ -1710,4 +1713,85 @@ fn matroska_audio_replaced_with_aac() {
     assert!(summary.tracks[1].replaced);
     assert_eq!(summary.tracks[1].codec, coreav_mkv::Codec::Aac);
     assert_aac_track(&out, &probe_out(&out), 1, &aac);
+}
+
+#[test]
+fn aac_mp4_tail_does_not_change_padded_packets_or_other_codecs() {
+    for matroska in [false, true] {
+        let source = if matroska {
+            mkv_source("V_MPEG4/ISO/AVC")
+        } else {
+            av_movie()
+        };
+        for tail in [0, 1, 736, 1024] {
+            let aac = aac_stream(5);
+            let mut replacement = aac_replacement(&aac, 1);
+            replacement.presented = 3 * 1024 + tail;
+            replacement.aac_mp4_tail = true;
+            let mut out = Vec::new();
+            let replacements = Replacements {
+                video: None,
+                audio: Some(replacement),
+            };
+            if matroska {
+                remux_matroska_replacing(
+                    SliceSource::new(&source),
+                    &coreav_mkv::Limits::default(),
+                    &Limits::default(),
+                    &coreav_mkv::Allowlist::default(),
+                    &MatroskaRemuxOptions::default(),
+                    replacements,
+                    &mut out,
+                )
+                .unwrap();
+            } else {
+                remux_mp4_replacing(
+                    SliceSource::new(&source),
+                    &Limits::default(),
+                    &Allowlist::default(),
+                    &RemuxOptions::default(),
+                    replacements,
+                    &mut out,
+                )
+                .unwrap();
+            }
+            let movie = probe_out(&out);
+            let written = packets(&out, &movie, 1);
+            assert_eq!(written.len(), 5);
+            assert!(written[..4].iter().all(|p| p.duration == 1024));
+            let duration = if tail == 0 { 1024 } else { tail as u32 };
+            assert_eq!(written[4].duration, duration);
+            assert_eq!(
+                movie.tracks[1].mdhd_duration,
+                4 * 1024 + u64::from(duration)
+            );
+            let copied: Vec<_> = written
+                .iter()
+                .flat_map(|p| bytes(&out, p.offset, p.size))
+                .collect();
+            assert_eq!(copied, aac.data);
+        }
+    }
+    let opus = opus_stream(5, 960);
+    let mut replacement = opus.replacement(1, 0);
+    replacement.presented -= 200;
+    replacement.aac_mp4_tail = true;
+    let mut out = Vec::new();
+    remux_mp4_replacing(
+        SliceSource::new(&av_movie()),
+        &Limits::default(),
+        &Allowlist::default(),
+        &RemuxOptions::default(),
+        Replacements {
+            video: None,
+            audio: Some(replacement),
+        },
+        &mut out,
+    )
+    .unwrap();
+    assert!(
+        packets(&out, &probe_out(&out), 1)
+            .iter()
+            .all(|p| p.duration == 960)
+    );
 }

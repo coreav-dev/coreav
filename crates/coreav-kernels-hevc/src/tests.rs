@@ -874,6 +874,87 @@ fn invalid_kernel_inputs_do_not_partially_write_outputs() {
 }
 
 #[test]
+fn specialized_intra_matches_literal_samples_with_exact_output_extents() {
+    let mut state = 0x9134_87ab_u32;
+    for bits in [8, 10] {
+        let depth = BitDepth::new(bits).unwrap();
+        for n in [4, 8, 16, 32] {
+            for mode in 0..=34 {
+                for component in [Component::Luma, Component::Chroma] {
+                    for strong_smoothing in [false, true] {
+                        for pattern in 0..12 {
+                            let references: Vec<_> = (0..4 * n + 1)
+                                .map(|index| {
+                                    state =
+                                        state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                                    let value = match pattern {
+                                        0 => 0,
+                                        1 => depth.max_sample(),
+                                        2 => {
+                                            if index % 2 == 0 {
+                                                0
+                                            } else {
+                                                depth.max_sample()
+                                            }
+                                        }
+                                        _ => (state >> 16) as u16 & depth.max_sample(),
+                                    };
+                                    if pattern == 3
+                                        || (pattern == 4 && index != 3 * n)
+                                        || (pattern >= 5 && state & 3 == 0)
+                                    {
+                                        None
+                                    } else {
+                                        Some(value)
+                                    }
+                                })
+                                .collect();
+                            let stride = n + pattern % 4;
+                            let offset = pattern % 7;
+                            let extent = stride * (n - 1) + n;
+                            let mut actual = vec![u16::MAX; offset + extent + 5];
+                            let mut expected = actual.clone();
+                            let config = IntraPrediction {
+                                depth,
+                                component,
+                                mode: IntraMode::new(mode).unwrap(),
+                                strong_smoothing,
+                            };
+                            predict_intra(
+                                config,
+                                &references,
+                                BlockMut::new(
+                                    &mut actual[offset..offset + extent],
+                                    stride,
+                                    BlockSize::new(n).unwrap(),
+                                )
+                                .unwrap(),
+                            )
+                            .unwrap();
+                            crate::intra::predict_intra_reference(
+                                config,
+                                &references,
+                                BlockMut::new(
+                                    &mut expected[offset..offset + extent],
+                                    stride,
+                                    BlockSize::new(n).unwrap(),
+                                )
+                                .unwrap(),
+                            )
+                            .unwrap();
+                            assert_eq!(
+                                actual, expected,
+                                "depth {bits} size {n} mode {mode} component {component:?} strong {strong_smoothing} pattern {pattern}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn literal_non_dc_four_by_four_vectors() {
     let mut levels = [0; 16];
     levels[9] = 64;

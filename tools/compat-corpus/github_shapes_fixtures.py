@@ -4,13 +4,19 @@ import shutil
 
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
+ORIGINAL = 'github-shapes-200'
+PNS_FREE = 'github-shapes-200-pns-free'
+REGISTRATIONS = (ORIGINAL, PNS_FREE)
 
-def generate(folder, ffmpeg, env, execute):
-    folder.mkdir()
+
+def recipe(registration):
+    if registration not in REGISTRATIONS:
+        raise ValueError('fixture_registration')
     video = ['-f', 'lavfi', '-i', 'testsrc2=size=64x48:rate=10:duration=2']
     audio = ['-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=2']
-    commands = [
-        [*video, *audio, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', 'source.mp4'],
+    pns = ['-aac_pns', '0'] if registration == PNS_FREE else []
+    return [
+        [*video, *audio, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', *pns, 'source.mp4'],
         ['-i', 'source.mp4', '-c', 'copy', 'source.mkv'],
         [*audio, '-c:a', 'pcm_s16le', 'source.wav'],
         [*audio, '-c:a', 'libmp3lame', 'source.mp3'],
@@ -21,6 +27,11 @@ def generate(folder, ffmpeg, env, execute):
         [*AUDIO_DECODE_INPUT, '-i', 'source.wav', '-f', 's16le', 'source.s16'],
         [*AUDIO_DECODE_INPUT, '-i', 'source.mp4', '-pix_fmt', 'bgr24', '-f', 'rawvideo', 'source.bgr'],
     ]
+
+
+def generate(folder, ffmpeg, env, execute, registration):
+    commands = recipe(registration)
+    folder.mkdir()
     for index, args in enumerate(commands):
         receipt = execute([ffmpeg, '-nostdin', '-v', 'error', '-y', *args], folder, env, 120,
                           f'generate-{index}')

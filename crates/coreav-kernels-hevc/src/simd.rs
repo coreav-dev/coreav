@@ -2,6 +2,8 @@ use crate::{Error, inter};
 use core::arch::x86_64::*;
 use std::sync::OnceLock;
 
+mod loop_filter;
+
 #[derive(Clone, Copy)]
 pub(super) struct Avx2(());
 

@@ -44,7 +44,9 @@ impl<'a> Neighbours<'a> {
         mx: usize,
         my: usize,
         component: usize,
-    ) -> Result<(Tile, Tile)> {
+        base: &mut Tile,
+        input: &mut Tile,
+    ) -> Result<()> {
         let n = if component == 0 { 16 } else { 8 };
         let tile = |candidate: &'a Candidate| -> Result<&'a Tile> {
             if component == 0 {
@@ -57,7 +59,6 @@ impl<'a> Neighbours<'a> {
                     .ok_or(Error::Internal)
             }
         };
-        let mut base = Tile::empty();
         if let Some(top) = self.top {
             let top = tile(top)?;
             let at = Tile::at(0, n - 1);
@@ -90,14 +91,13 @@ impl<'a> Neighbours<'a> {
                 .get(Tile::at(n - 1, n - 1))
                 .ok_or(Error::Internal)?;
         }
-        let mut input = Tile::empty();
         for y in 0..n {
             for x in 0..n {
                 *input.0.get_mut(Tile::at(x, y)).ok_or(Error::Internal)? =
                     source.sample(mx * n + x, my * n + y)?;
             }
         }
-        Ok((base, input))
+        Ok(())
     }
 
     fn context(&self, p_slice: bool) -> MbContext<'a> {
@@ -124,7 +124,7 @@ pub(super) fn decide(
     slice: syntax::Slice,
 ) -> Result<Vec<OnceLock<Candidate>>> {
     let width = e.coded_width / 16;
-    crate::wavefront::run(width, e.coded_height / 16, e.threads, |address, table| {
+    crate::wavefront::fill(width, e.coded_height / 16, e.threads, |address, table| {
         let (mx, my) = (address % width, address / width);
         let neighbours = Neighbours::at(table, address, width)?;
         let border = Border {
@@ -133,16 +133,25 @@ pub(super) fn decide(
             top_left: neighbours.top_left.map(|c| &c.state.motion),
             top_right: neighbours.top_right.map(|c| &c.state.motion),
         };
-        let (base, source) = neighbours.tiles(input.y, mx, my, 0)?;
-        let (cb, scb) = neighbours.tiles(input.cb, mx, my, 1)?;
-        let (cr, scr) = neighbours.tiles(input.cr, mx, my, 2)?;
+        let mut base = Tile::empty();
+        let mut source = Tile::empty();
+        let mut cbases = [Tile::empty(), Tile::empty()];
+        let mut csources = [Tile::empty(), Tile::empty()];
+        neighbours.tiles(input.y, mx, my, 0, &mut base, &mut source)?;
+        for (c, ((base, source), plane)) in cbases
+            .iter_mut()
+            .zip(&mut csources)
+            .zip([input.cb, input.cr])
+            .enumerate()
+        {
+            neighbours.tiles(plane, mx, my, c + 1, base, source)?;
+        }
         let context = neighbours.context(!slice.idr);
-        let csources = [scb, scr];
         let decision = Decision {
             source: &source,
             csources: &csources,
             context,
-            qp: e.settings.qp,
+            qp: slice.qp,
             pending_skip: 0,
         };
         let previous = if address == 0 {
@@ -169,23 +178,78 @@ pub(super) fn decide(
             }
             .candidates(&mut best, &mut refusal)?
         };
-        let cbases = [cb, cr];
         let available = intra_availability(border);
         decision.intra(&base, &cbases, available, scope, &mut best, &mut refusal)?;
-        decision.refine_levels(
+        let candidate = decision.refine_levels(
             best.ok_or(refusal)?,
             &base,
             &cbases,
             available,
             e.reference.as_ref(),
             (mx, my),
-        )
+        )?;
+        table
+            .get(address)
+            .ok_or(Error::Internal)?
+            .set(candidate)
+            .map_err(|_| Error::Internal)
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+    fn unavailable_wavefront_neighbours_are_refused_before_border_reads() {
+        let settings = crate::Settings {
+            frame_rate: Default::default(),
+            sample_aspect_ratio: Default::default(),
+            width: 64,
+            height: 48,
+            rate_mode: crate::RateMode::FixedQp(28),
+            deblocking: crate::Deblocking::Disabled,
+            gop: crate::Gop::AllIntra,
+            colour: crate::Colour {
+                full_range: false,
+                primaries: 1,
+                transfer: 1,
+                matrix: 1,
+                chroma_location: 0,
+            },
+        };
+        let encoder = Encoder::with_threads(settings, crate::Limits::default(), 3).unwrap();
+        let y = [128; 64 * 48];
+        let chroma = [128; 32 * 24];
+        let picture = Picture {
+            y: Plane::new(&y, 64, 64, 48).unwrap(),
+            cb: Plane::new(&chroma, 32, 32, 24).unwrap(),
+            cr: Plane::new(&chroma, 32, 32, 24).unwrap(),
+        };
+        let mut table = decide(
+            &encoder,
+            picture,
+            syntax::Slice {
+                idr: true,
+                id: 0,
+                frame_num: 0,
+                qp: 28,
+            },
+        )
+        .unwrap();
+        let address = 5;
+        assert!(Neighbours::at(&table, address, 4).is_ok());
+        for dependency in [4, 1, 0, 2] {
+            let candidate = table[dependency].take().unwrap();
+            assert!(matches!(
+                Neighbours::at(&table, address, 4),
+                Err(Error::Internal)
+            ));
+            assert!(table[dependency].set(candidate).is_ok());
+            assert!(Neighbours::at(&table, address, 4).is_ok());
+        }
+    }
 
     #[test]
     fn retained_decisions_fit_the_bounded_picture_workspace() {

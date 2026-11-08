@@ -137,6 +137,49 @@ class MainPlan(unittest.TestCase):
             '--target-dir', 'target/fallback',
         ], 'Run the complete transcode target with AAC enabled; remove test-name filters')
 
+    def test_required_linux_mp3_comparison_rejects_zero_tests_and_failed_commands(self):
+        steps = self.workflows['ci']['jobs']['check']['steps']
+        selected = [s for s in steps if s.get('name') == 'Compare complete MP3 files with the pinned oracle']
+        self.assertEqual(len(selected), 1,
+                         'Run the MP3 byte comparison in required Linux check, not only the full tier')
+        step = selected[0]
+        self.assertNotIn('if', step)
+        self.assertEqual(step['env'], {
+            'COREAV_REQUIRE_FFMPEG': '1',
+            'COREAV_FFMPEG': '${{ runner.temp }}/coreav-encoders/ffmpeg',
+            'COREAV_FFPROBE': '${{ runner.temp }}/coreav-encoders/ffprobe',
+        })
+        self.assertEqual(step['run'].splitlines(), [
+            'set -euo pipefail',
+            'cargo test --locked -p coreav-cli --features ffmpeg-fallback --test transcode '
+            'ffmpeg_mp3_information_headers_match_complete_oracle_files '
+            '-- --exact --nocapture --color never 2>&1 | tee "$RUNNER_TEMP/mp3-information.log"',
+            "grep -F 'test ffmpeg_mp3_information_headers_match_complete_oracle_files ... ok' "
+            '"$RUNNER_TEMP/mp3-information.log"',
+        ], 'Enable transcode, select the exact MP3 test and require its success witness')
+        provision, = [s for s in steps if s.get('name') == 'Verify the pinned encoder oracle']
+        self.assertLess(steps.index(provision), steps.index(step))
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            cargo = root / 'cargo'
+            cargo.write_text('#!/bin/sh\ncat "$TEST_OUTPUT"\nexit "$TEST_STATUS"\n')
+            cargo.chmod(0o700)
+            output = root / 'output'
+            witness = 'test ffmpeg_mp3_information_headers_match_complete_oracle_files ... ok\n'
+            for text, status, succeeds in [
+                ('running 0 tests\ntest result: ok. 0 passed; 0 failed\n', 0, False),
+                ('test ffmpeg_mp3_information_headers_match_complete_oracle_files ... FAILED\n', 101, False),
+                ('test unrelated_test ... ok\n', 0, False),
+                (witness, 0, True),
+                (witness, 101, False),
+            ]:
+                output.write_text(text)
+                result = subprocess.run(['bash', '-c', step['run']], capture_output=True, text=True,
+                                        env={'RUNNER_TEMP': directory, 'PATH': f'{directory}:/usr/bin:/bin',
+                                             'TEST_OUTPUT': str(output), 'TEST_STATUS': str(status)})
+                self.assertEqual(result.returncode == 0, succeeds,
+                                 'The Linux MP3 gate must reject absent tests and pipeline failures')
+
     def test_macos_runs_the_declared_sar_media_case_with_qualified_tools(self):
         steps = self.workflows['ci']['jobs']['check-macos']['steps']
         selected = [step for step in steps if step.get('name') == 'Declared sample aspect ratios on macOS']

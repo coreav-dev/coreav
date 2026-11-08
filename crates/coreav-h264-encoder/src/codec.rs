@@ -18,7 +18,7 @@ mod levels;
 #[path = "rows.rs"]
 mod rows;
 
-const STRIDE: usize = 40;
+const STRIDE: usize = 21;
 const ORIGIN: usize = STRIDE + 1;
 const P_INTRA_TYPE_BASE: u32 = 5;
 const FINALISTS: usize = 2;
@@ -1099,9 +1099,9 @@ pub(crate) fn picture(
     if e.settings.deblocking == Deblocking::Enabled {
         for (c, plane) in planes.iter_mut().enumerate() {
             let qp = if c == 0 {
-                e.settings.qp
+                slice.qp
             } else {
-                t::chroma_qp(e.settings.qp)
+                t::chroma_qp(slice.qp)
             };
             deblock::picture(
                 &mut plane.data,

@@ -35,6 +35,9 @@ pub use intra::{IntraLimits, IntraPicture, IntraPictureDecoder, IntraPlane, Intr
 pub use nal::{AnnexB, LengthPrefixed, NalHeader, packet_nal};
 pub use parser::{HeaderParser, NalInfo, PictureInfo, Summary};
 pub use reconstruction::InterStats;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub use residual::coefficient_levels_match_reference;
 pub use rps::Rps;
 pub use sei::{PictureHash, SeiInfo};
 pub use slice::{LongTermRef, SliceHeader};
@@ -52,6 +55,8 @@ pub enum Error {
     Unsupported(&'static str),
     /// A caller budget or a fallible allocation was exhausted.
     Limit(&'static str),
+    /// A decoder invariant or caught reconstruction panic, not a stream failure.
+    Internal(&'static str),
 }
 
 impl core::fmt::Display for Error {
@@ -60,6 +65,7 @@ impl core::fmt::Display for Error {
             Self::InvalidData(reason) => write!(f, "invalid data: {reason}"),
             Self::Unsupported(reason) => write!(f, "unsupported: {reason}"),
             Self::Limit(reason) => write!(f, "limit: {reason}"),
+            Self::Internal(reason) => write!(f, "internal decoder error: {reason}"),
         }
     }
 }

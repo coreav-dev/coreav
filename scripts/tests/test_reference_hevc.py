@@ -55,6 +55,11 @@ class Reference(unittest.TestCase):
         self.assertLess(admission, workflow.index('secrets.'))
         self.assertIn('test -n "$(git branch -r --contains "$CANDIDATE")"', workflow[admission:workflow.index('cargo build')])
 
+    def test_dispatch_frame_count_is_numeric_at_the_reusable_boundary(self):
+        workflow = (SCRIPTS.parent / '.github/workflows/hevc-reference.yml').read_text()
+        threading = workflow[workflow.index('  threading:'):]
+        self.assertIn('frames: ${{ fromJSON(inputs.frames) }}', threading)
+
     def test_diagnostic_mode_never_times_verified_files(self):
         args = type('Args', (), dict(native=pathlib.Path('/native'), oracle_bin=pathlib.Path('/oracle'), diagnose_only=True))()
         with tempfile.TemporaryDirectory() as temp:
@@ -192,9 +197,10 @@ class Reference(unittest.TestCase):
                                (b'0, 0, 0, 1, 10, abcd\n', False), (b'', False)]:
             oracle = b'#dimensions 0: 2x2\n' + oracle
             metadata = json.dumps(dict(streams=[dict(pix_fmt='yuv420p10le', width=2, height=2)])).encode()
-            with self.subTest(oracle=oracle), patch.object(reference, 'command', side_effect=[(native, {}), (metadata, {}), (oracle, {})]):
+            with self.subTest(oracle=oracle), patch.object(reference, 'command', side_effect=[(native, {}), (metadata, {}), (oracle, {})]) as command:
                 if passes:
-                    self.assertEqual(reference.verify('/native', ORACLE, '/input')['frames'], 1)
+                    self.assertEqual(reference.verify('/native', ORACLE, '/input', timeout=600)['frames'], 1)
+                    self.assertEqual([call.kwargs['timeout'] for call in command.call_args_list], [600, 600, 600])
                 else:
                     with self.assertRaisesRegex(ValueError, 'pixel_mismatch'):
                         reference.verify('/native', ORACLE, '/input')
@@ -225,6 +231,27 @@ class Reference(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, 'oracle_pixel_format'):
                         reference.verify('/native', ORACLE, '/input')
                     self.assertEqual(child.call_count, 2)
+
+    def test_base_raster_verification_exports_enhancements_in_every_oracle_arm(self):
+        picture = dict(type='picture', bit_depth=8, output_bytes=6, output_md5='base', width=2, height=2)
+        native = ('\n'.join(json.dumps(row) for row in
+            (picture, dict(type='summary', complete=True, output_md5='base')))).encode()
+        def child(command, **unused):
+            if command[0] == '/native':
+                return native, {}
+            if command[0] == ORACLE.ffprobe:
+                return b'{"streams":[{"pix_fmt":"yuv420p","width":2,"height":2}]}', {}
+            if '-export_side_data' in command:
+                self.assertEqual(command[command.index('-export_side_data') + 1], '+enhancements')
+                self.assertLess(command.index('-export_side_data'), command.index('-i'))
+                return b'#dimensions 0: 2x2\n0, 0, 0, 1, 6, base\n', {}
+            return b'#dimensions 0: 4x2\n0, 0, 0, 1, 12, enhanced\n', {}
+        with patch.object(reference, 'command', side_effect=child):
+            self.assertEqual(reference.verify('/native', ORACLE, '/input')['frames'], 1)
+        for single in (True, False):
+            command = reference.ffmpeg_command(ORACLE.ffmpeg, '/input', single, ['-f', 'null', '-'])
+            self.assertIn('-export_side_data', command)
+            self.assertEqual(command[command.index('-export_side_data') + 1], '+enhancements')
 
     def test_oracle_arms_select_hevc_with_correct_thread_scope(self):
         one = reference.ffmpeg_command('ffmpeg', 'input', True, ['-f', 'null', '-'])

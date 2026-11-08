@@ -69,10 +69,11 @@ class InverseReference(unittest.TestCase):
         self.assertIn('vars.COREAV_CORPUS_R2_BUCKET', text)
         self.assertNotIn('secrets.COREAV_CORPUS_R2_BUCKET', text)
 
-    def test_existing_dispatch_routes_only_an_explicit_baseline_to_the_comparison(self):
+    def test_existing_dispatch_preserves_reference_and_threading_unless_inverse_is_selected(self):
         text = (SCRIPTS.parent / '.github/workflows/hevc-reference.yml').read_text()
-        self.assertIn("if: inputs.baseline != ''", text)
-        self.assertIn("if: inputs.baseline == ''", text)
+        self.assertIn('if: inputs.inverse', text)
+        self.assertIn("if: ${{ !inputs.inverse && inputs.baseline == '' && !inputs.sanitizer_only }}", text)
+        self.assertIn("if: ${{ !inputs.inverse && (inputs.baseline != '' || inputs.sanitizer_only) }}", text)
         self.assertIn('uses: ./.github/workflows/hevc-inverse-reference.yml', text)
         for name in ('baseline', 'candidate', 'only'):
             self.assertIn(name + ': ${{ inputs.' + name + ' }}', text)

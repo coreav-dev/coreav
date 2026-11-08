@@ -42,8 +42,8 @@ pub use codec::{
     SampleDescription, aac_frame_config, aac_has_explicit_no_sbr, avc_max_num_ref_frames,
     avc_max_num_ref_frames_with_planning, avc_parameter_sets, avc_parameter_sets_with_planning,
     avc_timing, describe_audio_specific_config, describe_config_record,
-    describe_config_record_with_planning, esds_decoder_specific_info, hevc_window_empty,
-    lossless_config, parameter_set_color, parameter_set_color_with_planning,
+    describe_config_record_with_planning, esds_bit_rate_offset, esds_decoder_specific_info,
+    hevc_window_empty, lossless_config, parameter_set_color, parameter_set_color_with_planning,
 };
 pub use error::{Error, LimitKind, Warning};
 pub use fragment::{FragmentSamples, TrackDefaults, subsegment_samples};

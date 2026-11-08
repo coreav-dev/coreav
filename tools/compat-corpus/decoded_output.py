@@ -421,7 +421,7 @@ def avc1_carriage(mine, reference, ffmpeg, ffprobe, env, scratch, copied_streams
                 timing = tuple(time(clock, key) for key in ('pts', 'dts', 'duration'))
                 if any(t is None for t in timing) or timing[2] <= 0:
                     return False
-                packets.append((index, payload, *timing))
+                packets.append((index, payload, *timing, 'K' in packet['flags']))
             if seen != set(copied_streams):
                 return False
             rows.append(packets)

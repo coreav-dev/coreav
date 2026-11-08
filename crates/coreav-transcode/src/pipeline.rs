@@ -139,6 +139,12 @@ pub struct TranscodeOptions {
     pub one_size: bool,
     /// The source's audio.
     pub audio: AudioMode,
+    /// Use the FFmpeg-compatible terminal AAC delta in MP4 output.
+    /// The default retains complete frame durations and native transcode bytes.
+    pub aac_mp4_tail: bool,
+    /// Optional metadata bitrate for MP4-sourced copied AAC, MP3 and Opus.
+    /// `None` preserves metadata rather than normalizing from the source clock.
+    pub copied_audio_bit_rate: Option<coreav_isobmff_write::CopiedAudioBitRate>,
     /// The cover pictures of an MP4 source to leave out, as
     /// `RemuxOptions::left_out_covers` names them; the others are copied
     /// with the movie's metadata.
@@ -188,6 +194,8 @@ impl Default for TranscodeOptions {
             pixel_format: None,
             one_size: false,
             audio: AudioMode::Copy,
+            aac_mp4_tail: false,
+            copied_audio_bit_rate: None,
             left_out_covers: Vec::new(),
             encoder: EncoderChoice::Auto,
             x264: None,
@@ -709,6 +717,7 @@ fn execute<S: Source, W: Write>(
             start: encoded.start,
             priming: u32::from(encoded.summary.pre_skip),
             presented: encoded.summary.samples,
+            aac_mp4_tail: options.aac_mp4_tail,
             roll: encoded.mp4_description()?.1,
             data: BufferedSource::new(
                 FileSource::from_file(encoded.spool.handle()?).map_err(spool_read)?,
@@ -758,6 +767,7 @@ fn execute<S: Source, W: Write>(
                     &options.isobmff_limits,
                     &isobmff_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
                     &RemuxOptions {
+                        copied_audio_bit_rate: options.copied_audio_bit_rate,
                         interleave_packets: false,
                         video_origin: None,
                         rebuild_durations: false,
