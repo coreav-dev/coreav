@@ -18,7 +18,7 @@ mod levels;
 #[path = "rows.rs"]
 mod rows;
 
-const STRIDE: usize = 40;
+const STRIDE: usize = 21;
 const ORIGIN: usize = STRIDE + 1;
 const P_INTRA_TYPE_BASE: u32 = 5;
 const FINALISTS: usize = 2;
