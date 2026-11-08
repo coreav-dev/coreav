@@ -9,6 +9,7 @@ pub(crate) fn fill<T: Send + Sync>(
     threads: usize,
     compute: impl Fn(usize, &[OnceLock<T>]) -> Result<()> + Sync,
     mut consume: impl FnMut(usize, &[OnceLock<T>]) -> Result<()>,
+    prepare: impl Fn(&[OnceLock<T>]) -> Result<()> + Sync,
 ) -> Result<Vec<OnceLock<T>>> {
     if width == 0 || height == 0 || threads == 0 {
         return Err(Error::Internal);
@@ -27,6 +28,7 @@ pub(crate) fn fill<T: Send + Sync>(
             }
             for row in 0..height {
                 consume(row, &table)?;
+                prepare(&table)?;
             }
             Ok(table)
         }))
@@ -47,6 +49,16 @@ pub(crate) fn fill<T: Send + Sync>(
     outcomes.resize_with(height, OnceLock::new);
     let next_row = std::sync::atomic::AtomicUsize::new(0);
     let (complete, completed) = mpsc::sync_channel(height);
+    let preparation_error = OnceLock::new();
+    let prepare_ready = || {
+        if preparation_error.get().is_none() {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| prepare(&table)))
+                .unwrap_or(Err(Error::Internal));
+            if let Err(error) = result {
+                let _ = preparation_error.set(error);
+            }
+        }
+    };
     let work = |complete: mpsc::SyncSender<()>| {
         loop {
             let row = next_row.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -97,6 +109,9 @@ pub(crate) fn fill<T: Send + Sync>(
                 let _ = outcome.set(result);
             }
             let _ = complete.send(());
+            if result.is_ok() {
+                prepare_ready();
+            }
         }
     };
     std::thread::scope(|scope| -> Result<()> {
@@ -135,6 +150,9 @@ pub(crate) fn fill<T: Send + Sync>(
                 consumed =
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| consume(row, &table)))
                         .unwrap_or(Err(Error::Internal));
+                if consumed.is_ok() {
+                    prepare_ready();
+                }
             } else if consumed.is_ok() {
                 consumed = Err(Error::Internal);
             }
@@ -149,7 +167,8 @@ pub(crate) fn fill<T: Send + Sync>(
             (*outcome.get().ok_or(Error::Internal)?)?;
         }
         joined?;
-        consumed
+        consumed?;
+        preparation_error.get().copied().map_or(Ok(()), Err)
     })?;
     Ok(table)
 }
@@ -173,6 +192,7 @@ fn run<T: Send + Sync>(
                 .map_err(|_| Error::Internal)
         },
         |_, _| Ok(()),
+        |_| Ok(()),
     )
 }
 
@@ -184,6 +204,130 @@ mod tests {
 
     std::thread_local! {
         pub(super) static SPAWN_LIMIT: std::cell::Cell<usize> = const { std::cell::Cell::new(usize::MAX) };
+    }
+
+    #[test]
+    fn preparation_uses_existing_workers_and_the_ordered_caller() {
+        for threads in [2, 3, 8] {
+            let caller = std::thread::current().id();
+            let compute_threads = Mutex::new(std::collections::HashSet::new());
+            let prepare_threads = Mutex::new(std::collections::HashSet::new());
+            let first = std::sync::atomic::AtomicBool::new(true);
+            let (entered, started) = mpsc::sync_channel(1);
+            let (release, released) = mpsc::sync_channel(1);
+            let released = Mutex::new(released);
+            let table = fill(
+                12,
+                8,
+                threads,
+                |address, table| {
+                    compute_threads
+                        .lock()
+                        .unwrap()
+                        .insert(std::thread::current().id());
+                    table[address].set(address).map_err(|_| Error::Internal)
+                },
+                |row, _| {
+                    if row == 0 {
+                        started
+                            .recv_timeout(std::time::Duration::from_secs(5))
+                            .unwrap();
+                        release.send(()).unwrap();
+                    }
+                    Ok(())
+                },
+                |table| {
+                    let current = std::thread::current().id();
+                    prepare_threads.lock().unwrap().insert(current);
+                    if current != caller && first.swap(false, Ordering::Relaxed) {
+                        entered.send(()).unwrap();
+                        released
+                            .lock()
+                            .unwrap()
+                            .recv_timeout(std::time::Duration::from_secs(5))
+                            .unwrap();
+                    }
+                    for row in 0..8 {
+                        if table[(row + 1) * 12 - 1].get().is_some() {
+                            for (address, slot) in
+                                table.iter().enumerate().take((row + 1) * 12).skip(row * 12)
+                            {
+                                assert_eq!(slot.get(), Some(&address));
+                            }
+                        }
+                    }
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert!(table.iter().all(|value| value.get().is_some()));
+            let compute_threads = compute_threads.into_inner().unwrap();
+            let prepare_threads = prepare_threads.into_inner().unwrap();
+            assert!(compute_threads.len() <= threads);
+            assert!(!compute_threads.contains(&caller));
+            assert!(prepare_threads.contains(&caller));
+            assert!(prepare_threads.iter().any(|thread| *thread != caller));
+            assert!(
+                prepare_threads
+                    .iter()
+                    .all(|thread| *thread == caller || compute_threads.contains(thread))
+            );
+        }
+    }
+
+    #[test]
+    fn preparation_failures_finish_decisions_and_keep_raster_error_precedence() {
+        struct Active<'a>(&'a AtomicUsize);
+        impl Drop for Active<'_> {
+            fn drop(&mut self) {
+                self.0.fetch_sub(1, Ordering::Relaxed);
+            }
+        }
+        for threads in [1, 2, 8] {
+            for limit in [0, 1, 2, usize::MAX] {
+                for unwind in [false, true] {
+                    for decision_failure in [false, true] {
+                        let previous = SPAWN_LIMIT.with(|value| value.replace(limit));
+                        let calls = AtomicUsize::new(0);
+                        let active = AtomicUsize::new(0);
+                        let result = fill(
+                            12,
+                            8,
+                            threads,
+                            |address, table| {
+                                calls.fetch_add(1, Ordering::Relaxed);
+                                if decision_failure && address == 95 {
+                                    return Err(Error::Coefficient);
+                                }
+                                table[address].set(address).map_err(|_| Error::Internal)
+                            },
+                            |_, _| Ok(()),
+                            |_| {
+                                active.fetch_add(1, Ordering::Relaxed);
+                                let _active = Active(&active);
+                                if unwind {
+                                    panic!("injected preparation unwind");
+                                }
+                                Err(Error::Syntax)
+                            },
+                        );
+                        SPAWN_LIMIT.with(|value| value.set(previous));
+                        assert_eq!(
+                            result.err(),
+                            Some(if decision_failure {
+                                Error::Coefficient
+                            } else if unwind {
+                                Error::Internal
+                            } else {
+                                Error::Syntax
+                            })
+                        );
+                        assert_eq!(calls.load(Ordering::Relaxed), 96);
+                        assert_eq!(active.load(Ordering::Relaxed), 0);
+                    }
+                }
+            }
+        }
     }
 
     #[test]
@@ -224,6 +368,7 @@ mod tests {
                     }
                     Ok(())
                 },
+                |_| Ok(()),
             )
             .unwrap();
             assert_eq!(rows, (0..8).collect::<Vec<_>>());
@@ -261,6 +406,7 @@ mod tests {
                                 }
                                 Err(Error::Syntax)
                             },
+                            |_| Ok(()),
                         );
                         SPAWN_LIMIT.with(|value| value.set(previous));
                         assert_eq!(
