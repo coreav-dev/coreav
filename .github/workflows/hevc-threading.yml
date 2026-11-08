@@ -34,7 +34,7 @@ env:
 
 jobs:
   reference:
-    if: '!inputs.sanitizer_only'
+    if: ${{ inputs.only != '' && !inputs.sanitizer_only }}
     name: hevc-threading-reference (${{ matrix.shard }})
     runs-on: ubuntu-24.04
     timeout-minutes: 180
