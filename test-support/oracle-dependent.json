@@ -127,6 +127,7 @@
     "copy_to_matroska_and_webm_matches_the_oracle",
     "explicit_formats_and_audio_only_extension_select_the_container",
     "h264_transcode_writes_matroska_with_copied_audio",
+    "iso_opus_edit_starting_before_preskip_keeps_its_leading_samples",
     "iso_opus_keeps_the_declared_edit_end_instead_of_decoding_the_padded_tail",
     "matroska_container_colour_survives_copy_without_changing_packets",
     "matroska_default_video_encoder_matches_the_explicit_selection",

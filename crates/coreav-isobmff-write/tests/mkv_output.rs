@@ -391,12 +391,18 @@ fn duplicate_selections_share_the_total_packet_limit() {
     ));
 }
 
-fn opus_movie(media_time: i32) -> Vec<u8> {
-    let mut spec = movies::aac_audio(5, vec![(40, media_time)]);
+/// Opus packets of 960 samples on a media clock of `timescale`, dOps
+/// PreSkip 312, and edits of 48 kHz movie ticks.
+fn opus_movie(timescale: u32, packets: usize, edits: Vec<(u32, i32)>) -> Vec<u8> {
+    let mut spec = movies::aac_audio(packets, edits);
+    spec.timescale = timescale;
     for sample in &mut spec.samples {
-        sample.duration = 960;
+        sample.duration = 960 * timescale / 48_000;
     }
     let mut input = movies::movie(&[spec]);
+    let mvhd = input.windows(4).position(|v| v == b"mvhd").unwrap();
+    input[mvhd + 16..mvhd + 20].copy_from_slice(&48_000u32.to_be_bytes());
+    input[mvhd + 20..mvhd + 24].copy_from_slice(&(packets as u32 * 960).to_be_bytes());
     let entry = input.windows(4).position(|v| v == b"mp4a").unwrap();
     input[entry..entry + 4].copy_from_slice(b"Opus");
     let child = input.windows(4).position(|v| v == b"esds").unwrap() - 4;
@@ -427,29 +433,41 @@ fn opus_movie(media_time: i32) -> Vec<u8> {
 }
 
 #[test]
-fn iso_opus_trim_owns_both_preskip_and_codec_delay() {
-    for (media, trim, count, padding) in [(96, 312, 3, 18_000_000), (960, 960, 3, 0)] {
-        let output = copy(&opus_movie(media)).unwrap();
+fn opus_copy_presents_the_source_edit_rather_than_preskip() {
+    let cases = [
+        (48_000, vec![(7992, 0)], 0, 9, 7992),
+        (48_000, vec![], 312, 9, 8328),
+        (48_000, vec![(4000, 100)], 100, 5, 4000),
+        (48_000, vec![(240, 0)], 0, 1, 240),
+        (48_000, vec![(240, 100)], 100, 1, 240),
+        (48_000, vec![(4000, 312)], 312, 5, 4000),
+        (48_000, vec![(4000, 960)], 960, 6, 4000),
+        (32_000, vec![(4000, 101)], 152, 5, 4000),
+        (32_000, vec![(4000, 100)], 150, 5, 4000),
+    ];
+    for (timescale, edits, trim, count, presented) in cases {
+        let name = format!("{timescale} {edits:?}");
+        let output = copy(&opus_movie(timescale, 9, edits)).unwrap();
         let segment = probe(&output);
         let track = &segment.tracks[0];
-        assert_eq!(track.codec_delay, (trim as u64) * 1_000_000_000 / 48_000);
         assert_eq!(
-            u16::from_le_bytes(
-                track.codec_private.as_ref().unwrap()[10..12]
-                    .try_into()
-                    .unwrap()
-            ),
-            trim
+            track.codec_delay,
+            (trim * 1_000_000_000 + 24_000) / 48_000,
+            "{name}"
         );
+        let pre_skip = track.codec_private.as_ref().unwrap()[10..12]
+            .try_into()
+            .map(u16::from_le_bytes)
+            .unwrap();
+        assert_eq!(u64::from(pre_skip), trim, "{name}");
         let packets = segment
             .packets(SliceSource::new(&output), &coreav_mkv::Limits::default())
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
-        assert_eq!(packets.len(), count);
-        assert_eq!(
-            packets.last().unwrap().discard_padding.unwrap_or(0),
-            padding
-        );
+        assert_eq!(packets.len(), count, "{name}");
+        let padding = packets.last().unwrap().discard_padding.unwrap_or(0);
+        let padding = (u64::try_from(padding).unwrap() * 48_000 + 500_000_000) / 1_000_000_000;
+        assert_eq!(count as u64 * 960 - trim - padding, presented, "{name}");
     }
 }
 

@@ -460,6 +460,62 @@ fn iso_opus_keeps_the_declared_edit_end_instead_of_decoding_the_padded_tail() {
     );
 }
 
+#[test]
+fn iso_opus_edit_starting_before_preskip_keeps_its_leading_samples() {
+    let Some((ffmpeg, _)) = tools() else {
+        return;
+    };
+    let dir = scratch("iso-opus-media-time");
+    let source = dir.join("source.mp4");
+    run(Command::new(&ffmpeg)
+        .args([
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:sample_rate=48000:duration=0.24",
+            "-c:a",
+            "libopus",
+            "-y",
+        ])
+        .arg(&source));
+    let original = std::fs::read(&source).unwrap();
+    let body = |name: &[u8]| original.windows(4).position(|w| w == name).unwrap() + 4;
+    let (elst, dops) = (body(b"elst"), body(b"dOps"));
+    assert_eq!(original[elst..elst + 8], [0, 0, 0, 0, 0, 0, 0, 1]);
+    assert_eq!(original[elst + 12..elst + 16], 312u32.to_be_bytes());
+    assert_eq!(original[dops + 2..dops + 4], 312u16.to_be_bytes());
+    let variant = |name: &str, edit: &dyn Fn(&mut Vec<u8>)| {
+        let mut bytes = original.clone();
+        edit(&mut bytes);
+        let path = dir.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        path
+    };
+    let edited = variant("edited.mp4", &|b| b[elst + 12..elst + 16].fill(0));
+    let complete = variant("complete.mp4", &|b| {
+        b[elst - 12..elst - 8].copy_from_slice(b"free");
+        b[dops + 2..dops + 4].fill(0);
+    });
+    let complete = decoded(&ffmpeg, &complete, true);
+    let copy = |input: &Path, name: &str| {
+        let output = dir.join(name);
+        success(core(input, &output, &["-c", "copy"], &ffmpeg, true));
+        decoded(&ffmpeg, &output, true)
+    };
+    assert_eq!(copy(&source, "control.mkv"), complete[312 * 2..11_832 * 2]);
+    let actual = copy(&edited, "actual.mkv");
+    assert_eq!(actual, complete[..11_520 * 2]);
+    let copied = dir.join("oracle.mkv");
+    run(Command::new(&ffmpeg)
+        .args(["-v", "error", "-i"])
+        .arg(&edited)
+        .args(["-c", "copy"])
+        .arg(&copied));
+    assert_eq!(decoded(&ffmpeg, &copied, true), actual[312 * 2..]);
+}
+
 #[cfg(feature = "native-h264")]
 #[test]
 fn h264_transcode_writes_matroska_with_copied_audio() {

@@ -130,7 +130,11 @@ pub(super) fn isobmff<S: Source>(
         };
         let mut trim =
             u64::try_from(media).map_err(|_| unsupported("a negative media edit time"))?;
-        if replacement.is_none() && d.codec == coreav_isobmff::Codec::Opus && !preserve_opus_edit {
+        if replacement.is_none()
+            && d.codec == coreav_isobmff::Codec::Opus
+            && !preserve_opus_edit
+            && t.edit_list == EditList::None
+        {
             let skip = header
                 .private
                 .get(10..12)
@@ -143,14 +147,28 @@ pub(super) fn isobmff<S: Source>(
             if ticks % 48_000 != 0 {
                 return Err(unsupported("Opus pre-skip is not a whole media tick"));
             }
-            trim = trim.max(ticks / 48_000);
+            trim = ticks / 48_000;
         }
+        let mut shift = Rational::from_int(-i128::from(trim));
         if replacement.is_none() && t.kind == TrackKind::Audio {
-            config::set_delay(&mut header, trim, t.timescale)?;
+            let scale = u64::from(t.timescale);
+            if d.codec == coreav_isobmff::Codec::Opus && t.edit_list != EditList::None && scale != 0
+            {
+                let samples = trim
+                    .checked_mul(96_000)
+                    .and_then(|v| v.checked_add(scale))
+                    .ok_or_else(overflow)?
+                    / (2 * scale);
+                config::set_delay(&mut header, samples, 48_000)?;
+                shift = Rational::new(-i128::from(samples) * i128::from(scale), 48_000)
+                    .ok_or_else(overflow)?;
+            } else {
+                config::set_delay(&mut header, trim, t.timescale)?;
+            }
         }
         let offset = t
             .presentation_offset(movie.timescale)
-            .and_then(|v| v.checked_add(Rational::from_int(-i128::from(trim))))
+            .and_then(|v| v.checked_add(shift))
             .ok_or_else(overflow)?;
         let end = t
             .presentation(movie.timescale)

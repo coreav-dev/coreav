@@ -439,7 +439,7 @@ fn opus_edit_fixture(media_time: u32) -> Fixture {
 }
 
 #[test]
-fn native_video_cadence_preserves_iso_opus_edit_presentation_without_changing_ordinary_trim() {
+fn native_video_cadence_and_ordinary_copy_preserve_iso_opus_edit_presentation() {
     for media_time in [0, 960] {
         let fixture = opus_edit_fixture(media_time);
         let options = OutputOptions {
@@ -476,19 +476,10 @@ fn native_video_cadence_preserves_iso_opus_edit_presentation_without_changing_or
                 &mut native,
             )
             .unwrap();
-        if media_time >= 312 {
-            assert_eq!(ordinary, native);
-        } else {
-            assert_ne!(ordinary, native);
-        }
-        for (bytes, trim, presented_samples) in [
-            (
-                &ordinary,
-                media_time.max(312),
-                if media_time == 0 { 7680 } else { 7992 },
-            ),
-            (&native, media_time, 7992),
-        ] {
+        assert_eq!(ordinary, native);
+        for (bytes, trim, presented_samples) in
+            [(&ordinary, media_time, 7992), (&native, media_time, 7992)]
+        {
             let segment = probe(bytes);
             let header = &segment.tracks[1];
             let delay = u64::from(trim) * 1_000_000_000 / 48_000;
