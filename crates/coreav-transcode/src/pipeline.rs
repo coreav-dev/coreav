@@ -550,15 +550,19 @@ fn execute<S: Source, W: Write>(
                 .ok_or_else(|| unsupported(missing))
             };
             #[cfg(feature = "h264-native")]
-            let program = match options.native_h264 {
+            let (program, frame_rate) = match options.native_h264 {
                 Some(native) => {
                     if options.matroska_output.is_some() {
                         return Err(Error::NativeIneligible("native H.264 requires MP4 output"));
                     }
-                    native_timing(&presented, &video)?;
-                    H264Program::Native(native)
+                    let source_rate = options
+                        .frame_rates
+                        .iter()
+                        .find_map(|(index, rate)| (*index == video.stream_index).then_some(*rate));
+                    let frame_rate = native_timing(&presented, &video, source_rate)?;
+                    (H264Program::Native(native), frame_rate)
                 }
-                None => external()?,
+                None => (external()?, frame_rate),
             };
             #[cfg(not(feature = "h264-native"))]
             let program = external()?;
@@ -1570,7 +1574,11 @@ impl Run<'_> {
                     .chroma_location
                     .is_some_and(|c| c != coreav_frame::ChromaLocation::Left)
                 || self.sent_pts.last().is_some_and(|last| {
-                    !native_interval(i128::from(time) - i128::from(*last), self.video.time_base)
+                    !native_interval(
+                        i128::from(time) - i128::from(*last),
+                        self.video.time_base,
+                        self.frame_rate,
+                    )
                 })
             {
                 return Err(Error::NativeIneligible(
@@ -1731,6 +1739,10 @@ impl Run<'_> {
         } else {
             scaled_to.unwrap_or((width, height))
         };
+        #[cfg(feature = "h264-native")]
+        if self.options.native_h264.is_some() {
+            crate::native_h264::aspect(self.video.pixel_aspect)?;
+        }
         let sample_aspect = sample_aspect(self.video.pixel_aspect, (width, height), scaled_to);
         let color = output_color(self.video.stream.color.or(frame.color));
         #[cfg(feature = "h264-native")]
@@ -1759,6 +1771,12 @@ impl Run<'_> {
                 .map(min_keyint),
             ..EncoderSettings::new(out_w, out_h, frame.format(), self.frame_rate)
         };
+        #[cfg(feature = "h264-native")]
+        if self.options.native_h264.is_some() {
+            presentation_size(&settings).map_err(|_| {
+                Error::NativeIneligible("the sample aspect does not fit the MP4 display size")
+            })?;
+        }
         settings.validate().map_err(|e| match e.kind {
             ErrorKind::Unsupported | ErrorKind::Limit => Error::Unsupported(e.message),
             _ => Error::Encode(e),
@@ -1790,33 +1808,112 @@ fn native_size(width: u32, height: u32) -> bool {
 }
 
 #[cfg(feature = "h264-native")]
-fn native_interval(ticks: i128, time_base: Rational) -> bool {
+fn native_interval(ticks: i128, time_base: Rational, rate: FrameRate) -> bool {
     ticks > 0
         && ticks
             .checked_mul(time_base.num)
-            .and_then(|n| n.checked_mul(30))
-            == Some(i128::from(time_base.den))
+            .and_then(|n| n.checked_mul(i128::from(rate.num)))
+            == i128::from(time_base.den).checked_mul(i128::from(rate.den))
 }
 
 #[cfg(feature = "h264-native")]
-fn native_timing(presented: &Presented, video: &VideoStream) -> Result<(), Error> {
+fn native_rate(
+    times: &[i64],
+    duration: Option<u64>,
+    time_base: Rational,
+) -> Result<FrameRate, Error> {
+    let invalid =
+        || Error::NativeIneligible("native H.264 needs an exactly constant supported frame rate");
+    let period = match times {
+        [a, b, ..] => u64::try_from(i128::from(*b) - i128::from(*a)).map_err(|_| invalid())?,
+        [_] => duration.ok_or_else(invalid)?,
+        _ => return Err(invalid()),
+    };
+    if period == 0
+        || duration.is_some_and(|d| d != period)
+        || times.windows(2).any(|w| match w {
+            [a, b] => i128::from(*b) - i128::from(*a) != i128::from(period),
+            _ => true,
+        })
+    {
+        return Err(invalid());
+    }
+    let num = u128::from(time_base.den);
+    let den = u128::try_from(time_base.num)
+        .ok()
+        .filter(|n| *n > 0)
+        .and_then(|n| n.checked_mul(u128::from(period)))
+        .ok_or_else(invalid)?;
+    let divisor = gcd(num, den);
+    if divisor == 0 {
+        return Err(invalid());
+    }
+    let rate = coreav_h264_encoder::FrameRate::new(
+        u32::try_from(num / divisor).map_err(|_| invalid())?,
+        u32::try_from(den / divisor).map_err(|_| invalid())?,
+    )
+    .map_err(|_| invalid())?;
+    let (num, den) = rate.as_ratio();
+    if u32::try_from(period).is_err() {
+        return Err(Error::NativeIneligible(
+            "the constant interval does not fit the MP4 sample clock",
+        ));
+    }
+    Ok(FrameRate { num, den })
+}
+
+#[cfg(feature = "h264-native")]
+fn legacy_native_rate(
+    presented: &Presented,
+    time_base: Rational,
+    aspect: Option<(u64, u64)>,
+    source_rate: Option<FrameRate>,
+) -> Option<FrameRate> {
+    let rate = FrameRate { num: 30, den: 1 };
+    (aspect.is_none_or(|(n, d)| n == 0 || d == 0 || n == d)
+        && source_rate.is_none_or(|r| r.den > 0 && r.den.checked_mul(30) == Some(r.num))
+        && presented.times.windows(2).all(|w| match w {
+            [a, b] => native_interval(i128::from(*b) - i128::from(*a), time_base, rate),
+            _ => false,
+        })
+        && native_interval(
+            i128::from(presented.last_duration(&presented.times, Some(presented.last))),
+            time_base,
+            rate,
+        ))
+    .then_some(rate)
+}
+
+#[cfg(feature = "h264-native")]
+fn native_timing(
+    presented: &Presented,
+    video: &VideoStream,
+    source_rate: Option<FrameRate>,
+) -> Result<FrameRate, Error> {
     let size = video.stream.width.zip(video.stream.height);
     if !size.is_some_and(|(w, h)| native_size(w, h))
         || presented.times.len() != video.packets.iter().filter(|p| p.presented).count()
-        || presented.times.windows(2).any(|w| match w {
-            [a, b] => !native_interval(i128::from(*b) - i128::from(*a), video.time_base),
-            _ => true,
-        })
-        || !native_interval(
-            i128::from(presented.last_duration(&presented.times, Some(presented.last))),
-            video.time_base,
-        )
     {
         return Err(Error::NativeIneligible(
-            "native H.264 needs fixed-size constant 30 fps input",
+            "native H.264 needs fixed-size constant-rate input",
         ));
     }
-    Ok(())
+    if let Some(rate) =
+        legacy_native_rate(presented, video.time_base, video.pixel_aspect, source_rate)
+    {
+        return Ok(rate);
+    }
+    if presented.times.len() != presented.distinct.len() {
+        return Err(Error::NativeIneligible(
+            "native H.264 needs distinct presentation timestamps",
+        ));
+    }
+    let duration = video
+        .packets
+        .iter()
+        .find(|p| p.presented && p.pts == presented.last)
+        .and_then(|p| p.duration);
+    native_rate(&presented.times, duration, video.time_base)
 }
 
 /// The colour description the encoder signals: the frames', without the
@@ -2087,13 +2184,94 @@ mod tests {
             assert!(!native_size(w, h));
         }
         let time_base = Rational::new(1, 15360).unwrap();
-        assert!(native_interval(512, time_base));
+        let rate = FrameRate { num: 30, den: 1 };
+        assert!(native_interval(512, time_base, rate));
         for ticks in [-1, 0, 511, 513, i128::MAX] {
-            assert!(!native_interval(ticks, time_base));
+            assert!(!native_interval(ticks, time_base, rate));
         }
-        assert!(!native_interval(1, Rational::new(1001, 30000).unwrap()));
+        assert!(!native_interval(
+            1,
+            Rational::new(1001, 30000).unwrap(),
+            rate
+        ));
     }
     use super::*;
+
+    #[cfg(feature = "h264-native")]
+    #[test]
+    fn native_clock_uses_exact_positive_rationals_and_last_duration() {
+        for (num, den) in [(25, 1), (24000, 1001), (30000, 1001), (1000, 33)] {
+            let time_base = Rational::new(i128::from(den), u64::from(num)).unwrap();
+            for times in [
+                &[0, 1, 2][..],
+                &[90, 91, 92][..],
+                &[-3, -2, -1][..],
+                &[17][..],
+            ] {
+                let found = native_rate(times, Some(1), time_base).unwrap();
+                assert_eq!((found.num, found.den), (num, den));
+                assert!(native_interval(1, time_base, found));
+            }
+            assert!(native_rate(&[0, 1, 2], None, time_base).is_ok());
+        }
+        let time_base = Rational::new(1, 30000).unwrap();
+        for (times, duration) in [
+            (&[][..], None),
+            (&[0][..], None),
+            (&[0][..], Some(0)),
+            (&[0, 0, 1][..], Some(1)),
+            (&[0, 1001, 2003][..], Some(1001)),
+            (&[0, 1001, 2002][..], Some(1002)),
+            (&[0, 1001][..], Some(0)),
+            (&[i64::MIN, i64::MAX][..], None),
+        ] {
+            assert!(matches!(
+                native_rate(times, duration, time_base),
+                Err(Error::NativeIneligible(_))
+            ));
+        }
+        assert!(native_rate(&[0, 33, 67, 100], Some(33), Rational::new(1, 1000).unwrap()).is_err());
+        assert!(native_rate(&[0, 1], Some(1), Rational::new(-1, 1000).unwrap()).is_err());
+        assert!(native_rate(&[0, 1], Some(1), Rational::new(1, u64::MAX).unwrap()).is_err());
+        assert!(
+            native_rate(
+                &[0, 1],
+                Some(1),
+                Rational::new(1, u64::from(u32::MAX)).unwrap()
+            )
+            .is_err()
+        );
+        let wire_limit = native_rate(
+            &[0, 2],
+            Some(2),
+            Rational::new(1, u64::from(u32::MAX)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!((wire_limit.num, wire_limit.den), (u32::MAX, 2));
+        assert!(
+            native_rate(
+                &[i64::MIN, i64::MAX],
+                Some(u64::MAX),
+                Rational::new(i128::MAX, u64::MAX).unwrap()
+            )
+            .is_err()
+        );
+        let slow = native_rate(
+            &[0, 3_000_000_000],
+            Some(3_000_000_000),
+            Rational::new(1, 1_000_000_000).unwrap(),
+        )
+        .unwrap();
+        assert_eq!((slow.num, slow.den), (1, 3));
+        assert!(
+            native_rate(
+                &[0, 5_000_000_000],
+                Some(5_000_000_000),
+                Rational::new(1, 1_000_000_000).unwrap()
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn invalid_crop_options_refuse_before_source_access() {
@@ -2339,6 +2517,57 @@ mod tests {
             last: times.last().copied().unwrap_or(0),
             times,
         }
+    }
+
+    #[cfg(feature = "h264-native")]
+    #[test]
+    fn legacy_native_clock_keeps_only_preexisting_timing_defaults() {
+        let time_base = Rational::new(1, 30).unwrap();
+        for times in [&[0][..], &[0, 1, 2][..]] {
+            let mut clock = presented(times, 1);
+            clock.durations.clear();
+            for aspect in [None, Some((1, 1)), Some((0, 1)), Some((1, 0))] {
+                for hint in [
+                    None,
+                    Some(FrameRate { num: 30, den: 1 }),
+                    Some(FrameRate { num: 60, den: 2 }),
+                ] {
+                    assert_eq!(
+                        legacy_native_rate(&clock, time_base, aspect, hint).map(|r| (r.num, r.den)),
+                        Some((30, 1))
+                    );
+                }
+            }
+            for hint in [
+                FrameRate { num: 25, den: 1 },
+                FrameRate { num: 0, den: 0 },
+                FrameRate {
+                    num: 1,
+                    den: u32::MAX,
+                },
+            ] {
+                assert!(legacy_native_rate(&clock, time_base, None, Some(hint)).is_none());
+            }
+            assert!(legacy_native_rate(&clock, time_base, Some((4, 3)), None).is_none());
+            assert!(
+                legacy_native_rate(&clock, Rational::new(1, 25).unwrap(), None, None).is_none()
+            );
+        }
+        assert!(legacy_native_rate(&presented(&[0, 1, 2], 2), time_base, None, None).is_none());
+        assert!(legacy_native_rate(&presented(&[0], 2), time_base, None, None).is_none());
+        let strict = native_rate(&[0], Some(2), time_base).unwrap();
+        assert_eq!((strict.num, strict.den), (15, 1));
+        let strict = native_rate(&[0], Some(1), Rational::new(1, 25).unwrap()).unwrap();
+        assert_eq!((strict.num, strict.den), (25, 1));
+        let mut repeated = presented(&[0, 1, 2], 1);
+        repeated.pts = [0].into_iter().collect();
+        repeated.distinct = vec![0];
+        repeated.last = 0;
+        repeated.durations = [(0, 1)].into_iter().collect();
+        assert_eq!(
+            legacy_native_rate(&repeated, time_base, None, None).map(|r| (r.num, r.den)),
+            Some((30, 1))
+        );
     }
 
     #[test]

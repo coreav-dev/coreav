@@ -1,7 +1,7 @@
 //! Bounded native H.264 access units for the existing transcode spool and muxers.
 
 use coreav_frame::{ChromaLocation, ColorInfo, PixelFormat, Pixels};
-use coreav_h264_encoder::{Colour, Deblocking, Gop, Limits, Plane, Settings};
+use coreav_h264_encoder::{Colour, Deblocking, Gop, Limits, Plane, SampleAspectRatio, Settings};
 
 use crate::Error;
 use crate::encoder::{EncoderSettings, Sink};
@@ -25,6 +25,24 @@ pub(crate) fn color(color: ColorInfo) -> ColorInfo {
     }
 }
 
+pub(crate) fn aspect(value: Option<(u64, u64)>) -> Result<SampleAspectRatio, Error> {
+    let Some((mut n, mut d)) = value.filter(|(n, d)| *n > 0 && *d > 0 && n != d) else {
+        return Ok(SampleAspectRatio::default());
+    };
+    let (mut a, mut b) = (n, d);
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    n /= a;
+    d /= a;
+    let invalid = || Error::NativeIneligible("the sample aspect does not fit native H.264");
+    SampleAspectRatio::new(
+        u32::try_from(n).map_err(|_| invalid())?,
+        u32::try_from(d).map_err(|_| invalid())?,
+    )
+    .map_err(ineligible)
+}
+
 pub(crate) struct Encoder<S> {
     encoder: coreav_h264_encoder::Encoder,
     sink: S,
@@ -39,17 +57,23 @@ impl<S: Sink> Encoder<S> {
         max_bytes: u64,
         sink: S,
     ) -> Result<Self, Error> {
-        if settings.format != PixelFormat::YUV420P
-            || settings.sample_aspect.is_some_and(|(n, d)| n != d)
-        {
+        if settings.format != PixelFormat::YUV420P {
             return Err(Error::NativeIneligible(
-                "native H.264 needs square 8-bit 4:2:0 pixels",
+                "native H.264 needs 8-bit 4:2:0 pixels",
             ));
         }
         let c = settings.color;
         let settings_native = Settings {
-            frame_rate: Default::default(),
-            sample_aspect_ratio: Default::default(),
+            frame_rate: coreav_h264_encoder::FrameRate::new(
+                settings.frame_rate.num,
+                settings.frame_rate.den,
+            )
+            .map_err(ineligible)?,
+            sample_aspect_ratio: aspect(
+                settings
+                    .sample_aspect
+                    .map(|(n, d)| (u64::from(n), u64::from(d))),
+            )?,
             width: settings.width as usize,
             height: settings.height as usize,
             rate_mode: request.rate,
@@ -234,9 +258,87 @@ mod tests {
             sample_aspect: Some((4, 3)),
             ..settings(1)
         };
+        assert!(Encoder::new(&settings, request, 1_000_000, Bytes::default()).is_ok());
+        let settings = EncoderSettings {
+            sample_aspect: Some((65536, 65535)),
+            ..settings
+        };
         assert!(matches!(
             Encoder::new(&settings, request, 1_000_000, Bytes::default()),
             Err(Error::NativeIneligible(_))
         ));
+    }
+
+    #[test]
+    fn sample_aspect_is_exact_and_preserves_unspecified_and_square_bytes() {
+        for value in [
+            None,
+            Some((0, 1)),
+            Some((1, 0)),
+            Some((1, 1)),
+            Some((u64::MAX, u64::MAX)),
+        ] {
+            assert_eq!(aspect(value).unwrap(), SampleAspectRatio::default());
+        }
+        assert_eq!(
+            aspect(Some((16 * 1_000_000_000, 15 * 1_000_000_000))).unwrap(),
+            SampleAspectRatio::new(16, 15).unwrap()
+        );
+        assert!(aspect(Some((u64::MAX, u64::MAX - 1))).is_err());
+        assert!(aspect(Some((65536, 65535))).is_err());
+        let mut previous = None;
+        for sample_aspect in [None, Some((0, 1)), Some((1, 1)), Some((16, 16))] {
+            let settings = EncoderSettings {
+                sample_aspect,
+                ..settings(1)
+            };
+            let mut encoder = Encoder::new(
+                &settings,
+                NativeH264 {
+                    rate: RateMode::Crf(23),
+                },
+                1_000_000,
+                Bytes::default(),
+            )
+            .unwrap();
+            encoder.send_frame(Pixels::Cpu(picture())).unwrap();
+            let bytes = encoder.finish().0;
+            if let Some(previous) = &previous {
+                assert_eq!(&bytes, previous);
+            }
+            previous = Some(bytes);
+        }
+    }
+
+    #[test]
+    fn fractional_rate_and_declared_aspect_are_thread_independent() {
+        let mut previous = None;
+        for threads in [0, 1, 2, 8] {
+            let settings = EncoderSettings {
+                frame_rate: FrameRate {
+                    num: 30000,
+                    den: 1001,
+                },
+                sample_aspect: Some((16, 15)),
+                ..settings(threads)
+            };
+            let mut encoder = Encoder::new(
+                &settings,
+                NativeH264 {
+                    rate: RateMode::FixedQp(28),
+                },
+                1_000_000,
+                Bytes::default(),
+            )
+            .unwrap();
+            for _ in 0..3 {
+                encoder.send_frame(Pixels::Cpu(picture())).unwrap();
+            }
+            let bytes = encoder.finish().0;
+            if let Some(previous) = &previous {
+                assert_eq!(&bytes, previous);
+            }
+            previous = Some(bytes);
+        }
     }
 }

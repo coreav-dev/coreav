@@ -12,6 +12,7 @@
 //! of a split join back into one edit per track.
 
 mod avc;
+mod flac;
 
 use crate::audio;
 use crate::boxes::Node;
@@ -151,6 +152,13 @@ pub fn join_mp4<S: Source, W: Write>(
     // Listing 1: each input's samples and presentation.
     let mut spans = Vec::new();
     let mut budgets = Vec::new();
+    let mut flac_survey = (compatibility.is_some()
+        && picks.len() > 1
+        && first
+            .audio
+            .as_ref()
+            .is_some_and(|audio| audio.track.description.codec == Codec::Flac))
+    .then(flac::Survey::new);
     for (input, (movie, pick)) in movies.iter().zip(&picks).enumerate() {
         let source = sources
             .get(input)
@@ -176,8 +184,15 @@ pub fn join_mp4<S: Source, W: Write>(
         }
         let audio = match pick.audio.as_ref() {
             Some(a) => Some(
-                audio_span(movie, a.track, &mut Shared(source), limits, &mut budget)
-                    .map_err(|e| at(input, e))?,
+                audio_span(
+                    movie,
+                    a.track,
+                    source,
+                    limits,
+                    &mut budget,
+                    &mut flac_survey,
+                )
+                .map_err(|e| at(input, e))?,
             ),
             None => None,
         };
@@ -197,6 +212,9 @@ pub fn join_mp4<S: Source, W: Write>(
         budgets.push(budget);
         Shared(source).release();
     }
+
+    let flac_plan = flac_survey.and_then(flac::Survey::finish);
+    let mut flac_samples = 0;
 
     // Where each input goes.
     let tm = ta.map_or(tv, |ta| movie_timescale(tv, ta));
@@ -227,9 +245,10 @@ pub fn join_mp4<S: Source, W: Write>(
             &span.video.listed,
             placed.extended,
             true,
-            &mut Shared(source),
+            source,
             limits,
             budget,
+            None,
         )
         .map_err(|e| at_extract(input, e))?;
         if let (Some(tables), Some(a), Some(audio)) =
@@ -242,15 +261,22 @@ pub fn join_mp4<S: Source, W: Write>(
                 &audio.listed,
                 0,
                 false,
-                &mut Shared(source),
+                source,
                 limits,
                 budget,
+                flac_plan.as_ref().map(|_| &mut flac_samples),
             )
             .map_err(|e| at_extract(input, e))?;
         }
         Shared(source).release();
     }
     video_tables.finish();
+    if flac_plan
+        .as_ref()
+        .is_some_and(|plan| plan.samples != flac_samples)
+    {
+        return Err(at_extract(0, ExtractError::SourceChanged));
+    }
     if let Some(tables) = audio_tables.as_mut() {
         tables.finish();
     }
@@ -355,8 +381,14 @@ pub fn join_mp4<S: Source, W: Write>(
             media_duration: media,
             duration,
             edits: audio_edits.into(),
-            stsd: joined_audio_entry(&picks, &spans, tables, compatibility.is_some())
-                .map_err(JoinError::Output)?,
+            stsd: joined_audio_entry(
+                &picks,
+                &spans,
+                tables,
+                compatibility.is_some(),
+                flac_plan.as_ref(),
+            )
+            .map_err(JoinError::Output)?,
             tables,
             extra: Vec::new(),
             stbl_extra: Vec::new(),
@@ -476,6 +508,7 @@ pub fn join_mp4<S: Source, W: Write>(
     let mut window = Window::new(COPY_BUFFER);
     let mut avc_work = vec![0u64; sources.len()];
     let mut current = None;
+    let mut flac_samples = 0u64;
     interleave(
         layout_tables,
         Ties::TrackOrder,
@@ -487,7 +520,8 @@ pub fn join_mp4<S: Source, W: Write>(
                     .ok_or_else(|| JoinError::Output(overflow()))?,
             };
             for _ in 0..chunk.samples {
-                let (input, offset, size) = run.next()?;
+                let rewritten = track != 0 && flac_plan.is_some();
+                let (input, offset, size) = run.next(rewritten)?;
                 if current != Some(input) {
                     window.clear();
                     if let Some(previous) = current.and_then(|p| sources.get(p)) {
@@ -498,23 +532,51 @@ pub fn join_mp4<S: Source, W: Write>(
                 let source = sources
                     .get(input)
                     .ok_or_else(|| JoinError::Output(overflow()))?;
-                let copied = if let (0, Some(width)) = (track, avc_width) {
-                    let work = avc_work
-                        .get_mut(input)
-                        .ok_or_else(|| JoinError::Output(overflow()))?;
-                    let mut sample =
-                        avc::Sample::new(&mut out, width, size, work, limits.max_sample_work);
-                    let copied = window.copy(&mut Shared(source), offset, size, &mut sample);
-                    if let Some(error) = sample.error {
-                        return Err(at(input, error));
-                    }
-                    if copied.is_ok() {
-                        sample.finish().map_err(|error| at(input, error))?;
-                    }
-                    copied
-                } else {
-                    window.copy(&mut Shared(source), offset, size, &mut out)
-                };
+                let copied =
+                    if rewritten {
+                        let mut bytes = [0; 16];
+                        let prefix = bytes
+                            .get_mut(..(size as usize).min(16))
+                            .ok_or_else(|| JoinError::Output(overflow()))?;
+                        Shared(source)
+                            .read_exact_at(offset, prefix)
+                            .map_err(|error| at(input, error))?;
+                        let head = coreav_audio::flac::FrameHeader::parse(prefix)
+                            .ok_or_else(|| at_extract(input, ExtractError::SourceChanged))?;
+                        if head.rewritten_size(size, flac_samples)
+                            != run.tables.size(run.copied.saturating_sub(1))
+                        {
+                            return Err(at_extract(input, ExtractError::SourceChanged));
+                        }
+                        let mut frame = flac::Frame::new(&mut out, head, flac_samples, size)
+                            .map_err(|error| match error {
+                                ExtractError::Write(kind) => JoinError::Write(kind),
+                                error => at_extract(input, error),
+                            })?;
+                        let copied = window
+                            .copy(&mut Shared(source), offset, size, &mut frame)
+                            .and_then(|()| frame.finish());
+                        flac_samples = flac_samples
+                            .checked_add(u64::from(head.block_size))
+                            .ok_or_else(|| JoinError::Output(overflow()))?;
+                        copied
+                    } else if let (0, Some(width)) = (track, avc_width) {
+                        let work = avc_work
+                            .get_mut(input)
+                            .ok_or_else(|| JoinError::Output(overflow()))?;
+                        let mut sample =
+                            avc::Sample::new(&mut out, width, size, work, limits.max_sample_work);
+                        let copied = window.copy(&mut Shared(source), offset, size, &mut sample);
+                        if let Some(error) = sample.error {
+                            return Err(at(input, error));
+                        }
+                        if copied.is_ok() {
+                            sample.finish().map_err(|error| at(input, error))?;
+                        }
+                        copied
+                    } else {
+                        window.copy(&mut Shared(source), offset, size, &mut out)
+                    };
                 copied.map_err(|e| match e {
                     // The output failed, not the input.
                     ExtractError::Write(kind) => JoinError::Write(kind),
@@ -525,6 +587,12 @@ pub fn join_mp4<S: Source, W: Write>(
         },
     )?;
     video_run.finish()?;
+    if flac_plan
+        .as_ref()
+        .is_some_and(|plan| plan.samples != flac_samples)
+    {
+        return Err(at_extract(0, ExtractError::SourceChanged));
+    }
     if let Some(run) = audio_run.as_mut() {
         run.finish()?;
     }
@@ -721,6 +789,7 @@ fn joined_audio_entry(
     spans: &[Spans<'_>],
     tables: &Tables,
     compatibility: bool,
+    flac: Option<&flac::Plan>,
 ) -> Result<Vec<u8>, Error> {
     let first = picks
         .first()
@@ -840,6 +909,34 @@ fn joined_audio_entry(
             field.copy_from_slice(total.to_be_bytes().get(3..).ok_or_else(overflow)?);
             *field.first_mut().ok_or_else(overflow)? |= high;
             config.get_mut(26..42).ok_or_else(overflow)?.fill(0);
+            if let Some(plan) = flac {
+                config
+                    .get_mut(8..10)
+                    .ok_or_else(overflow)?
+                    .copy_from_slice(&plan.minimum.to_be_bytes());
+                config
+                    .get_mut(10..12)
+                    .ok_or_else(overflow)?
+                    .copy_from_slice(&plan.maximum.to_be_bytes());
+                let mut minimum = u32::MAX;
+                let mut maximum = 0;
+                for sample in 0..tables.samples() {
+                    let size = tables.size(sample).ok_or_else(overflow)?;
+                    minimum = minimum.min(size);
+                    maximum = maximum.max(size);
+                }
+                for (range, value) in [(12..15, minimum), (15..18, maximum)] {
+                    let value = if value < 1 << 24 { value } else { 0 };
+                    config
+                        .get_mut(range)
+                        .ok_or_else(overflow)?
+                        .copy_from_slice(value.to_be_bytes().get(1..).ok_or_else(overflow)?);
+                }
+                let field = config.get_mut(21..26).ok_or_else(overflow)?;
+                let high = field.first().copied().ok_or_else(overflow)? & 0xf0;
+                field.copy_from_slice(plan.samples.to_be_bytes().get(3..).ok_or_else(overflow)?);
+                *field.first_mut().ok_or_else(overflow)? |= high;
+            }
         }
         Codec::Alac => {
             let mut maximum = 0u32;
@@ -1317,11 +1414,12 @@ fn video_span<'a, S: Source>(
 fn audio_span<'a, S: Source>(
     movie: &'a Movie,
     track: &'a Track,
-    source: &mut S,
+    source: &RefCell<S>,
     limits: &Limits,
     budget: &mut Budget,
+    flac_survey: &mut Option<flac::Survey>,
 ) -> Result<AudioSpan<'a>, Error> {
-    let gapless = gapless(movie, track, &mut *source)?;
+    let gapless = gapless(movie, track, &mut Shared(source))?;
     let timeline = Timeline::with_several(track, movie, gapless)?;
     let scaled = Scaled::of(&timeline)?;
     let mut listed = Listed {
@@ -1332,8 +1430,23 @@ fn audio_span<'a, S: Source>(
     };
     let mut presented: Option<(i64, i64)> = None;
     let mut next_dts: Option<i64> = None;
-    for packet in movie.packets(track.index, &mut *source, limits, budget)? {
+    for packet in movie.packets(track.index, Shared(source), limits, budget)? {
         let packet = packet?;
+        if let Some(survey) = flac_survey.as_mut() {
+            let valid = flac::header(source, &packet)?.is_some_and(|head| {
+                track
+                    .description
+                    .configured_sample_rate
+                    .is_some_and(|rate| {
+                        u64::from(head.block_size) * u64::from(track.timescale)
+                            == u64::from(packet.duration) * u64::from(rate)
+                    })
+                    && survey.push(head).is_some()
+            });
+            if !valid {
+                *flac_survey = None;
+            }
+        }
         listed.last_duration = packet.duration;
         if packet.cts != packet.dts {
             return Err(unsupported("composition offsets in an audio track"));
@@ -1715,13 +1828,14 @@ fn append<S: Source>(
     listed: &Listed,
     extended: u64,
     video: bool,
-    source: &mut S,
+    source: &RefCell<S>,
     limits: &Limits,
     budget: &mut Budget,
+    mut flac_samples: Option<&mut u64>,
 ) -> Result<(), ExtractError> {
     let mut count = 0u64;
     let mut duration = 0u64;
-    for packet in movie.packets(track.index, &mut *source, limits, budget)? {
+    for packet in movie.packets(track.index, Shared(source), limits, budget)? {
         let packet = packet?;
         count = count.saturating_add(1);
         duration = duration.saturating_add(u64::from(packet.duration));
@@ -1735,7 +1849,19 @@ fn append<S: Source>(
         } else {
             0
         };
-        tables.push_sample(packet.size, delta, packet.keyframe, offset)?;
+        let size = if let Some(samples) = flac_samples.as_mut() {
+            let head = flac::header(source, &packet)?.ok_or(ExtractError::SourceChanged)?;
+            let size = head
+                .rewritten_size(packet.size, **samples)
+                .ok_or(ExtractError::SourceChanged)?;
+            **samples = samples
+                .checked_add(u64::from(head.block_size))
+                .ok_or_else(overflow)?;
+            size
+        } else {
+            packet.size
+        };
+        tables.push_sample(size, delta, packet.keyframe, offset)?;
     }
     if count != listed.samples || duration != listed.duration {
         return Err(ExtractError::SourceChanged);
@@ -1784,7 +1910,7 @@ impl<'a, S: Source, B: Iterator<Item = &'a mut Budget>> Chain<'a, S, B> {
     }
 
     /// The input, offset and size of the next sample.
-    fn next(&mut self) -> Result<(usize, u64, u32), JoinError> {
+    fn next(&mut self, rewritten: bool) -> Result<(usize, u64, u32), JoinError> {
         loop {
             if let Some((input, packets, done)) = self.current.as_mut() {
                 let count = self.counts.get(*input).copied().unwrap_or(0);
@@ -1798,7 +1924,7 @@ impl<'a, S: Source, B: Iterator<Item = &'a mut Budget>> Chain<'a, S, B> {
                         })?
                         .map_err(|e| at(input, e))?;
                     *done = done.saturating_add(1);
-                    if self.tables.size(self.copied) != Some(packet.size) {
+                    if !rewritten && self.tables.size(self.copied) != Some(packet.size) {
                         return Err(JoinError::Input {
                             input,
                             error: ExtractError::SourceChanged,

@@ -20,6 +20,7 @@ on:
       - Cargo.lock
       - rust-toolchain.toml
       - scripts/gen-fixtures.sh
+      - scripts/flac_concat_fixture.py
       - scripts/wasm-thumbnail-fixtures.py
       - scripts/install-x264.sh
       - scripts/chap_craft.py
@@ -65,6 +66,7 @@ on:
       - Cargo.lock
       - rust-toolchain.toml
       - scripts/gen-fixtures.sh
+      - scripts/flac_concat_fixture.py
       - scripts/wasm-thumbnail-fixtures.py
       - scripts/install-x264.sh
       - scripts/chap_craft.py

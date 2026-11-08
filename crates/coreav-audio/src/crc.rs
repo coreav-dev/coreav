@@ -11,7 +11,11 @@ pub(crate) fn crc8(data: &[u8]) -> u8 {
 
 /// CRC-16 of `data`, eight bytes at a time ("slicing by eight").
 pub(crate) fn crc16(data: &[u8]) -> u16 {
-    let mut crc: u16 = 0;
+    crc16_update(0, data)
+}
+
+/// Extends the RFC 9639 frame CRC-16 with the next bytes, starting with zero.
+pub fn crc16_update(mut crc: u16, data: &[u8]) -> u16 {
     let mut chunks = data.chunks_exact(8);
     for chunk in &mut chunks {
         let [b0, b1, b2, b3, b4, b5, b6, b7] = <[u8; 8]>::try_from(chunk).unwrap_or([0; 8]);
