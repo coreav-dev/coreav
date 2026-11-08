@@ -102,6 +102,10 @@ jobs:
             .github/actions/oracle-cache/action.yml
             scripts/binaryen.env
             scripts/install-binaryen.sh
+            scripts/install-ci-binaryen.sh
+            scripts/fetch-ci-archive.sh
+            scripts/tests/test_ci_reference_downloads.py
+            .github/actions/ci-archive-cache/action.yml
             .github/workflows/npm.yml
             .github/actions/changed-paths/**
             .github/actions/merge-group-result/**
@@ -140,10 +144,21 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
+      - name: Read the optimizer archive pin
+        id: binaryen
+        run: |
+          . scripts/binaryen.env
+          echo "version=$BINARYEN_VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256=$BINARYEN_SHA256_X86_64_LINUX" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/ci-archive-cache
+        with:
+          tool: binaryen
+          version: ${{ steps.binaryen.outputs.version }}
+          sha256: ${{ steps.binaryen.outputs.sha256 }}
       - name: Install binaryen
         run: |
           set -euo pipefail
-          opt="$(scripts/install-binaryen.sh "$RUNNER_TEMP/binaryen")"
+          opt="$(bash scripts/install-ci-binaryen.sh "$RUNNER_TEMP/binaryen")"
           echo "WASM_OPT=$opt" >> "$GITHUB_ENV"
       - name: Lint the command for WASI
         run: cargo clippy --locked -p coreav-cli --no-default-features --features cli --target wasm32-wasip1 -- -D warnings

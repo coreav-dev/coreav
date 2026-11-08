@@ -15,6 +15,11 @@ on:
       - Cargo.toml
       - deny.toml
       - scripts/encoders/macos/**
+      - scripts/ci-tools.env
+      - scripts/fetch-ci-archive.sh
+      - scripts/install-ci-check-tool.sh
+      - .github/actions/ci-archive-cache/action.yml
+      - .github/actions/ci-check-tool/action.yml
       - scripts/install-oracle-ffmpeg.sh
       - scripts/install-ci-oracle-ffmpeg.sh
       - .github/actions/oracle-cache/action.yml
@@ -37,6 +42,11 @@ on:
       - Cargo.toml
       - deny.toml
       - scripts/encoders/macos/**
+      - scripts/ci-tools.env
+      - scripts/fetch-ci-archive.sh
+      - scripts/install-ci-check-tool.sh
+      - .github/actions/ci-archive-cache/action.yml
+      - .github/actions/ci-check-tool/action.yml
       - scripts/install-oracle-ffmpeg.sh
       - scripts/install-ci-oracle-ffmpeg.sh
       - .github/actions/oracle-cache/action.yml
@@ -127,12 +137,11 @@ jobs:
           toolchain: stable
       - name: Build the independent Rust decoder and error calculator
         run: cargo build --locked --manifest-path crates/coreav-backend-apple/Cargo.toml --profile dist --example videotoolbox
-      - name: Check the standalone dependency licenses
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+      - uses: ./.github/actions/ci-check-tool
         with:
-          manifest-path: crates/coreav-backend-apple/Cargo.toml
-          command: check licenses
-          rust-version: stable
+          tool: cargo-deny
+      - name: Check the standalone dependency licenses
+        run: CARGO_TERM_COLOR=always cargo-deny --log-level warn --manifest-path crates/coreav-backend-apple/Cargo.toml --all-features check licenses
       - name: Test Linux evidence replay and child cleanup
         run: python3 -m unittest discover -s scripts/encoders/macos -p 'test_*.py' -v
       - uses: ./.github/actions/oracle-cache

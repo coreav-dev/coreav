@@ -39,6 +39,10 @@ on:
       - scripts/oracle-audio-args.txt
       - scripts/binaryen.env
       - scripts/install-binaryen.sh
+      - scripts/install-ci-binaryen.sh
+      - scripts/fetch-ci-archive.sh
+      - scripts/tests/test_ci_reference_downloads.py
+      - .github/actions/ci-archive-cache/action.yml
       - scripts/rust-dist.env
       - scripts/notices/**
       - deny.toml
@@ -80,6 +84,10 @@ on:
       - scripts/oracle-audio-args.txt
       - scripts/binaryen.env
       - scripts/install-binaryen.sh
+      - scripts/install-ci-binaryen.sh
+      - scripts/fetch-ci-archive.sh
+      - scripts/tests/test_ci_reference_downloads.py
+      - .github/actions/ci-archive-cache/action.yml
       - scripts/rust-dist.env
       - scripts/notices/**
       - deny.toml
@@ -109,6 +117,7 @@ jobs:
       - run: npm test --prefix packages/wasm && npm run test:types --prefix packages/wasm
       - run: npm test --prefix packages/wasm-h264 && npm run test:types --prefix packages/wasm-h264
       - run: python3 -m unittest discover -s scripts/tests -p test_wasm_thumbnail_fixtures.py
+      - run: python3 -I -m unittest discover -s scripts/tests -p 'test_ci_reference_downloads.py' -v
       - run: npm ci --ignore-scripts --no-audit --no-fund --prefix packages/wasm/examples
       - run: npm test --prefix packages/wasm/examples
 
@@ -185,10 +194,21 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund --prefix packages/wasm
           npm ci --ignore-scripts --no-audit --no-fund --prefix packages/wasm/examples
+      - name: Read the optimizer archive pin
+        id: binaryen
+        run: |
+          . scripts/binaryen.env
+          echo "version=$BINARYEN_VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256=$BINARYEN_SHA256_X86_64_LINUX" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/ci-archive-cache
+        with:
+          tool: binaryen
+          version: ${{ steps.binaryen.outputs.version }}
+          sha256: ${{ steps.binaryen.outputs.sha256 }}
       - name: Install the pinned optimizer
         run: |
           set -euo pipefail
-          opt="$(scripts/install-binaryen.sh "$RUNNER_TEMP/binaryen")"
+          opt="$(bash scripts/install-ci-binaryen.sh "$RUNNER_TEMP/binaryen")"
           echo "WASM_OPT=$opt" >> "$GITHUB_ENV"
       - name: Build the module
         run: npm run build --prefix packages/wasm

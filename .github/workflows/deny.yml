@@ -84,6 +84,9 @@ jobs:
           python3 -I scripts/oracle_pin.py --check
           python3 -I scripts/workflow_check_selftest.py
           python3 -I -m unittest discover -s scripts/tests -p 'test_oracle_install.py' -v
+          for suite in test_ci_downloads.py test_ci_reference_downloads.py test_maturin_downloads.py; do
+            python3 -I -m unittest discover -s scripts/tests -p "$suite" -v
+          done
           python3 -m unittest discover -s scripts/encoders/macos -p 'test_source_freeze.py' -v
           python3 -I -m unittest discover -s .github/actions/changed-paths/tests -p 'test_*.py'
           python3 -I scripts/pr_text_check_selftest.py
@@ -100,24 +103,20 @@ jobs:
       # Its shellcheck and pyflakes passes are off: they judge scripts, not
       # expressions. The fixture it writes is the mistake this step exists
       # for, which has to fail.
+      - uses: ./.github/actions/ci-check-tool
+        with:
+          tool: actionlint
       - name: Check the expressions of the workflows
-        env:
-          VERSION: 1.7.12
-          SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
         run: |
           set -euo pipefail
-          curl -sSfL -o "$RUNNER_TEMP/actionlint.tar.gz" \
-            "https://github.com/rhysd/actionlint/releases/download/v$VERSION/actionlint_${VERSION}_linux_amd64.tar.gz"
-          echo "$SHA256  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
-          "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes=
+          actionlint -shellcheck= -pyflakes=
           # GitHub expands an expression anywhere in this script before it
           # runs, so the fixture's opening is put together here.
           open='$''{{'
           printf '%s\n' 'on: push' 'jobs:' '  probe:' '    runs-on: ubuntu-24.04' '    env:' \
             "      DIR: $open runner.temp }}/out" '    steps:' '      - run: echo hi' \
             > "$RUNNER_TEMP/runner-in-job-env.yml"
-          if found=$("$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= "$RUNNER_TEMP/runner-in-job-env.yml" 2>&1); then
+          if found=$(actionlint -shellcheck= -pyflakes= "$RUNNER_TEMP/runner-in-job-env.yml" 2>&1); then
             echo 'actionlint accepted a runner expression in a job env' >&2
             exit 1
           fi
@@ -192,25 +191,21 @@ jobs:
           set -euo pipefail
           python3 -m pip install --quiet --require-hashes -r bench/opus-speed/requirements.txt
           python3 -I -m unittest discover -s bench/opus-speed/tests -p 'test_*.py'
-      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
-        if: steps.result.outputs.reuse != 'true'
       # The fuzz projects are outside the workspace; check their own license
       # graphs. Projects are found as scripts/fuzz_plan.py finds them
       # (crates/*/fuzz), so a new one is checked without editing this file;
-      # finding none fails. cargo-deny is the version the action above runs.
+      # finding none fails.
       - name: Install cargo-deny
         if: steps.result.outputs.reuse != 'true' || github.event_name == 'merge_group'
-        env:
-          VERSION: 0.20.2
-          SHA256: 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
+        uses: ./.github/actions/ci-check-tool
+        with:
+          tool: cargo-deny
+      - name: Check the workspace dependency policy
+        if: steps.result.outputs.reuse != 'true'
         run: |
           set -euo pipefail
-          name="cargo-deny-$VERSION-x86_64-unknown-linux-musl"
-          curl -sSfL -o "$RUNNER_TEMP/deny.tar.gz" \
-            "https://github.com/EmbarkStudios/cargo-deny/releases/download/$VERSION/$name.tar.gz"
-          echo "$SHA256  $RUNNER_TEMP/deny.tar.gz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/deny.tar.gz" -C "$RUNNER_TEMP" "$name/cargo-deny"
-          echo "$RUNNER_TEMP/$name" >> "$GITHUB_PATH"
+          rustup show active-toolchain || rustup toolchain install
+          CARGO_TERM_COLOR=always cargo-deny --log-level warn --manifest-path ./Cargo.toml --all-features check
       - name: Refresh advisory checks on a reused merge group
         id: fresh-advisories
         if: github.event_name == 'merge_group' && steps.result.outputs.reuse == 'true'

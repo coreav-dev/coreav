@@ -22,6 +22,10 @@ on:
       - scripts/tests/test_h264_crf.py
       - scripts/tests/test_h264_p.py
       - scripts/install-jm-decoder.sh
+      - scripts/install-ci-jm-decoder.sh
+      - scripts/fetch-ci-archive.sh
+      - scripts/tests/test_ci_reference_downloads.py
+      - .github/actions/ci-archive-cache/action.yml
       - scripts/jm-decoder.env
       - scripts/oracle-ffmpeg.env
       - scripts/oracle_pin.py
@@ -50,6 +54,10 @@ on:
       - scripts/tests/test_h264_crf.py
       - scripts/tests/test_h264_p.py
       - scripts/install-jm-decoder.sh
+      - scripts/install-ci-jm-decoder.sh
+      - scripts/fetch-ci-archive.sh
+      - scripts/tests/test_ci_reference_downloads.py
+      - .github/actions/ci-archive-cache/action.yml
       - scripts/jm-decoder.env
       - scripts/oracle-ffmpeg.env
       - scripts/oracle_pin.py
@@ -173,6 +181,7 @@ jobs:
           components: clippy
       - name: Unit tests and opt-in driver
         run: |
+          python3 -I -m unittest discover -s scripts/tests -p 'test_ci_reference_downloads.py' -v
           H264_VUI_FIXTURE_DIR="$RUNNER_TEMP/vui" H264_P_FIXTURE_DIR="$RUNNER_TEMP/p-forced" cargo test --locked --release -p coreav-h264-encoder --features full
           cargo clippy --locked -p coreav-h264-encoder --features full --all-targets -- -D warnings
           cargo build --locked --release -p coreav-h264-encoder --features full --example g1
@@ -194,10 +203,27 @@ jobs:
           python3 -I -m unittest discover -s scripts/tests -p 'test_h264_p.py'
           python3 -I -m unittest discover -s scripts/tests -p 'test_h264_crf.py'
       - uses: ./.github/actions/oracle-cache
+      - name: Read the decoder archive pins
+        id: jm
+        run: |
+          . scripts/jm-decoder.env
+          echo "version=$JM_VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256=$JM_SHA256" >> "$GITHUB_OUTPUT"
+          echo "ca-sha256=$JM_CA_SHA256" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/ci-archive-cache
+        with:
+          tool: jm
+          version: ${{ steps.jm.outputs.version }}
+          sha256: ${{ steps.jm.outputs.sha256 }}
+      - uses: ./.github/actions/ci-archive-cache
+        with:
+          tool: jm-ca
+          version: ${{ steps.jm.outputs.version }}
+          sha256: ${{ steps.jm.outputs.ca-sha256 }}
       - name: Install black-box decoder oracles
         run: |
           scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/g1-oracles"
-          bash scripts/install-jm-decoder.sh "$RUNNER_TEMP/g1-oracles"
+          bash scripts/install-ci-jm-decoder.sh "$RUNNER_TEMP/g1-oracles"
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/g1-oracles"
           cat "$RUNNER_TEMP/g1-oracles/jm-build.txt"
       - name: Generate existing non-judged fixtures
