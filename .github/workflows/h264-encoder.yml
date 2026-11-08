@@ -13,6 +13,8 @@ on:
       - crates/coreav-frame/**
       - scripts/native_h264_cli.py
       - scripts/native_h264_matroska.py
+      - scripts/oracle_audio.py
+      - scripts/oracle-audio-args.txt
       - scripts/tests/test_native_h264_cli.py
       - scripts/track_boxes.py
       - crates/coreav-kernels-h264/**
@@ -49,6 +51,8 @@ on:
       - crates/coreav-frame/**
       - scripts/native_h264_cli.py
       - scripts/native_h264_matroska.py
+      - scripts/oracle_audio.py
+      - scripts/oracle-audio-args.txt
       - scripts/tests/test_native_h264_cli.py
       - scripts/track_boxes.py
       - crates/coreav-kernels-h264/**

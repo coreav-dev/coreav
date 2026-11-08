@@ -14,6 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import native_h264_cli as cli
 import native_h264_matroska as mkv
+import oracle_audio
 
 
 def element(kind, body):
@@ -118,6 +119,10 @@ def generated_opus_matroska(*, delay=6_500_000, padding=13_500_000):
 
 
 class NativeCli(unittest.TestCase):
+    def test_actual_driver_audio_commands_follow_the_shared_oracle_input_policy(self):
+        driver = ROOT / 'scripts/native_h264_cli.py'
+        self.assertEqual(list(oracle_audio.python_problems(driver.read_text(), 'scripts/native_h264_cli.py')), [])
+
     def test_edited_opus_preservation_command_copies_audio_and_matches_all_build_modes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)

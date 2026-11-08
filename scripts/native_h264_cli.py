@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import h264_crf_conformance as crf
 import h264_p_conformance as syntax
 import native_h264_matroska as matroska
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 import test_oracle
 import track_boxes
 
@@ -120,6 +121,12 @@ def copied_audio_sources(root, ffmpeg, video30, video25):
     return sources
 
 
+def oracle_audio_pcm(ffmpeg, source, output, *, input_options=()):
+    run([ffmpeg, '-v', 'error', '-xerror', *input_options, *AUDIO_DECODE_INPUT, '-i', source,
+         '-map', '0:a:0', '-vn', '-c:a', 'pcm_f32le', '-f', 'f32le', output])
+    return output.read_bytes()
+
+
 def opus_source_pcm(source, prefix, ffmpeg, ffprobe):
     original = source.read_bytes()
     if source.suffix == '.mp4':
@@ -139,9 +146,7 @@ def opus_source_pcm(source, prefix, ffmpeg, ffprobe):
         facts['reported_pts'] = [str(Fraction(packet['pts']) * Fraction(stream['time_base']))
                                  for packet in readback['packets']]
     decoded = prefix.with_suffix('.source.f32le')
-    run([ffmpeg, '-v', 'error', '-xerror', *input_options, '-i', decoder_input,
-         '-map', '0:a:0', '-vn', '-c:a', 'pcm_f32le', '-f', 'f32le', decoded])
-    pcm = decoded.read_bytes()
+    pcm = oracle_audio_pcm(ffmpeg, decoder_input, decoded, input_options=input_options)
     facts['oracle_decoded_samples'] = len(pcm) // (facts['channels'] * 4)
     expected = matroska.opus_presentation_slice(pcm, facts) if source.suffix == '.mp4' else pcm
     matroska.compare_opus_pcm(expected, expected, facts)
@@ -363,9 +368,7 @@ def matroska_matrix(args, tools, root, source, native, native_only, source_path,
                         same([p['data_hash'].split(':', 1)[1] for p in audio[1]['packets']],
                              facts['packet_sha256'], 'copied Opus complete original-source packet bytes')
                         actual_pcm = output.with_suffix('.opus.f32le')
-                        run([tools.ffmpeg, '-v', 'error', '-xerror', '-i', output, '-map', '0:a:0',
-                             '-vn', '-c:a', 'pcm_f32le', '-f', 'f32le', actual_pcm])
-                        matroska.compare_opus_pcm(actual_pcm.read_bytes(), expected_pcm, facts)
+                        matroska.compare_opus_pcm(oracle_audio_pcm(tools.ffmpeg, output, actual_pcm), expected_pcm, facts)
                 opus_proof = {}
                 if opus_reference:
                     facts = opus_reference[1]
