@@ -102,6 +102,18 @@ The follow-up increases the ordinary-block budget from one to two trailing curre
 
 The maintainer requires the complete cost to be compared directly with pre-refinement main `382daaa8f9d14ef2966782013838468e32cfda4c`. The one-coordinate implementation at `33f983421e58e34a4175ad4aa8780a2d0a36e12c` is only an incremental reference; ratios from separate comparisons cannot establish the total-cost limit. Keep the same existing inputs, preparation hashes, sixty pictures, GOP32, deblocking, QP22/28/34/40 and both labelled weighted aggregates. Against the pre-refinement baseline, require every input's Y, U and V BD-rate to be at most +0.5%, a negative five-input mean weighted-plane BD-rate, and at least 0.85 times baseline throughput on every input at both one and four requested encoder threads. Use separate release builds at explicit source commits, paired alternating QP28 observations on the same Actions runner, and retain every call, median and range. The comparison after the speed changes uses nine observations per arm and a same-binary control. If any input or thread count misses, retain the draft and report the complete table, without rounding a miss into a pass.
 
+Measured ordinary-block budget: `2`. Measured candidate: `980d571c90a509db998cb778514312992448ede3`; direct baseline: `382daaa8f9d14ef2966782013838468e32cfda4c`.
+
+| Input | Y BD-rate | U BD-rate | V BD-rate | Throughput, 1 worker | Throughput, 4 workers |
+|---|---:|---:|---:|---:|---:|
+| A | −1.004551% | −1.915512% | −9.036384% | 1.014123× | 1.042835× |
+| B | −0.056678% | −2.030309% | −3.410406% | 1.085911× | 1.090179× |
+| C | −1.002728% | −5.645026% | −8.601897% | 0.919562× | 0.993361× |
+| D | −5.089595% | −7.943629% | −10.429743% | 0.885950× | 0.932764× |
+| E | −3.828439% | −3.571050% | −6.896190% | 0.886955× | 0.918975× |
+
+All fifteen plane limits and all ten speed floors pass. The five-input mean weighted-plane BD-rate is −3.134302%; the separate weighted-PSNR-curve mean is −2.800490%. The worst speed cell is D at one worker, `0.8859499181424747×`. The nine paired QP28 observations per arm and thread count retain every call. The shared-host reference uses Ubuntu 24.04, AMD EPYC 9V45, four logical CPUs on two SMT-enabled cores and rustc 1.99.1. The same-binary control for E at one worker is 0.984111×, with a 95% interval of 0.970353–0.998779×; no observations were excluded or retimed. The lowest candidate paired-bootstrap 95% bound is 0.865361×. These are shared-host reference observations, not fixed-host production guarantees. Qualified FFmpeg 9.0.2 matches all forty complete curve reconstructions, and native/scalar one/four-worker identity covers all 160 curve encodes. The full method and timing ranges are in [coreav-dev/coreav#490](https://github.com/coreav-dev/coreav/pull/490).
+
 Count the ceiling before implementing arithmetic changes. A throwaway release profile makes the complete refinement entry and sample-error function visible, then counts their inclusive instructions on short prefixes of existing inputs. These counts bound a hypothetical zero-cost replacement in the instrumented workload, not a wall-clock gain. Selected levels and future reference pictures stay unchanged; an output-changing erasure would change the later search workload. Record complete encoded/reconstruction digests and independent decoding to show that useful encoding occurred. Try the already implemented two-coordinate policy without new kernels first. A proposed AVX2 kernel needs its own removable-cost ceiling and useful end-to-end reference benefit, scalar equivalence, bounded memory views, differential tests/fuzzing, inventory and similarity checks under the existing encoder exception.
 
 ### Order
