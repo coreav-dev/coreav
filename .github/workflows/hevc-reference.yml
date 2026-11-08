@@ -1,5 +1,5 @@
-name: hevc-loop-ceiling
-run-name: HEVC loop ceiling ${{ inputs.baseline }}
+name: hevc-deblock-ab
+run-name: HEVC deblocking reference ${{ inputs.candidate }}
 # workflow-check: not required
 
 on:
@@ -9,36 +9,26 @@ on:
         description: Exact main commit
         required: true
         type: string
-      eight_ids:
-        description: Comma-separated eight-bit reference IDs
+      candidate:
+        description: Exact decoder candidate commit
         required: true
         type: string
-      ten_ids:
-        description: Comma-separated ten-bit reference IDs
+      only:
+        description: Comma-separated reference IDs
         required: true
         type: string
-      audit_only:
-        description: Inspect original decoder work without repeating removal counts
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
 
 jobs:
-  ceiling:
-    strategy:
-      fail-fast: false
-      matrix:
-        depth: [8, 10]
+  reference:
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
       BASELINE: ${{ inputs.baseline }}
-      DEPTH: ${{ matrix.depth }}
-      ONLY: ${{ matrix.depth == 8 && inputs.eight_ids || inputs.ten_ids }}
-      AUDIT_ONLY: ${{ inputs.audit_only }}
+      CANDIDATE: ${{ inputs.candidate }}
+      ONLY: ${{ inputs.only }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -50,59 +40,80 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           ref: ${{ env.BASELINE }}
+          path: main
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.CANDIDATE }}
           path: candidate
-      - name: Admit the dispatched main commit
-        working-directory: candidate
+      - name: Admit exact repository branch commits
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$BASELINE"
-          git merge-base --is-ancestor "$BASELINE" origin/main
+          test "$(git -C main rev-parse HEAD)" = "$BASELINE"
+          git -C main merge-base --is-ancestor "$BASELINE" origin/main
+          test "$(git -C candidate rev-parse HEAD)" = "$CANDIDATE"
+          test -n "$(git -C candidate branch -r --contains "$CANDIDATE")"
+          grep -qw avx2 /proc/cpuinfo
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-      - name: Build original and disposable erase arms
+      - name: Check the candidate kernels before media acquisition
+        working-directory: candidate
+        run: |
+          cargo test --locked -p coreav-kernels-hevc --features native-hevc --lib
+          cargo clippy --locked -p coreav-kernels-hevc --features native-hevc --all-targets -- -D warnings
+      - name: Build matched original and candidate drivers
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/reference" "$RUNNER_TEMP/binaries"
+          export CARGO_PROFILE_RELEASE_DEBUG=1
+          for ARM in main candidate; do
+            cp driver/bench/hevc-reference/decode.rs "$ARM/crates/coreav-hevc/examples/reference.rs"
+            (cd "$ARM" && cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+            cp "$ARM/target/release/examples/reference" "$RUNNER_TEMP/binaries/$ARM"
+          done
+          rustc -Vv > "$RUNNER_TEMP/reference/compiler.txt"
+      - name: Disable only new deblocking dispatches in the control
         working-directory: candidate
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/ceiling" "$RUNNER_TEMP/binaries"
-          cp ../driver/bench/hevc-reference/decode.rs crates/coreav-hevc/examples/reference.rs
-          cp crates/coreav-kernels-hevc/src/filter.rs "$RUNNER_TEMP/filter-original.rs"
-          export CARGO_PROFILE_RELEASE_DEBUG=1
-          cargo build --locked --release -p coreav-hevc --features native-hevc --example reference
-          cp target/release/examples/reference "$RUNNER_TEMP/binaries/main"
-          for ARM in deblock sao10; do
-            cp "$RUNNER_TEMP/filter-original.rs" crates/coreav-kernels-hevc/src/filter.rs
-            python3 ../driver/scripts/filter_ceiling.py erase --kind "$ARM" \
-              --filter crates/coreav-kernels-hevc/src/filter.rs --diff "$RUNNER_TEMP/ceiling/$ARM.patch"
-            cargo build --locked --release -p coreav-hevc --features native-hevc --example reference
-            cp target/release/examples/reference "$RUNNER_TEMP/binaries/$ARM"
-          done
-          rustc -Vv > "$RUNNER_TEMP/ceiling/compiler.txt"
+          python3 - "$RUNNER_TEMP/reference/control.patch" <<'PY'
+          import difflib, pathlib, sys
+          path = pathlib.Path('crates/coreav-kernels-hevc/src/filter.rs')
+          original = path.read_text()
+          needle = '(depth.bits() == 8)'
+          assert original.count(needle) == 2
+          modified = original.replace(needle, '(depth.bits() == 8 && core::hint::black_box(false))')
+          pathlib.Path(sys.argv[1]).write_text(''.join(difflib.unified_diff(original.splitlines(True), modified.splitlines(True), fromfile='filter.rs', tofile='control/filter.rs')))
+          path.write_text(modified)
+          PY
+          CARGO_PROFILE_RELEASE_DEBUG=1 cargo build --locked --release -p coreav-hevc --features native-hevc --example reference
+          cp target/release/examples/reference "$RUNNER_TEMP/binaries/control"
       - name: Install instruction profiler
         run: sudo apt-get update -qq && sudo apt-get install -y valgrind
-      - name: Install qualified binary oracle
+      - name: Install the qualified binary oracle
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: driver/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
-      - name: Count matched-prefix physical-removal references
+      - name: Verify pixels and compare paired decoder calls
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: |
-          EXTRA=(--frames 1)
-          if [ "$AUDIT_ONLY" = true ]; then EXTRA=(--audit-only --frames 32); fi
-          python3 -I driver/scripts/filter_ceiling.py run --baseline "$BASELINE" \
-            --binaries "$RUNNER_TEMP/binaries" --oracle-bin "$RUNNER_TEMP/oracle" \
-            --out "$RUNNER_TEMP/ceiling" --only "$ONLY" --depth "$DEPTH" "${EXTRA[@]}"
+          python3 -I driver/bench/hevc-reference/deblock_ab.py --main-sha "$BASELINE" --candidate-sha "$CANDIDATE" \
+            --main "$RUNNER_TEMP/binaries/main" --candidate "$RUNNER_TEMP/binaries/candidate" \
+            --control "$RUNNER_TEMP/binaries/control" --oracle-bin "$RUNNER_TEMP/oracle" \
+            --out "$RUNNER_TEMP/reference" --only "$ONLY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: hevc-loop-ceiling-${{ matrix.depth }}-${{ inputs.baseline }}
-          path: ${{ runner.temp }}/ceiling
+          name: hevc-deblock-ab-${{ inputs.candidate }}
+          path: ${{ runner.temp }}/reference
           if-no-files-found: error
           retention-days: 7
