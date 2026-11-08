@@ -17,13 +17,15 @@ with the given ffprobe and ffmpeg, used as black boxes:
 - clip: the output's audio packets are a run of the source's, in order;
 - split: the segments' audio packets, in order, are the source's;
 - join, and "coreav ffmpeg -f concat -c copy", of a file with itself: the
-  output's audio packets are the source's twice;
+  output's audio packets are the source's twice, except that FLAC concat
+  rewrites frame headers and retains every decoded packet's PCM;
 - every output decodes without an error.
 
 AC-3 and E-AC-3 compatibility concat cases refuse, preserve the
 destination and use byte-identical pinned fallback for their multi-edit
-timelines. FLAC and ALAC concat run natively and retain all packet and
-decode checks above, with their complete output checked separately.
+timelines. FLAC and ALAC concat run natively, with their complete output
+checked separately. FLAC concat uses variable blocking and cumulative
+sample numbers as RFC 9639 requires, unlike the pinned oracle's packets.
 
 Clips, segments and joins change the edit lists, so their packets are
 compared with edit lists ignored. The binaries are black boxes; no
@@ -200,6 +202,25 @@ def check_packets(tools, source, outputs, problems, expected):
                         f"source's {len(a)}")
 
 
+def check_flac_concat(tools, source, output, problems):
+    same_stream(problems, tools.ffprobe, source, output)
+    decodes(problems, tools.ffmpeg, output)
+    stored_durations(problems, tools, output)
+
+    def decoded_packets(path):
+        result = run([tools.ffmpeg, "-v", "error", "-ignore_editlist", "1", *AUDIO_DECODE_INPUT,
+                      "-i", str(path), "-map", "0:a:0", "-f", "framemd5", "-"])
+        if result.returncode or result.stderr:
+            raise RuntimeError("FLAC concat PCM comparison failed to decode")
+        return [tuple(field.strip() for field in line.split(",")[3:])
+                for line in result.stdout.decode().splitlines() if line and not line.startswith("#")]
+
+    expected = decoded_packets(source)
+    actual = decoded_packets(output)
+    if not expected or actual != expected * 2:
+        problems.append("FLAC concat decoded packets differ from the source repeated twice")
+
+
 def check_concat_refusal(tools, args, output, done, problems, reason):
     if done.returncode != 4 or done.stdout or done.stderr.strip() != reason:
         problems.append("concat must refuse with exit 4 and its exact reason")
@@ -258,7 +279,7 @@ def cases(source, out):
     listing.write_text(f"file '{source}'\nfile '{source}'\n")
     yield "ffmpeg -f concat -c copy", ["ffmpeg", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(listing),
                                        "-c", "copy", str(concat)], lambda: [concat], \
-        "refused" if stem in CONCAT_REFUSALS else "twice"
+        "refused" if stem in CONCAT_REFUSALS else "flac-concat" if stem == "av_flac.mp4" else "twice"
 
 
 def main():
@@ -298,6 +319,8 @@ def main():
                     problems.append(f"exit {done.returncode}: {done.stderr.decode(errors='replace').strip()[:500]}")
                 elif kind == "copy":
                     check_copy(tools, source, outputs()[0], problems)
+                elif kind == "flac-concat":
+                    check_flac_concat(tools, source, outputs()[0], problems)
                 else:
                     check_packets(tools, source, outputs(), problems, EXPECTED[kind])
             except (subprocess.TimeoutExpired, RuntimeError, KeyError, IndexError, ValueError) as error:

@@ -739,6 +739,43 @@ fn lossless_audiovisual_concat_preserves_complete_native_output() {
             );
             std::fs::remove_file(&output).unwrap();
         }
+        if codec == "flac" {
+            std::fs::write(&list, "file 'flac.mp4'\n").unwrap();
+            let copied = ffmpeg(&[args.as_slice(), &[output.to_str().unwrap()]].concat());
+            assert_eq!(copied.code, 0, "{}", copied.stderr);
+            let packets = |path: &Path| {
+                let (document, stderr) = concat_output::probe(&probe, path);
+                assert!(stderr.is_empty());
+                let audio = document["streams"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|stream| stream["codec_type"] == "audio")
+                    .unwrap()["index"]
+                    .clone();
+                document["packets"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|packet| packet["stream_index"] == audio)
+                    .map(|packet| {
+                        (
+                            packet["size"].clone(),
+                            packet["data"].clone(),
+                            packet["data_hash"].clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let expected = packets(&source);
+            assert!(!expected.is_empty());
+            assert_eq!(
+                packets(&output),
+                expected,
+                "every original audio packet byte"
+            );
+            std::fs::remove_file(&output).unwrap();
+        }
         let hostile = dir.join("inband.txt");
         std::fs::write(&hostile, "file 'reference.mp4'\nfile 'reference.mp4'\n").unwrap();
         let hostile_args = [

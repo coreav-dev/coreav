@@ -20,7 +20,7 @@ class ConcatRefusal(unittest.TestCase):
                 with self.subTest(codec=codec):
                     cases = list(checker.cases(out / f"av_{codec}.mp4", out))
                     self.assertEqual(next(c[3] for c in cases if c[0] == "join"), "twice")
-                    self.assertEqual(cases[-1][3], "refused" if codec in {"ac3", "eac3"} else "twice")
+                    self.assertEqual(cases[-1][3], "refused" if codec in {"ac3", "eac3"} else "flac-concat" if codec == "flac" else "twice")
                     self.assertTrue(all(c[3] != "refused" for c in cases[:-1]))
 
     def test_unexpected_native_success_wrong_reason_and_published_output_fail(self):
@@ -104,6 +104,23 @@ class ConcatRefusal(unittest.TestCase):
         self.assertTrue(checker.EXPECTED["twice"](packets, packets + packets))
         self.assertFalse(checker.EXPECTED["twice"](packets, packets))
         self.assertFalse(checker.EXPECTED["twice"](packets, packets + list(reversed(packets))))
+
+    def test_flac_concat_requires_every_original_pcm_packet_twice(self):
+        source = b"#format: frame checksums\n0, 0, 0, 32, 128, first\n0, 32, 32, 16, 64, second\n"
+        repeated = source + source
+        for output, success in [(repeated, True), (source, False),
+                                (repeated.replace(b"second", b"changed", 1), False),
+                                (b"", False)]:
+            with self.subTest(output=output):
+                tools = SimpleNamespace(ffmpeg="controlled-ffmpeg", ffprobe="controlled-ffprobe")
+                results = [subprocess.CompletedProcess([], 0, data, b"") for data in (source, output)]
+                problems = []
+                with mock.patch.object(checker, "run", side_effect=results), \
+                        mock.patch.object(checker, "same_stream"), \
+                        mock.patch.object(checker, "decodes"), \
+                        mock.patch.object(checker, "stored_durations"):
+                    checker.check_flac_concat(tools, Path("source.mp4"), Path("output.mp4"), problems)
+                self.assertEqual(not problems, success)
 
     def test_each_fixture_requires_its_own_reason(self):
         self.assertEqual(checker.CONCAT_REFUSALS, {
