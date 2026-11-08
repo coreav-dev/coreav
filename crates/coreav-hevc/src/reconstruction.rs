@@ -5,7 +5,15 @@ use coreav_kernels_hevc::{self as kernels, BitDepth, IntraMode, MotionVector};
 
 mod filter;
 mod inter;
+mod parallel;
 mod syntax;
+
+pub(crate) use parallel::Cache;
+
+pub(crate) fn caught<T>(work: impl FnOnce() -> Result<T>) -> Result<T> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
+        .unwrap_or(Err(Error::Internal("reconstruction_panic")))
+}
 
 /// Effective scalar inter reconstruction work, without timing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -78,25 +86,57 @@ impl Motion {
     }
 }
 
-pub(crate) struct Memory {
-    pub(crate) used: usize,
-    limit: usize,
+pub(crate) trait ReclaimMemory {
+    fn retained_bytes(&mut self, mandatory: usize, limit: usize) -> Result<usize>;
 }
 
-impl Memory {
+pub(crate) struct Memory<'a> {
+    pub(crate) used: usize,
+    limit: usize,
+    peak: usize,
+    reclaim: Option<&'a mut dyn ReclaimMemory>,
+}
+
+impl<'a> Memory<'a> {
     pub(crate) fn new(used: usize, limit: usize) -> Result<Self> {
-        if used > limit {
-            return Err(Error::Limit("reconstruction_memory"));
-        }
-        Ok(Self { used, limit })
+        Self::with_reclaim(used, limit, None)
+    }
+
+    pub(crate) fn with_reclaim(
+        used: usize,
+        limit: usize,
+        reclaim: Option<&'a mut dyn ReclaimMemory>,
+    ) -> Result<Self> {
+        let mut memory = Self {
+            used: 0,
+            limit,
+            peak: 0,
+            reclaim,
+        };
+        memory.charge(used)?;
+        Ok(memory)
+    }
+
+    pub(crate) fn peak(&self) -> usize {
+        self.peak
     }
 
     pub(crate) fn charge(&mut self, bytes: usize) -> Result<()> {
-        self.used = self
+        let mandatory = self
             .used
             .checked_add(bytes)
             .filter(|n| *n <= self.limit)
             .ok_or(Error::Limit("reconstruction_memory"))?;
+        let retained = match &mut self.reclaim {
+            Some(reclaim) => reclaim.retained_bytes(mandatory, self.limit)?,
+            None => 0,
+        };
+        let physical = mandatory
+            .checked_add(retained)
+            .filter(|n| *n <= self.limit)
+            .ok_or(Error::Limit("reconstruction_memory"))?;
+        self.used = mandatory;
+        self.peak = self.peak.max(physical);
         Ok(())
     }
 
@@ -177,6 +217,9 @@ fn allocation_bytes<T>(values: &Vec<T>) -> Result<usize> {
 }
 
 pub(crate) struct Frame {
+    #[cfg(test)]
+    test_hook: Option<std::sync::Arc<parallel::TestHook>>,
+    pub(crate) workers: usize,
     pub(crate) deadline: Option<std::time::Instant>,
     index: u64,
     info: PictureInfo,
@@ -293,7 +336,7 @@ fn sample_bytes(planes: &[Vec<u16>; 3], cells: usize) -> Result<usize> {
 impl Frame {
     pub(crate) fn new(input: &SliceInput<'_>, fixed: usize, limit: usize) -> Result<Self> {
         Self::admit(input)?;
-        Self::allocate(input, None, fixed, limit)
+        Self::allocate(input, None, fixed, limit, None)
     }
 
     pub(crate) fn new_full(
@@ -302,12 +345,14 @@ impl Frame {
         references: References,
         fixed: usize,
         limit: usize,
+        reclaim: Option<&mut dyn ReclaimMemory>,
     ) -> Result<Self> {
         Self::allocate(
             input,
             Some(ReferenceState { poc, references }),
             fixed,
             limit,
+            reclaim,
         )
     }
 
@@ -316,11 +361,12 @@ impl Frame {
         reference: Option<ReferenceState>,
         fixed: usize,
         limit: usize,
+        reclaim: Option<&mut dyn ReclaimMemory>,
     ) -> Result<Self> {
         if !input.header.first || input.header.address != 0 {
             return Err(Error::InvalidData("selected_picture_start"));
         }
-        let mut memory = Memory::new(fixed, limit)?;
+        let mut memory = Memory::with_reclaim(fixed, limit, reclaim)?;
         memory.charge(input.scratch_bytes)?;
         let width = input.picture.width as usize;
         let height = input.picture.height as usize;
@@ -335,6 +381,9 @@ impl Frame {
             .ok_or(Error::Limit("picture_cells"))?;
         Ok(Self {
             deadline: None,
+            #[cfg(test)]
+            test_hook: None,
+            workers: 1,
             index: input.index,
             info: input.picture,
             depth: BitDepth::new(input.picture.bit_depth as u8)?,
@@ -425,10 +474,20 @@ impl Frame {
     }
 
     pub(crate) fn hash(&mut self, sei: SeiInfo, fixed: usize, limit: usize) -> Result<usize> {
+        self.hash_reclaiming(sei, fixed, limit, None)
+    }
+
+    pub(crate) fn hash_reclaiming(
+        &mut self,
+        sei: SeiInfo,
+        fixed: usize,
+        limit: usize,
+        reclaim: Option<&mut dyn ReclaimMemory>,
+    ) -> Result<usize> {
         if sei.picture_hash.is_none() && sei.reserved_hashes == 0 {
             return Ok(0);
         }
-        let peak = self.finalize(fixed, limit)?;
+        let peak = self.finalize_reclaiming(fixed, limit, reclaim)?;
         if !self.complete() || self.hash_seen {
             return Err(Error::InvalidData("selected_picture_hash_placement"));
         }

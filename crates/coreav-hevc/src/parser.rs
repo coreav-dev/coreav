@@ -223,6 +223,9 @@ pub(crate) struct SliceInput<'a> {
 }
 
 pub(crate) trait PictureObserver {
+    fn reserve_scratch(&mut self, _scratch_bytes: usize, _dpb: &Dpb) -> Result<()> {
+        Ok(())
+    }
     fn boundary(&mut self, dpb: &mut Dpb, scratch_bytes: usize) -> Result<()>;
     fn slice(&mut self, input: SliceInput<'_>, dpb: &Dpb) -> Result<()>;
     fn sei(&mut self, info: SeiInfo, dpb: &Dpb, scratch_bytes: usize) -> Result<()>;
@@ -424,7 +427,13 @@ impl StreamCore {
         if bytes.len().saturating_sub(2) > memory_limit {
             return Err(Error::Limit("reconstruction_memory"));
         }
+        if let Some(observer) = observer.as_mut() {
+            observer.reserve_scratch(bytes.len().saturating_sub(2), &self.dpb)?;
+        }
         let rbsp = nal::rbsp(bytes, &self.limits)?;
+        if let Some(observer) = observer.as_mut() {
+            observer.reserve_scratch(rbsp.capacity(), &self.dpb)?;
+        }
         let mut bits = Bits::new(&rbsp);
         let info = match nal.unit_type {
             32 => {
@@ -515,8 +524,27 @@ impl StreamCore {
                 } else {
                     None
                 };
-                let parsed =
-                    slice::parse(&mut bits, nal, prefix, s, p, &self.limits, retain_entries)?;
+                let mut reserve_entries = |bytes: usize| -> Result<()> {
+                    if let Some(observer) = observer.as_mut() {
+                        observer.reserve_scratch(
+                            rbsp.capacity()
+                                .checked_add(bytes)
+                                .ok_or(Error::Limit("reconstruction_memory"))?,
+                            &self.dpb,
+                        )?;
+                    }
+                    Ok(())
+                };
+                let parsed = slice::parse(
+                    &mut bits,
+                    nal,
+                    prefix,
+                    s,
+                    p,
+                    &self.limits,
+                    retain_entries,
+                    &mut reserve_entries,
+                )?;
                 let header = parsed.header;
                 if header.rbsp_header_bytes >= rbsp.len() {
                     return Err(Error::InvalidData("missing_slice_data"));

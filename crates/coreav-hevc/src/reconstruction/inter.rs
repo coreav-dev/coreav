@@ -1820,8 +1820,14 @@ mod tests {
             }; 3];
             inter.weights = Some(weights);
             let input = fixture.input(1, inter);
-            let mut frame =
-                super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000)?;
+            let mut frame = super::super::Frame::new_full(
+                &input,
+                2,
+                dpb.current_references(),
+                0,
+                1_000_000,
+                None,
+            )?;
             for cell in &mut frame.cells {
                 cell.slice = 1;
             }
@@ -1926,8 +1932,14 @@ mod tests {
             }; 3];
             inter.weights = Some(weights);
             let input = fixture.input(0, inter);
-            let mut frame =
-                super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000)?;
+            let mut frame = super::super::Frame::new_full(
+                &input,
+                2,
+                dpb.current_references(),
+                0,
+                1_000_000,
+                None,
+            )?;
             for cell in &mut frame.cells {
                 cell.slice = 1;
             }
@@ -1976,8 +1988,14 @@ mod tests {
             vector: vector(40, -8),
         };
         for partition in [Partition::Horizontal, Partition::Vertical] {
-            let mut frame =
-                super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000)?;
+            let mut frame = super::super::Frame::new_full(
+                &input,
+                2,
+                dpb.current_references(),
+                0,
+                1_000_000,
+                None,
+            )?;
             for cell in &mut frame.cells {
                 cell.slice = 1;
             }
@@ -2014,7 +2032,7 @@ mod tests {
             );
         }
         let mut frame =
-            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000)?;
+            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000, None)?;
         for cell in &mut frame.cells {
             cell.slice = 1;
         }
@@ -2047,7 +2065,7 @@ mod tests {
         let mut input = fixture.input(1, controls([1, 0]));
         input.pps = &pps;
         let mut frame =
-            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000)?;
+            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000, None)?;
         for cell in &mut frame.cells {
             cell.slice = 1;
         }
@@ -2079,7 +2097,7 @@ mod tests {
         let fixture = Fixture::new(8, 2)?;
         let input = fixture.input(1, controls([1, 0]));
         let mut frame =
-            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000)?;
+            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000, None)?;
         for cell in &mut frame.cells {
             cell.slice = 1;
         }
@@ -2127,8 +2145,14 @@ mod tests {
             pps.parallel_merge_log2 = level;
             let mut input = fixture.input(1, inter);
             input.pps = &pps;
-            let mut frame =
-                super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000)?;
+            let mut frame = super::super::Frame::new_full(
+                &input,
+                2,
+                dpb.current_references(),
+                0,
+                1_000_000,
+                None,
+            )?;
             for cell in &mut frame.cells {
                 cell.slice = 1;
             }
@@ -2178,7 +2202,7 @@ mod tests {
         })?;
         let input = fixture.input(1, inter);
         let mut frame =
-            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000)?;
+            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000, None)?;
         let walker = syntax::Walker {
             frame: &mut frame,
             input: &input,
@@ -2210,7 +2234,7 @@ mod tests {
         let dpb = fixture.dpb()?;
         let input = fixture.input(0, controls([1, 1]));
         let mut frame =
-            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000)?;
+            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000, None)?;
         for cell in &mut frame.cells {
             cell.slice = 1;
         }
@@ -2259,7 +2283,7 @@ mod tests {
         });
         let input = fixture.input(0, inter);
         let mut frame =
-            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000)?;
+            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000, None)?;
         let walker = syntax::Walker {
             frame: &mut frame,
             input: &input,

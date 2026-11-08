@@ -5,6 +5,14 @@ use coreav_backend_apple::{
     hevc::{AccessUnit, Config, Error, Stream},
 };
 
+#[test]
+fn decoder_internal_failure_is_not_a_metadata_or_resource_refusal() {
+    assert_eq!(
+        Error::from(coreav_hevc::Error::Internal("reconstruction_panic")),
+        Error::Internal
+    );
+}
+
 #[derive(Default)]
 struct Writer(Vec<bool>);
 
