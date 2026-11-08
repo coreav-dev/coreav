@@ -23,6 +23,7 @@ const STRIDE: usize = 21;
 const ORIGIN: usize = STRIDE + 1;
 const P_INTRA_TYPE_BASE: u32 = 5;
 const FINALISTS: usize = 2;
+const INTRA4_INTER_MARGIN: u64 = 4;
 const UNRANKED: (u64, u8) = (u64::MAX, u8::MAX);
 type Ranked = [(u64, u8); 4];
 
@@ -901,7 +902,7 @@ impl Decision<'_> {
         base: &Tile,
         cbases: &[Tile; 2],
         a: IntraAvail,
-        four: bool,
+        scope: IntraScope,
     ) -> Result<Candidate> {
         let (lumas, chromas) = self.ranked_modes(base, cbases, a)?;
         let luma = *lumas
@@ -914,7 +915,13 @@ impl Decision<'_> {
             .filter(|r| **r != UNRANKED)
             .ok_or(Error::Internal)?
             .1;
-        let four = if four {
+        let trial = match scope {
+            IntraScope::Quick(rank) => {
+                rank.is_none_or(|rank| rank.saturating_mul(INTRA4_INTER_MARGIN) > luma.0)
+            }
+            _ => false,
+        };
+        let four = if trial {
             Some(intra4(
                 base,
                 self.source,
@@ -969,7 +976,7 @@ impl Decision<'_> {
             }
         }
         if !exhaustive {
-            match self.quick_intra(base, cbases, a, scope == IntraScope::Quick) {
+            match self.quick_intra(base, cbases, a, scope) {
                 Ok(candidate) => {
                     consider(best, candidate);
                     return Ok(());
@@ -1085,7 +1092,7 @@ impl Decision<'_> {
 pub(crate) enum IntraScope {
     None,
     Sixteen,
-    Quick,
+    Quick(Option<u64>),
     Exhaustive,
 }
 
@@ -1481,16 +1488,64 @@ mod tests {
                 pending_skip: 0,
             };
             INTRA_PAIRS.with(|count| count.set(0));
-            let candidate = decision.quick_intra(&base, &csources, a, true).unwrap();
+            let candidate = decision
+                .quick_intra(&base, &csources, a, IntraScope::Quick(None))
+                .unwrap();
             selected_four |= candidate.luma.mode.is_none();
             assert_eq!(INTRA_PAIRS.with(|count| count.get()), 1);
-            let sixteen = decision.quick_intra(&base, &csources, a, false).unwrap();
+            let sixteen = decision
+                .quick_intra(&base, &csources, a, IntraScope::Sixteen)
+                .unwrap();
             assert!(sixteen.luma.mode.is_some_and(|mode| legal(mode, 16, a)));
             if candidate.luma.mode.is_some() {
                 assert!(sixteen.key == candidate.key);
             }
         }
         assert!(selected_four);
+    }
+
+    #[test]
+    fn p_intra_four_trial_needs_the_inter_rank_margin_over_intra16_satd() {
+        let base = Tile::empty();
+        let csources = [Tile::empty(), Tile::empty()];
+        let a = intra_availability(Border::default());
+        let mut gated_four = false;
+        for pattern in 0..8 {
+            let mut source = Tile::empty();
+            for y in 0..16 {
+                for x in 0..16 {
+                    source.0[Tile::at(x, y)] =
+                        ((x * (17 + pattern) + y * (7 + pattern * 3)) % 256) as u8;
+                }
+            }
+            let decision = Decision {
+                source: &source,
+                csources: &csources,
+                context: MbContext {
+                    top: None,
+                    left: None,
+                    p_slice: true,
+                },
+                qp: 28,
+                pending_skip: 0,
+            };
+            let satd = decision.ranked_modes(&base, &csources, a).unwrap().0[0].0;
+            let quick = |scope| {
+                decision
+                    .quick_intra(&base, &csources, a, scope)
+                    .unwrap()
+                    .key
+            };
+            let open = decision
+                .quick_intra(&base, &csources, a, IntraScope::Quick(None))
+                .unwrap();
+            gated_four |= open.luma.mode.is_none();
+            let sixteen = quick(IntraScope::Sixteen);
+            assert!(quick(IntraScope::Quick(Some(satd / INTRA4_INTER_MARGIN))) == sixteen);
+            assert!(quick(IntraScope::Quick(Some(satd / INTRA4_INTER_MARGIN + 1))) == open.key);
+            assert!(quick(IntraScope::Quick(Some(u64::MAX))) == open.key);
+        }
+        assert!(gated_four);
     }
 
     #[test]
@@ -1523,7 +1578,7 @@ mod tests {
                         &base,
                         &csources,
                         a,
-                        IntraScope::Quick,
+                        IntraScope::Quick(None),
                         &mut best,
                         &mut Error::Coefficient,
                     )
@@ -1568,7 +1623,12 @@ mod tests {
         };
         let a = intra_availability(Border::default());
         assert!(matches!(
-            decision.quick_intra(&base, &[base.clone(), base.clone()], a, true),
+            decision.quick_intra(
+                &base,
+                &[base.clone(), base.clone()],
+                a,
+                IntraScope::Quick(None)
+            ),
             Err(Error::MacroblockLimit)
         ));
         INTRA_PAIRS.with(|count| count.set(0));
@@ -1579,7 +1639,7 @@ mod tests {
                 &base,
                 &[base.clone(), base.clone()],
                 a,
-                IntraScope::Quick,
+                IntraScope::Quick(None),
                 &mut best,
                 &mut refusal,
             )
