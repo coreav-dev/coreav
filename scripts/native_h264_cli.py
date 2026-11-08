@@ -79,7 +79,8 @@ def oracle_rates(stream, rate, common):
                 oracle_avg_frame_rate=stream['avg_frame_rate'], oracle_rate_interpretation=interpretation)
 
 
-def unchanged_outputs(args, root, source_path, environment, fallback_environment, *, commands=None):
+def unchanged_outputs(args, root, source_path, environment, fallback_environment, *, commands=None,
+                      skip=()):
     if commands is None:
         commands = [('default-copy', ['-c', 'copy']),
                     ('external', ['-an', '-c:v', 'libx264', '-crf', '23'])]
@@ -90,6 +91,8 @@ def unchanged_outputs(args, root, source_path, environment, fallback_environment
                 ('unselected', args.candidate, args.baseline_external),
                 ('default', args.default_candidate, args.baseline_default),
             ):
+                if (container, mode) in skip:
+                    continue
                 previous = root / f'{label}-{mode}-base.{container}'
                 current = root / f'{label}-{mode}.{container}'
                 selected_environment = fallback_environment if container == 'mkv' else environment
@@ -99,6 +102,19 @@ def unchanged_outputs(args, root, source_path, environment, fallback_environment
                      f'actual-base/{container}/{label}/{mode}/whole bytes')
                 groups.setdefault(f'{container}-{mode}', []).append(label)
     return groups
+
+
+def edited_opus_matroska(args, ffmpeg, ffprobe, root, source_path, command, environment):
+    expected, facts = opus_source_pcm(source_path, root / 'opus-source-edit-reference', ffmpeg, ffprobe)
+    output = root / 'opus-source-edit-unselected.mkv'
+    run([args.candidate, 'ffmpeg', '-i', source_path, *command, output], env=environment)
+    try:
+        matroska.compare_opus_pcm(oracle_audio_pcm(ffmpeg, output, output.with_suffix('.opus.f32le')),
+                                  expected, facts)
+    except ValueError as error:
+        raise ValueError(f'ordinary-matroska/opus-source-edit/unselected: {error}') from error
+    return dict(mode='unselected', declared_samples=facts['declared_samples'],
+                start_samples=facts['start_samples'], pre_skip=facts['pre_skip'])
 
 
 def copied_audio_sources(root, ffmpeg, video30, video25):
@@ -698,11 +714,15 @@ def verify(args):
 
     matroska_rows = matroska_matrix(args, tools, root, source, native, native_only,
                                     source_path, legacy_sources, gop_source)
+    opus_edit_source = root / 'audio-mp4-opus-source.mp4'
+    opus_edit_command = ['-c:v', 'libx264', '-c:a', 'copy', '-fps_mode', 'passthrough']
     for group, labels in unchanged_outputs(
-        args, root, root / 'audio-mp4-opus-source.mp4', environment, fallback_environment,
-        commands=[('opus-source-edit', ['-c:v', 'libx264', '-c:a', 'copy', '-fps_mode', 'passthrough'])],
+        args, root, opus_edit_source, environment, fallback_environment,
+        commands=[('opus-source-edit', opus_edit_command)], skip={('mkv', 'unselected')},
     ).items():
         unchanged_groups[group].extend(labels)
+    ordinary_opus_edit = edited_opus_matroska(args, tools.ffmpeg, tools.ffprobe, root, opus_edit_source,
+                                              opus_edit_command, fallback_environment)
     summary = dict(native=rows, metadata=metadata_rows, legacy_native_cases=len(legacy_sources),
                    legacy_native_shapes=[label for label, _ in legacy_sources], gop_frames=251,
                    fallback_cases=fallback_cases, default_bytes_unchanged=True,
@@ -716,7 +736,8 @@ def verify(args):
                    source_opus_pcm=dict(cases=sum('source_opus_pcm' in row for row in matroska_rows),
                                         direct_decodes=sum(row.get('source_opus_pcm', {}).get('verification') == 'direct-decode'
                                                            for row in matroska_rows)),
-                   native_matroska=matroska_rows)
+                   native_matroska=matroska_rows,
+                   ordinary_matroska_opus_edit=ordinary_opus_edit)
     (root / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
     print(f'native CLI: {sum(map(len, baseline_groups.values()))} actual-base MP4 byte cases, '
           f'{sum(map(len, unchanged_groups.values()))} default/unselected/external byte cases, '

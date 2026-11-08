@@ -91,6 +91,14 @@ CoreAV's decoded audio is byte-identical to the corresponding prefix of the orac
 
 `iso_opus_keeps_the_declared_edit_end_instead_of_decoding_the_padded_tail` in [`ffmpeg_matroska.rs`](../crates/coreav-cli/tests/ffmpeg_matroska.rs) binds the source's parsed presentation end to 11,520 samples, requires the exact decoded counts and prefix equality, and checks the final packet's `discard_padding=648`. Oracle agreement or a different extra count fails the assertion. The [Matroska writer design](design/mkv-write.md) describes the mapping; this fixture assertion is not a blanket exception for all Matroska copies.
 
+## Opus MP4 to Matroska copy keeps the samples an edit presents before PreSkip
+
+For a generated 0.24-second mono Opus MP4 whose single rate-1 edit is changed to start at media time 0, with `dOps` PreSkip 312 and an edit duration of 11,520 samples at 48 kHz, compare `coreav ffmpeg -i input.mp4 -c copy output.mkv` with `ffmpeg -i input.mp4 -c copy reference.mkv`. CoreAV writes `CodecDelay` 0 and decodes to the edit's 11,520 samples, starting at the first decoded sample. FFmpeg's copy decodes to 11,208 samples: the same window without its first 312 samples.
+
+[Opus in ISOBMFF section 4.3.2](https://opus-codec.org/docs/opus_in_isobmff.html#4.3.2) makes PreSkip informative and leaves whole-playback priming removal to the edit list, and section 4.4 gives the edit's media time as the number of samples to trim. Applying PreSkip on top of the edit trims the start twice. CoreAV uses PreSkip only when the track has no edit list, as its MP4 decoder does ([Opus MP4 presentation](design/opus-mp4-presentation.md)).
+
+`iso_opus_edit_starting_before_preskip_keeps_its_leading_samples` in [`ffmpeg_matroska.rs`](../crates/coreav-cli/tests/ffmpeg_matroska.rs) checks the source's edit and PreSkip before the change, requires the native output to equal the first 11,520 samples of the complete decode, keeps the unchanged media-time-312 control, and requires the oracle copy to equal the native output without its first 312 samples. Oracle agreement or a different offset fails the assertion.
+
 ## MP3 output keeps the original boundary length
 
 For a supported lossless source containing `N` samples per channel, compare `coreav ffmpeg -i input.mp4 output.mp3` with `ffmpeg -i input.mp4 reference.mp3`. Explicit `-c:a libmp3lame` selects the same encoder path. Let `F` be the codec frame length: 1,152 samples at 32, 44.1, and 48 kHz, and 576 at the lower supported rates. When `r = N mod F` is from 1 through 46, the pinned FFmpeg clamps final discard padding and presents `N + 47 - r` samples. CoreAV presents exactly `N`.
