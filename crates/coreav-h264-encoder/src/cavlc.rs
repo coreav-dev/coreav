@@ -23,24 +23,7 @@ pub(crate) struct Cost {
 
 impl Cost {
     pub(crate) fn new(coefficients: &[i32], nc: i32) -> Result<Self> {
-        let mut counter = Bits::count();
-        let total = residual(&mut counter, coefficients, nc)?;
-        let trailing = coefficients
-            .iter()
-            .rev()
-            .filter(|&&level| level != 0)
-            .take(3)
-            .take_while(|level| level.unsigned_abs() == 1)
-            .count();
-        let tokens = TOKENS
-            .get(usize::from(total) * 4 + trailing)
-            .ok_or(Error::Internal)?;
-        let fixed = counter.len - (*tokens.get(column(nc)?).ok_or(Error::Internal)? & 31) as usize;
-        Ok(Self {
-            fixed,
-            token: (usize::from(total) * 4 + trailing) as u8,
-            total,
-        })
+        block(&mut Bits::count(), coefficients, nc)
     }
 
     pub(crate) fn bits(self, nc: i32) -> Result<usize> {
@@ -57,6 +40,10 @@ impl Cost {
 }
 
 pub(crate) fn residual(w: &mut Bits, coefficients: &[i32], nc: i32) -> Result<u8> {
+    Ok(block(w, coefficients, nc)?.total)
+}
+
+fn block(w: &mut Bits, coefficients: &[i32], nc: i32) -> Result<Cost> {
     if !matches!(coefficients.len(), 4 | 15 | 16) {
         return Err(Error::Internal);
     }
@@ -84,9 +71,12 @@ pub(crate) fn residual(w: &mut Bits, coefficients: &[i32], nc: i32) -> Result<u8
         .and_then(|row| row.get(column))
         .ok_or(Error::Internal)?;
     w.code(*token)?;
+    let fixed_start = w.len;
+    let mut signs = 0;
     for &level in values.iter().rev().take(trailing) {
-        w.flag(level < 0)?;
+        signs = (signs << 1) | u64::from(level < 0);
     }
+    w.u(trailing as u32, signs)?;
     let mut suffix = u32::from(total > 10 && trailing < 3);
     for (i, &level) in values.iter().rev().enumerate().skip(trailing) {
         let abs = u64::from(level.unsigned_abs());
@@ -94,28 +84,8 @@ pub(crate) fn residual(w: &mut Bits, coefficients: &[i32], nc: i32) -> Result<u8
         if i == trailing && trailing < 3 {
             code = code.checked_sub(2).ok_or(Error::Syntax)?;
         }
-        let mut found = false;
-        for prefix in 0..=15u32 {
-            let size = if prefix == 14 && suffix == 0 {
-                4
-            } else if prefix == 15 {
-                12
-            } else {
-                suffix
-            };
-            let base =
-                (u64::from(prefix) << suffix) + if prefix == 15 && suffix == 0 { 15 } else { 0 };
-            if code >= base && code - base < 1u64 << size {
-                w.u(prefix, 0)?;
-                w.flag(true)?;
-                w.u(size, code - base)?;
-                found = true;
-                break;
-            }
-        }
-        if !found {
-            return Err(Error::Coefficient);
-        }
+        let (width, value) = level_code(code, suffix)?;
+        w.u(width, value)?;
         suffix = suffix.max(1);
         if suffix < 6 && abs > 3u64 << (suffix - 1) {
             suffix += 1;
@@ -153,13 +123,63 @@ pub(crate) fn residual(w: &mut Bits, coefficients: &[i32], nc: i32) -> Result<u8
             left -= run;
         }
     }
-    Ok(total as u8)
+    Ok(Cost {
+        fixed: w.len - fixed_start,
+        token: (total * 4 + trailing) as u8,
+        total: total as u8,
+    })
+}
+
+fn level_code(code: u64, suffix: u32) -> Result<(u32, u64)> {
+    let (prefix, size, base) = if suffix == 0 {
+        if code < 14 {
+            (code as u32, 0, code)
+        } else if code < 30 {
+            (14, 4, 14)
+        } else {
+            (15, 12, 30)
+        }
+    } else {
+        let prefix = (code >> suffix).min(15) as u32;
+        (
+            prefix,
+            if prefix == 15 { 12 } else { suffix },
+            u64::from(prefix) << suffix,
+        )
+    };
+    let remainder = code - base;
+    if remainder >= 1 << size {
+        return Err(Error::Coefficient);
+    }
+    Ok((prefix + 1 + size, (1 << size) | remainder))
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod cost_tests {
     use super::*;
+
+    #[test]
+    fn direct_level_codes_match_every_prefix_and_escape_boundary() {
+        for suffix in 0..=6 {
+            for code in (0..8192).chain([u32::MAX as u64, u64::MAX >> 1]) {
+                let expected = (0..=15u32).find_map(|prefix| {
+                    let size = if prefix == 14 && suffix == 0 {
+                        4
+                    } else if prefix == 15 {
+                        12
+                    } else {
+                        suffix
+                    };
+                    let base = (u64::from(prefix) << suffix)
+                        + if prefix == 15 && suffix == 0 { 15 } else { 0 };
+                    (code >= base && code - base < 1u64 << size)
+                        .then(|| (prefix + 1 + size, (1 << size) | (code - base)))
+                });
+                assert_eq!(level_code(code, suffix).ok(), expected, "{code}/{suffix}");
+            }
+        }
+    }
 
     #[test]
     fn cached_cost_matches_the_writer_for_every_context_and_residual_shape() {
