@@ -5,12 +5,14 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import flac_concat_ci as checker
+import flac_concat_fixture
 
 
 def packet(number, variable=False, block=32, body=bytes(6)):
@@ -248,6 +250,21 @@ class ScopedProjection(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get('COREAV_CURRENT_CI_ORACLE') == '1', 'needs generated current-CI records')
 class GeneratedRecords(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == 'linux', 'the fixture digest uses the pinned Linux oracle')
+    def test_fixture_generation_is_cpu_independent_and_digest_bound(self):
+        import test_oracle
+        tools = test_oracle.require()
+        with tempfile.TemporaryDirectory() as temporary:
+            for index, (count, flags) in enumerate(((1, 'sse2'), (8, 'ssse3'))):
+                output = Path(temporary) / f'{index}.mp4'
+                command = flac_concat_fixture.command(tools.ffmpeg, output)
+                command[1:1] = ['-cpucount', str(count), '-cpuflags', flags]
+                at = command.index('-c:v')
+                command[at:at] = ['-x264-params', f'asm={flags}']
+                done = subprocess.run(command, capture_output=True, timeout=120, check=False)
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertEqual(hashlib.sha256(output.read_bytes()).hexdigest(), checker.FIXTURE_SHA256)
+
     def test_all_six_flac_concat_variants_keep_the_complete_oracle(self):
         import test_oracle
         tools = test_oracle.require()

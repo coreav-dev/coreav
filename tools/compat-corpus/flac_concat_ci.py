@@ -22,7 +22,7 @@ MAX_PACKET = 16 << 20
 MAX_PACKETS = 1 << 16
 FROZEN = ('scripts/clip_check.py', 'scripts/join_check.py', 'tools/compat-corpus/copy_check.py')
 FIXTURE = 'av_flac.mp4'
-FIXTURE_SHA256 = 'bbee8fc6964fd11386c397cf68238ac77e4695f5ab7dda5eee7ca4801ca17723'
+FIXTURE_SHA256 = 'c52b70aa98caee8e674fd722390dbce2e0640a6e436d9ae2e3c29688049f9de0'
 VARIANTS = (
     ('-f', 'concat', '-i', 'INPUT', '-c', 'copy', 'OUTPUT'),
     ('-f', 'concat', '-safe', '0', '-i', 'INPUT', '-c', 'copy', 'OUTPUT'),

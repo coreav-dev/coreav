@@ -617,7 +617,12 @@ try_gen codec_eac3_stereo.mp4 "${KAUD[@]}" -c:a eac3
 try_gen codec_eac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a eac3
 try_gen codec_flac.mp4 "${KAUD[@]}" -c:a flac -strict -2
 # Video beside each audio codec the clip, split and join writers copy.
-for codec in flac alac ac3 eac3; do
+if python3 -I "$SCRIPTS/flac_concat_fixture.py" "$OUT/av_flac.mp4" 2> "$OUT/av_flac.mp4.log"; then
+  rm -f "$OUT/av_flac.mp4.log"; generated av_flac.mp4
+else
+  rm -f "$OUT/av_flac.mp4"; skip av_flac.mp4 'ffmpeg-failed(see-av_flac.mp4.log)'
+fi
+for codec in alac ac3 eac3; do
   try_gen "av_$codec.mp4" "${SRC[@]}" "${VID[@]}" -c:a "$codec" -strict -2 -shortest
 done
 # The pinned FFmpeg's MP4 muxer refuses libvorbis packets straight from the
