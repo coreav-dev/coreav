@@ -27,7 +27,7 @@ The transcode pipeline uses that entrypoint only for a completed native H.264 Ma
 ## Verification
 
 - Build and retain a separate native binary from the actual pre-change main revision. Compare complete MP4 bytes for the existing metadata, quality, thread, GOP, legacy duration, input, audio-copy and selector axes, with external programs unavailable. Record named cases and counts, not just candidate self-comparisons.
-- Preserve complete default, feature-enabled unselected and external Matroska output bytes against that revision. Retain unsupported-option, WebM, VFR, high-rate and timestamp-collision fallback controls and transactional deadline tests.
+- Preserve complete default, feature-enabled unselected and external Matroska output bytes against that revision. The one exception is the edited Opus source copied beside an external H.264 encode: its default and unselected Matroska outputs must instead decode to the source edit's declared presentation, because the ordinary writer now follows that edit too. Retain unsupported-option, WebM, VFR, high-rate and timestamp-collision fallback controls and transactional deadline tests.
 - Check new Matroska output with an independent EBML parser: DefaultDuration, TimestampScale, block PTS, absence of conflicting BlockDuration, display ratio, codec private data and keyframe flags. Independently parse VUI timing and aspect.
 - Cover integer, NTSC and unusual rational rates, absent and explicit aspects, single pictures, legacy zero durations, source origins, the 250-picture GOP boundary, thread counts and copied audio.
 - Compare complete encoded access units and pinned-oracle reconstruction between same-head MP4 and Matroska. Verify frame counts and timestamp error against the declared quantization.

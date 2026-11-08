@@ -141,20 +141,49 @@ class NativeCli(unittest.TestCase):
             command = ['-c:v', 'libx264', '-c:a', 'copy', '-fps_mode', 'passthrough']
             source = root / 'audio-mp4-opus-source.mp4'
             groups = cli.unchanged_outputs(args, root, source, None, None,
-                                          commands=[('opus-source-edit', command)])
+                                          commands=[('opus-source-edit', command)], containers=('mp4',))
             self.assertEqual(cli.byte_groups(groups), {
-                f'{container}-{mode}': {'count': 1, 'cases': ['opus-source-edit']}
-                for container in ('mp4', 'mkv') for mode in ('unselected', 'default')})
-            for container in ('mp4', 'mkv'):
-                for mode, marker in (('unselected', 'native-decoder'), ('default', 'default-decoder')):
-                    for suffix in ('', '-base'):
-                        output = root / f'opus-source-edit-{mode}{suffix}.{container}'
-                        self.assertEqual(cli.json.loads(output.read_text()),
-                                         [marker, ['ffmpeg', '-i', str(source), *command]])
+                f'mp4-{mode}': {'count': 1, 'cases': ['opus-source-edit']} for mode in ('unselected', 'default')})
+            for mode, marker in (('unselected', 'native-decoder'), ('default', 'default-decoder')):
+                for suffix in ('', '-base'):
+                    output = root / f'opus-source-edit-{mode}{suffix}.mp4'
+                    self.assertEqual(cli.json.loads(output.read_text()),
+                                     [marker, ['ffmpeg', '-i', str(source), *command]])
+                self.assertFalse((root / f'opus-source-edit-{mode}.mkv').exists())
             args.baseline_external = args.baseline_default
             with self.assertRaisesRegex(ValueError, 'actual-base/mp4/opus-source-edit/unselected/whole bytes differs'):
                 cli.unchanged_outputs(args, root, source, None, None,
-                                      commands=[('opus-source-edit', command)])
+                                      commands=[('opus-source-edit', command)], containers=('mp4',))
+
+    def test_ordinary_matroska_opus_copy_must_present_the_source_edit_in_both_build_modes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            source = root / 'audio-mp4-opus-source.mp4'
+            command = ['-c:v', 'libx264', '-c:a', 'copy', '-fps_mode', 'passthrough']
+            args = SimpleNamespace(candidate='candidate', default_candidate='default-candidate')
+            facts = {'declared_samples': 2, 'channels': 1, 'start_samples': 0, 'pre_skip': 312}
+            expected = bytes(8)
+            runs = []
+
+            def decode(_, output, __):
+                return outputs[output.name]
+
+            outputs = {'opus-source-edit-unselected.mkv': expected, 'opus-source-edit-default.mkv': expected}
+            patches = (mock.patch.object(cli, 'opus_source_pcm', return_value=(expected, facts)),
+                       mock.patch.object(cli, 'run', side_effect=lambda command, env: runs.append((command, env))),
+                       mock.patch.object(cli, 'oracle_audio_pcm', side_effect=decode))
+            with patches[0], patches[1], patches[2]:
+                result = cli.edited_opus_matroska(args, 'ffmpeg', 'ffprobe', root, source, command, 'env')
+                self.assertEqual(result, dict(modes=['unselected', 'default'], declared_samples=2,
+                                              start_samples=0, pre_skip=312))
+                self.assertEqual(runs, [([binary, 'ffmpeg', '-i', source, *command,
+                                          root / f'opus-source-edit-{mode}.mkv'], 'env')
+                                        for binary, mode in (('candidate', 'unselected'),
+                                                             ('default-candidate', 'default'))])
+                outputs['opus-source-edit-default.mkv'] = expected[4:]
+                with self.assertRaisesRegex(ValueError, 'ordinary-matroska/opus-source-edit/default: '
+                                                        'copied Opus: original declared sample count differs'):
+                    cli.edited_opus_matroska(args, 'ffmpeg', 'ffprobe', root, source, command, 'env')
 
     def test_opus_source_oracle_uses_original_edit_and_only_zeroes_clone_informative_preskip(self):
         with tempfile.TemporaryDirectory() as directory:
