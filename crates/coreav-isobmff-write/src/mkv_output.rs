@@ -2,6 +2,8 @@
 
 mod config;
 mod source;
+#[cfg(test)]
+mod tests;
 
 use crate::{Replacements, replace};
 use coreav_isobmff::{Limits, Rational, Source};
@@ -19,6 +21,36 @@ pub struct OutputOptions {
     pub doc_type: DocType,
     /// Source stream positions in output order, or all readable tracks.
     pub streams: Option<Vec<usize>>,
+}
+
+/// Explicit constant cadence for one replaced AVC video stream.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VideoCadence {
+    stream_index: usize,
+    default_duration_ns: u64,
+}
+
+impl VideoCadence {
+    /// Round a positive rate of at most 1,000 frames per second to nanoseconds.
+    pub fn new(stream_index: usize, fps_num: u32, fps_den: u32) -> Result<Self, Error> {
+        if fps_num == 0 || fps_den == 0 || u128::from(fps_num) > 1_000 * u128::from(fps_den) {
+            return Err(unsupported(
+                "video cadence needs a positive rate at most 1000 fps",
+            ));
+        }
+        let numerator = u128::from(fps_den)
+            .checked_mul(1_000_000_000)
+            .and_then(|n| n.checked_add(u128::from(fps_num) / 2))
+            .ok_or_else(|| unsupported("video cadence exceeds nanosecond limits"))?;
+        let default_duration_ns = u64::try_from(numerator / u128::from(fps_num))
+            .ok()
+            .filter(|n| *n > 0)
+            .ok_or_else(|| unsupported("video cadence exceeds nanosecond limits"))?;
+        Ok(Self {
+            stream_index,
+            default_duration_ns,
+        })
+    }
 }
 
 /// One written track.
@@ -111,11 +143,45 @@ pub fn copied_audio<S: Source>(source: &mut S, streams: &[usize]) -> Result<(), 
 /// Plans selected tracks and replacements, then streams their payloads to
 /// the output. Media stays in its original source or encoder spool.
 pub fn write_output<S: Source, R: Source, W: Write>(
+    source: S,
+    options: &OutputOptions,
+    limits: &Limits,
+    mkv_limits: &coreav_mkv::Limits,
+    replacements: Replacements<'_, R>,
+    out: W,
+) -> Result<OutputSummary, Error> {
+    write_output_inner(source, options, limits, mkv_limits, replacements, None, out)
+}
+
+/// Writes one replaced AVC stream with caller-established constant cadence.
+/// Copied ISO Opus follows its source edit rather than its informative pre-skip.
+pub fn write_output_with_video_cadence<S: Source, R: Source, W: Write>(
+    source: S,
+    options: &OutputOptions,
+    limits: &Limits,
+    mkv_limits: &coreav_mkv::Limits,
+    replacements: Replacements<'_, R>,
+    cadence: VideoCadence,
+    out: W,
+) -> Result<OutputSummary, Error> {
+    write_output_inner(
+        source,
+        options,
+        limits,
+        mkv_limits,
+        replacements,
+        Some(cadence),
+        out,
+    )
+}
+
+fn write_output_inner<S: Source, R: Source, W: Write>(
     mut source: S,
     options: &OutputOptions,
     limits: &Limits,
     mkv_limits: &coreav_mkv::Limits,
     mut replacements: Replacements<'_, R>,
+    video_cadence: Option<VideoCadence>,
     out: W,
 ) -> Result<OutputSummary, Error> {
     if options
@@ -130,7 +196,18 @@ pub fn write_output<S: Source, R: Source, W: Write>(
         limit: mkv_limits.max_retained_bytes,
     };
     if let Some(v) = &mut replacements.video {
-        replace::validate(v, limits).map_err(iso)?;
+        let codec = replace::validate(v, limits).map_err(iso)?;
+        if let Some(cadence) = video_cadence
+            && (cadence.stream_index != v.stream_index
+                || codec != replace::EntryCodec::H264
+                || options.doc_type != DocType::Matroska)
+        {
+            return Err(unsupported(
+                "video cadence needs its selected AVC replacement in Matroska",
+            ));
+        }
+    } else if video_cadence.is_some() {
+        return Err(unsupported("video cadence needs an AVC replacement"));
     }
     if let Some(a) = &mut replacements.audio {
         replace::validate_audio(a, limits).map_err(iso)?;
@@ -163,7 +240,10 @@ pub fn write_output<S: Source, R: Source, W: Write>(
     } else {
         source::isobmff(
             &mut source,
-            options,
+            source::IsoOptions {
+                output: options,
+                preserve_opus_edit: video_cadence.is_some(),
+            },
             limits,
             mkv_limits,
             &replacement_headers,
@@ -205,7 +285,22 @@ pub fn write_output<S: Source, R: Source, W: Write>(
                     .checked_add(u64::from(sample.size))
                     .ok_or_else(overflow)?;
             }
-            cadence(t);
+            if let Some(cadence) = video_cadence {
+                if t.packets.windows(2).any(|w| match w {
+                    [a, b] => a.packet.pts_ns >= b.packet.pts_ns,
+                    _ => true,
+                }) {
+                    return Err(unsupported(
+                        "video cadence needs increasing millisecond timestamps",
+                    ));
+                }
+                t.header.default_duration_ns = Some(cadence.default_duration_ns);
+                for packet in &mut t.packets {
+                    packet.packet.duration_ns = None;
+                }
+            } else {
+                cadence(t);
+            }
             t.prefix.clear();
             t.replaced = true;
         }

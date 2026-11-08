@@ -2,6 +2,7 @@
 """Generated CLI encoding, unchanged defaults, and exact external fallback."""
 import argparse
 from fractions import Fraction
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import h264_crf_conformance as crf
 import h264_p_conformance as syntax
+import native_h264_matroska as matroska
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 import test_oracle
 import track_boxes
 
@@ -27,6 +30,130 @@ def run(argv, *, env=None, success=True):
 def same(actual, expected, label):
     if actual != expected:
         raise ValueError(f'{label} differs')
+
+
+def native_pair(candidate, baseline, command, *, env, group, label, groups):
+    output = Path(command[-1])
+    previous = output.with_name(output.stem + '.baseline' + output.suffix)
+    for executable, destination in ((candidate, output), (baseline, previous)):
+        try:
+            run([executable, '--native-h264-encoder', 'ffmpeg', *command[:-1], destination], env=env)
+        except ValueError as error:
+            raise ValueError(f'actual-base/{group}/{label}: {error}') from error
+    same(output.read_bytes(), previous.read_bytes(), f'actual-base/{group}/{label}/whole MP4 bytes')
+    groups.setdefault(group, []).append(label)
+
+
+def byte_groups(groups):
+    return {name: dict(count=len(labels), cases=labels) for name, labels in groups.items()}
+
+
+def deterministic_fallback(ffmpeg, directory):
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / 'ffmpeg'
+    path.write_text(f'#!{sys.executable}\nimport os, sys\n'
+                    f'os.execv({str(ffmpeg)!r}, [{str(ffmpeg)!r}, *sys.argv[1:-1], '
+                    '"-fflags", "+bitexact", sys.argv[-1]])\n')
+    path.chmod(0o755)
+    return path
+
+
+def require_fallback_success(status, contents, label):
+    if status != 0 or contents == b'preserved destination':
+        raise ValueError(f'fallback/{label}/expected successful oracle output replacing destination')
+
+
+def oracle_rates(stream, rate, common):
+    reported = {field: Fraction(stream[field]) for field in ('r_frame_rate', 'avg_frame_rate')}
+    interpretation = 'nominal-frame-rate'
+    for field, value in reported.items():
+        if common:
+            same(value, rate, f'oracle common-rate {field}')
+        if (not common and field == 'r_frame_rate' and rate == Fraction(29, 7)
+                and value == Fraction(58, 7) and reported['avg_frame_rate'] == rate):
+            interpretation = 'known-29/7-sps-field-clock'
+            continue
+        if value <= 0 or abs(1 / value - 1 / rate) > Fraction(1, 1_000_000_000):
+            raise ValueError(f'oracle {field} nominal period exceeds one-nanosecond bound')
+    return dict(oracle_r_frame_rate=stream['r_frame_rate'],
+                oracle_avg_frame_rate=stream['avg_frame_rate'], oracle_rate_interpretation=interpretation)
+
+
+def unchanged_outputs(args, root, source_path, environment, fallback_environment, *, commands=None):
+    if commands is None:
+        commands = [('default-copy', ['-c', 'copy']),
+                    ('external', ['-an', '-c:v', 'libx264', '-crf', '23'])]
+    groups = {}
+    for container in ('mp4', 'mkv'):
+        for label, command in commands:
+            for mode, candidate, baseline in (
+                ('unselected', args.candidate, args.baseline_external),
+                ('default', args.default_candidate, args.baseline_default),
+            ):
+                previous = root / f'{label}-{mode}-base.{container}'
+                current = root / f'{label}-{mode}.{container}'
+                selected_environment = fallback_environment if container == 'mkv' else environment
+                for binary, output in ((baseline, previous), (candidate, current)):
+                    run([binary, 'ffmpeg', '-i', source_path, *command, output], env=selected_environment)
+                same(current.read_bytes(), previous.read_bytes(),
+                     f'actual-base/{container}/{label}/{mode}/whole bytes')
+                groups.setdefault(f'{container}-{mode}', []).append(label)
+    return groups
+
+
+def copied_audio_sources(root, ffmpeg, video30, video25):
+    sources = []
+    for label, container, encoder, rate, offset in [
+        ('audio-copy', 'mp4', 'aac', 30, '0'),
+        ('audio-mp4-mp3', 'mp4', 'libmp3lame', 30, '0'),
+        ('audio-mp4-opus', 'mp4', 'libopus', 30, '0'),
+        ('audio-mkv-aac', 'mkv', 'aac', 25, '0'),
+        ('audio-mkv-opus', 'mkv', 'libopus', 25, '0'),
+        ('audio-offset', 'mp4', 'aac', 30, '0.04'),
+        ('video-offset', 'mp4', 'aac', 30, '-0.04'),
+    ]:
+        path = root / f'{label}-source.{container}'
+        run([ffmpeg, '-v', 'error', '-i', video25 if rate == 25 else video30, '-itsoffset', offset,
+             '-f', 'lavfi', '-i', 'sine=frequency=997:sample_rate=48000:duration=0.16',
+             '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', encoder,
+             '-avoid_negative_ts', 'make_non_negative', path])
+        sources.append((label, path, Fraction(rate)))
+    return sources
+
+
+def oracle_audio_pcm(ffmpeg, source, output, *, input_options=()):
+    run([ffmpeg, '-v', 'error', '-xerror', *input_options, *AUDIO_DECODE_INPUT, '-i', source,
+         '-map', '0:a:0', '-vn', '-c:a', 'pcm_f32le', '-f', 'f32le', output])
+    return output.read_bytes()
+
+
+def opus_source_pcm(source, prefix, ffmpeg, ffprobe):
+    original = source.read_bytes()
+    if source.suffix == '.mp4':
+        facts = matroska.opus_mp4_source(source)
+        decoder_input = prefix.with_suffix('.oracle-only.mp4')
+        decoder_input.write_bytes(facts.pop('clone'))
+        input_options = ['-ignore_editlist', '1']
+        method = 'original-mp4-edit-over-zero-preskip-unedited-decode'
+    else:
+        facts = matroska.opus_matroska_source(original)
+        decoder_input, input_options = source, []
+        method = 'original-matroska-declared-presentation'
+        readback = json.loads(run([ffprobe, '-v', 'error', '-select_streams', 'a:0',
+                                   '-show_streams', '-show_packets', '-of', 'json', source]).stdout)
+        stream, = readback['streams']
+        same(len(readback['packets']), len(facts['packet_sha256']), 'source Opus: complete oracle packet readback')
+        facts['reported_pts'] = [str(Fraction(packet['pts']) * Fraction(stream['time_base']))
+                                 for packet in readback['packets']]
+    decoded = prefix.with_suffix('.source.f32le')
+    pcm = oracle_audio_pcm(ffmpeg, decoder_input, decoded, input_options=input_options)
+    facts['oracle_decoded_samples'] = len(pcm) // (facts['channels'] * 4)
+    expected = matroska.opus_presentation_slice(pcm, facts) if source.suffix == '.mp4' else pcm
+    matroska.compare_opus_pcm(expected, expected, facts)
+    same(source.read_bytes(), original, 'source Opus: original input bytes remain unchanged')
+    facts['reference_method'] = method
+    facts['expected_pcm_sha256'] = hashlib.sha256(expected).hexdigest()
+    return expected, facts
 
 
 def annexb_units(data):
@@ -120,6 +247,140 @@ def sps_metadata(nal):
     return Fraction(scale, 2 * tick), aspect
 
 
+def matroska_matrix(args, tools, root, source, native, native_only, source_path,
+                    legacy_sources, gop_source):
+    cases = []
+    for index, (rate, sar) in enumerate([
+        ('25', None), ('30', '1/1'), ('24000/1001', '12/11'), ('30000/1001', '16/15'),
+        ('25/2', '4/3'), ('1000/33', '40/33'), ('60000/1001', '17/13'),
+        ('29/7', '65535/65534'), ('1000', None),
+    ]):
+        extra = ('-vf', f'setsar={sar}:max=65535') if sar else ()
+        path = source(f'mkv-rate-{index}', rate=rate, extra=extra)
+        for mode, quality in (('crf', 23), ('qp', 28)):
+            cases.append((f'rate-{index}-{mode}', path, Fraction(rate), Fraction(sar or 1),
+                          18, 34, 4, ['-an', f'-{mode}', quality], index < 4))
+    for mode, quality in [('crf', 10), ('crf', 23), ('crf', 51), ('qp', 10), ('qp', 28), ('qp', 51)]:
+        cases.append((f'quality-{mode}-{quality}', source_path, Fraction(30), Fraction(1),
+                      18, 34, 4, ['-an', f'-{mode}', quality], True))
+    for label, path in legacy_sources:
+        cases.append((f'legacy-{label}', path, Fraction(30), Fraction(1), 18, 34,
+                      1 if label == 'one-zero-duration' else 4, ['-an'], True))
+    for rate, sar in [('30000/1001', '16/15'), ('25', '17/13')]:
+        path = source(f'mkv-single-{len(cases)}', rate=rate, frames=1,
+                      extra=('-vf', f'setsar={sar}:max=65535'))
+        cases.append((f'single-{len(cases)}', path, Fraction(rate), Fraction(sar),
+                      18, 34, 1, ['-an'], True))
+    cases.append(('gop-251', gop_source, Fraction(30), Fraction(1), 16, 16, 251, ['-an'], True))
+
+    mkv_source = root / 'admitted-input.mkv'
+    video25 = source('admitted-input-25', rate='25')
+    run([tools.ffmpeg, '-v', 'error', '-i', video25, '-c', 'copy', '-fflags', '+bitexact', mkv_source])
+    origin = source('source-origin', extra=('-output_ts_offset', '2'))
+    audio_sources = copied_audio_sources(root, tools.ffmpeg, source_path, video25)
+    opus_sources = {path: opus_source_pcm(path, root / f'original-{label}', tools.ffmpeg, tools.ffprobe)
+                    for label, path, _ in audio_sources if label.endswith('-opus')}
+    axes = [
+        ('matroska-input', mkv_source, Fraction(25), ['-an']),
+        ('source-origin', origin, Fraction(30), ['-an', '-fps_mode', 'passthrough']),
+        ('mapped-video', source_path, Fraction(30), ['-map', '0:v:0', '-an']),
+        ('remove-readd-map', source_path, Fraction(30), ['-map', '0', '-map', '-0:v', '-map', '0:v:0', '-an']),
+        ('explicit-pixel-format', source_path, Fraction(30), ['-an', '-pix_fmt', 'yuv420p']),
+    ]
+    for label, path, rate in audio_sources:
+        axes.append((label, path, rate, ['-c:a', 'copy', '-fps_mode', 'passthrough']))
+    axes.append(('mapped-audio-copy', audio_sources[0][1], Fraction(30),
+                 ['-map', '0:v:0', '-map', '0:a:0', '-c:a', 'copy', '-fps_mode', 'passthrough']))
+    for label, path, rate, extra in axes:
+        native(['-i', path, '-c:v:0', 'libx264', *extra, root / f'axis-{label}.mp4'], 'source-audio-selection', label)
+        cases.append((f'axis-{label}', path, rate, Fraction(1), 18, 34, 4, extra, True))
+
+    def probe(path, selection='v:0', hashes=False):
+        return json.loads(run([tools.ffprobe, '-v', 'error', '-select_streams', selection,
+                               '-show_streams', '-show_packets',
+                               *(['-show_data_hash', 'sha256'] if hashes else []),
+                               '-of', 'json', path]).stdout)
+
+    rows = []
+    for label, path, rate, sar, width, height, frames, extra, common in cases:
+        identity = None
+        opus_reference = opus_sources.get(path)
+        for threads in ('1', '2', '8', '0', 'auto'):
+            case = f'matroska/{label}/threads-{threads}'
+            peer = root / f'mkv-{label}-{threads}.mp4'
+            command = ['-i', path, '-c:v', 'libx264', *extra, '-threads', threads]
+            native([*command, peer], 'matroska-peer', f'{label}-threads-{threads}')
+            output = peer.with_suffix('.mkv')
+            try:
+                run([args.candidate, '--native-h264-encoder', 'ffmpeg', *command, output], env=native_only)
+                contents = output.read_bytes()
+                if identity is not None:
+                    same(contents, identity, 'complete thread-independent Matroska bytes')
+                identity = contents
+                info = probe(peer)
+                stream, = info['streams']
+                times = [Fraction(p['pts']) * Fraction(stream['time_base']) for p in info['packets']]
+                same(len(times), frames, 'same-head MP4 frame count')
+                same([time - times[0] for time in times], [Fraction(i) / rate for i in range(frames)],
+                     'same-head MP4 exact cadence')
+                independent = matroska.validate(contents, rate=rate, sar=sar, width=width, height=height,
+                                                times=times, sps_reader=sps_metadata, mp4=matroska.mp4_video(peer))
+                same([i for i, p in enumerate(independent['packets']) if p['key']],
+                     list(range(0, frames, 250)), '250-picture keyframe interval')
+                stored = probe(output)
+                stored_stream, = stored['streams']
+                same(len(stored['packets']), frames, 'oracle Matroska frame count')
+                same(Fraction(stored_stream['sample_aspect_ratio'].replace(':', '/')), sar,
+                     'oracle Matroska sample aspect')
+                same(Fraction(stored_stream['display_aspect_ratio'].replace(':', '/')),
+                     Fraction(width, height) * sar, 'oracle Matroska display aspect')
+                same([Fraction(p['pts']) * Fraction(stored_stream['time_base']) for p in stored['packets']],
+                     [Fraction(p['pts'], 1000) for p in independent['packets']], 'oracle and EBML presentation clock')
+                readback = oracle_rates(stored_stream, rate, common)
+                if threads == '1':
+                    decoded = []
+                    for container in (peer, output):
+                        destination = container.with_suffix(container.suffix + '.decoded.yuv')
+                        run([tools.ffmpeg, '-v', 'error', '-xerror', '-i', container, '-an',
+                             '-pix_fmt', 'yuv420p', '-fps_mode', 'passthrough', '-f', 'rawvideo', destination])
+                        decoded.append(destination.read_bytes())
+                    same(*decoded, 'same-head full pinned-decoder reconstruction')
+                    same(len(decoded[0]), frames * width * height * 3 // 2, 'complete decoded picture bytes')
+                    own = output.with_suffix('.own.yuv')
+                    run([args.candidate, 'ffmpeg', '-i', output, '-an', '-c:v', 'rawvideo',
+                         '-pix_fmt', 'yuv420p', '-f', 'rawvideo', own], env=native_only)
+                    same(own.read_bytes(), decoded[0], 'complete native Matroska decoder reconstruction')
+                    audio = [probe(container, 'a:0', True) for container in (peer, output)]
+                    same([p['data_hash'] for p in audio[0]['packets']],
+                         [p['data_hash'] for p in audio[1]['packets']], 'copied audio complete packet bytes')
+                    if audio[0]['packets']:
+                        clocks = [[Fraction(p['pts']) * Fraction(info['streams'][0]['time_base'])
+                                   for p in info['packets']] for info in audio]
+                        if opus_reference and path.suffix == '.mkv':
+                            matroska.compare_opus_matroska_timeline(matroska.opus_matroska_source(contents),
+                                                                  clocks[1], opus_reference[1])
+                        else:
+                            expected_clocks = opus_reference[1]['clocks'] if opus_reference else clocks[0]
+                            same(clocks[1], [Fraction(matroska.round_timestamp(t * 1000), 1000) for t in expected_clocks],
+                                 'copied audio original-source rounded PTS' if opus_reference else 'copied audio absolute rounded PTS')
+                    if opus_reference:
+                        expected_pcm, facts = opus_reference
+                        same([p['data_hash'].split(':', 1)[1] for p in audio[1]['packets']],
+                             facts['packet_sha256'], 'copied Opus complete original-source packet bytes')
+                        actual_pcm = output.with_suffix('.opus.f32le')
+                        matroska.compare_opus_pcm(oracle_audio_pcm(tools.ffmpeg, output, actual_pcm), expected_pcm, facts)
+                opus_proof = {}
+                if opus_reference:
+                    facts = opus_reference[1]
+                    opus_proof['source_opus_pcm'] = {key: value for key, value in facts.items() if key != 'clocks'}
+                    opus_proof['source_opus_pcm']['verification'] = 'direct-decode' if threads == '1' else 'complete-thread-byte-identity'
+                rows.append(dict(case=label, threads=threads, frames=frames, rate=str(rate), sar=str(sar),
+                                 default_duration_ns=independent['duration'], common_rate=common, **readback, **opus_proof))
+            except (ValueError, KeyError, StopIteration) as error:
+                raise ValueError(f'{case}: {error}') from error
+    return rows
+
+
 def verify(args):
     tools = test_oracle.require(args.ffmpeg, args.ffmpeg.with_name('ffprobe'))
     root = args.output.resolve()
@@ -128,7 +389,13 @@ def verify(args):
                    'COREAV_FFMPEG': str(tools.ffmpeg), 'COREAV_FALLBACK': str(tools.ffmpeg),
                    'COREAV_STRICT_SAFE': '0'}
     native_only = {**environment, 'COREAV_FFMPEG': '/nonexistent/native-cli-ffmpeg',
-                   'COREAV_FALLBACK': '/nonexistent/native-cli-fallback'}
+                   'COREAV_FALLBACK': '/nonexistent/native-cli-fallback',
+                   'PATH': '/nonexistent/native-cli-path'}
+    baseline_groups = {}
+
+    def native(command, group, label):
+        native_pair(args.candidate, args.baseline_native, command, env=native_only,
+                    group=group, label=label, groups=baseline_groups)
 
     def source(name, width=18, height=34, rate='30', extra=(), frames=4, raw=None):
         path = root / f'{name}.mp4'
@@ -147,6 +414,9 @@ def verify(args):
     source_info = json.loads(run([tools.ffprobe, '-v', 'error', '-show_streams', '-of', 'json', source_path]).stdout)['streams'][0]
     same([source_info.get(key) for key in ('color_space', 'color_transfer', 'color_primaries')],
          ['bt709'] * 3, 'generated BT.709 source metadata')
+    fallback_environment = {**environment, 'COREAV_FALLBACK': str(deterministic_fallback(
+        tools.ffmpeg, root / 'deterministic-fallback'))}
+    unchanged_groups = unchanged_outputs(args, root, source_path, environment, fallback_environment)
     raw = root / 'decoded-source.yuv'
     run([tools.ffmpeg, '-v', 'error', '-i', source_path, '-an', '-pix_fmt', 'yuv420p', '-f', 'rawvideo', raw])
     rows = []
@@ -162,7 +432,7 @@ def verify(args):
             output = root / f'native-{mode}-{quality}-{threads}.{container}'
             command = ['-i', source_path, '-an', '-c:v', 'libx264', f'-{mode}', quality,
                        '-threads', threads, output]
-            run([args.candidate, '--native-h264-encoder', 'ffmpeg', *command], env=native_only)
+            native(command, 'quality-and-threads', f'{mode}-{quality}-threads-{threads}')
             if identity is None:
                 identity = output.read_bytes()
             else:
@@ -220,8 +490,8 @@ def verify(args):
             identity = None
             for threads in ('1', '2', '8', '0', 'auto'):
                 output = root / f'metadata-{index}-{mode}-{threads}.mp4'
-                run([args.candidate, '--native-h264-encoder', 'ffmpeg', '-i', path, '-an',
-                     '-c:v', 'libx264', f'-{mode}', quality, '-threads', threads, output], env=native_only)
+                native(['-i', path, '-an', '-c:v', 'libx264', f'-{mode}', quality,
+                        '-threads', threads, output], 'metadata-and-threads', f'{index}-{mode}-threads-{threads}')
                 if identity is not None:
                     same(output.read_bytes(), identity, 'metadata thread-independent complete output')
                     continue
@@ -276,20 +546,13 @@ def verify(args):
     final_zero.write_bytes(terminal_duration(source_path.read_bytes(), 0))
     legacy_sources.extend([('one-zero-duration', one_zero), ('final-zero-duration', final_zero)])
     for label, path in legacy_sources:
-        previous = []
-        for index, executable in enumerate((args.baseline_native, args.candidate)):
-            output = root / f'legacy-{label}-{index}.mp4'
-            run([executable, '--native-h264-encoder', 'ffmpeg', '-i', path, '-an', '-c:v', 'libx264', output], env=native_only)
-            previous.append(output.read_bytes())
-        same(*previous, f'unchanged previously eligible {label} bytes')
-    print('native base comparisons: ' + ', '.join(label for label, _ in legacy_sources))
+        native(['-i', path, '-an', '-c:v', 'libx264', root / f'legacy-{label}.mp4'], 'legacy', label)
 
     flat = root / 'gop.yuv'
     flat.write_bytes(bytes([128]) * (384 * 251))
     gop_source = source('gop', width=16, height=16, frames=251, raw=flat)
     gop_output = root / 'gop-native.mp4'
-    run([args.candidate, '--native-h264-encoder', 'ffmpeg', '-i', gop_source,
-         '-an', '-c:v', 'libx264', gop_output], env=native_only)
+    native(['-i', gop_source, '-an', '-c:v', 'libx264', gop_output], 'gop', '251-pictures')
     gop_packets = json.loads(run([tools.ffprobe, '-v', 'error', '-show_packets', '-of', 'json', gop_output]).stdout)['packets']
     same(len(gop_packets), 251, 'default-quality GOP picture count')
     same([i for i,p in enumerate(gop_packets) if 'K' in p['flags']], [0, 250], 'native IDR interval')
@@ -298,8 +561,20 @@ def verify(args):
     same(gop_decoded.stat().st_size, 251 * 384, 'complete GOP decode')
 
     fallback_cases = []
+    fallback_results = []
 
     def compare(source_path, extra, label, container='mp4'):
+        comparison_environment = fallback_environment if container in ('mkv', 'webm') else environment
+        if container in ('mkv', 'webm'):
+            destination = root / f'excluded-{label}.{container}'
+            destination.write_bytes(b'preserved destination')
+            before = {path.name for path in root.iterdir()}
+            result = run([args.candidate, '--native-h264-encoder', 'ffmpeg', '-y', '-i', source_path,
+                          '-an', '-c:v', 'libx264', *extra, destination], env=native_only, success=False)
+            if result.returncode == 0:
+                raise ValueError(f'excluded/{label}/native-only unexpectedly succeeded')
+            same(destination.read_bytes(), b'preserved destination', f'excluded/{label}/destination preservation')
+            same({path.name for path in root.iterdir()}, before, f'excluded/{label}/staging cleanup')
         outputs = []
         statuses = []
         for selected in (False, True):
@@ -307,12 +582,31 @@ def verify(args):
             output.write_bytes(b'preserved destination')
             command = [args.candidate, *(['--native-h264-encoder'] if selected else []),
                        'ffmpeg', '-y', '-i', source_path, '-an', '-c:v', 'libx264', *extra, output]
-            result = run(command, env=environment, success=False)
+            result = run(command, env=comparison_environment, success=False)
             statuses.append(result.returncode)
             outputs.append(output.read_bytes())
-        same(statuses[1], statuses[0], 'fallback exit status')
+        same(statuses[1], statuses[0], f'fallback/{label}/exit status')
         same(outputs[1], outputs[0], f'complete fallback bytes ({label})')
+        required_success = label in ('unsupported-matroska-option', 'matroska-high-rate', 'matroska-rounded-collision')
+        if required_success:
+            for mode, status, contents in zip(('unselected', 'selected'), statuses, outputs):
+                require_fallback_success(status, contents, f'{label}/{mode}')
+        receipt = dict(case=label, container=container, candidate_unselected=statuses[0],
+                       candidate_selected=statuses[1], output_replaced=outputs[0] != b'preserved destination')
+        for name, binary, selected in [('external-base', args.baseline_external, False),
+                                       ('native-base', args.baseline_native, True)]:
+            output = root / f'fallback-{label}-{name}.{container}'
+            output.write_bytes(b'preserved destination')
+            result = run([binary, *(['--native-h264-encoder'] if selected else []), 'ffmpeg',
+                          '-y', '-i', source_path, '-an', '-c:v', 'libx264', *extra, output],
+                         env=comparison_environment, success=False)
+            same(result.returncode, statuses[0], f'actual-base/fallback/{label}/{name}/status')
+            same(output.read_bytes(), outputs[0], f'actual-base/fallback/{label}/{name}/whole bytes')
+            if required_success:
+                require_fallback_success(result.returncode, output.read_bytes(), f'{label}/{name}')
+            receipt[name] = result.returncode
         fallback_cases.append(label)
+        fallback_results.append(receipt)
 
     options = [('-profile:v', 'high'), ('-profile:v', 'baseline'), ('-bf', '2'),
                ('-b:v', '100k'), ('-maxrate', '100k', '-bufsize', '200k'),
@@ -322,7 +616,13 @@ def verify(args):
                ('-x264-params', 'cabac=1'), ('-vf', 'scale=32:32'), ('-s', '32x32')]
     for index, extra in enumerate(options):
         compare(source_path, extra, f'option-{index}')
-    compare(source_path, (), 'matroska', 'mkv')
+    compare(source_path, ('-map', '0:v:0?'), 'optional-map')
+    compare(source_path, ('-bf', '2'), 'unsupported-matroska-option', 'mkv')
+    compare(source_path, (), 'webm', 'webm')
+    high_rate = source('high-rate', rate='1001')
+    compare(high_rate, (), 'matroska-high-rate', 'mkv')
+    collision = source('rounded-collision', rate='2000', frames=4)
+    compare(collision, (), 'matroska-rounded-collision', 'mkv')
     for name, parameters in [('small', dict(width=14, height=16)),
                              ('wide', dict(width=1922, height=16, frames=1)),
                              ('tall', dict(width=16, height=1082, frames=1)),
@@ -337,6 +637,7 @@ def verify(args):
                                               '-fps_mode', 'passthrough'))
     compare(variable, ('-fps_mode', 'passthrough'), 'variable-rate')
     compare(variable, (), 'variable-native-clock')
+    compare(variable, (), 'matroska-variable-clock', 'mkv')
     rounded = source('rounded-clock', rate='30000/1001', extra=('-video_track_timescale', '1000'))
     compare(rounded, (), 'rounded-clock')
     for label, parameters in [
@@ -395,31 +696,41 @@ def verify(args):
     same({path.name for path in root.iterdir()}, before, 'late-refusal staging cleanup')
     compare(late, ('-qp', '10'), 'late-coding-limit')
 
-    for label, binary, command in [
-        ('default-copy', args.baseline_default, ['-c', 'copy']),
-        ('external', args.baseline_external, ['-an', '-c:v', 'libx264', '-crf', '23']),
-    ]:
-        outputs = []
-        for index, executable in enumerate((binary, args.candidate)):
-            output = root / f'{label}-{index}.mp4'
-            run([executable, 'ffmpeg', '-i', source_path, *command, output], env=environment)
-            outputs.append(output.read_bytes())
-        same(*outputs, f'unchanged {label} bytes')
-        if label == 'default-copy':
-            output = root / 'default-current.mp4'
-            run([args.default_candidate, 'ffmpeg', '-i', source_path, *command, output], env=environment)
-            same(output.read_bytes(), outputs[0], 'default-build bytes against base')
-
-    (root / 'summary.json').write_text(json.dumps(dict(native=rows, metadata=metadata_rows, legacy_native_cases=len(legacy_sources), legacy_native_shapes=[label for label, _ in legacy_sources], gop_frames=251, fallback_cases=fallback_cases,
-                                                     default_bytes_unchanged=True), indent=2) + '\n')
-    print(f'native CLI: {len(rows)} conformance cases, {len(metadata_rows)} exact rate/SAR cases, thread identity, fallback and default byte checks passed')
+    matroska_rows = matroska_matrix(args, tools, root, source, native, native_only,
+                                    source_path, legacy_sources, gop_source)
+    for group, labels in unchanged_outputs(
+        args, root, root / 'audio-mp4-opus-source.mp4', environment, fallback_environment,
+        commands=[('opus-source-edit', ['-c:v', 'libx264', '-c:a', 'copy', '-fps_mode', 'passthrough'])],
+    ).items():
+        unchanged_groups[group].extend(labels)
+    summary = dict(native=rows, metadata=metadata_rows, legacy_native_cases=len(legacy_sources),
+                   legacy_native_shapes=[label for label, _ in legacy_sources], gop_frames=251,
+                   fallback_cases=fallback_cases, default_bytes_unchanged=True,
+                   fallback_results=fallback_results,
+                   baseline_revision=args.baseline_revision,
+                   actual_base_mp4_whole_bytes=byte_groups(baseline_groups),
+                   actual_base_default_unselected_external_whole_bytes=byte_groups(unchanged_groups),
+                   actual_base_fallback_whole_bytes=dict(count=len(fallback_cases) * 2, cases=fallback_cases),
+                   matroska_fallback_oracle_output_flags=['-fflags', '+bitexact'],
+                   matroska_fallback_oracle_contexts=['excluded-controls', 'default-unselected-external-byte-comparisons'],
+                   source_opus_pcm=dict(cases=sum('source_opus_pcm' in row for row in matroska_rows),
+                                        direct_decodes=sum(row.get('source_opus_pcm', {}).get('verification') == 'direct-decode'
+                                                           for row in matroska_rows)),
+                   native_matroska=matroska_rows)
+    (root / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+    print(f'native CLI: {sum(map(len, baseline_groups.values()))} actual-base MP4 byte cases, '
+          f'{sum(map(len, unchanged_groups.values()))} default/unselected/external byte cases, '
+          f'{len(matroska_rows)} native Matroska cases; named groups in summary.json')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('candidate', 'default-candidate', 'baseline-default', 'baseline-external', 'baseline-native', 'driver', 'ffmpeg', 'output'):
         parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--baseline-revision', required=True)
     args = parser.parse_args()
+    if not re.fullmatch('[0-9a-f]{40}', args.baseline_revision):
+        parser.error('--baseline-revision must be the full SHA of the checkout used to build the baseline binaries')
     for name in ('candidate', 'default_candidate', 'baseline_default', 'baseline_external', 'baseline_native', 'driver', 'ffmpeg'):
         setattr(args, name, getattr(args, name).resolve())
     verify(args)

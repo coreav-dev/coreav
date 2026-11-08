@@ -21,7 +21,7 @@ fn candidate(args: &[String]) -> Option<(Command, NativeH264)> {
     let (command, qp) = super::args::native_h264(args).ok()?;
     let encoding = &command.encoding;
     if !command.more_inputs.is_empty()
-        || command.muxer != Muxer::Mp4
+        || !matches!(command.muxer, Muxer::Mp4 | Muxer::Matroska)
         || !command.codecs.iter().any(|(spec, codec)| {
             *codec == Codec::Libx264 && matches!(spec, Spec::Kind(Kind2::Video, None | Some(0)))
         })
@@ -206,6 +206,24 @@ mod tests {
             candidate(&args("")).map(|(_, n)| n.rate),
             Some(RateMode::Crf(23))
         );
+    }
+
+    #[test]
+    fn matroska_selection_keeps_arguments_and_excludes_webm() {
+        for suffix in ["out.mp4", "out.mkv", "-f matroska out.bin"] {
+            let args: Vec<String> = format!("-i in.mp4 -an -c:v libx264 -crf 23 {suffix}")
+                .split_whitespace()
+                .map(str::to_owned)
+                .collect();
+            let before = args.clone();
+            assert!(candidate(&args).is_some(), "{suffix}");
+            assert_eq!(args, before);
+        }
+        let webm: Vec<String> = "-i in.mp4 -an -c:v libx264 out.webm"
+            .split_whitespace()
+            .map(str::to_owned)
+            .collect();
+        assert!(candidate(&webm).is_none());
     }
 
     #[test]
