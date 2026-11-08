@@ -1,97 +1,100 @@
-name: hevc-reference
-run-name: HEVC reference ${{ inputs.candidate }}
+name: hevc-loop-ceiling
+run-name: HEVC loop ceiling ${{ inputs.baseline }}
 # workflow-check: not required
 
 on:
   workflow_dispatch:
     inputs:
-      candidate:
-        description: Exact decoder commit
+      baseline:
+        description: Exact main commit
         required: true
         type: string
-      only:
-        description: Optional comma-separated input IDs
-        required: false
-        default: ''
+      eight_ids:
+        description: Comma-separated eight-bit reference IDs
+        required: true
         type: string
-      diagnose_only:
-        description: Compare pixels without timing or profiling
-        required: false
-        default: false
-        type: boolean
+      ten_ids:
+        description: Comma-separated ten-bit reference IDs
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
-  reference:
+  ceiling:
+    strategy:
+      fail-fast: false
+      matrix:
+        depth: [8, 10]
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 120
     env:
-      CANDIDATE: ${{ inputs.candidate }}
-      ONLY: ${{ inputs.only }}
-      DIAGNOSE_ONLY: ${{ inputs.diagnose_only }}
+      BASELINE: ${{ inputs.baseline }}
+      DEPTH: ${{ matrix.depth }}
+      ONLY: ${{ matrix.depth == 8 && inputs.eight_ids || inputs.ten_ids }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: 0
           path: driver
-      - name: Check reference process and comparison boundaries
-        run: python3 -m unittest discover -s driver/scripts/tests -p test_reference_hevc.py
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: ${{ env.CANDIDATE }}
+          fetch-depth: 0
+          ref: ${{ env.BASELINE }}
           path: candidate
-      - name: Admit only commits on this repository's branches
+      - name: Admit the dispatched main commit
         working-directory: candidate
         run: |
           set -euo pipefail
-          git fetch --quiet --unshallow --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
-          test -n "$(git branch -r --contains "$CANDIDATE")"
+          test "$(git rev-parse HEAD)" = "$BASELINE"
+          git merge-base --is-ancestor "$BASELINE" origin/main
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-      - name: Build the opt-in scalar driver
+      - name: Build original and disposable erase arms
         working-directory: candidate
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$CANDIDATE"
+          mkdir -p "$RUNNER_TEMP/ceiling" "$RUNNER_TEMP/binaries"
           cp ../driver/bench/hevc-reference/decode.rs crates/coreav-hevc/examples/reference.rs
-          CARGO_PROFILE_RELEASE_DEBUG=1 cargo build --locked --release -p coreav-hevc --features native-hevc --example reference
-          rustc -Vv > "$RUNNER_TEMP/compiler.txt"
-      - name: Install profiling tools
+          cp crates/coreav-kernels-hevc/src/filter.rs "$RUNNER_TEMP/filter-original.rs"
+          export CARGO_PROFILE_RELEASE_DEBUG=1
+          cargo build --locked --release -p coreav-hevc --features native-hevc --example reference
+          cp target/release/examples/reference "$RUNNER_TEMP/binaries/main"
+          for ARM in deblock sao10; do
+            cp "$RUNNER_TEMP/filter-original.rs" crates/coreav-kernels-hevc/src/filter.rs
+            python3 ../driver/scripts/filter_ceiling.py erase --kind "$ARM" \
+              --filter crates/coreav-kernels-hevc/src/filter.rs --diff "$RUNNER_TEMP/ceiling/$ARM.patch"
+            cargo build --locked --release -p coreav-hevc --features native-hevc --example reference
+            cp target/release/examples/reference "$RUNNER_TEMP/binaries/$ARM"
+          done
+          rustc -Vv > "$RUNNER_TEMP/ceiling/compiler.txt"
+      - name: Install instruction profiler
         run: sudo apt-get update -qq && sudo apt-get install -y valgrind
-      - name: Install the pinned binary oracle
+      - name: Install qualified binary oracle
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: driver/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
-      - name: Compare pixels before decoder-only reference calls
+      - name: Count first-picture physical-removal references
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: |
-          EXTRA=()
-          if [ "$DIAGNOSE_ONLY" = true ]; then EXTRA+=(--diagnose-only); fi
-          python3 -I driver/scripts/hevc_reference.py \
-            --native "$PWD/candidate/target/release/examples/reference" \
-            --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/reference" \
-            --candidate "$CANDIDATE" --only "$ONLY" "${EXTRA[@]}"
-      - name: Bind retained results to the dispatched decoder
-        run: |
-          python3 -I driver/scripts/hevc_reference.py check-result \
-            "$RUNNER_TEMP/reference/results.json" --expected-candidate "$CANDIDATE"
+          python3 -I driver/scripts/filter_ceiling.py run --baseline "$BASELINE" \
+            --binaries "$RUNNER_TEMP/binaries" --oracle-bin "$RUNNER_TEMP/oracle" \
+            --out "$RUNNER_TEMP/ceiling" --only "$ONLY" --depth "$DEPTH"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: hevc-reference-${{ env.CANDIDATE }}
-          path: |
-            ${{ runner.temp }}/reference/results.json
-            ${{ runner.temp }}/compiler.txt
+          name: hevc-loop-ceiling-${{ matrix.depth }}-${{ inputs.baseline }}
+          path: ${{ runner.temp }}/ceiling
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
