@@ -65,7 +65,8 @@ on:
       - scripts/tests/test_registered_candidate.py
       - scripts/oracle-ffmpeg.env
       - scripts/oracle-ffmpeg-macos.env
-      - scripts/install-oracle-ffmpeg.sh
+      - scripts/install-ci-oracle-ffmpeg.sh
+      - .github/actions/oracle-cache/action.yml
       - scripts/install-x264.sh
       - scripts/clip_check.py
       - scripts/codec_coverage_gcp.py
@@ -406,15 +407,9 @@ jobs:
         with:
           name: coverage-binaries
           path: ${{ runner.temp }}/bin
-      - name: Cache the pinned FFmpeg
-        id: oracle-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/oracle
-          key: coverage-oracle-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env') }}
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned FFmpeg
-        if: steps.oracle-cache.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Verify the pinned FFmpeg
         run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Record the host
@@ -539,15 +534,9 @@ jobs:
         with:
           name: coverage-binaries
           path: ${{ runner.temp }}/bin
-      - name: Cache the pinned FFmpeg
-        id: oracle-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/oracle
-          key: coverage-oracle-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env') }}
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned FFmpeg
-        if: steps.oracle-cache.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Verify the pinned FFmpeg
         run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
@@ -600,15 +589,9 @@ jobs:
         with:
           name: coverage-binaries
           path: ${{ runner.temp }}/bin
-      - name: Cache the pinned FFmpeg
-        id: oracle-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/oracle
-          key: coverage-oracle-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env') }}
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned FFmpeg
-        if: steps.oracle-cache.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Verify the pinned FFmpeg
         run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Make the fixtures with the pinned FFmpeg
@@ -727,10 +710,11 @@ jobs:
         with:
           name: coverage-binaries
           path: ${{ runner.temp }}/bin
+      - uses: ./.github/actions/oracle-cache
       - name: Install and verify the pinned image oracle
         run: |
           set -euo pipefail
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Generate and check the registered fixture inputs
         run: |

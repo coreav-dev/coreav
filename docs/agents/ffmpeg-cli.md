@@ -2,6 +2,10 @@
 
 CLI and ffprobe behavior, the FFmpeg pin, and fallback names.
 
+Future oracle pins must select the last autobuild of a month and confirm that it belongs to the publisher's retained monthly set. The [release retention policy](https://github.com/BtbN/FFmpeg-Builds#release-retention-policy) keeps those builds for two years, but only the last fourteen daily builds. A cache is not permanent storage; reconsider acquisition before that retention expires.
+
+Ordinary CI uses `scripts/install-ci-oracle-ffmpeg.sh` with a SHA256-keyed archive cache. Registered and historical workflows retain `scripts/install-oracle-ffmpeg.sh` because its source identity is frozen. Both entry points read the same pin file; changing acquisition for current CI does not change registered measurement inputs.
+
 | Rule | Enforced by |
 |---|---|
 | Newly admitted default-video options match the pinned oracle's decoded frames and aspect, not merely the existing explicit encoder path | The MP4 parser keeps implicit scale and bitrate on fallback; `transcode_job` admits implicit output size only when source dimensions match. `ffmpeg_default_video_encoder_applies_options` compares complete frame hashes and geometry/aspect with the oracle and checks unchanged destinations plus byte-exact fallback for excluded paths. Runtime source dimensions and external output cannot be established by argument types |

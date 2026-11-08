@@ -8,10 +8,10 @@ name: audio-conformance
 on:
   push:
     branches: [main]
-    paths: ["scripts/aac_pns.py", "scripts/tests/test_aac_pns.py", "scripts/aac-pns-requirements.txt", "docs/design/aac-pns-eligibility.md", "scripts/aac_pcm_eligibility.py", "scripts/tests/test_aac_pcm_eligibility.py", "docs/design/aac-pcm-eligibility.md", "crates/coreav-cli/Cargo.toml", "scripts/opus_pcm_eligibility.py", "scripts/tests/test_opus_pcm_eligibility.py", "docs/design/opus-pcm-eligibility.md", "scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "crates/coreav-cli/tests/ffmpeg_wav.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py", "crates/coreav-cli/tests/ffmpeg_flac.rs", "crates/coreav-cli/src/ffprobe/audio/**"]
+    paths: ["scripts/aac_pns.py", "scripts/tests/test_aac_pns.py", "scripts/aac-pns-requirements.txt", "docs/design/aac-pns-eligibility.md", "scripts/aac_pcm_eligibility.py", "scripts/tests/test_aac_pcm_eligibility.py", "docs/design/aac-pcm-eligibility.md", "crates/coreav-cli/Cargo.toml", "scripts/opus_pcm_eligibility.py", "scripts/tests/test_opus_pcm_eligibility.py", "docs/design/opus-pcm-eligibility.md", "scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-ci-oracle-ffmpeg.sh", ".github/actions/oracle-cache/action.yml", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "crates/coreav-cli/tests/ffmpeg_wav.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py", "crates/coreav-cli/tests/ffmpeg_flac.rs", "crates/coreav-cli/src/ffprobe/audio/**"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["scripts/aac_pns.py", "scripts/tests/test_aac_pns.py", "scripts/aac-pns-requirements.txt", "docs/design/aac-pns-eligibility.md", "scripts/aac_pcm_eligibility.py", "scripts/tests/test_aac_pcm_eligibility.py", "docs/design/aac-pcm-eligibility.md", "crates/coreav-cli/Cargo.toml", "scripts/opus_pcm_eligibility.py", "scripts/tests/test_opus_pcm_eligibility.py", "docs/design/opus-pcm-eligibility.md", "scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "crates/coreav-cli/tests/ffmpeg_wav.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py", "crates/coreav-cli/tests/ffmpeg_flac.rs", "crates/coreav-cli/src/ffprobe/audio/**"]
+    paths: ["scripts/aac_pns.py", "scripts/tests/test_aac_pns.py", "scripts/aac-pns-requirements.txt", "docs/design/aac-pns-eligibility.md", "scripts/aac_pcm_eligibility.py", "scripts/tests/test_aac_pcm_eligibility.py", "docs/design/aac-pcm-eligibility.md", "crates/coreav-cli/Cargo.toml", "scripts/opus_pcm_eligibility.py", "scripts/tests/test_opus_pcm_eligibility.py", "docs/design/opus-pcm-eligibility.md", "scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-ci-oracle-ffmpeg.sh", ".github/actions/oracle-cache/action.yml", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "crates/coreav-cli/tests/ffmpeg_wav.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py", "crates/coreav-cli/tests/ffmpeg_flac.rs", "crates/coreav-cli/src/ffprobe/audio/**"]
   schedule:
     - cron: '17 6 * * 2'
   workflow_dispatch:
@@ -50,13 +50,8 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        id: oracle
-        with:
-          path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
-      - if: steps.oracle.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - uses: ./.github/actions/oracle-cache
+      - run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Verify the pinned oracle and native raw output
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
@@ -100,13 +95,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        id: oracle
-        with:
-          path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
-      - if: steps.oracle.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - uses: ./.github/actions/oracle-cache
+      - run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - run: |
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           python3 -I scripts/swr_characterize.py --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --out "$RUNNER_TEMP/swr-capture" --wave "$SWR_WAVE"
@@ -247,15 +237,9 @@ jobs:
         run: cargo test --locked --release -p coreav-aac --test conformance conformance_streams -- --ignored --nocapture
       # Bars 2 to 5 (docs/design/audio-decode.md, "AAC-LC bars"): against
       # the pinned oracle FFmpeg (scripts/oracle-ffmpeg.env).
-      - name: Cache the pinned FFmpeg
-        id: ffmpeg-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned FFmpeg
-        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Build the command with the feature aac
         run: |
           set -euo pipefail
@@ -333,15 +317,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Cache the pinned FFmpeg
-        id: ffmpeg-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned FFmpeg
-        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: The generated set's sources
         run: |
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
@@ -408,15 +386,9 @@ jobs:
             done | xargs -P 8 -n 2 sh -c 'curl -fsSL --retry 3 -o "$1" "$0"'
       - name: Check the streams
         run: cd "$RUNNER_TEMP/aac" && sha256sum --quiet -c "$GITHUB_WORKSPACE/crates/coreav-aac/tests/conformance.sha256"
-      - name: Cache the pinned FFmpeg
-        id: ffmpeg-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - uses: ./.github/actions/oracle-cache
       - name: Install the pinned FFmpeg
-        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+        run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: he-aac-generated
@@ -565,13 +537,8 @@ jobs:
           COREAV_OPUS_VECTORS: ${{ runner.temp }}/opus-vectors/opus_newvectors
           COREAV_OPUS_COMPARE: ${{ runner.temp }}/opus-compare/opus_compare
         run: cargo test --locked --release -p coreav-opus -- --ignored --nocapture
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        id: oracle
-        with:
-          path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
-      - if: steps.oracle.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - uses: ./.github/actions/oracle-cache
+      - run: scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Qualify scoped Opus MP4 presentation and terminal output
         run: |
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"

@@ -72,7 +72,7 @@ class HevcWorkflow(unittest.TestCase):
         workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
         job = workflow.split('  hevc-smoke:\n', 1)[1].split('  hevc-vectors:', 1)[0]
         for required in ('runs-on: ubuntu-24.04', 'timeout-minutes: 30',
-                         '--example headers --example intra', 'scripts/install-oracle-ffmpeg.sh',
+                         '--example headers --example intra', 'scripts/install-ci-oracle-ffmpeg.sh',
                          'scripts/hevc_fixture.py verify', 'scripts/hevc_smoke.py', 'if: always()'):
             self.assertIn(required, job)
         for forbidden in ('secrets.', 'R2_', ' acquire ', 'corpus-online', 'hevc_decode.py'):

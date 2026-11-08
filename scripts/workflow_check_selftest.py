@@ -380,8 +380,8 @@ class Repository(unittest.TestCase):
         workflows = self.root / '.github' / 'workflows'
         audio = workflows / 'audio-conformance.yml'
         text = audio.read_text()
-        self.assertEqual(text.count(' "scripts/install-oracle-ffmpeg.sh",'), 2)
-        audio.write_text(text.replace(' "scripts/install-oracle-ffmpeg.sh",', ''))
+        self.assertEqual(text.count(' "scripts/install-ci-oracle-ffmpeg.sh",'), 2)
+        audio.write_text(text.replace(' "scripts/install-ci-oracle-ffmpeg.sh",', ''))
         mediainfo = workflows / 'mediainfo-oracle.yml'
         text = mediainfo.read_text()
         self.assertIn("      - '*.md'\n", text)
@@ -393,11 +393,22 @@ class Repository(unittest.TestCase):
             return (f'{workflow}: runs the oracle FFmpeg installer, but a change of scripts/{pin} '
                     f'does not start it: {fix} the `{key}` of `{event}`')
         self.assertEqual(sorted(check.check(self.root)), sorted([
-            problem('audio-conformance.yml', 'install-oracle-ffmpeg.sh', 'add it to', 'paths', 'push'),
-            problem('audio-conformance.yml', 'install-oracle-ffmpeg.sh', 'add it to', 'paths', 'pull_request'),
+            problem('audio-conformance.yml', 'install-ci-oracle-ffmpeg.sh', 'add it to', 'paths', 'push'),
+            problem('audio-conformance.yml', 'install-ci-oracle-ffmpeg.sh', 'add it to', 'paths', 'pull_request'),
             problem('mediainfo-oracle.yml', 'oracle-ffmpeg.env', 'take it out of', 'paths-ignore', 'push'),
             problem('mediainfo-oracle.yml', 'oracle-ffmpeg.env', 'add it to', 'paths', 'pull_request'),
         ]))
+
+    def test_archive_cache_changes_start_its_installer_workflows(self):
+        path = self.root / '.github/workflows/audio-conformance.yml'
+        original = path.read_text()
+        path.write_text(original.replace(' ".github/actions/oracle-cache/action.yml",', ''))
+        found = check.check(self.root)
+        self.assertEqual(len(found), 2, found)
+        self.assertTrue(all('change of .github/actions/oracle-cache/action.yml does not start it' in p
+                            for p in found), found)
+        path.write_text(original)
+        self.assertEqual(check.check(self.root), [])
 
     def test_only_a_workflow_that_runs_the_installer_must_start_on_the_pin(self):
         def workflow(*steps):

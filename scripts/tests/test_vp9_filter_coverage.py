@@ -327,7 +327,8 @@ class Workflow(unittest.TestCase):
         self.assertIn('"$MODE"', run['run'])
         triggers = workflow.get('on', workflow.get('true'))
         for event in ('push', 'pull_request'):
-            for path in (*coverage.SOURCES, 'scripts/install-oracle-ffmpeg.sh', 'scripts/oracle_from_r2.py'):
+            for path in (*coverage.SOURCES, 'scripts/install-ci-oracle-ffmpeg.sh',
+                         '.github/actions/oracle-cache/action.yml', 'scripts/oracle_from_r2.py'):
                 with self.subTest(event=event, path=path):
                     self.assertTrue(any(fnmatchcase(path, pattern) for pattern in triggers[event]['paths']))
         for job in jobs.values():

@@ -18,7 +18,8 @@ on:
       - scripts/oracle-audio-args.txt
       - scripts/oracle_pin.py
       - scripts/oracle-ffmpeg.env
-      - scripts/install-oracle-ffmpeg.sh
+      - scripts/install-ci-oracle-ffmpeg.sh
+      - .github/actions/oracle-cache/action.yml
       - tools/compat-corpus/speed.py
       - .github/workflows/flac-output.yml
   workflow_dispatch:
@@ -47,9 +48,10 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      - uses: ./.github/actions/oracle-cache
       - name: Install and verify the pinned oracle
         run: |
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          scripts/install-ci-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Check native frames and failure states
         env:
