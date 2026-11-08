@@ -22,6 +22,7 @@ import github_shapes_fixtures as fixtures
 import github_shapes_inputs as inputs
 import github_shapes_set as roster
 import github_shapes_aac as aac
+import github_shapes_pns_gate as pns_gate
 import oracle_pin
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
@@ -32,7 +33,8 @@ MISSES = ('uninstantiable', 'reference_failed', 'timeout', 'refused', 'failed',
 EXACT_CODECS = ('h264', 'vp9', 'aac', 'opus')
 COMPATIBLE = 'compatible_avc1'
 MAPPING = re.compile(r'^\s*Stream #\d+:\d+(?:\[[^]]*\])?(?: \([^)]*\))? -> #(\d+):(\d+) \((.*)\)\s*$', re.M)
-METHOD = ('docs/design/github-shapes-200.md', 'scripts/oracle-ffmpeg.env',
+METHOD = ('docs/design/github-shapes-200.md', 'docs/design/github-shapes-200-pns-free.md',
+          'scripts/oracle-ffmpeg.env',
           '.github/workflows/github-shapes.yml', 'Cargo.lock',
           'docs/design/aac-pcm-eligibility.md', 'docs/design/aac-pns-eligibility.md',
           'docs/compat/audio-decoder-eligibility.json', 'scripts/aac-pns-requirements.txt',
@@ -501,6 +503,8 @@ def replay(opts):
     if opts.summary.resolve().is_relative_to(bundle) or opts.scratch.resolve().is_relative_to(bundle):
         raise EvidenceError('replay_destinations')
     manifest = json.loads((bundle / 'manifest.json').read_text())
+    if manifest.get('registration') != opts.registration or opts.registration not in fixtures.REGISTRATIONS:
+        raise EvidenceError('registration')
     if manifest['method'] != method() or manifest['inventory'] != inventory(bundle):
         raise EvidenceError('evidence_identity')
     if manifest['programs'] != verify_programs(opts) or manifest['features'] != FEATURES or manifest['build_command'] != BUILD:
@@ -517,11 +521,45 @@ def replay(opts):
                 '$FFPROBE': str(Path(opts.ffprobe).resolve()), '$X264': str(Path(opts.x264).resolve()),
                 '$AAC_DIAGNOSTIC': str(Path(opts.pns_diagnostic).resolve())}
     opts.scratch.mkdir(parents=True, exist_ok=False)
+    if json.loads((bundle / 'fixtures/commands.json').read_text()) != fixtures.recipe(opts.registration):
+        raise EvidenceError('fixture_recipe')
+    if opts.registration == fixtures.PNS_FREE:
+        expected = manifest.get('pns_gate')
+        if not isinstance(expected, dict) or set(expected) != {'source.mp4', 'source.mkv'}:
+            raise EvidenceError('fixture_generation:scan_incomplete')
+        try:
+            for name in expected:
+                retained = bundle / 'pns-gate' / name
+                metadata = retained / 'diagnostic/metadata.json'
+                if aac.noise_count(json.loads(metadata.read_text())) or pns_gate.sha(metadata) != expected[name]['metadata_sha256']:
+                    raise EvidenceError('fixture_generation:scan_incomplete')
+                if json.loads((retained / 'gate.json').read_text()) != expected[name]:
+                    raise EvidenceError('fixture_generation:scan_incomplete')
+                scanned = retained / 'carriage.mp4' if name.endswith('.mkv') else bundle / 'fixtures' / name
+                if pns_gate.sha(scanned) != expected[name]['scanned_sha256']:
+                    raise EvidenceError('fixture_generation:packet_binding')
+                for receipt in expected[name]['receipts'].values():
+                    for stream in ('stdout', 'stderr'):
+                        if pns_gate.sha(retained / receipt[stream]) != receipt[stream + '_sha256']:
+                            raise EvidenceError('fixture_generation:scan_incomplete')
+                actual = pns_gate.scan_fixture(bundle / 'fixtures' / name,
+                    opts.scratch / 'pns-gate' / name, programs, environment(), execute)
+                if actual != expected[name]:
+                    raise EvidenceError('fixture_generation:packet_binding')
+        except pns_gate.FixtureError as error:
+            raise EvidenceError('fixture_generation:' + str(error)) from None
+        except EvidenceError:
+            raise
+        except (ValueError, OSError, KeyError, TypeError):
+            raise EvidenceError('fixture_generation:scan_incomplete') from None
+    elif 'pns_gate' in manifest or (bundle / 'pns-gate').exists():
+        raise EvidenceError('registration')
     outcomes = [{'rank': row['rank'], 'outcome': judge(row, record, bundle, programs, environment(), opts.scratch)}
                 for row, record in zip(rows, records)]
     summary = summarize(rows, outcomes)
     summary['results'] = outcomes
     summary['commit'] = manifest['commit']
+    summary['registration'] = opts.registration
     write(opts.summary, summary)
     if manifest['inventory'] != inventory(bundle):
         raise EvidenceError('evidence_changed_during_replay')
@@ -544,7 +582,15 @@ def run(opts):
     bundle = opts.bundle.resolve()
     bundle.mkdir(parents=True, exist_ok=False)
     env = environment()
-    fixtures.generate(bundle / 'fixtures', programs['$FFMPEG'], env, execute)
+    try:
+        fixtures.generate(bundle / 'fixtures', programs['$FFMPEG'], env, execute, opts.registration)
+        scans = {name: pns_gate.scan_fixture(bundle / 'fixtures' / name, bundle / 'pns-gate' / name,
+                    programs, env, execute) for name in ('source.mp4', 'source.mkv')
+                 if opts.registration == fixtures.PNS_FREE}
+    except pns_gate.FixtureError as error:
+        raise EvidenceError('fixture_generation:' + str(error)) from None
+    except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError):
+        raise EvidenceError('fixture_generation:scan_failed') from None
     fixture_identity = inventory(bundle)
     initial_method = method()
     records = []
@@ -562,8 +608,11 @@ def run(opts):
         raise EvidenceError('acquisition_identity_changed')
     if any(digest(bundle / path) != identity for path, identity in fixture_identity.items()):
         raise EvidenceError('fixture_changed')
-    manifest = {'commit': opts.commit, 'method': initial_method, 'programs': identities, 'build': build,
+    manifest = {'commit': opts.commit, 'registration': opts.registration,
+                'method': initial_method, 'programs': identities, 'build': build,
                 'features': FEATURES, 'build_command': BUILD, 'inventory': inventory(bundle)}
+    if opts.registration == fixtures.PNS_FREE:
+        manifest['pns_gate'] = scans
     write(bundle / 'manifest.json', manifest)
     return replay(opts)
 
@@ -571,6 +620,7 @@ def run(opts):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('run', 'replay'))
+    parser.add_argument('--registration', choices=fixtures.REGISTRATIONS, required=True)
     for name in ('coreav', 'ffmpeg', 'ffprobe', 'x264', 'pns-diagnostic'):
         parser.add_argument('--' + name, required=True)
     for name in ('bundle', 'scratch', 'summary'):

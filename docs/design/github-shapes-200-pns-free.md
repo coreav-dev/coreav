@@ -47,7 +47,7 @@ PR CI uses only independent controls, never the judged fixture generator or a co
 ## Order and evidence custody
 
 1. Check the premise by counting PNS on the retained generated source from the completed original acquisition. This diagnostic judges no command. Stop if no PNS is found.
-2. Commit this plan first, then the tools, workflow selection, generation gate, replay checks and controls in the same pull request.
+2. Commit this plan first, then the tools, workflow selection, generation gate, replay checks and controls in the same change.
 3. Pass CI, independent review, exact-head similarity and the independent PNS controls before merge.
 4. Dispatch the paired acquisition from main at one merged SHA, then replay each bound bundle.
 5. Retain all acquisition evidence and summaries in restricted storage. No acquisition evidence, summaries or per-shape outcomes are uploaded as public workflow artifacts or printed in public logs. Credentials exist only in the workflow's retention step and never reach media child processes.
