@@ -103,6 +103,7 @@ impl Output {
             },
             Some(picture.planes),
             memory,
+            false,
         )?;
         self.check()
     }
@@ -111,8 +112,9 @@ impl Output {
         &mut self,
         header: OutputHeader,
         memory: &mut OutputMemory<'_>,
+        bounded: bool,
     ) -> Result<bool, Error> {
-        self.queue(header, None, memory)
+        self.queue(header, None, memory, bounded)
     }
 
     fn queue(
@@ -120,6 +122,7 @@ impl Output {
         picture: OutputHeader,
         sources: Option<[IntraPlane<'_>; 3]>,
         memory: &mut OutputMemory<'_>,
+        bounded: bool,
     ) -> Result<bool, Error> {
         self.check()?;
         let origin = picture
@@ -174,6 +177,9 @@ impl Output {
             .filter(|n| *n <= self.limits.max_decoded_bytes)
             .ok_or(limit("decoded HEVC frames exceed the output budget"))?;
         if self.ready.len() == self.ready.capacity() {
+            if bounded {
+                return Err(codec_error(coreav_hevc::Error::Internal("output_records")));
+            }
             let old = self
                 .ready
                 .capacity()
@@ -289,6 +295,80 @@ impl Output {
         self.pending = pending;
         self.decoded = decoded;
         Ok(true)
+    }
+
+    pub(super) fn reserve_queue(
+        &mut self,
+        records: usize,
+        memory: &mut OutputMemory<'_>,
+        admit: &mut dyn FnMut(usize) -> coreav_hevc::Result<bool>,
+    ) -> coreav_hevc::Result<bool> {
+        if self.ready.capacity() >= records {
+            let accepted = admit(self.ready.capacity())?;
+            if accepted || self.ready.capacity() == records {
+                return Ok(accepted);
+            }
+        }
+        let record_bytes = core::mem::size_of::<OutputFrame>();
+        let requested = records
+            .checked_mul(record_bytes)
+            .ok_or(coreav_hevc::Error::Limit("reconstruction_memory"))?;
+        if memory.reserve(requested).is_err() {
+            return Ok(false);
+        }
+        let mut allocation = Vec::<OutputFrame>::new();
+        if allocation.try_reserve_exact(records).is_err() {
+            memory.release(requested)?;
+            return Ok(false);
+        }
+        let capacity = allocation.capacity();
+        let actual = capacity
+            .checked_mul(record_bytes)
+            .ok_or(coreav_hevc::Error::Limit("reconstruction_memory"))?;
+        if memory.reserve(actual - requested).is_err() {
+            memory.release(requested)?;
+            return Ok(false);
+        }
+        let mut replacement = VecDeque::from(allocation);
+        if replacement.capacity() != capacity {
+            memory.release(actual)?;
+            return Ok(false);
+        }
+        let accepted = admit(capacity);
+        if !matches!(accepted, Ok(true)) {
+            memory.release(actual)?;
+            return accepted;
+        }
+        let old = self
+            .ready
+            .capacity()
+            .checked_mul(record_bytes)
+            .ok_or(coreav_hevc::Error::Limit("reconstruction_memory"))?;
+        while let Some(entry) = self.ready.pop_front() {
+            replacement.push_back(entry);
+        }
+        self.ready = replacement;
+        memory.release(old)?;
+        Ok(true)
+    }
+
+    pub(super) fn qualify(
+        &self,
+        info: PictureInfo,
+        probe: &mut coreav_hevc::native_rows::CapacityProbe,
+    ) -> bool {
+        let Some(area) = (info.visible_width as usize).checked_mul(info.visible_height as usize)
+        else {
+            return false;
+        };
+        let sample_bytes = if info.bit_depth == 10 { 2 } else { 1 };
+        let Some(bytes) = area.checked_mul(sample_bytes) else {
+            return false;
+        };
+        probe.check::<Plane>(3)
+            && [bytes, bytes / 4]
+                .into_iter()
+                .all(|count| probe.check::<u8>(count))
     }
 
     pub(super) fn fill(&mut self, offset: usize, picture: DecodedPicture<'_>) -> Result<(), Error> {

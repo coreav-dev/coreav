@@ -28,33 +28,61 @@ pub struct RowReceive {
 }
 
 pub trait RowSink {
-    fn prepare(&mut self, header: OutputHeader, memory: &mut OutputMemory<'_>) -> Result<bool>;
+    fn prepare(
+        &mut self,
+        header: OutputHeader,
+        memory: &mut OutputMemory<'_>,
+        bounded: bool,
+    ) -> Result<bool>;
+    fn reserve_queue(
+        &mut self,
+        records: usize,
+        memory: &mut OutputMemory<'_>,
+        admit: &mut dyn FnMut(usize) -> Result<bool>,
+    ) -> Result<bool>;
+    fn qualify(&self, info: PictureInfo, probe: &mut CapacityProbe) -> bool;
     fn fill(&mut self, front_offset: usize, picture: DecodedPicture<'_>) -> Result<()>;
     fn truncate(&mut self, keep: usize);
     fn cost(&self, debt: usize, frame_bytes: usize) -> Result<SinkCost>;
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn native_row_lag_has_a_reviewed_standard_allocation_implementation() {
-        #[cfg(not(hevc_exact_capacities))]
-        panic!(
-            "Re-audit RawVec exact growth and Global requested allocation layouts for this rustc before adding its commit hash to coreav-hevc/build.rs; unknown builds retain legacy zero-lag decoding"
-        );
-        for count in [0, 1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 127, 128, 255, 4096] {
-            let mut bytes = Vec::<u8>::new();
-            bytes.try_reserve_exact(count).unwrap();
-            assert_eq!(bytes.capacity(), count);
-            let mut samples = Vec::<u16>::new();
-            samples.try_reserve_exact(count).unwrap();
-            assert_eq!(samples.capacity(), count);
-            let mut records = std::collections::VecDeque::<[usize; 16]>::new();
-            records.try_reserve_exact(count).unwrap();
-            assert_eq!(records.capacity(), count);
-            records.resize(count, [0; 16]);
-            records.try_reserve_exact(1).unwrap();
-            assert_eq!(records.capacity(), count + 1);
+pub struct CapacityProbe {
+    limit: usize,
+    pub peak_bytes: usize,
+}
+
+impl CapacityProbe {
+    pub fn new(limit: usize) -> Self {
+        Self {
+            limit,
+            peak_bytes: 0,
         }
     }
+
+    pub fn check<T>(&mut self, count: usize) -> bool {
+        #[cfg(test)]
+        if FORCE_CAPACITY_MISMATCH.get() {
+            return false;
+        }
+        if count
+            .checked_mul(core::mem::size_of::<T>())
+            .is_none_or(|bytes| bytes > self.limit)
+        {
+            return false;
+        }
+        let mut buffer = Vec::<T>::new();
+        if buffer.try_reserve_exact(count).is_err() {
+            return false;
+        }
+        let Some(bytes) = buffer.capacity().checked_mul(core::mem::size_of::<T>()) else {
+            return false;
+        };
+        self.peak_bytes = self.peak_bytes.max(bytes);
+        buffer.capacity() == count && bytes <= self.limit
+    }
+}
+
+#[cfg(test)]
+std::thread_local! {
+    pub(crate) static FORCE_CAPACITY_MISMATCH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }

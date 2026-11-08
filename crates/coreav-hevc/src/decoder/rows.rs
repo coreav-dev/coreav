@@ -27,6 +27,8 @@ mod tests {
             (0, [0; 32]),
             0,
             3,
+            Vec::new(),
+            0,
         )?;
         let rows = &mut owner[0];
         rows.validated = 0;
@@ -74,6 +76,7 @@ pub(super) struct Rows {
     pub(super) identity: (u32, [u8; 32]),
     pub(super) plan: Plan,
     pub(super) pending: Vec<Pending>,
+    pub(super) operation_limit: usize,
     pub(super) emitted: u64,
     pub(super) validated: u64,
     pub(super) serial_received: u64,
@@ -88,6 +91,7 @@ pub(super) struct Admission<'a> {
     pub(super) fixed: usize,
     pub(super) sink: SinkCost,
     pub(super) allow_zero: bool,
+    pub(super) positive: bool,
 }
 
 fn sum(values: &[usize]) -> Result<usize> {
@@ -108,10 +112,19 @@ fn frame_bytes(info: PictureInfo) -> Result<usize> {
 }
 
 impl Admission<'_> {
-    pub(super) fn choose(&self) -> Result<Option<Plan>> {
-        if !cfg!(hevc_exact_capacities) {
-            return Ok(None);
-        }
+    fn output_records(&self) -> Result<usize> {
+        let pending = usize::try_from(self.sink.max_pending_bytes)
+            .map_err(|_| Error::Limit("reconstruction_memory"))?;
+        let maximum = usize::try_from(self.limits.headers.max_pictures).unwrap_or(usize::MAX);
+        self.sink
+            .queued_frames
+            .checked_add((pending / frame_bytes(self.info)?).min(maximum))
+            .and_then(|n| n.checked_add(self.limits.threads.clamp(1, 16)))
+            .map(|n| n.min(maximum))
+            .ok_or(Error::Limit("reconstruction_memory"))
+    }
+
+    pub(super) fn choose(&self, records: Option<(usize, usize)>) -> Result<Option<Plan>> {
         let overflow = || Error::Limit("reconstruction_memory");
         let area = (self.info.width as usize)
             .checked_mul(self.info.height as usize)
@@ -142,26 +155,12 @@ impl Admission<'_> {
                 .ok_or_else(overflow)?,
         ])?;
         let pending_bytes = usize::try_from(self.sink.max_pending_bytes).map_err(|_| overflow())?;
-        let caller_records = pending_bytes
-            .checked_div(frame_bytes)
-            .ok_or_else(overflow)?
-            .min(usize::try_from(self.limits.headers.max_pictures).unwrap_or(usize::MAX));
         let ceiling = self.limits.threads.clamp(1, 16);
-        let count = self
+        let count = self.output_records()?;
+        let queue = self
             .sink
-            .queued_frames
-            .checked_add(caller_records)
-            .and_then(|n| n.checked_add(ceiling))
-            .map(|n| n.min(usize::try_from(self.limits.headers.max_pictures).unwrap_or(usize::MAX)))
-            .ok_or_else(overflow)?;
-        let queue = if count > self.sink.queue_capacity {
-            count
-                .checked_mul(2)
-                .and_then(|n| n.checked_sub(1))
-                .ok_or_else(overflow)?
-        } else {
-            self.sink.queue_capacity
-        };
+            .queue_capacity
+            .max(if records.is_some() { 0 } else { count });
         let output = sum(&[
             pending_bytes,
             queue
@@ -190,7 +189,7 @@ impl Admission<'_> {
             crate::reconstruction::RowStore::record_bytes(),
             65536,
         ])?;
-        for lag in (1..ceiling).rev() {
+        for lag in (1..ceiling).rev().filter(|_| self.positive) {
             for workers in (lag + 1..=ceiling).rev() {
                 let live = workers.checked_add(1).ok_or_else(overflow)?;
                 let owners = (dpb - 1)
@@ -199,11 +198,15 @@ impl Admission<'_> {
                     .ok_or_else(overflow)?;
                 let base = sum(&[
                     common,
+                    records.map_or_else(
+                        || (ceiling + 1) * scheduler::job_record_bytes(),
+                        |(_, jobs)| jobs,
+                    ),
+                    records.map_or(ceiling * core::mem::size_of::<Pending>(), |(pending, _)| {
+                        pending
+                    }),
                     owners.checked_mul(owner).ok_or_else(overflow)?,
                     live.checked_mul(job).ok_or_else(overflow)?,
-                    workers
-                        .checked_mul(core::mem::size_of::<Pending>())
-                        .ok_or_else(overflow)?,
                 ])?;
                 let debt = lag.checked_mul(frame_bytes).ok_or_else(overflow)?;
                 let reserved = base
@@ -251,13 +254,9 @@ impl Rows {
         identity: (u32, [u8; 32]),
         current: u64,
         queued: usize,
+        pending: Vec<Pending>,
+        operation_limit: usize,
     ) -> Result<Box<[Self; 1]>> {
-        let mut pending = Vec::new();
-        if plan.lag != 0 {
-            pending
-                .try_reserve_exact(plan.workers)
-                .map_err(|_| Error::Limit("picture_allocation"))?;
-        }
         let mut owner = Vec::new();
         owner
             .try_reserve_exact(1)
@@ -267,6 +266,7 @@ impl Rows {
             identity,
             plan,
             pending,
+            operation_limit,
             emitted,
             validated: emitted,
             serial_received: 0,
@@ -514,7 +514,7 @@ impl<F: super::Delivery> super::Observer<'_, F> {
             .emit
             .row_sink()
             .ok_or(Error::Internal("row_sink"))?
-            .prepare(header, &mut memory)?;
+            .prepare(header, &mut memory, true)?;
         if !created {
             return Ok(());
         }
@@ -613,8 +613,9 @@ impl<F: super::Delivery> super::Observer<'_, F> {
                 fixed: self.fixed,
                 sink,
                 allow_zero: false,
+                positive: true,
             }
-            .choose();
+            .choose(None);
             match initial {
                 Ok(Some(_)) => {}
                 Ok(None) | Err(Error::Limit("reconstruction_memory")) => return Ok(()),
@@ -640,6 +641,32 @@ impl<F: super::Delivery> super::Observer<'_, F> {
             .row_sink()
             .ok_or(Error::Internal("row_sink"))?
             .cost(debt, frame_bytes)?;
+        self.pictures.frame.scheduler.release_row_jobs();
+        let qualification_bytes = sum(&[
+            self.codec_bytes(dpb, input.scratch_bytes)?,
+            self.pictures.external_memory,
+        ])?;
+        let available = self
+            .pictures
+            .limits
+            .max_memory_bytes
+            .saturating_sub(qualification_bytes);
+        let mut probe = crate::native_rows::CapacityProbe::new(available);
+        let qualified =
+            scheduler::qualify_capacities(input, self.pictures.limits, sink, &mut probe)
+                && self
+                    .emit
+                    .row_sink()
+                    .ok_or(Error::Internal("row_sink"))?
+                    .qualify(input.picture, &mut probe);
+        self.pictures.summary.memory_bytes = self
+            .pictures
+            .summary
+            .memory_bytes
+            .max(sum(&[qualification_bytes, probe.peak_bytes])?);
+        if !qualified && debt == 0 {
+            return Ok(());
+        }
         let admission = Admission {
             info: input.picture,
             sps: input.sps,
@@ -647,34 +674,111 @@ impl<F: super::Delivery> super::Observer<'_, F> {
             fixed: self.fixed,
             sink,
             allow_zero: debt != 0,
+            positive: qualified,
         };
-        let plan = match admission.choose() {
-            Ok(plan) => plan,
-            Err(Error::Limit("reconstruction_memory")) if debt == 0 => None,
+        let mut pending = Vec::new();
+        let mut plan = None;
+        let mut owner = None;
+        let reuse = self.pictures.frame.scheduler.rows().is_some();
+        let operation_limit = (input.sps.ctu_count as usize).min(sink.max_nals);
+        let external = self.pictures.external_memory;
+        let mut peak = 0;
+        let reservation = (|| {
+            pending
+                .try_reserve_exact(self.pictures.limits.threads.clamp(1, 16))
+                .map_err(|_| Error::Limit("picture_allocation"))?;
+            let pending_bytes = pending
+                .capacity()
+                .checked_mul(core::mem::size_of::<Pending>())
+                .ok_or(Error::Limit("reconstruction_memory"))?;
+            let jobs = self
+                .pictures
+                .frame
+                .scheduler
+                .reserve_row_jobs(self.pictures.limits.threads.clamp(1, 16))?;
+            let codec_bytes = self
+                .codec_bytes(dpb, input.scratch_bytes)?
+                .checked_add(pending_bytes)
+                .and_then(|n| {
+                    n.checked_add(if reuse {
+                        0
+                    } else {
+                        core::mem::size_of::<Rows>()
+                    })
+                })
+                .ok_or(Error::Limit("reconstruction_memory"))?;
+            let mut memory = super::OutputMemory {
+                codec_bytes,
+                reserved: &mut self.pictures.external_memory,
+                limit: self.pictures.limits.max_memory_bytes,
+                reclaim: None,
+            };
+            self.emit
+                .row_sink()
+                .ok_or(Error::Internal("row_sink"))?
+                .reserve_queue(admission.output_records()?, &mut memory, &mut |capacity| {
+                    peak = peak.max(sum(&[
+                        codec_bytes,
+                        external,
+                        if capacity == sink.queue_capacity {
+                            0
+                        } else {
+                            capacity
+                                .checked_mul(sink.record_bytes)
+                                .ok_or(Error::Limit("reconstruction_memory"))?
+                        },
+                    ])?);
+                    let actual = Admission {
+                        sink: SinkCost {
+                            queue_capacity: capacity,
+                            ..sink
+                        },
+                        ..admission
+                    };
+                    plan = actual.choose(Some((pending_bytes, jobs)))?;
+                    if let Some(plan) = plan.filter(|_| !reuse) {
+                        owner = Some(Rows::allocate(
+                            plan,
+                            identity,
+                            input.index,
+                            sink.queued_frames,
+                            core::mem::take(&mut pending),
+                            operation_limit,
+                        )?);
+                    }
+                    Ok(plan.is_some())
+                })?;
+            Ok(())
+        })();
+        self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(peak);
+        match reservation {
+            Ok(()) => {}
+            Err(Error::Limit(_)) if debt == 0 => {
+                self.pictures.frame.scheduler.release_row_jobs();
+                return Ok(());
+            }
             Err(error) => return Err(error),
-        };
+        }
         let Some(plan) = plan else {
+            self.pictures.frame.scheduler.release_row_jobs();
             return if debt == 0 {
                 Ok(())
             } else {
                 Err(Error::Limit("row_admission"))
             };
         };
+        if plan.lag == 0 {
+            pending = Vec::new();
+            self.pictures.frame.scheduler.release_row_jobs();
+        }
         if let Some(rows) = self.pictures.frame.scheduler.rows_mut() {
             rows.identity = identity;
             rows.plan = plan;
-            if plan.lag != 0 {
-                rows.pending
-                    .try_reserve_exact(plan.workers)
-                    .map_err(|_| Error::Limit("picture_allocation"))?;
-            }
+            rows.pending = pending;
+            rows.operation_limit = operation_limit;
             rows.reconciled = rows.reconciled.max(input.index);
         } else {
-            match Rows::allocate(plan, identity, input.index, sink.queued_frames) {
-                Ok(rows) => self.pictures.frame.scheduler.rows = Some(rows),
-                Err(Error::Limit("picture_allocation")) => return Ok(()),
-                Err(error) => return Err(error),
-            }
+            self.pictures.frame.scheduler.rows = Some(owner.ok_or(Error::Internal("row_owner"))?);
         }
         Ok(())
     }

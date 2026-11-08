@@ -462,6 +462,7 @@ fn native_row_receives_are_bounded_serial_prefixes_for_every_short_cadence() -> 
             let mut decoder = native_with_limits_for_test(&limits, threads)?;
             let mut returned = 0usize;
             let mut serial_received = 0usize;
+            let mut ring_capacity = None;
             for index in 0..6 {
                 decoder.send_packet(&packet(
                     if index == 0 { &first } else { &next },
@@ -475,6 +476,11 @@ fn native_row_receives_are_bounded_serial_prefixes_for_every_short_cadence() -> 
                         .is_some_and(PictureDecoder::has_native_rows),
                     effective > 1
                 );
+                if effective > 1 {
+                    let capacity = decoder.output.ready.capacity();
+                    assert!(capacity >= 6 + effective);
+                    assert_eq!(*ring_capacity.get_or_insert(capacity), capacity);
+                }
                 if cadence & (1 << index) != 0 {
                     serial_received += usize::from(serial_received < index);
                     if let Some(frame) = decoder.receive_frame()? {

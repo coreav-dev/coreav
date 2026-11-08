@@ -42,6 +42,7 @@ impl Delivery for RowsOutput<'_> {
                 info: picture.info,
             },
             memory,
+            false,
         )? {
             let result = self.0.fill(offset, picture);
             if result.is_err() {
@@ -1017,6 +1018,7 @@ impl<F: Delivery> PictureObserver for Observer<'_, F> {
             })
         {
             self.pictures.frame.scheduler.rows = None;
+            self.pictures.frame.scheduler.release_row_jobs();
         }
         #[cfg(feature = "native-hevc-rows-private")]
         if self.pictures.frame.scheduler.rows().is_some()

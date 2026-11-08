@@ -259,6 +259,31 @@ fn reserve<T>(values: &mut Vec<T>, count: usize, memory: &mut Memory) -> Result<
     )
 }
 
+#[cfg(feature = "native-hevc-rows-private")]
+pub(super) fn qualify_capacities(
+    info: crate::PictureInfo,
+    probe: &mut crate::native_rows::CapacityProbe,
+) -> bool {
+    let Some(ctb) = 1usize.checked_shl(info.ctb_log2) else {
+        return false;
+    };
+    let width = info.width as usize;
+    let height = info.height as usize;
+    let columns = width.div_ceil(ctb);
+    let rows = height.div_ceil(ctb);
+    [ctb.min(height), height % ctb].into_iter().all(|lines| {
+        let Some(area) = width.checked_mul(lines) else {
+            return false;
+        };
+        [area, area / 4]
+            .into_iter()
+            .all(|count| probe.check::<u16>(count))
+            && probe.check::<Cell>(area / 16)
+    }) && probe.check::<Ctu>(columns)
+        && (1..=rows).all(|count| probe.check::<Row>(count))
+        && (1..16).all(|count| probe.check::<Frame>(count))
+}
+
 fn copy_rows<T: Copy>(
     source: &[T],
     destination: &mut [T],

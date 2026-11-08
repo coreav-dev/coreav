@@ -18,6 +18,45 @@ use std::sync::{
 const STACK_BYTES: usize = 2 * 1024 * 1024;
 
 #[cfg(feature = "native-hevc-rows-private")]
+pub(super) fn job_record_bytes() -> usize {
+    core::mem::size_of::<Job>()
+}
+
+#[cfg(feature = "native-hevc-rows-private")]
+pub(super) fn qualify_capacities(
+    input: &SliceInput<'_>,
+    limits: DecodeLimits,
+    sink: crate::native_rows::SinkCost,
+    probe: &mut crate::native_rows::CapacityProbe,
+) -> bool {
+    let ctus = input.sps.ctu_count as usize;
+    let nal = limits.headers.max_nal_bytes.min(sink.max_packet_bytes);
+    let Some(&references) = input.sps.max_dpb.get(input.sps.sub_layers as usize) else {
+        return false;
+    };
+    let references = references as usize;
+    crate::reconstruction::qualify_capacities(input.picture, ctus, probe)
+        && [
+            input.original.len(),
+            input.rbsp.len(),
+            nal,
+            nal.saturating_sub(2),
+        ]
+        .into_iter()
+        .all(|count| probe.check::<u8>(count))
+        && [
+            input.entry_lengths.len(),
+            limits.headers.max_ctus.saturating_sub(1) as usize,
+        ]
+        .into_iter()
+        .all(|count| probe.check::<u64>(count))
+        && probe.check::<core::ops::Range<usize>>(ctus)
+        && probe.check::<OwnedSlice>(ctus.min(sink.max_nals))
+        && (0..references).all(|count| probe.check::<(ReferenceIdentity, Arc<Publication>)>(count))
+        && probe.check::<super::rows::Rows>(1)
+}
+
+#[cfg(feature = "native-hevc-rows-private")]
 pub(super) fn continuation_job_bytes(
     info: PictureInfo,
     capacity: &crate::reconstruction::ContinuationCapacity,
@@ -31,13 +70,7 @@ pub(super) fn continuation_job_bytes(
     let sources = sink
         .max_packet_bytes
         .checked_mul(2)
-        .and_then(|n| {
-            n.checked_add(
-                operations
-                    .checked_mul(2)?
-                    .checked_mul(core::mem::size_of::<OwnedSlice>())?,
-            )
-        })
+        .and_then(|n| n.checked_add(operations.checked_mul(core::mem::size_of::<OwnedSlice>())?))
         .ok_or_else(overflow)?;
     let area = (info.width as usize)
         .checked_mul(info.height as usize)
@@ -50,7 +83,7 @@ pub(super) fn continuation_job_bytes(
     let records = references
         .checked_mul(2)
         .and_then(|n| n.checked_mul(core::mem::size_of::<(ReferenceIdentity, Arc<Publication>)>()))
-        .and_then(|n| n.checked_add(2 * core::mem::size_of::<Job>()))
+        .and_then(|n| n.checked_add(core::mem::size_of::<Job>()))
         .and_then(|n| {
             n.checked_add(
                 4 * core::mem::size_of::<Work>() + core::mem::size_of::<ReadyReferences>(),
@@ -554,6 +587,27 @@ impl Drop for Scheduler {
 
 impl Scheduler {
     #[cfg(feature = "native-hevc-rows-private")]
+    pub(super) fn reserve_row_jobs(&mut self, ceiling: usize) -> Result<usize> {
+        if !self.jobs.is_empty() {
+            return Err(Error::Internal("row_job_storage"));
+        }
+        self.jobs = Vec::new();
+        self.jobs
+            .try_reserve_exact(ceiling + 1)
+            .map_err(|_| Error::Limit("picture_allocation"))?;
+        self.jobs
+            .capacity()
+            .checked_mul(core::mem::size_of::<Job>())
+            .ok_or(Error::Limit("reconstruction_memory"))
+    }
+
+    #[cfg(feature = "native-hevc-rows-private")]
+    pub(super) fn release_row_jobs(&mut self) {
+        if self.jobs.is_empty() {
+            self.jobs = Vec::new();
+        }
+    }
+    #[cfg(feature = "native-hevc-rows-private")]
     pub(super) fn rows(&self) -> Option<&super::rows::Rows> {
         self.rows.as_deref().and_then(|rows| rows.first())
     }
@@ -797,7 +851,13 @@ impl Scheduler {
             self.confirm(job.index)?;
         }
         if self.jobs.is_empty() {
-            self.jobs = Vec::new();
+            #[cfg(feature = "native-hevc-rows-private")]
+            let retain = self.rows().is_some();
+            #[cfg(not(feature = "native-hevc-rows-private"))]
+            let retain = false;
+            if !retain {
+                self.jobs = Vec::new();
+            }
             self.execution = None;
         }
         Ok(())
@@ -878,7 +938,10 @@ impl Scheduler {
         picture_remaining: u64,
     ) -> Result<bool> {
         #[cfg(feature = "native-hevc-rows-private")]
-        if self.rows().is_some() && self.operations.len() >= input.sps.ctu_count as usize {
+        if self
+            .rows()
+            .is_some_and(|rows| self.operations.len() >= rows.operation_limit)
+        {
             return Ok(false);
         }
         let bound = Cabac::max_bins(input.rbsp.len())
@@ -936,7 +999,14 @@ impl Scheduler {
         let refuse = matches!(self.admission_fault, Some(AdmissionFault::Record));
         #[cfg(not(test))]
         let refuse = false;
-        if refuse || self.jobs.try_reserve_exact(1).is_err() {
+        #[cfg(feature = "native-hevc-rows-private")]
+        let bounded = self.rows().is_some();
+        #[cfg(not(feature = "native-hevc-rows-private"))]
+        let bounded = false;
+        if bounded && self.jobs.len() == self.jobs.capacity() {
+            return Err(Error::Internal("row_job_storage"));
+        }
+        if refuse || (!bounded && self.jobs.try_reserve_exact(1).is_err()) {
             crate::thread_diagnostic!(barrier QueueMemory);
             return Ok(false);
         }
@@ -957,7 +1027,16 @@ impl Scheduler {
             Err(error) => return Err(error),
         };
         let prior_capacity = self.operations.capacity();
-        if self.operations.try_reserve_exact(1).is_err() {
+        #[cfg(feature = "native-hevc-rows-private")]
+        let operations = self
+            .rows()
+            .filter(|_| self.operations.capacity() == 0)
+            .map_or(1, |rows| rows.operation_limit);
+        #[cfg(not(feature = "native-hevc-rows-private"))]
+        let operations = 1;
+        if (!bounded || self.operations.capacity() == 0)
+            && self.operations.try_reserve_exact(operations).is_err()
+        {
             crate::thread_diagnostic!(barrier QueueMemory);
             return Ok(false);
         }
@@ -1025,7 +1104,13 @@ impl Scheduler {
         self.scratch = 0;
         if self.jobs.is_empty() {
             self.execution = None;
-            self.jobs = Vec::new();
+            #[cfg(feature = "native-hevc-rows-private")]
+            let retain = self.rows().is_some();
+            #[cfg(not(feature = "native-hevc-rows-private"))]
+            let retain = false;
+            if !retain {
+                self.jobs = Vec::new();
+            }
         }
         *remaining -= outcome.consumed;
         *picture_remaining -= outcome.consumed;
@@ -1053,7 +1138,14 @@ impl Scheduler {
             crate::thread_diagnostic!(barrier WindowFull);
             self.drain(summary, remaining, None)?;
         }
-        if self.jobs.try_reserve_exact(1).is_err() {
+        #[cfg(feature = "native-hevc-rows-private")]
+        let bounded = self.rows().is_some();
+        #[cfg(not(feature = "native-hevc-rows-private"))]
+        let bounded = false;
+        if bounded && self.jobs.len() == self.jobs.capacity() {
+            return Err(Error::Internal("row_job_storage"));
+        }
+        if !bounded && self.jobs.try_reserve_exact(1).is_err() {
             self.drain(summary, remaining, None)?;
             let outcome = self.run_current(frame, true, self.bound);
             self.discard_current();

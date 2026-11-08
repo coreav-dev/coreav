@@ -205,10 +205,28 @@ impl coreav_hevc::native_rows::RowSink for RowOutput<'_> {
         &mut self,
         header: coreav_hevc::native_rows::OutputHeader,
         memory: &mut coreav_hevc::OutputMemory<'_>,
+        bounded: bool,
     ) -> coreav_hevc::Result<bool> {
         let offset = self.output.ready.len();
-        let result = self.output.prepare(header, memory);
+        let result = self.output.prepare(header, memory, bounded);
         self.capture(result, offset)
+    }
+
+    fn reserve_queue(
+        &mut self,
+        records: usize,
+        memory: &mut coreav_hevc::OutputMemory<'_>,
+        admit: &mut dyn FnMut(usize) -> coreav_hevc::Result<bool>,
+    ) -> coreav_hevc::Result<bool> {
+        self.output.reserve_queue(records, memory, admit)
+    }
+
+    fn qualify(
+        &self,
+        info: coreav_hevc::PictureInfo,
+        probe: &mut coreav_hevc::native_rows::CapacityProbe,
+    ) -> bool {
+        self.output.qualify(info, probe)
     }
 
     fn fill(

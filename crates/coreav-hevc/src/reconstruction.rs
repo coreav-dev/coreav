@@ -216,6 +216,51 @@ pub(crate) struct ContinuationCapacity {
 }
 
 #[cfg(feature = "native-hevc-rows-private")]
+pub(crate) fn qualify_capacities(
+    info: PictureInfo,
+    ctus: usize,
+    probe: &mut crate::native_rows::CapacityProbe,
+) -> bool {
+    let width = info.width as usize;
+    let height = info.height as usize;
+    let Some(area) = width.checked_mul(height) else {
+        return false;
+    };
+    let Some(ctb) = 1usize.checked_shl(info.ctb_log2) else {
+        return false;
+    };
+    let Some(band) = ctb.checked_mul(2).and_then(|n| n.checked_add(4)) else {
+        return false;
+    };
+    let Some(band_area) = width.checked_mul(band.min(height)) else {
+        return false;
+    };
+    [
+        area,
+        area / 4,
+        band_area,
+        band_area / 4,
+        width,
+        width / 2,
+        1024,
+        4096,
+    ]
+    .into_iter()
+    .all(|count| probe.check::<u16>(count))
+        && [area / 16, band_area / 16]
+            .into_iter()
+            .all(|count| probe.check::<Cell>(count))
+        && probe.check::<filter::Ctu>(ctus)
+        && probe.check::<i16>(1024)
+        && [1024, 4096]
+            .into_iter()
+            .all(|count| probe.check::<i32>(count))
+        && probe.check::<u8>(1024)
+        && probe.check::<Option<u16>>(129)
+        && parallel::qualify_capacities(info, probe)
+}
+
+#[cfg(feature = "native-hevc-rows-private")]
 pub(crate) fn continuation_capacity(
     info: PictureInfo,
     ctus: usize,

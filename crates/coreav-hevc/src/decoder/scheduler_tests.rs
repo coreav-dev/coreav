@@ -29,48 +29,94 @@ mod raster;
 use raster::stream as raster_stream;
 
 #[cfg(feature = "native-hevc-rows-private")]
+use crate::native_rows::{OutputHeader, RowSink, SinkCost};
+#[cfg(feature = "native-hevc-rows-private")]
+struct NativeRowsSink {
+    headers: Vec<OutputHeader>,
+    output: Vec<Output>,
+    packet: usize,
+}
+#[cfg(feature = "native-hevc-rows-private")]
+impl RowSink for NativeRowsSink {
+    fn prepare(
+        &mut self,
+        header: OutputHeader,
+        memory: &mut OutputMemory<'_>,
+        bounded: bool,
+    ) -> Result<bool> {
+        if bounded {
+            assert!(self.headers.len() < self.headers.capacity());
+        }
+        memory.reserve(
+            (header.info.visible_width as usize * header.info.visible_height as usize * 3)
+                + core::mem::size_of::<Output>(),
+        )?;
+        self.headers.push(header);
+        Ok(true)
+    }
+    fn reserve_queue(
+        &mut self,
+        records: usize,
+        memory: &mut OutputMemory<'_>,
+        admit: &mut dyn FnMut(usize) -> Result<bool>,
+    ) -> Result<bool> {
+        let mut headers = Vec::new();
+        let mut output = Vec::new();
+        headers
+            .try_reserve_exact(records)
+            .map_err(|_| Error::Limit("picture_allocation"))?;
+        output
+            .try_reserve_exact(records)
+            .map_err(|_| Error::Limit("picture_allocation"))?;
+        if headers.capacity() != output.capacity() || !admit(headers.capacity())? {
+            return Ok(false);
+        }
+        memory.reserve(
+            headers.capacity()
+                * (core::mem::size_of::<OutputHeader>() + core::mem::size_of::<Output>()),
+        )?;
+        while !self.headers.is_empty() {
+            headers.push(self.headers.remove(0));
+        }
+        while !self.output.is_empty() {
+            output.push(self.output.remove(0));
+        }
+        self.headers = headers;
+        self.output = output;
+        Ok(true)
+    }
+    fn qualify(&self, _: PictureInfo, _: &mut crate::native_rows::CapacityProbe) -> bool {
+        true
+    }
+    fn fill(&mut self, offset: usize, picture: DecodedPicture<'_>) -> Result<()> {
+        assert_eq!(self.headers[offset].index, picture.index);
+        assert_eq!(offset, self.output.len());
+        capture(picture, &mut self.output);
+        Ok(())
+    }
+    fn truncate(&mut self, keep: usize) {
+        self.headers.truncate(keep);
+        self.output.truncate(keep);
+    }
+    fn cost(&self, debt: usize, _: usize) -> Result<SinkCost> {
+        assert_eq!(debt, 0);
+        Ok(SinkCost {
+            max_packet_bytes: self.packet,
+            max_nals: 4096,
+            max_pending_bytes: 1 << 20,
+            queue_capacity: self.headers.capacity(),
+            queued_frames: self.headers.len(),
+            record_bytes: core::mem::size_of::<Output>() + core::mem::size_of::<OutputHeader>(),
+            plane_records_bytes: 3 * core::mem::size_of::<Vec<u16>>(),
+            owner_bytes: core::mem::size_of::<Self>(),
+            debt_peak_bytes: 0,
+        })
+    }
+}
+
+#[cfg(feature = "native-hevc-rows-private")]
 #[test]
 fn dependent_raster_job_reads_a_building_predecessor_before_its_first_publication() -> Result<()> {
-    use crate::native_rows::{OutputHeader, RowSink, SinkCost};
-    struct Sink {
-        headers: Vec<OutputHeader>,
-        output: Vec<Output>,
-        packet: usize,
-    }
-    impl RowSink for Sink {
-        fn prepare(&mut self, header: OutputHeader, memory: &mut OutputMemory<'_>) -> Result<bool> {
-            memory.reserve(
-                (header.info.visible_width as usize * header.info.visible_height as usize * 3)
-                    + core::mem::size_of::<Output>(),
-            )?;
-            self.headers.push(header);
-            Ok(true)
-        }
-        fn fill(&mut self, offset: usize, picture: DecodedPicture<'_>) -> Result<()> {
-            assert_eq!(self.headers[offset].index, picture.index);
-            assert_eq!(offset, self.output.len());
-            capture(picture, &mut self.output);
-            Ok(())
-        }
-        fn truncate(&mut self, keep: usize) {
-            self.headers.truncate(keep);
-            self.output.truncate(keep);
-        }
-        fn cost(&self, debt: usize, _: usize) -> Result<SinkCost> {
-            assert_eq!(debt, 0);
-            Ok(SinkCost {
-                max_packet_bytes: self.packet,
-                max_nals: 4096,
-                max_pending_bytes: 1 << 20,
-                queue_capacity: self.headers.capacity(),
-                queued_frames: self.headers.len(),
-                record_bytes: core::mem::size_of::<Output>() + core::mem::size_of::<OutputHeader>(),
-                plane_records_bytes: 3 * core::mem::size_of::<Vec<u16>>(),
-                owner_bytes: core::mem::size_of::<Self>(),
-                debt_peak_bytes: 0,
-            })
-        }
-    }
     let nals = raster_stream(true)?;
     let limits = DecodeLimits {
         threads: 2,
@@ -86,7 +132,7 @@ fn dependent_raster_job_reads_a_building_predecessor_before_its_first_publicatio
     let mut decoder = test_decoder(limits);
     decoder.initialize()?;
     decoder.session[0].pictures.frame.scheduler.hook = Some(Arc::clone(&hook));
-    let mut sink = Sink {
+    let mut sink = NativeRowsSink {
         headers: Vec::new(),
         output: Vec::new(),
         packet: nals.iter().map(|nal| nal.len() + 4).sum(),
@@ -123,7 +169,7 @@ fn dependent_raster_job_reads_a_building_predecessor_before_its_first_publicatio
     assert!(serial.0.is_err());
     assert!(serial.1.is_empty());
     let mut decoder = test_decoder(limits);
-    let mut sink = Sink {
+    let mut sink = NativeRowsSink {
         headers: Vec::new(),
         output: Vec::new(),
         packet: failed.iter().map(|nal| nal.len() + 4).sum(),
@@ -137,6 +183,43 @@ fn dependent_raster_job_reads_a_building_predecessor_before_its_first_publicatio
     })();
     assert_eq!(actual.map(semantic), serial.0.map(semantic));
     assert_eq!(sink.output, serial.1);
+    Ok(())
+}
+
+#[cfg(feature = "native-hevc-rows-private")]
+#[test]
+fn capacity_probe_mismatch_preserves_legacy_frames_and_summary() -> Result<()> {
+    let nals = raster_stream(true)?;
+    let limits = DecodeLimits {
+        threads: 2,
+        max_memory_bytes: 128 << 20,
+        ..DecodeLimits::default()
+    };
+    let serial = decode_raster(&nals, false, limits, None);
+    crate::native_rows::FORCE_CAPACITY_MISMATCH.set(true);
+    let fallback: Result<()> = (|| {
+        let mut decoder = test_decoder(limits);
+        let mut sink = NativeRowsSink {
+            headers: Vec::new(),
+            output: Vec::new(),
+            packet: nals.iter().map(|nal| nal.len() + 4).sum(),
+        };
+        for (index, nal) in nals.iter().enumerate() {
+            let origin = if index < 3 {
+                0
+            } else {
+                77 + ((index - 3) / 32).min(1) as u64
+            };
+            decoder.read_nal_rows(nal, Some(origin as i64), Some(origin), &mut sink)?;
+            assert!(!decoder.has_native_rows());
+        }
+        let summary = decoder.finish_rows(&mut sink)?;
+        assert_eq!(sink.output, serial.1);
+        assert_eq!(semantic(summary), semantic(serial.0?));
+        Ok(())
+    })();
+    crate::native_rows::FORCE_CAPACITY_MISMATCH.set(false);
+    fallback?;
     Ok(())
 }
 
