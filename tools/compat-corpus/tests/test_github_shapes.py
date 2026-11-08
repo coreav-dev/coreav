@@ -315,11 +315,19 @@ class ExactPredicate(unittest.TestCase):
 
     def test_exact_copy_rejects_each_keyframe_only_difference(self):
         command = inputs.instantiate(shape('ffmpeg'))
-        document = {'streams': [{'index': i, 'time_base': '1/10', 'codec_name': codec}
-                                for i, codec in enumerate(('h264', 'aac'))],
-                    'packets': [{'stream_index': i, 'data_hash': 'SHA256:control', 'pts': pts,
-                                 'dts': pts, 'duration': 1, 'flags': 'K__'}
-                                for pts in (0, 1) for i in (0, 1)]}
+        sps, pps = Avc1Carriage.SPS, Avc1Carriage.PPS
+        config = b'\x01\x42\x00\x0a\xff\xe1' + len(sps).to_bytes(2, 'big') + sps + (
+            b'\x01' + len(pps).to_bytes(2, 'big') + pps)
+        video = {'index': 0, 'time_base': '1/10', 'codec_type': 'video', 'codec_name': 'h264',
+                 'codec_tag_string': 'avc1', 'extradata': Avc1Carriage.dump(config), 'extradata_size': len(config),
+                 'extradata_hash': 'SHA256:' + hashlib.sha256(config).hexdigest()}
+        document = {'streams': [video, {'index': 1, 'time_base': '1/10', 'codec_type': 'audio', 'codec_name': 'aac'}],
+                    'packets': []}
+        for pts in (0, 1):
+            for index, payload in enumerate((Avc1Carriage.sample(Avc1Carriage.SLICE), b'audio')):
+                document['packets'].append({'stream_index': index, 'pts': pts, 'dts': pts, 'duration': 1,
+                    'flags': 'K__', 'size': str(len(payload)), 'data': Avc1Carriage.dump(payload),
+                    'data_hash': 'SHA256:' + hashlib.sha256(payload).hexdigest()})
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             for arm in ('reference', 'candidate'):
@@ -343,6 +351,9 @@ class ExactPredicate(unittest.TestCase):
                         with self.subTest(packet=index, ours=ours, theirs=theirs):
                             candidate['packets'][index]['flags'] = ours
                             document['packets'][index]['flags'] = theirs
+                            normalized = copy.deepcopy(candidate)
+                            normalized['packets'][index]['flags'] = theirs
+                            self.assertEqual(normalized, document)
                             self.assertEqual(result(), 'different')
                     candidate['packets'][index]['flags'] = document['packets'][index]['flags'] = 'K__'
                 candidate['packets'][0]['flags'] = 'KD_'
