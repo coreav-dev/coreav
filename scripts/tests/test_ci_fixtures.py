@@ -141,7 +141,8 @@ class SharedFixtures(unittest.TestCase):
             scripts = root / 'scripts'
             scripts.mkdir()
             contents = {'gen-fixtures.sh': '$SCRIPTS/craft.py\n', 'craft.py': 'first\n',
-                        'install-oracle-ffmpeg.sh': 'installer\n', 'oracle-ffmpeg.env': 'pin\n'}
+                        'install-oracle-ffmpeg.sh': 'installer\n',
+                        'install-ci-oracle-ffmpeg.sh': 'ci installer\n', 'oracle-ffmpeg.env': 'pin\n'}
             contents.update({name: (ROOT / 'scripts' / name).read_text()
                              for name in test_oracle.SUPPORT})
             for name, content in contents.items():
