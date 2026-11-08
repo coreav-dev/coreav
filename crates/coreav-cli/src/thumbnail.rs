@@ -248,7 +248,11 @@ pub(crate) fn backends(
     #[cfg(feature = "native-vp9")]
     out.push(Box::new(coreav_backend_vp9::NativeVp9::new()));
     #[cfg(feature = "native-hevc")]
-    out.push(Box::new(coreav_backend_hevc::NativeHevc::new()));
+    out.push(Box::new(coreav_backend_hevc::NativeHevc::with_options(
+        coreav_backend_hevc::NativeOptions {
+            threads: (threads != 0).then_some(threads as usize),
+        },
+    )));
     #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
     if let Some(program) = this {
         use coreav_worker::{SandboxedBackend, WorkerBackend, WorkerCommand, WorkerOptions};

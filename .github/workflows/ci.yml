@@ -377,6 +377,15 @@ jobs:
       # (`coreav ffmpeg`'s encode, `coreav transcode`), which
       # `cargo test --workspace` does not build.
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --lib
+      - name: Compare complete MP3 files with the pinned oracle
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
+          COREAV_FFPROBE: ${{ runner.temp }}/coreav-encoders/ffprobe
+        run: |
+          set -euo pipefail
+          cargo test --locked -p coreav-cli --features ffmpeg-fallback --test transcode ffmpeg_mp3_information_headers_match_complete_oracle_files -- --exact --nocapture --color never 2>&1 | tee "$RUNNER_TEMP/mp3-information.log"
+          grep -F 'test ffmpeg_mp3_information_headers_match_complete_oracle_files ... ok' "$RUNNER_TEMP/mp3-information.log"
       # The AAC LC pipeline and command, with the opt-in feature
       # (docs/design/audio-decode.md, "AAC-LC").
       - run: |

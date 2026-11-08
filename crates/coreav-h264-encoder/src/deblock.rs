@@ -32,7 +32,7 @@ pub(crate) struct Record {
     pub(crate) nonzero: u16,
 }
 
-fn strength(p: Record, q: Record, pi: usize, qi: usize, external: bool) -> Result<u8> {
+fn strength(p: &Record, q: &Record, pi: usize, qi: usize, external: bool) -> Result<u8> {
     if p.motion.intra || q.motion.intra {
         return Ok(if external { 4 } else { 3 });
     }
@@ -102,9 +102,9 @@ pub(crate) fn picture(
             for vertical in [true, false] {
                 for offset in (0..n).step_by(4) {
                     let p = match (offset, vertical) {
-                        (0, true) => left,
-                        (0, false) => top,
-                        _ => Some(q),
+                        (0, true) => left.as_ref(),
+                        (0, false) => top.as_ref(),
+                        _ => Some(&q),
                     };
                     let Some(p) = p else {
                         continue;
@@ -122,7 +122,7 @@ pub(crate) fn picture(
                                 (if edge == 0 { 3 } else { edge - 1 }) * 4 + segment,
                             )
                         };
-                        *bs = strength(p, q, pi, qi, offset == 0)?;
+                        *bs = strength(p, &q, pi, qi, offset == 0)?;
                     }
                     if params.bs == [0; 4] {
                         continue;
@@ -237,26 +237,26 @@ mod tests {
             nonzero: 0,
         };
         let mut q = p;
-        assert_eq!(strength(p, q, 3, 0, true).unwrap(), 0);
+        assert_eq!(strength(&p, &q, 3, 0, true).unwrap(), 0);
         for delta in [-4, 4] {
             q.motion.vectors[0].x = delta;
-            assert_eq!(strength(p, q, 3, 0, true).unwrap(), 1);
+            assert_eq!(strength(&p, &q, 3, 0, true).unwrap(), 1);
             q.motion.vectors[0].x = 0;
             q.motion.vectors[0].y = delta;
-            assert_eq!(strength(p, q, 3, 0, true).unwrap(), 1);
+            assert_eq!(strength(&p, &q, 3, 0, true).unwrap(), 1);
             q.motion.vectors[0].y = 0;
         }
         q.motion.vectors[0].x = 3;
         q.motion.vectors[0].y = -3;
-        assert_eq!(strength(p, q, 3, 0, true).unwrap(), 0);
+        assert_eq!(strength(&p, &q, 3, 0, true).unwrap(), 0);
         p.nonzero = 1 << 3;
-        assert_eq!(strength(p, q, 3, 0, true).unwrap(), 2);
+        assert_eq!(strength(&p, &q, 3, 0, true).unwrap(), 2);
         p.nonzero = 0;
         q.nonzero = 1;
-        assert_eq!(strength(p, q, 3, 0, true).unwrap(), 2);
+        assert_eq!(strength(&p, &q, 3, 0, true).unwrap(), 2);
         p.motion.intra = true;
-        assert_eq!(strength(p, q, 3, 0, true).unwrap(), 4);
-        assert_eq!(strength(p, q, 3, 0, false).unwrap(), 3);
+        assert_eq!(strength(&p, &q, 3, 0, true).unwrap(), 4);
+        assert_eq!(strength(&p, &q, 3, 0, false).unwrap(), 3);
         assert_eq!(TC0_1[33], 2);
         assert_eq!(TC0_2[33], 2);
         assert_eq!(TC0_3[33], 3);

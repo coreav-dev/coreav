@@ -111,6 +111,7 @@ class AcquisitionAndReplay(unittest.TestCase):
         fixture = self.bundle / 'fixtures'
         fixture.mkdir()
         (fixture / 'source.mp4').write_bytes(b'synthetic control, not media')
+        run.write(fixture / 'commands.json', run.fixtures.recipe(run.fixtures.ORIGINAL))
         self.fake = self.root / 'fake'
         self.fake.write_text('#!' + sys.executable + '\nimport sys\n' +
                              'print(\'{"format":{"control_sentinel":"control result"}}\' if "json" in sys.argv '
@@ -189,7 +190,7 @@ class AcquisitionAndReplay(unittest.TestCase):
         self.assertEqual(self.judge(), 'reference_failed')
 
     def test_replay_checks_inventory_and_recomputes_instead_of_trusting_labels(self):
-        opts = types.SimpleNamespace(bundle=self.bundle, scratch=self.root / 'scratch',
+        opts = types.SimpleNamespace(bundle=self.bundle, scratch=self.root / 'scratch', registration=run.fixtures.ORIGINAL,
                                      summary=self.root / 'summary.json', **{
                                          k: str(self.fake) for k in ('coreav', 'ffmpeg', 'ffprobe', 'x264', 'pns_diagnostic')})
         identity = {'coreav': {'sha256': run.digest(self.fake)}}
@@ -202,7 +203,7 @@ class AcquisitionAndReplay(unittest.TestCase):
             entry['shape']['options'].append(['-wrapper-unresolved', '<value>'])
             records.append({'rank': entry['rank'], 'uninstantiable': 'lost_construction'})
         run.write(self.bundle / 'records.json', records)
-        manifest = {'method': {}, 'programs': identity, 'features': run.FEATURES,
+        manifest = {'registration': run.fixtures.ORIGINAL, 'method': {}, 'programs': identity, 'features': run.FEATURES,
                     'build_command': run.BUILD, 'build': build, 'commit': 'a' * 40,
                     'inventory': run.inventory(self.bundle)}
         run.write(self.bundle / 'manifest.json', manifest)

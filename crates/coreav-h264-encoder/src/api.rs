@@ -46,9 +46,99 @@ pub struct Colour {
     pub chroma_location: u8,
 }
 
-/// Immutable sequence settings. Timing is always nominal 30/1.
+/// A positive constant frame rate, reduced to fit progressive VUI timing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrameRate {
+    pub(crate) num: u32,
+    pub(crate) den: u32,
+}
+
+impl FrameRate {
+    /// Reduce frames per second `num / den`; reject zero or 32-bit timing overflow.
+    pub fn new(num: u32, den: u32) -> Result<Self> {
+        let (num, den) = ratio(num, den)?;
+        if den % 2 != 0 {
+            num.checked_mul(2).ok_or(Error::Settings)?;
+        }
+        Ok(Self { num, den })
+    }
+
+    /// Reduced frames per second as (numerator, denominator).
+    pub fn as_ratio(self) -> (u32, u32) {
+        (self.num, self.den)
+    }
+
+    pub(crate) fn timing(self) -> (u32, u64) {
+        if self.den % 2 == 0 {
+            (self.den / 2, u64::from(self.num))
+        } else {
+            (self.den, 2 * u64::from(self.num))
+        }
+    }
+}
+
+impl Default for FrameRate {
+    fn default() -> Self {
+        Self { num: 30, den: 1 }
+    }
+}
+
+/// A sample width-to-height ratio with bounded H.264 VUI signalling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SampleAspectRatio {
+    pub(crate) width: u16,
+    pub(crate) height: u16,
+    pub(crate) present: bool,
+}
+
+impl SampleAspectRatio {
+    /// Reduce a positive ratio; reject values exceeding 16 bits after reduction.
+    /// Square pixels are explicitly signalled with aspect_ratio_idc 1.
+    pub fn new(width: u32, height: u32) -> Result<Self> {
+        let (width, height) = ratio(width, height)?;
+        Ok(Self {
+            width: u16::try_from(width).map_err(|_| Error::Settings)?,
+            height: u16::try_from(height).map_err(|_| Error::Settings)?,
+            present: true,
+        })
+    }
+
+    /// Reduced sample width and height, including the legacy square-pixel default.
+    pub fn as_ratio(self) -> (u16, u16) {
+        (self.width, self.height)
+    }
+}
+
+impl Default for SampleAspectRatio {
+    /// Preserve legacy bytes by omitting aspect ratio signalling (unspecified).
+    /// Use `new(1, 1)` when explicit square-pixel signalling is required.
+    fn default() -> Self {
+        Self {
+            width: 1,
+            height: 1,
+            present: false,
+        }
+    }
+}
+
+fn ratio(num: u32, den: u32) -> Result<(u32, u32)> {
+    if num == 0 || den == 0 {
+        return Err(Error::Settings);
+    }
+    let (mut a, mut b) = (num, den);
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    Ok((num / a, den / a))
+}
+
+/// Immutable sequence settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {
+    /// Constant progressive cadence; the default is 30/1 frames per second.
+    pub frame_rate: FrameRate,
+    /// Sample shape; the default preserves legacy absent signalling.
+    pub sample_aspect_ratio: SampleAspectRatio,
     /// Even visible width, 16 through 1920.
     pub width: usize,
     /// Even visible height, 16 through 1080.
@@ -232,7 +322,8 @@ impl Encoder {
         let mbs = coded_width * coded_height / 256;
         if coded_width * coded_height > limits.coded_pixels
             || mbs > 36_864
-            || mbs * 30 > 983_040
+            || mbs as u64 * u64::from(settings.frame_rate.num)
+                > 983_040 * u64::from(settings.frame_rate.den)
             || mbs > 184_320
             || (coded_width / 16).pow(2) > 36_864 * 8
             || (coded_height / 16).pow(2) > 36_864 * 8

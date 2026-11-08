@@ -42,6 +42,11 @@ fn run(writer: &mut impl Write) -> Result<()> {
         max_memory_bytes: number(args.next())?,
         max_stream_bins: number(args.next())?,
         max_picture_bins: number(args.next())?,
+        threads: args
+            .next()
+            .map(|value| number(Some(value)))
+            .transpose()?
+            .unwrap_or(1),
         ..DecodeLimits::default()
     };
     if args.next().is_some() {
@@ -64,6 +69,7 @@ fn main() -> std::process::ExitCode {
                 Error::InvalidData(reason) => ("invalid_data", reason),
                 Error::Unsupported(reason) => ("unsupported", reason),
                 Error::Limit(reason) => ("limit", reason),
+                Error::Internal(reason) => ("backend", reason),
             };
             let mut stderr = std::io::stderr().lock();
             let _ = serde_json::to_writer(
@@ -401,6 +407,8 @@ mod tests {
 
     fn summary(count: u64) -> DecodeSummary {
         DecodeSummary {
+            parallel_pictures: 0,
+            max_workers: 1,
             headers: Summary {
                 warnings: coreav_hevc::Warnings {
                     profile_bit_depth: true,

@@ -39,6 +39,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "intra"
+path = "fuzz_targets/intra.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "deblock"
 path = "fuzz_targets/deblock.rs"
 test = false

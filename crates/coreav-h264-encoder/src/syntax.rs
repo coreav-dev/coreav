@@ -24,7 +24,34 @@ pub(crate) fn sps(w: &mut Bits, e: &Encoder) -> Result<()> {
         w.ue(((e.coded_height - e.settings.height) / 2) as u32)?;
     }
     w.flag(true)?;
-    w.flag(false)?;
+    let sar = e.settings.sample_aspect_ratio;
+    w.flag(sar.present)?;
+    if sar.present {
+        let idc = match sar.as_ratio() {
+            (1, 1) => 1,
+            (12, 11) => 2,
+            (10, 11) => 3,
+            (16, 11) => 4,
+            (40, 33) => 5,
+            (24, 11) => 6,
+            (20, 11) => 7,
+            (32, 11) => 8,
+            (80, 33) => 9,
+            (18, 11) => 10,
+            (15, 11) => 11,
+            (64, 33) => 12,
+            (160, 99) => 13,
+            (4, 3) => 14,
+            (3, 2) => 15,
+            (2, 1) => 16,
+            _ => 255,
+        };
+        w.u(8, idc)?;
+        if idc == 255 {
+            w.u(16, u64::from(sar.width))?;
+            w.u(16, u64::from(sar.height))?;
+        }
+    }
     w.flag(false)?;
     w.flag(true)?;
     w.u(3, 5)?;
@@ -37,8 +64,9 @@ pub(crate) fn sps(w: &mut Bits, e: &Encoder) -> Result<()> {
     w.ue(u32::from(e.settings.colour.chroma_location))?;
     w.ue(u32::from(e.settings.colour.chroma_location))?;
     w.flag(true)?;
-    w.u(32, 1)?;
-    w.u(32, 60)?;
+    let (tick, scale) = e.settings.frame_rate.timing();
+    w.u(32, u64::from(tick))?;
+    w.u(32, scale)?;
     w.flag(true)?;
     w.flag(false)?;
     w.flag(false)?;
