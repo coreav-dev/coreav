@@ -68,7 +68,7 @@ def main():
         cpu_model=next(line.split(":", 1)[1].strip() for line in pathlib.Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name")),
         kernel=platform.release(), load=os.getloadavg(),
         binaries={name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in binaries.items()},
-        scope="whole-process Ir with only interior reference column-map and gather copies removed; not timing or an CPU-time share or wall-time speedup",
+        scope="whole-process Ir with only Main10 interior reference column-map and gather copies removed; not timing, a CPU-time share or a wall-time speedup",
         cells=[])
     pool = reference.round_files.pool()
     pool.limits.max_requests = 4000
@@ -80,11 +80,13 @@ def main():
 
     try:
         with tempfile.TemporaryDirectory(prefix="interpolation-copy-") as temp:
-            selection = argparse.Namespace(only={"c00", "c01", "c02", "c03"}, frames=8)
+            selection = argparse.Namespace(only={"c02", "c03"}, frames=8)
             for identity, source, source_sha in reference.inputs(selection, oracle, pathlib.Path(temp), pool):
                 checks = {name: reference.verify(binary, oracle, source) for name, binary in binaries.items()}
                 if checks["baseline"] != checks["ablated"]:
                     raise ValueError("arm_pixels_or_work")
+                if checks["baseline"]["depth"] != 10:
+                    raise ValueError("not_main10")
                 cell = dict(id=identity, source_sha256=source_sha,
                             input_sha256=reference.conformance.digest(source),
                             **checks["baseline"], arms={})
@@ -106,7 +108,7 @@ def main():
                 cell["removed_instructions"] = baseline - ablated
                 cell["erase_ceiling_percent"] = 100 * (baseline - ablated) / baseline
                 save()
-            if len(report["cells"]) != 4:
+            if len(report["cells"]) != 2:
                 raise ValueError("incomplete_selection")
             report["complete"] = True
     finally:
@@ -116,4 +118,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

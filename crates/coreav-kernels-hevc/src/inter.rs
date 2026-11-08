@@ -196,7 +196,9 @@ fn interpolate(
         rows: [[0; 64]; 8],
     };
     let source_width = output.width + x_filter.len().saturating_sub(1);
-    let consecutive = x_start >= 0 && x_start + source_width as i64 <= reference.width as i64;
+    let consecutive = config.depth.bits() == 10
+        && x_start >= 0
+        && x_start + source_width as i64 <= reference.width as i64;
     if !consecutive {
         for (x, column) in scratch.columns.iter_mut().take(source_width).enumerate() {
             *column = (x_start + x as i64).clamp(0, reference.width as i64 - 1) as usize;

@@ -220,7 +220,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: interpolation-copy-ceiling-sealed
+          name: main10-copy-ceiling-sealed
           path: ${{ runner.temp }}/sealed
           if-no-files-found: error
           retention-days: 1
