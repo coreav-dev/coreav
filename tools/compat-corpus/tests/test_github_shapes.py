@@ -305,6 +305,14 @@ class ExactPredicate(unittest.TestCase):
             (folder / 'command.stderr').write_text('Stream #0:7 -> #1:0 (copy)\nStream #0:1 -> #0:2 (copy)\n')
             self.assertEqual(run.jobs(folder), {(1, 0): 'copy', (0, 2): 'copy'})
 
+    def test_missing_packet_flags_cannot_supply_exact_keyframe_evidence(self):
+        document = {'streams': [{'index': 0, 'time_base': '1/10'}],
+                    'packets': [{'stream_index': 0, 'data_hash': 'SHA256:control', 'pts': 0,
+                                 'dts': 0, 'duration': 1}]}
+        with mock.patch.object(decoded_output, 'invoke', return_value=(0, json.dumps(document).encode(), b'')):
+            with self.assertRaises(KeyError):
+                run.packet_rows('output', 'probe', {}, ())
+
     def test_exact_copy_rejects_each_keyframe_only_difference(self):
         command = inputs.instantiate(shape('ffmpeg'))
         document = {'streams': [{'index': i, 'time_base': '1/10', 'codec_name': codec}
@@ -491,6 +499,12 @@ class Avc1Carriage(unittest.TestCase):
             self.actual['packets'][index]['flags'] = self.reference['packets'][index]['flags'] = 'K__'
         self.actual['packets'][0]['flags'] = 'KD_'
         self.assertTrue(self.compatible())
+
+    def test_missing_packet_flags_cannot_supply_compatible_keyframe_evidence(self):
+        for document in (self.actual, self.reference):
+            for packet in document['packets']:
+                del packet['flags']
+        self.assertFalse(self.compatible())
 
     def test_decoded_pixels_samples_and_all_audio_frame_timelines_stay_exact(self):
         for attribute in ('audio_shift', 'changed_pixels', 'changed_audio'):
