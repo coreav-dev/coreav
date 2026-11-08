@@ -464,6 +464,7 @@ impl Frame {
             references,
             predictors,
             inter_output,
+            interpolation: _,
         } = scratch;
         coefficients.copy_from_slice(&source.scratch.coefficients);
         residual.copy_from_slice(&source.scratch.residual);

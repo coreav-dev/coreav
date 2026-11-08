@@ -594,6 +594,7 @@ mod tests {
                 references: Vec::new(),
                 predictors: [Vec::new(), Vec::new()],
                 inter_output: Vec::new(),
+                interpolation: kernels::InterScratch::default(),
             },
         })
     }
@@ -892,6 +893,7 @@ mod tests {
                     references: Vec::new(),
                     predictors: [Vec::new(), Vec::new()],
                     inter_output: Vec::new(),
+                    interpolation: kernels::InterScratch::default(),
                 },
             };
             let scale = 1u16 << (bits - 8);

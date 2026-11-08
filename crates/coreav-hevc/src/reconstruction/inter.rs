@@ -959,7 +959,7 @@ pub(super) fn predict(
                 .planes
                 .get(component)
                 .ok_or(Error::InvalidData("inter_reference_plane"))?;
-            kernels::interpolate_inter(
+            kernels::interpolate_inter_with_scratch(
                 kernels::InterPrediction {
                     depth: walker.frame.depth,
                     component: if component == 0 {
@@ -983,6 +983,7 @@ pub(super) fn predict(
                     width,
                     height,
                 )?,
+                &mut walker.frame.scratch.interpolation,
             )?;
             if let Some(parameters) = inter.weights {
                 let denom = *parameters

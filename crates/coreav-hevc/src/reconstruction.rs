@@ -181,6 +181,7 @@ struct Scratch {
     scaling: Vec<u8>,
     references: Vec<Option<u16>>,
     predictors: [Vec<i32>; 2],
+    interpolation: kernels::InterScratch,
     inter_output: Vec<u16>,
 }
 
@@ -431,6 +432,7 @@ impl Frame {
                     memory.allocate(if reference.is_some() { 4096 } else { 0 }, 0)?,
                 ],
                 inter_output: memory.allocate(if reference.is_some() { 4096 } else { 0 }, 0)?,
+                interpolation: kernels::InterScratch::default(),
             },
         })
     }

@@ -71,10 +71,21 @@ fn coefficients(component: Component, phase: i16) -> Result<&'static [i32], Erro
     .ok_or(Error::Buffer)
 }
 
-pub(crate) struct InterScratch {
+/// Reusable initialized storage for one interpolation invocation at a time.
+pub struct InterScratch {
     columns: [usize; 71],
     source: [u16; 71],
     rows: [[i32; 64]; 8],
+}
+
+impl Default for InterScratch {
+    fn default() -> Self {
+        Self {
+            columns: [0; 71],
+            source: [0; 71],
+            rows: [[0; 64]; 8],
+        }
+    }
 }
 
 pub(crate) fn horizontal_row(
@@ -124,7 +135,23 @@ pub fn interpolate_inter(
     reference: RefPlane<'_>,
     output: RectMut<'_, i32>,
 ) -> Result<(), Error> {
-    interpolate(config, reference, output, true)
+    interpolate(
+        config,
+        reference,
+        output,
+        true,
+        &mut InterScratch::default(),
+    )
+}
+
+/// Interpolates with caller-owned scratch, overwriting every active temporary sample.
+pub fn interpolate_inter_with_scratch(
+    config: InterPrediction,
+    reference: RefPlane<'_>,
+    output: RectMut<'_, i32>,
+    scratch: &mut InterScratch,
+) -> Result<(), Error> {
+    interpolate(config, reference, output, true, scratch)
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -134,7 +161,13 @@ pub fn interpolate_inter_scalar(
     reference: RefPlane<'_>,
     output: RectMut<'_, i32>,
 ) -> Result<(), Error> {
-    interpolate(config, reference, output, false)
+    interpolate(
+        config,
+        reference,
+        output,
+        false,
+        &mut InterScratch::default(),
+    )
 }
 
 fn interpolate(
@@ -142,6 +175,7 @@ fn interpolate(
     reference: RefPlane<'_>,
     output: RectMut<'_, i32>,
     _automatic: bool,
+    scratch: &mut InterScratch,
 ) -> Result<(), Error> {
     #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
     let vector = _automatic.then(crate::simd::Avx2::detect).flatten();
@@ -189,11 +223,6 @@ fn interpolate(
         &[][..]
     } else {
         coefficients(config.component, phase_y)?
-    };
-    let mut scratch = InterScratch {
-        columns: [0; 71],
-        source: [0; 71],
-        rows: [[0; 64]; 8],
     };
     let source_width = output.width + x_filter.len().saturating_sub(1);
     let consecutive = x_start >= 0 && x_start + source_width as i64 <= reference.width as i64;
