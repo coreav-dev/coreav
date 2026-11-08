@@ -1,0 +1,87 @@
+name: hevc-sao10-ceiling
+run-name: HEVC Main10 filter count ${{ inputs.baseline }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Exact main commit to count
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  count:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: first
+            only: d07,d20,d23,c02,c03
+            frames: 1
+          - label: active-prefix
+            only: c02
+            frames: 8
+    env:
+      BASELINE: ${{ inputs.baseline }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          path: driver
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.BASELINE }}
+          path: main
+      - name: Admit the exact main commit
+        run: |
+          set -euo pipefail
+          test "$(git -C main rev-parse HEAD)" = "$BASELINE"
+          git -C main merge-base --is-ancestor "$BASELINE" origin/main
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Build matched original and erased arithmetic
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/count" "$RUNNER_TEMP/binaries"
+          cp driver/bench/hevc-reference/decode.rs main/crates/coreav-hevc/examples/reference.rs
+          export CARGO_PROFILE_RELEASE_DEBUG=1
+          (cd main && cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+          cp main/target/release/examples/reference "$RUNNER_TEMP/binaries/main"
+          python3 -I driver/scripts/filter_ceiling.py erase --kind sao10 --filter main/crates/coreav-kernels-hevc/src/filter.rs --diff "$RUNNER_TEMP/count/erasure.patch"
+          (cd main && cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+          cp main/target/release/examples/reference "$RUNNER_TEMP/binaries/sao10"
+          rustc -Vv > "$RUNNER_TEMP/count/compiler.txt"
+      - name: Install instruction profiler
+        run: sudo apt-get update -qq && sudo apt-get install -y valgrind
+      - name: Install the qualified binary oracle
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: driver/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Verify original pixels and count removed arithmetic
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          python3 -I driver/scripts/filter_ceiling.py run --baseline "$BASELINE" --arms sao10 \
+            --binaries "$RUNNER_TEMP/binaries" --oracle-bin "$RUNNER_TEMP/oracle" \
+            --only '${{ matrix.only }}' --depth 10 --frames '${{ matrix.frames }}' --out "$RUNNER_TEMP/count"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: main10-count-${{ matrix.label }}
+          path: ${{ runner.temp }}/count
+          retention-days: 1

@@ -103,7 +103,7 @@ def run(args):
         raise ValueError('invalid_input_ids')
     oracle = ref.test_oracle.require(args.oracle_bin / 'ffmpeg', args.oracle_bin / 'ffprobe')
     args.out.mkdir(parents=True, exist_ok=True)
-    binaries = {arm: args.binaries / arm for arm in ('main', 'deblock', 'sao10')}
+    binaries = {arm: args.binaries / arm for arm in ('main', *args.arms)}
     report = dict(complete=False, baseline=args.baseline, frames_cap=args.frames, audit_only=args.audit_only,
         method='Physical kernel erasure on matched picture prefixes, suffix SEI removed equally in all arms; instruction reference, not timing or a correct decoder',
         caveats='Erasure also removes validation and changes reconstructed reference samples, so later prediction and SAO classification work can change. SAO erasure preserves its source copy. Whole-crate compiler decisions can change unrelated kernels. Neither is a realizable SIMD gain or a corpus-wide CPU share.',
@@ -157,7 +157,7 @@ def run(args):
                 main_pixels = row['checks']['main']['pictures']
                 row['pixel_equal_to_main'] = {arm: check['pictures'] == main_pixels
                                              for arm, check in row['checks'].items()}
-                if args.depth == 8 and not row['pixel_equal_to_main']['sao10']:
+                if args.depth == 8 and 'sao10' in binaries and not row['pixel_equal_to_main']['sao10']:
                     raise ValueError('sao10_erase_changed_eight_bit_pixels')
                 for arm, binary in binaries.items():
                     row['calls'][arm] = count(binary, source, args.out, identity, arm, work)
@@ -169,7 +169,7 @@ def run(args):
                         raise ValueError('instruction_aa_mismatch')
                 total = row['calls']['main']['instructions']
                 row['erased_percent'] = {arm: 100 * (total - row['calls'][arm]['instructions']) / total
-                                         for arm in ('deblock', 'sao10')}
+                                         for arm in args.arms}
                 row['complete'] = True
                 save()
                 print(json.dumps(dict(id=identity, depth=args.depth, complete=True)), flush=True)
@@ -177,7 +177,7 @@ def run(args):
             raise ValueError('incomplete_input_set')
         if not args.audit_only:
             report['median_erased_percent'] = {arm: statistics.median(row['erased_percent'][arm] for row in report['files'])
-                                               for arm in ('deblock', 'sao10')}
+                                               for arm in args.arms}
         report['complete'] = True
     finally:
         pool.close()
@@ -196,6 +196,7 @@ def main():
     run_parser.add_argument('--oracle-bin', type=pathlib.Path, required=True)
     run_parser.add_argument('--out', type=pathlib.Path, required=True)
     run_parser.add_argument('--baseline', required=True)
+    run_parser.add_argument('--arms', nargs='+', choices=('deblock', 'sao10'), default=['deblock', 'sao10'])
     run_parser.add_argument('--only', required=True)
     run_parser.add_argument('--depth', type=int, choices=(8, 10), required=True)
     run_parser.add_argument('--frames', type=int, choices=range(1, 33), default=1)
