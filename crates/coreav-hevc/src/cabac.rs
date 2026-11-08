@@ -74,6 +74,13 @@ impl<'a, 'b> Cabac<'a, 'b> {
         )
     }
 
+    pub(crate) fn max_bins(bytes: usize) -> u64 {
+        (bytes as u64)
+            .saturating_mul(8)
+            .saturating_add(1)
+            .saturating_mul(128)
+    }
+
     pub(crate) fn new(bytes: &'a [u8], remaining_bin_budget: &'b mut u64) -> Result<Self> {
         let mut decoder = Self {
             input: Bits::new(bytes),
@@ -323,6 +330,36 @@ const TRANS_IDX_MPS: [u8; 64] = [
 mod tests {
     use super::{Cabac, Context, Initialization};
     use crate::Error;
+
+    #[test]
+    fn substream_bound_covers_the_longest_mps_runs_and_truncated_reads() {
+        assert!(
+            super::RANGE_TAB_LPS
+                .iter()
+                .flatten()
+                .all(|range| *range >= 2)
+        );
+        for length in 2..=64 {
+            let bytes = vec![0; length];
+            let allowance = Cabac::max_bins(length);
+            let mut remaining = allowance;
+            let mut decoder = Cabac::new(&bytes, &mut remaining).unwrap();
+            let mut context = Context {
+                state: 63,
+                mps: false,
+            };
+            loop {
+                match decoder.decision(&mut context) {
+                    Ok(_) => {}
+                    Err(error) => {
+                        assert_eq!(error, Error::InvalidData("cabac_truncated"));
+                        break;
+                    }
+                }
+            }
+            assert!(remaining > 0);
+        }
+    }
 
     #[test]
     fn slice_initialization_and_swap_follow_equation_9_7() {

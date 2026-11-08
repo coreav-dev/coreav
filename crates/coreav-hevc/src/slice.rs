@@ -113,6 +113,10 @@ pub(crate) fn prefix(bits: &mut Bits<'_>, nal: NalHeader) -> Result<Prefix> {
     })
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "header state and allocation boundary"
+)]
 pub(crate) fn parse(
     bits: &mut Bits<'_>,
     nal: NalHeader,
@@ -121,6 +125,7 @@ pub(crate) fn parse(
     p: &Pps,
     limits: &Limits,
     retain_entries: Option<usize>,
+    reserve_entries: &mut dyn FnMut(usize) -> Result<()>,
 ) -> Result<ParsedSlice> {
     let mut entry_lengths = Vec::new();
     let mut h = SliceHeader {
@@ -376,9 +381,20 @@ pub(crate) fn parse(
                 {
                     return Err(Error::Limit("reconstruction_memory"));
                 }
+                reserve_entries(
+                    (h.entry_points as usize)
+                        .checked_mul(core::mem::size_of::<u64>())
+                        .ok_or(Error::Limit("reconstruction_memory"))?,
+                )?;
                 entry_lengths
                     .try_reserve_exact(h.entry_points as usize)
                     .map_err(|_| Error::Limit("entry_point_allocation"))?;
+                reserve_entries(
+                    entry_lengths
+                        .capacity()
+                        .checked_mul(core::mem::size_of::<u64>())
+                        .ok_or(Error::Limit("reconstruction_memory"))?,
+                )?;
             }
             let width = bits.ue(31)? + 1;
             let mut total = 0u64;

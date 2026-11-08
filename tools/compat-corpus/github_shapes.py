@@ -221,7 +221,7 @@ def packet_rows(path, ffprobe, env, raw):
     clocks = {s['index']: fractions.Fraction(s['time_base']) for s in doc['streams']}
     return [(p['stream_index'], p['data_hash'], *[
         str(int(p[key]) * clocks[p['stream_index']]) if p.get(key) not in (None, 'N/A') else None
-        for key in ('pts', 'dts', 'duration')]) for p in doc['packets']]
+        for key in ('pts', 'dts', 'duration')], 'K' in p['flags']) for p in doc['packets']]
 
 
 def jobs(reference):

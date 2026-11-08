@@ -1,5 +1,5 @@
 name: hevc-reference
-run-name: HEVC reference ${{ inputs.candidate }}
+run-name: HEVC reference ${{ inputs.candidate }} (${{ inputs.only || 'all' }}, cap ${{ inputs.frames }})
 # workflow-check: not required
 
 on:
@@ -9,11 +9,26 @@ on:
         description: Exact decoder commit
         required: true
         type: string
+      baseline:
+        description: Optional full main SHA for the threading comparison
+        required: false
+        default: ''
+        type: string
+      sanitizer_only:
+        description: Run only the threading sanitizer stress check
+        required: false
+        default: false
+        type: boolean
       only:
         description: Optional comma-separated input IDs
         required: false
         default: ''
         type: string
+      frames:
+        description: Maximum pictures per reference input
+        required: false
+        default: 32
+        type: number
       diagnose_only:
         description: Compare pixels without timing or profiling
         required: false
@@ -25,12 +40,14 @@ permissions:
 
 jobs:
   reference:
+    if: inputs.baseline == '' && !inputs.sanitizer_only
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
       CANDIDATE: ${{ inputs.candidate }}
       ONLY: ${{ inputs.only }}
       DIAGNOSE_ONLY: ${{ inputs.diagnose_only }}
+      FRAMES: ${{ inputs.frames }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -81,7 +98,7 @@ jobs:
           python3 -I driver/scripts/hevc_reference.py \
             --native "$PWD/candidate/target/release/examples/reference" \
             --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/reference" \
-            --candidate "$CANDIDATE" --only "$ONLY" "${EXTRA[@]}"
+            --candidate "$CANDIDATE" --only "$ONLY" --frames "$FRAMES" "${EXTRA[@]}"
       - name: Bind retained results to the dispatched decoder
         run: |
           python3 -I driver/scripts/hevc_reference.py check-result \
@@ -95,3 +112,14 @@ jobs:
             ${{ runner.temp }}/compiler.txt
           if-no-files-found: error
           retention-days: 30
+
+  threading:
+    if: inputs.baseline != '' || inputs.sanitizer_only
+    uses: ./.github/workflows/hevc-threading.yml
+    with:
+      candidate: ${{ inputs.candidate }}
+      baseline: ${{ inputs.baseline }}
+      sanitizer_only: ${{ inputs.sanitizer_only }}
+      only: ${{ inputs.only }}
+      frames: ${{ fromJSON(inputs.frames) }}
+    secrets: inherit
