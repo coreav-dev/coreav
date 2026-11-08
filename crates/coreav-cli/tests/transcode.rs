@@ -3117,6 +3117,121 @@ fn audio_snr(reference: &[f32], decoded: &[f32]) -> f64 {
 
 #[cfg(unix)]
 #[test]
+fn ffmpeg_mp3_information_headers_match_complete_oracle_files() {
+    let oracle = test_oracle::require();
+    let dir = dir("mp3-information");
+    let mut cases = Vec::new();
+    for frames in [
+        2, 5, 85, 99, 100, 101, 399, 400, 401, 799, 800, 801, 1600, 1601,
+    ] {
+        cases.push((48000, 1, frames, false));
+    }
+    for (rate, channels) in [(44100, 2), (22050, 1), (8000, 2)] {
+        for frames in [85, 100, 401] {
+            cases.push((rate, channels, frames, false));
+        }
+    }
+    for (rate, channels) in [
+        (44100, 1),
+        (32000, 1),
+        (32000, 2),
+        (24000, 2),
+        (22050, 2),
+        (16000, 1),
+        (16000, 2),
+        (12000, 1),
+        (11025, 2),
+        (8000, 1),
+    ] {
+        cases.push((rate, channels, 100, false));
+    }
+    cases.extend([
+        (48000, 1, 100, true),
+        (32000, 2, 100, true),
+        (8000, 1, 100, true),
+    ]);
+    for (rate, channels, frames, silent) in cases {
+        let samples = if rate >= 32000 {
+            (frames - 1) * 1152
+        } else {
+            (frames - 2) * 576
+        };
+        let source = dir.join(format!("source-{rate}-{channels}-{frames}-{silent}.mp4"));
+        let frequency = if silent { 0 } else { 701 };
+        let run = Command::new(oracle.ffmpeg())
+            .args(["-nostdin", "-v", "error", "-f", "lavfi"])
+            .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+            .args([
+                "-i",
+                &format!(
+                    "sine=frequency={frequency}:sample_rate={rate},atrim=end_sample={samples}"
+                ),
+                "-ac",
+                &channels.to_string(),
+                "-c:a",
+                "flac",
+                "-strict",
+                "-2",
+            ])
+            .arg(&source)
+            .output()
+            .unwrap();
+        assert!(run.status.success(), "{run:?}");
+        for (mode, settings, tag) in [
+            ("cbr", ["-b:a", "64k"], b"Info"),
+            ("vbr", ["-q:a", "2"], if silent { b"Info" } else { b"Xing" }),
+        ] {
+            let output = dir.join(format!("{rate}-{channels}-{frames}-{mode}-{silent}.mp3"));
+            let reference = output.with_extension("reference.mp3");
+            let run = Command::new(bin())
+                .args(["ffmpeg", "-i"])
+                .arg(&source)
+                .args(["-c:a", "libmp3lame"])
+                .args(settings)
+                .arg(&output)
+                .env("COREAV_FFMPEG", oracle.ffmpeg())
+                .env("COREAV_FALLBACK", NO_FALLBACK)
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .env_remove("COREAV_STRICT_SAFE")
+                .output()
+                .unwrap();
+            assert!(
+                run.status.success(),
+                "{rate} {channels} {frames} {mode}: {run:?}"
+            );
+            let run = Command::new(oracle.ffmpeg())
+                .args(["-nostdin", "-v", "error"])
+                .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+                .arg("-i")
+                .arg(&source)
+                .args(["-c:a", "libmp3lame"])
+                .args(settings)
+                .arg(&reference)
+                .output()
+                .unwrap();
+            assert!(run.status.success(), "{run:?}");
+            let actual = std::fs::read(&output).unwrap();
+            let expected = std::fs::read(&reference).unwrap();
+            let at = expected.windows(4).position(|bytes| bytes == tag).unwrap();
+            assert_eq!(
+                u32::from_be_bytes(expected[at + 8..at + 12].try_into().unwrap()),
+                frames,
+                "{rate} {channels} {mode}: fixture must hit the requested frame count"
+            );
+            assert!(
+                actual == expected,
+                "{rate} {channels} {frames} {mode}: complete bytes differ at {:?}, lengths {} / {}",
+                actual.iter().zip(&expected).position(|(a, b)| a != b),
+                actual.len(),
+                expected.len()
+            );
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
 fn ffmpeg_mp3_outputs_keep_the_source_samples_and_quality() {
     let Some(tools) = tools() else { return };
     let dir = dir("mp3-output");
