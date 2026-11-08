@@ -1,11 +1,21 @@
 //! Explicit native encoding preference with unchanged external fallback arguments.
 
 use coreav_transcode::native_h264::{NativeH264, RateMode};
+use std::time::Instant;
 
 use super::args::{Codec, Command, Muxer, Spec};
 use super::{Refusal, Stop};
 use crate::ffprobe::{Report, args::Kind2, model::Value};
 use crate::strict_safe::StrictSafe;
+
+#[derive(Clone, Copy)]
+/// An encode attempt within the original opt-in command's time budget.
+pub struct EncodeAttempt {
+    /// Native encoding, or the existing encoder on retry.
+    pub native: Option<NativeH264>,
+    /// The same deadline for both attempts.
+    pub deadline: Instant,
+}
 
 fn candidate(args: &[String]) -> Option<(Command, NativeH264)> {
     let (command, qp) = super::args::native_h264(args).ok()?;
@@ -57,14 +67,22 @@ pub(super) fn source(report: &Report, index: usize) -> bool {
 }
 
 /// Tries the opt-in encoder without changing the command used on fallback.
-pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<Option<serde_json::Value>, Stop> {
+pub fn run(
+    args: &[String],
+    strict_safe: StrictSafe,
+    deadline: Instant,
+) -> Result<Option<serde_json::Value>, Stop> {
     if strict_safe.on() {
         return Ok(None);
     }
     let Some((command, native)) = candidate(args) else {
         return Ok(None);
     };
-    match super::run_command(command, strict_safe, None, None, None, Some(native)) {
+    let attempt = EncodeAttempt {
+        native: Some(native),
+        deadline,
+    };
+    match super::run_command(command, strict_safe, None, None, None, Some(attempt)) {
         Ok(value) => Ok(Some(value)),
         Err(Stop::Refused(Refusal::NotNative(_))) => Ok(None),
         Err(error) => Err(error),
@@ -73,7 +91,46 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<Option<serde_json
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::panic)]
+
     use super::*;
+
+    #[test]
+    fn expired_external_retry_keeps_destination_and_removes_staging() {
+        let dir = std::env::temp_dir().join(format!("coreav-native-retry-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("in.mp4");
+        let output = dir.join("out.mp4");
+        std::fs::write(
+            &input,
+            crate::test_isobmff::av_movie_with(crate::test_isobmff::aac_entry(), false),
+        )
+        .unwrap();
+        std::fs::write(&output, b"keep destination").unwrap();
+        let mut args = args("-y");
+        for arg in &mut args {
+            if arg == "in.mp4" {
+                *arg = input.to_string_lossy().into_owned();
+            } else if arg == "out.mp4" {
+                *arg = output.to_string_lossy().into_owned();
+            }
+        }
+        let result = super::super::run_attempt(
+            &args,
+            StrictSafe::new(false),
+            EncodeAttempt {
+                native: None,
+                deadline: Instant::now(),
+            },
+        );
+        match result {
+            Err(Stop::Failed(failure)) => assert_eq!(failure.to_json()["limit"], "timeout"),
+            _ => panic!("the expired external retry must fail with timeout"),
+        }
+        assert_eq!(std::fs::read(&output).unwrap(), b"keep destination");
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     #[test]
     fn source_admission_requires_known_progressive_geometry_and_clock() {
@@ -105,6 +162,7 @@ mod tests {
             ("pix_fmt", Value::Str("yuv444p".into())),
             ("r_frame_rate", Value::Str("30000/1001".into())),
             ("r_frame_rate", Value::Str("3002/100".into())),
+            ("r_frame_rate", Value::Str("0/0".into())),
         ] {
             let mut changed = report.clone();
             if let Some(stream) = changed.streams.first_mut() {

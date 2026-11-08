@@ -18,7 +18,7 @@ Native output uses Constrained Baseline, enabled deblocking, and an IDR interval
 
 Native admission and library failures are transactional. Before publication, an unsupported frame or library refusal discards the native staging and spool files, then reruns the unchanged command through today's external encoder or FFmpeg fallback. I/O, malformed-input, and deadline failures remain terminal. A default command never enters this retry path.
 
-The native path checks its deadline before and after each bounded picture. It does not interrupt a picture already executing.
+The native path checks its deadline before and after each bounded picture. It does not interrupt a picture already executing. One original command deadline covers both CoreAV encode attempts; a coding-limit retry receives only the remaining budget. A native timeout remains terminal, even if an external encoder could have completed the input within that limit.
 
 ## Verification
 

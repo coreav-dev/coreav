@@ -79,6 +79,9 @@ pub struct Request {
     /// Explicit opt-in native H.264 preference.
     #[cfg(feature = "native-h264-encoder")]
     pub native_h264: Option<coreav_transcode::native_h264::NativeH264>,
+    /// An inherited command deadline, rather than a new attempt timeout.
+    #[cfg(feature = "native-h264-encoder")]
+    pub deadline: Option<Instant>,
     /// Matroska output profile, or the default MP4 output.
     pub matroska_output: Option<coreav_mkv::DocType>,
     /// `--crf`.
@@ -183,7 +186,12 @@ pub fn make<S: Source>(
     } else {
         SourceKind::Mp4
     };
-    let (frame_rates, timeout) = source_rates(&mut source, Duration::from_secs(request.timeout))?;
+    #[cfg(not(feature = "native-h264-encoder"))]
+    let deadline = None;
+    #[cfg(feature = "native-h264-encoder")]
+    let deadline = request.deadline;
+    let (frame_rates, timeout) =
+        source_rates(&mut source, Duration::from_secs(request.timeout), deadline)?;
     let options = TranscodeOptions {
         #[cfg(feature = "native-h264-encoder")]
         native_h264: request.native_h264,
@@ -271,6 +279,7 @@ pub fn make<S: Source>(
 fn source_rates<S: Source>(
     source: &mut S,
     timeout: Duration,
+    deadline: Option<Instant>,
 ) -> Result<(Vec<(usize, FrameRate)>, Duration), WriteFailure> {
     let expired = || {
         failure(coreav_transcode::Error::Decode(coreav_decode::Error::new(
@@ -278,7 +287,9 @@ fn source_rates<S: Source>(
             "the transcode took longer than its timeout",
         )))
     };
-    let deadline = Instant::now().checked_add(timeout).ok_or_else(expired)?;
+    let deadline = deadline
+        .or_else(|| Instant::now().checked_add(timeout))
+        .ok_or_else(expired)?;
     let mut source = RateSource { source, deadline };
     let rates = match source.len() {
         Ok(_) => crate::ffprobe::source_frame_rates(&mut source)
@@ -587,18 +598,43 @@ mod tests {
             reads: 0,
             delay: Duration::from_millis(50),
         };
-        let error = source_rates(&mut source, Duration::ZERO).unwrap_err();
+        let error = source_rates(&mut source, Duration::ZERO, None).unwrap_err();
         assert_eq!(error.to_json()["limit"], "timeout");
         assert_eq!((source.lengths, source.reads), (0, 0));
-        let error = source_rates(&mut source, Duration::from_millis(1)).unwrap_err();
+        let error = source_rates(&mut source, Duration::from_millis(1), None).unwrap_err();
         assert_eq!(error.to_json()["limit"], "timeout");
         assert!(source.reads <= 1);
         let budget = Duration::from_secs(10);
-        let (rates, remaining) =
-            source_rates(&mut source, budget).unwrap_or_else(|error| panic!("{}", error.to_json()));
+        let (rates, remaining) = source_rates(&mut source, budget, None)
+            .unwrap_or_else(|error| panic!("{}", error.to_json()));
         assert!(rates.is_empty());
         assert!(remaining <= budget - source.delay);
         assert!(!remaining.is_zero());
+    }
+
+    #[test]
+    fn ffmpeg_native_retry_uses_only_the_original_deadline() {
+        let mut source = SlowSource {
+            lengths: 0,
+            reads: 0,
+            delay: Duration::ZERO,
+        };
+        let limit = Duration::from_secs(3600);
+        let remaining = Duration::from_secs(2);
+        let deadline = Instant::now() + remaining;
+        let (_, left) = source_rates(&mut source, limit, Some(deadline))
+            .unwrap_or_else(|error| panic!("{}", error.to_json()));
+        assert!(!left.is_zero());
+        assert!(left <= remaining);
+        assert!(left < limit);
+        source.lengths = 0;
+        source.reads = 0;
+        let error = source_rates(&mut source, limit, Some(Instant::now())).unwrap_err();
+        assert_eq!(error.to_json()["limit"], "timeout");
+        assert_eq!((source.lengths, source.reads), (0, 0));
+        let (_, left) = source_rates(&mut source, limit, None)
+            .unwrap_or_else(|error| panic!("{}", error.to_json()));
+        assert!(left > remaining);
     }
 
     #[test]
@@ -671,7 +707,7 @@ mod tests {
         );
         let file = [ftyp, bx(b"mdat", &vec![0; COUNT as usize]), moov].concat();
         let mut source = coreav_isobmff::SliceSource::new(&file);
-        let (rates, _) = source_rates(&mut source, Duration::from_secs(1))
+        let (rates, _) = source_rates(&mut source, Duration::from_secs(1), None)
             .unwrap_or_else(|error| panic!("{}", error.to_json()));
         assert_eq!(rates, vec![(0, FrameRate { num: 5, den: 1 })]);
     }

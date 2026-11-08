@@ -1181,6 +1181,8 @@ fn run_transcode(
     let request = transcode::Request {
         #[cfg(feature = "native-h264-encoder")]
         native_h264: None,
+        #[cfg(feature = "native-h264-encoder")]
+        deadline: None,
         matroska_output: None,
         crf: args.crf,
         bitrate: args.bitrate,

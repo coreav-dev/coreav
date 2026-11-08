@@ -36,6 +36,15 @@ class NativeCli(unittest.TestCase):
             for path in ('crates/coreav-cli/**', 'crates/coreav-transcode/**', 'scripts/native_h264_cli.py'):
                 self.assertIn(path, selected)
 
+    def test_cli_oracles_install_nasm_before_x264(self):
+        workflow = (ROOT / '.github/workflows/h264-encoder.yml').read_text()
+        job = workflow.split('  native-h264-cli:', 1)[1].split('  h264-encoder-conformance:', 1)[0]
+        self.assertLess(job.index('apt-get install -y --no-install-recommends nasm'),
+                        job.index('scripts/install-x264.sh'))
+        for stage in ('Installing pinned FFmpeg', 'Installing pinned x264',
+                      'reason=pinned_ffmpeg_install_failed', 'reason=pinned_x264_install_failed'):
+            self.assertIn(stage, job)
+
 
 if __name__ == '__main__':
     unittest.main()

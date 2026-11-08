@@ -32,7 +32,7 @@ pub(crate) const MUXER_ENCODER: &str = "Lavf63.1.102";
 
 /// The wall-clock limit of one native encode command.
 #[cfg(feature = "transcode")]
-const ENCODE_LIMIT: std::time::Duration = std::time::Duration::from_secs(3600);
+pub const ENCODE_LIMIT: std::time::Duration = std::time::Duration::from_secs(3600);
 
 use crate::error::Failure;
 use crate::fallback::NotNative;
@@ -306,6 +306,23 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     run_inner(args, strict_safe, None, None)
 }
 
+#[cfg(feature = "native-h264-encoder")]
+/// Runs the existing path within an opt-in command's original deadline.
+pub fn run_attempt(
+    args: &[String],
+    strict_safe: StrictSafe,
+    attempt: native_h264::EncodeAttempt,
+) -> Result<serde_json::Value, Stop> {
+    run_command(
+        args::parse(args)?,
+        strict_safe,
+        None,
+        None,
+        None,
+        Some(attempt),
+    )
+}
+
 /// Runs a parsed pipe command from its privately spooled encoded input.
 pub fn run_spooled(
     args: &[String],
@@ -393,10 +410,10 @@ fn run_command(
     capture: Option<&Path>,
     image_capture: Option<&Path>,
     spooled: Option<&Path>,
-    #[cfg(feature = "native-h264-encoder")] native: Option<
-        coreav_transcode::native_h264::NativeH264,
-    >,
+    #[cfg(feature = "native-h264-encoder")] attempt: Option<native_h264::EncodeAttempt>,
 ) -> Result<serde_json::Value, Stop> {
+    #[cfg(feature = "native-h264-encoder")]
+    let native = attempt.and_then(|attempt| attempt.native);
     if let Some(input) = spooled {
         command.input = input.to_string_lossy().into_owned();
     }
@@ -516,7 +533,7 @@ fn run_command(
             strict_safe,
             capture,
             #[cfg(feature = "native-h264-encoder")]
-            native,
+            attempt,
         );
     }
     #[cfg(feature = "native-h264-encoder")]

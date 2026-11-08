@@ -109,7 +109,7 @@ jobs:
       - name: Check opt-in adapters and existing CLI limits
         run: |
           python3 -I -m unittest discover -s scripts/tests -p 'test_native_h264_cli.py' -v
-          cargo test --locked --release -p coreav-cli --features native-h264-encoder,native-h264 --lib ffmpeg
+          cargo test --locked --release -p coreav-cli --features native-h264-encoder,native-h264 --lib ffmpeg -- --nocapture
           cargo test --locked --release -p coreav-cli --features native-h264-encoder,native-h264 --test docs_site --test strict_safe_limit --test ffprobe_limits --test native_h264_cli
           cargo test --locked --release -p coreav-transcode --features h264-native --lib
           cargo clippy --locked -p coreav-cli --features native-h264-encoder,native-h264 --all-targets -- -D warnings
@@ -117,8 +117,12 @@ jobs:
           cargo build --locked --release -p coreav-h264-encoder --features full --example p
       - name: Install pinned black-box tools and generate trusted fixtures
         run: |
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/cli-oracles"
-          scripts/install-x264.sh "$RUNNER_TEMP/cli-oracles"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nasm
+          echo 'Installing pinned FFmpeg'
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/cli-oracles" || { echo '::error::reason=pinned_ffmpeg_install_failed'; exit 1; }
+          echo 'Installing pinned x264'
+          scripts/install-x264.sh "$RUNNER_TEMP/cli-oracles" || { echo '::error::reason=pinned_x264_install_failed'; exit 1; }
           export PATH="$RUNNER_TEMP/cli-oracles:$PATH"
           scripts/gen-fixtures.sh "$RUNNER_TEMP/cli-fixtures"
       - name: Verify stored native output and unchanged external behavior

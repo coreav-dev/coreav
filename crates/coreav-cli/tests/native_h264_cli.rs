@@ -53,6 +53,26 @@ fn selection_is_outer_and_requires_the_ffmpeg_command() {
 }
 
 #[test]
+fn missing_input_keeps_the_existing_error_bytes() {
+    let args = [
+        "ffmpeg",
+        "-i",
+        "/nonexistent/native-input.mp4",
+        "-an",
+        "-c:v",
+        "libx264",
+        "/nonexistent/native-output.mp4",
+    ];
+    let expected = run(&args);
+    let mut native = vec!["--native-h264-encoder"];
+    native.extend_from_slice(&args);
+    let actual = run(&native);
+    assert_eq!(actual.status.code(), expected.status.code());
+    assert_eq!(actual.stdout, expected.stdout);
+    assert_eq!(actual.stderr, expected.stderr);
+}
+
+#[test]
 fn the_ffmpeg_help_bytes_do_not_depend_on_selection() {
     let expected = run(&["ffmpeg", "-h"]);
     let actual = run(&["--native-h264-encoder", "ffmpeg", "-h"]);

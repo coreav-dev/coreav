@@ -49,6 +49,8 @@ Native input must be progressive planar 8-bit 4:2:0 at exactly 30 frames per sec
 
 The flag is a preference, not a promise to avoid external programs. If the native library cannot encode a picture within its coding limits, CoreAV discards the staged native output and retries the unchanged command through the existing path. Strict-safe mode also keeps its existing encoder policy. Without the flag, every command keeps its existing behavior. See the [native CLI design](https://github.com/coreav-dev/coreav/blob/main/docs/design/cli-native-h264.md).
 
+Both CoreAV encode attempts share the original one-hour command limit. A native timeout is terminal rather than a reason to retry: an input that an external encoder could finish within the limit may time out with the native preference.
+
 ### MP3 output
 
 In a build with the `transcode` feature, a `.mp3` output or `-f mp3` defaults to MP3 encoding. `-c:a libmp3lame`, `-codec:a libmp3lame` and `-acodec libmp3lame` select it explicitly. CoreAV runs the `ffmpeg` program named by `COREAV_FFMPEG`, else the one on `PATH`, with libmp3lame as a separate resource-limited encoder. CoreAV supplies decoded PCM, checks its output, and writes the MP3 file itself, including ID3v2.4 and Xing/Info gapless metadata. It never links or bundles libmp3lame.
