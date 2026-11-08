@@ -8,6 +8,29 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
 import test_oracle
+import h264_g1_conformance as syntax
+
+
+def cadence(source):
+    r = syntax.rbsp(syntax.units(source.read_bytes())[0])
+    syntax.require(r.u(24), 0x42c033, 'profile constraints level')
+    syntax.require([r.ue() for _ in range(4)], [0, 0, 2, 1], 'SPS fixed fields')
+    syntax.require(r.u(1), 0, 'frame number gaps')
+    syntax.require([r.ue(), r.ue()], [0, 0], '16x16 coded geometry')
+    syntax.require(r.u(4), 0b1101, 'progressive uncropped VUI')
+    syntax.require(r.u(1), 1, 'aspect ratio present')
+    if r.u(8) == 255:
+        r.u(32)
+    syntax.require(r.u(7), 0b0110101, 'overscan and video signal')
+    syntax.require(r.u(24), 0x010101, 'colour')
+    syntax.require(r.u(1), 1, 'chroma location present')
+    syntax.require([r.ue(), r.ue()], [0, 0], 'chroma location')
+    syntax.require(r.u(1), 1, 'timing present')
+    tick, scale = r.u(32), r.u(32)
+    syntax.require(r.u(1), 1, 'fixed frame rate')
+    if not tick or not scale:
+        raise ValueError('zero VUI clock')
+    return Fraction(scale, 2 * tick)
 
 
 def main():
@@ -24,10 +47,19 @@ def main():
     for num, den in rates:
         for width, height in sars:
             source = args.fixtures / f'{num}-{den}-{width}-{height}.h264'
+            rate = cadence(source)
+            if rate != Fraction(num, den):
+                raise RuntimeError(f'{source.name}: SPS cadence={rate}')
+            prepared = source.with_suffix('.mp4')
+            subprocess.run([
+                str(oracle.ffmpeg), '-v', 'error', '-r', str(rate), '-i', str(source),
+                '-c:v', 'copy', '-video_track_timescale', str(rate.numerator),
+                '-y', str(prepared),
+            ], check=True, capture_output=True, timeout=30)
             result = subprocess.run([
                 str(oracle.ffprobe), '-v', 'error', '-select_streams', 'v:0',
                 '-show_entries', 'stream=r_frame_rate,avg_frame_rate,sample_aspect_ratio',
-                '-of', 'json', str(source),
+                '-of', 'json', str(prepared),
             ], check=True, capture_output=True, text=True, timeout=30)
             streams = json.loads(result.stdout)['streams']
             if len(streams) != 1:
@@ -35,20 +67,6 @@ def main():
             stream = streams[0]
             for field in ('r_frame_rate', 'avg_frame_rate'):
                 if Fraction(stream[field]) != Fraction(num, den):
-                    anchor = args.fixtures / 'oracle-cadence.h264'
-                    subprocess.run([
-                        str(oracle.ffmpeg), '-v', 'error', '-f', 'lavfi', '-i',
-                        f'color=s=16x16:r={num}/{den}', '-frames:v', '64',
-                        '-c:v', 'libx264', '-g', '32', '-bf', '0', '-f', 'h264', '-y', str(anchor),
-                    ], check=True, timeout=30)
-                    for candidate in (source, anchor):
-                        diagnostic = subprocess.run([
-                            str(oracle.ffprobe), '-v', 'debug', '-show_streams',
-                            '-show_frames', '-of', 'json', str(candidate),
-                        ], check=True, capture_output=True, text=True, timeout=30)
-                        candidate.with_suffix('.probe.json').write_text(diagnostic.stdout)
-                        candidate.with_suffix('.probe.log').write_text(diagnostic.stderr)
-                        print(candidate.name, json.loads(diagnostic.stdout)['streams'], flush=True)
                     raise RuntimeError(f'{source.name}: {field}={stream[field]}, stream={stream}')
             if Fraction(stream['sample_aspect_ratio'].replace(':', '/')) != Fraction(width, height):
                 raise RuntimeError(f'{source.name}: SAR={stream["sample_aspect_ratio"]}')
