@@ -559,6 +559,8 @@ mod tests {
         };
         let retained = RetainedPicture::for_test(0, info, None);
         Ok(Frame {
+            test_hook: None,
+            workers: 1,
             deadline: None,
             index: 0,
             info,
