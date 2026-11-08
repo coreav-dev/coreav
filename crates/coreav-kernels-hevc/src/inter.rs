@@ -227,8 +227,19 @@ fn interpolate(
                 }
                 &*input
             };
-            let row = scratch.rows.get_mut(next_row % 8).ok_or(Error::Buffer)?;
-            let row = row.get_mut(..output.width).ok_or(Error::Buffer)?;
+            let row = if y_filter.is_empty() {
+                let begin = y * output.stride;
+                output
+                    .data
+                    .get_mut(begin..begin + output.width)
+                    .ok_or(Error::Buffer)?
+            } else {
+                scratch
+                    .rows
+                    .get_mut(next_row % 8)
+                    .and_then(|row| row.get_mut(..output.width))
+                    .ok_or(Error::Buffer)?
+            };
             if x_filter.is_empty() {
                 for (value, &sample) in row.iter_mut().zip(input.iter()) {
                     *value = i32::from(sample) << internal_shift;
@@ -245,20 +256,12 @@ fn interpolate(
             }
             next_row += 1;
         }
-        let begin = y * output.stride;
-        let destination = output
-            .data
-            .get_mut(begin..begin + output.width)
-            .ok_or(Error::Buffer)?;
-        if y_filter.is_empty() {
-            destination.copy_from_slice(
-                scratch
-                    .rows
-                    .get(y % 8)
-                    .and_then(|row| row.get(..output.width))
-                    .ok_or(Error::Buffer)?,
-            );
-        } else {
+        if !y_filter.is_empty() {
+            let begin = y * output.stride;
+            let destination = output
+                .data
+                .get_mut(begin..begin + output.width)
+                .ok_or(Error::Buffer)?;
             let mut rows: [&[i32]; 8] = [&[]; 8];
             for (j, row) in rows.iter_mut().take(row_count).enumerate() {
                 *row = scratch.rows.get((y + j) % 8).ok_or(Error::Buffer)?;
