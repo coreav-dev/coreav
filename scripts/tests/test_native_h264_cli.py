@@ -1,4 +1,5 @@
 import pathlib
+from fractions import Fraction
 import struct
 import sys
 import unittest
@@ -9,6 +10,25 @@ import native_h264_cli as cli
 
 
 class NativeCli(unittest.TestCase):
+    def test_explicit_sps_sample_aspect_rejects_zero_terms_with_a_label(self):
+        def sps(width, height):
+            bits = (f'{0x42c033:024b}' + '110110100111101111111111'
+                    + f'{width:016b}{height:016b}' + '0110101'
+                    + f'{0x010101:024b}' + '1111' + f'{1:032b}{60:032b}' + '100001')
+            bits += '0' * (-len(bits) % 8)
+            escaped = bytearray()
+            for value in int(bits, 2).to_bytes(len(bits) // 8, 'big'):
+                if escaped[-2:] == b'\0\0' and value <= 3:
+                    escaped.append(3)
+                escaped.append(value)
+            return b'\x67' + escaped
+
+        self.assertEqual(cli.sps_metadata(sps(17, 13)), (Fraction(30), Fraction(17, 13)))
+        for width, height in ((0, 1), (1, 0), (0, 0)):
+            with self.subTest(width=width, height=height):
+                with self.assertRaisesRegex(ValueError, 'zero SPS sample aspect'):
+                    cli.sps_metadata(sps(width, height))
+
     def test_sample_aspect_reader_uses_the_visual_entry_structure(self):
         def box(kind, body):
             return struct.pack('>I4s', len(body) + 8, kind) + body

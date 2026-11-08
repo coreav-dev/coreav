@@ -16,7 +16,7 @@ The exact source-clock interval must also fit the positive 32-bit MP4 sample-dur
 
 ## Declared sample aspect
 
-Validate the original source ratio before the shared aspect helper can narrow its terms. Reduce positive ratios exactly and use `SampleAspectRatio::new` to enforce the library's represented bounds. Absent or unspecified `(0, 1)` ratios retain the default, as do square pixels, preserving previously eligible native output. Unsupported ratios or an unrepresentable MP4 display size cause native ineligibility and the unchanged fallback.
+Validate the original source ratio before the shared aspect helper can narrow its terms. Reduce positive ratios exactly and use `SampleAspectRatio::new` to enforce the library's represented bounds. Absent, zero-term and square ratios retain the default, preserving previously eligible native output. Shared normalization already treats declarations such as `(0, 1)` or `(1, 0)` as unstated. Unsupported ratios or an unrepresentable MP4 display size cause native ineligibility and the unchanged fallback.
 
 The reduced declared ratio feeds the encoder settings and the existing MP4 `pasp` and display-size paths, so container and VUI signalling agree. The encoder library and muxer APIs do not change.
 

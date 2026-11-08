@@ -68,7 +68,10 @@ def sps_metadata(nal):
                   (20, 11), (32, 11), (80, 33), (18, 11), (15, 11), (64, 33),
                   (160, 99), (4, 3), (3, 2), (2, 1))
         if code == 255:
-            aspect = Fraction(r.u(16), r.u(16))
+            width, height = r.u(16), r.u(16)
+            if not width or not height:
+                raise ValueError('zero SPS sample aspect')
+            aspect = Fraction(width, height)
         elif 1 <= code <= len(ratios):
             aspect = Fraction(*ratios[code - 1])
         else:
