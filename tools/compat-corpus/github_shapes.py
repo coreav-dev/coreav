@@ -538,9 +538,16 @@ def replay(opts):
                 scanned = retained / 'carriage.mp4' if name.endswith('.mkv') else bundle / 'fixtures' / name
                 if pns_gate.sha(scanned) != expected[name]['scanned_sha256']:
                     raise EvidenceError('fixture_generation:packet_binding')
-                for receipt in expected[name]['receipts'].values():
+                receipts = expected[name]['receipts']
+                tags = {'fixture-probe', 'diagnostic'}
+                if name.endswith('.mkv'):
+                    tags.update(('carriage', 'carriage-probe'))
+                if set(receipts) != tags:
+                    raise EvidenceError('fixture_generation:scan_incomplete')
+                for tag, receipt in receipts.items():
                     for stream in ('stdout', 'stderr'):
-                        if pns_gate.sha(retained / receipt[stream]) != receipt[stream + '_sha256']:
+                        if receipt[stream] != tag + '.' + stream or (
+                                pns_gate.sha(retained / receipt[stream]) != receipt[stream + '_sha256']):
                             raise EvidenceError('fixture_generation:scan_incomplete')
                 actual = pns_gate.scan_fixture(bundle / 'fixtures' / name,
                     opts.scratch / 'pns-gate' / name, programs, environment(), execute)

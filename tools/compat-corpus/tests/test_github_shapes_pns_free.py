@@ -260,6 +260,21 @@ class ReplayRegistration(Controls):
             self.replay(opts)
 
 
+    def test_retained_receipt_paths_cannot_escape_the_gate_directory(self):
+        opts, manifest = self.prepare(fixtures.PNS_FREE)
+        receipt = manifest['pns_gate']['source.mp4']
+        receipt['receipts']['fixture-probe']['stdout'] = '../../../outside'
+        run.write(opts.bundle / 'pns-gate/source.mp4/gate.json', receipt)
+        manifest['inventory'] = run.inventory(opts.bundle)
+        run.write(opts.bundle / 'manifest.json', manifest)
+        with mock.patch.object(gate, 'sha', wraps=gate.sha) as checksum, \
+             self.assertRaisesRegex(run.EvidenceError, 'fixture_generation:scan_incomplete'):
+            self.replay(opts)
+        self.assertTrue(all(any(call.args[0].resolve().is_relative_to(folder)
+                                for folder in (opts.bundle, opts.scratch))
+                            for call in checksum.call_args_list))
+
+
 class WorkflowPrivacy(unittest.TestCase):
     def test_paired_run_stops_on_pns_free_failure_and_keeps_results_private(self):
         workflow = (run.ROOT / '.github/workflows/github-shapes.yml').read_text()
