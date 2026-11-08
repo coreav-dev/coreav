@@ -15,6 +15,28 @@ impl<'a> Bits<'a> {
         self.pos
     }
 
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    pub(crate) fn cabac_window(&mut self, width: u32) -> Option<u16> {
+        if width == 0 {
+            return Some(0);
+        }
+        if width > 7 {
+            return None;
+        }
+        let end = self.pos.checked_add(width as usize)?;
+        let index = self.pos / 8;
+        let first = u16::from(*self.data.get(index)?);
+        let available = 8 - (self.pos % 8) as u32;
+        let value = if width <= available {
+            first >> (available - width)
+        } else {
+            let second = u16::from(*self.data.get(index.checked_add(1)?)?);
+            ((first << 8) | second) >> (8 + available - width)
+        };
+        self.pos = end;
+        Some(value & ((1 << width) - 1))
+    }
+
     pub(crate) fn flag(&mut self) -> Result<bool> {
         let byte = self
             .data

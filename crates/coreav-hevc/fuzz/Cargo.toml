@@ -12,7 +12,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-coreav-hevc = { path = "..", features = ["native-hevc"] }
+coreav-hevc = { path = "..", features = ["native-hevc", "test-support"] }
 
 [[bin]]
 name = "intra"
@@ -37,3 +37,10 @@ bench = false
 
 [lints.rust]
 unsafe_code = "forbid"
+
+[[bin]]
+name = "cabac"
+path = "fuzz_targets/cabac.rs"
+test = false
+doc = false
+bench = false

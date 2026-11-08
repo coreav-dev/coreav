@@ -7,7 +7,11 @@
 //! `PictureDecoder` reconstructs complete streams with scalar inter prediction
 //! and presentation-order output. Production backend wiring is absent.
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
+#![cfg_attr(
+    any(feature = "scalar", not(target_arch = "x86_64")),
+    forbid(unsafe_code)
+)]
 #![cfg(feature = "native-hevc")]
 
 mod bits;
@@ -29,6 +33,9 @@ mod slice;
 mod substream;
 mod vui;
 
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub use cabac::{cabac_engines_match_reference, cabac_fast_enabled};
 pub use decoder::{DecodeLimits, DecodeSummary, DecodedPicture, OutputMemory, PictureDecoder};
 pub use dpb::{OutputEvent, PictureOrder};
 pub use intra::{IntraLimits, IntraPicture, IntraPictureDecoder, IntraPlane, IntraStats};

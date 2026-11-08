@@ -1,5 +1,10 @@
 use crate::{Error, Result, bits::Bits};
 
+#[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+#[allow(unsafe_code)]
+#[path = "fast/mod.rs"]
+mod fast;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Initialization {
     I,
@@ -62,6 +67,18 @@ pub(crate) struct Cabac<'a, 'b> {
 }
 
 impl<'a, 'b> Cabac<'a, 'b> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn snapshot(&self) -> (usize, u16, u16, bool, u8, u64) {
+        (
+            self.position(),
+            self.range,
+            self.offset,
+            self.last_bit,
+            self.phase as u8,
+            *self.remaining_bin_budget,
+        )
+    }
+
     pub(crate) fn max_bins(bytes: usize) -> u64 {
         (bytes as u64)
             .saturating_mul(8)
@@ -126,6 +143,16 @@ impl<'a, 'b> Cabac<'a, 'b> {
     }
 
     pub(crate) fn decision(&mut self, context: &mut Context) -> Result<bool> {
+        self.start_bin()?;
+        #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+        let result = fast::decision(self, context);
+        #[cfg(any(not(target_arch = "x86_64"), feature = "scalar"))]
+        let result = self.decode_decision(context);
+        self.record(result)
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    fn decision_reference(&mut self, context: &mut Context) -> Result<bool> {
         self.start_bin()?;
         let result = self.decode_decision(context);
         self.record(result)
@@ -314,10 +341,165 @@ const TRANS_IDX_MPS: [u8; 64] = [
     51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 62, 63,
 ];
 
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub const fn cabac_fast_enabled() -> bool {
+    cfg!(all(target_arch = "x86_64", not(feature = "scalar")))
+}
+
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn cabac_engines_match_reference(data: &[u8]) -> bool {
+    let budget = data
+        .iter()
+        .take(2)
+        .fold(0u64, |value, byte| (value << 8) | u64::from(*byte));
+    let mut fast_budget = budget;
+    let mut safe_budget = budget;
+    let (mut fast, mut safe) = match (
+        Cabac::new(data, &mut fast_budget),
+        Cabac::new(data, &mut safe_budget),
+    ) {
+        (Ok(fast), Ok(safe)) => (fast, safe),
+        (Err(fast), Err(safe)) => return fast == safe,
+        _ => return false,
+    };
+    let mut fast_contexts: [Context; 64] =
+        std::array::from_fn(|index| Context::new(index as u8 * 4, 26));
+    let mut safe_contexts = fast_contexts;
+    for &command in data.iter().take(1024) {
+        let (fast_result, safe_result) = match command & 7 {
+            0..=3 => {
+                let index = usize::from(command >> 2);
+                let (Some(fast_context), Some(safe_context)) =
+                    (fast_contexts.get_mut(index), safe_contexts.get_mut(index))
+                else {
+                    return false;
+                };
+                (
+                    fast.decision(fast_context).map(u32::from),
+                    safe.decision_reference(safe_context).map(u32::from),
+                )
+            }
+            4 => (fast.bypass().map(u32::from), safe.bypass().map(u32::from)),
+            5 => (
+                fast.terminate().map(u32::from),
+                safe.terminate().map(u32::from),
+            ),
+            6 => (
+                fast.raw_bits(u32::from(command >> 3)),
+                safe.raw_bits(u32::from(command >> 3)),
+            ),
+            _ => (fast.restart().map(|()| 0), safe.restart().map(|()| 0)),
+        };
+        if fast_result != safe_result
+            || fast.snapshot() != safe.snapshot()
+            || fast_contexts != safe_contexts
+        {
+            return false;
+        }
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Cabac, Context, Initialization};
     use crate::Error;
+
+    #[test]
+    fn differential_sequences_preserve_prefixes_budgets_and_terminal_states() {
+        for pattern in [0, 0x42, 0x80, 0xfe, 0xff] {
+            let data = [pattern; 128];
+            for length in 0..=data.len() {
+                assert!(super::cabac_engines_match_reference(&data[..length]));
+            }
+        }
+        assert_eq!(
+            super::cabac_fast_enabled(),
+            cfg!(all(target_arch = "x86_64", not(feature = "scalar")))
+        );
+    }
+
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    #[test]
+    fn every_legal_decision_state_matches_the_safe_engine() {
+        for state in 0..64 {
+            for mps in [false, true] {
+                for range in 256..=510 {
+                    for offset in 0..range {
+                        let mut fast_budget = 1;
+                        let mut safe_budget = 1;
+                        let mut fast = Cabac {
+                            input: crate::bits::Bits::new(&[0xa5, 0x5a]),
+                            range,
+                            offset,
+                            last_bit: true,
+                            phase: super::Phase::Active,
+                            remaining_bin_budget: &mut fast_budget,
+                        };
+                        let mut safe = Cabac {
+                            input: crate::bits::Bits::new(&[0xa5, 0x5a]),
+                            range,
+                            offset,
+                            last_bit: true,
+                            phase: super::Phase::Active,
+                            remaining_bin_budget: &mut safe_budget,
+                        };
+                        let mut fast_context = Context { state, mps };
+                        let mut safe_context = fast_context;
+                        assert_eq!(
+                            fast.decision(&mut fast_context),
+                            safe.decision_reference(&mut safe_context)
+                        );
+                        assert_eq!(fast.snapshot(), safe.snapshot());
+                        assert_eq!(fast_context, safe_context);
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+    #[test]
+    fn fast_refill_preserves_partial_failures_and_invalid_contexts() {
+        for state in 0..=u8::MAX {
+            for position in 0..=16 {
+                for last_bit in [false, true] {
+                    let mut fast_budget = 1;
+                    let mut safe_budget = 1;
+                    let mut fast = Cabac {
+                        input: crate::bits::Bits::new(&[0xff, 0xa5]),
+                        range: 510,
+                        offset: 509,
+                        last_bit,
+                        phase: super::Phase::Active,
+                        remaining_bin_budget: &mut fast_budget,
+                    };
+                    let mut safe = Cabac {
+                        input: crate::bits::Bits::new(&[0xff, 0xa5]),
+                        range: 510,
+                        offset: 509,
+                        last_bit,
+                        phase: super::Phase::Active,
+                        remaining_bin_budget: &mut safe_budget,
+                    };
+                    fast.input.skip(position).unwrap();
+                    safe.input.skip(position).unwrap();
+                    let mut fast_context = Context { state, mps: false };
+                    let mut safe_context = fast_context;
+                    assert_eq!(
+                        fast.decision(&mut fast_context),
+                        safe.decision_reference(&mut safe_context)
+                    );
+                    assert_eq!(fast.snapshot(), safe.snapshot());
+                    assert_eq!(fast_context, safe_context);
+                    assert_eq!(fast.bypass(), safe.bypass());
+                    assert_eq!(fast.snapshot(), safe.snapshot());
+                }
+            }
+        }
+    }
 
     #[test]
     fn substream_bound_covers_the_longest_mps_runs_and_truncated_reads() {

@@ -13,6 +13,7 @@ publish = false
 default = []
 native-hevc = ["dep:sha2", "dep:md-5", "dep:coreav-kernels-hevc", "coreav-kernels-hevc/native-hevc"]
 scalar = ["coreav-kernels-hevc?/scalar"]
+test-support = []
 
 [dependencies]
 sha2 = { version = "0.10", optional = true }
@@ -41,5 +42,15 @@ required-features = ["native-hevc"]
 name = "packets"
 required-features = ["native-hevc"]
 
-[lints]
-workspace = true
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+todo = "deny"
+unimplemented = "deny"
