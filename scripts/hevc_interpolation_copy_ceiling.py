@@ -68,7 +68,7 @@ def main():
         cpu_model=next(line.split(":", 1)[1].strip() for line in pathlib.Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name")),
         kernel=platform.release(), load=os.getloadavg(),
         binaries={name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in binaries.items()},
-        scope="whole-process Ir with only Main10 interior reference column-map and gather copies removed; not timing, a CPU-time share or a wall-time speedup",
+        scope="whole-process Ir for the exact shipping Main10 reference-row revision; not timing, a CPU-time share or a wall-time speedup",
         cells=[])
     pool = reference.round_files.pool()
     pool.limits.max_requests = 4000

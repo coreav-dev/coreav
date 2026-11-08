@@ -162,12 +162,19 @@ jobs:
           ref: ${{ inputs.baseline }}
           persist-credentials: false
           fetch-depth: 0
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: shipping
+          ref: ${{ inputs.candidate }}
+          persist-credentials: false
+          fetch-depth: 0
       - name: Admit exact owned arms before credentials
         run: |
           set -euo pipefail
-          test "$(git -C . rev-parse HEAD)" = "$CANDIDATE"
+          test "$(git -C . rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git -C baseline rev-parse HEAD)" = "$BASELINE"
-          test -n "$(git -C . branch -r --contains "$CANDIDATE")"
+          test "$(git -C shipping rev-parse HEAD)" = "$CANDIDATE"
+          test -n "$(git -C shipping branch -r --contains "$CANDIDATE")"
           git -C baseline merge-base --is-ancestor "$BASELINE" origin/main
           python3 -I scripts/hevc_interpolation_copy_ceiling.py self-test
           python3 -m unittest discover -s scripts/tests -p test_reference_hevc.py
@@ -181,14 +188,14 @@ jobs:
         run: |
           set -euo pipefail
           cp bench/hevc-reference/decode.rs baseline/crates/coreav-hevc/examples/reference.rs
-          cp bench/hevc-reference/decode.rs crates/coreav-hevc/examples/reference.rs
+          cp bench/hevc-reference/decode.rs shipping/crates/coreav-hevc/examples/reference.rs
           (cd baseline && CARGO_TARGET_DIR="$RUNNER_TEMP/target-baseline" cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
-          (cd "$GITHUB_WORKSPACE" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-ablated" cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+          (cd shipping && CARGO_TARGET_DIR="$RUNNER_TEMP/target-ablated" cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
           mkdir -p "$RUNNER_TEMP/counts"
           rustc -Vv > "$RUNNER_TEMP/counts/compiler.txt"
           grep -qw avx2 /proc/cpuinfo
-          (cd "$GITHUB_WORKSPACE" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-ablated" cargo test --locked -p coreav-kernels-hevc --features native-hevc)
-          (cd "$GITHUB_WORKSPACE" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-ablated" cargo test --locked -p coreav-kernels-hevc --features native-hevc,scalar)
+          (cd shipping && CARGO_TARGET_DIR="$RUNNER_TEMP/target-ablated" cargo test --locked -p coreav-kernels-hevc --features native-hevc)
+          (cd shipping && CARGO_TARGET_DIR="$RUNNER_TEMP/target-ablated" cargo test --locked -p coreav-kernels-hevc --features native-hevc,scalar)
       - name: Install instruction counter
         run: sudo apt-get update -qq && sudo apt-get install -y valgrind
       - uses: ./.github/actions/oracle-cache
@@ -220,7 +227,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: main10-copy-ceiling-sealed
+          name: main10-shipping-count-sealed
           path: ${{ runner.temp }}/sealed
           if-no-files-found: error
           retention-days: 1
