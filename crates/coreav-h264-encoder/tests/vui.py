@@ -39,7 +39,7 @@ def main():
                     subprocess.run([
                         str(oracle.ffmpeg), '-v', 'error', '-f', 'lavfi', '-i',
                         f'color=s=16x16:r={num}/{den}', '-frames:v', '64',
-                        '-c:v', 'libx264', '-g', '1', '-f', 'h264', '-y', str(anchor),
+                        '-c:v', 'libx264', '-g', '32', '-bf', '0', '-f', 'h264', '-y', str(anchor),
                     ], check=True, timeout=30)
                     for candidate in (source, anchor):
                         diagnostic = subprocess.run([

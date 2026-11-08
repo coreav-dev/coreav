@@ -130,6 +130,7 @@ fn vui_rationals_preserve_syntax_and_native_picture_roundtrips() {
             let mut s = settings(16, 16, 26);
             s.frame_rate = FrameRate::new(num, den).unwrap();
             s.sample_aspect_ratio = SampleAspectRatio::new(width, height).unwrap();
+            s.gop = Gop::Fixed { idr_interval: 32 };
             let mut encoder = Encoder::new(s, Limits::default()).unwrap();
             let mut decoder = coreav_h264::Decoder::with_kernels(
                 coreav_h264::Scalar,
