@@ -10,6 +10,7 @@ use crate::{
     vlc::{INTER_CBP, INTRA_CBP},
 };
 use coreav_kernels_h264::{BlockMut, IntraAvail, IntraMut, Kernels, Scalar};
+use std::sync::{Mutex, OnceLock, TryLockError};
 
 #[path = "inter.rs"]
 mod inter;
@@ -708,6 +709,62 @@ impl FramePlane {
         }
         Ok(())
     }
+
+    fn commit_candidate(
+        &mut self,
+        candidate: &Candidate,
+        component: usize,
+        mx: usize,
+        my: usize,
+    ) -> Result<()> {
+        let (tile, n) = if component == 0 {
+            (&candidate.luma.tile, 16)
+        } else {
+            (
+                candidate
+                    .chroma
+                    .tiles
+                    .get(component - 1)
+                    .ok_or(Error::Internal)?,
+                8,
+            )
+        };
+        self.commit(tile, mx * n, my * n, n)
+    }
+
+    fn filter_rows(
+        &mut self,
+        qp: u8,
+        component: usize,
+        rows: std::ops::Range<usize>,
+        mb_width: usize,
+        candidates: &[OnceLock<Candidate>],
+    ) -> Result<()> {
+        deblock::rows(
+            &mut self.data,
+            self.width,
+            if component == 0 { qp } else { t::chroma_qp(qp) },
+            component != 0,
+            rows,
+            |mx, my| {
+                let n = &candidates
+                    .get(my * mb_width + mx)
+                    .and_then(OnceLock::get)
+                    .ok_or(Error::Internal)?
+                    .state;
+                let mut nonzero = 0;
+                for (p, &count) in n.counts.first().ok_or(Error::Internal)?.iter().enumerate() {
+                    if count != 0 {
+                        nonzero |= 1 << p;
+                    }
+                }
+                Ok(deblock::Record {
+                    motion: n.motion,
+                    nonzero,
+                })
+            },
+        )
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -1045,26 +1102,26 @@ pub(crate) struct EncodedPicture {
     pub(crate) previous_mv_count: u8,
 }
 
-pub(crate) fn picture(
-    e: &Encoder,
-    input: Picture<'_>,
-    slice: syntax::Slice,
-) -> Result<EncodedPicture> {
-    let mut planes = [
-        FramePlane::new(e.coded_width, e.coded_height)?,
-        FramePlane::new(e.coded_width / 2, e.coded_height / 2)?,
-        FramePlane::new(e.coded_width / 2, e.coded_height / 2)?,
-    ];
-    let mb_width = e.coded_width / 16;
-    let mb_height = e.coded_height / 16;
-    let mut writer = Bits::new(e.limits.access_unit_bytes);
-    syntax::slice(&mut writer, e, slice)?;
-    let mut pending_skip = 0;
-    let mut previous_mv_count = e.previous_mv_count;
-    rows::decide(e, input, slice, |row, candidates| {
+struct PictureSyntax {
+    writer: Bits,
+    pending_skip: u32,
+    previous_mv_count: u8,
+}
+
+impl PictureSyntax {
+    fn row(
+        &mut self,
+        row: usize,
+        candidates: &[OnceLock<Candidate>],
+        mb_width: usize,
+        slice: syntax::Slice,
+        mut planes: Option<&mut [FramePlane; 3]>,
+    ) -> Result<()> {
         for address in row * mb_width..(row + 1) * mb_width {
-            let slot = candidates.get(address).ok_or(Error::Internal)?;
-            let candidate = slot.get().ok_or(Error::Internal)?;
+            let candidate = candidates
+                .get(address)
+                .and_then(OnceLock::get)
+                .ok_or(Error::Internal)?;
             let Candidate {
                 luma,
                 chroma,
@@ -1076,70 +1133,137 @@ pub(crate) fn picture(
             let skip = inter.as_ref().is_some_and(|i| i.skip);
             if !slice.idr {
                 if skip {
-                    pending_skip += 1;
+                    self.pending_skip += 1;
                 } else {
-                    writer.ue(pending_skip)?;
-                    pending_skip = 0;
+                    self.writer.ue(self.pending_skip)?;
+                    self.pending_skip = 0;
                 }
             }
-            macroblock(&mut writer, luma, chroma, inter.as_ref(), context)?;
-            previous_mv_count = inter.as_ref().map_or(0, |i| i.len as u8);
-            planes
-                .first_mut()
-                .ok_or(Error::Internal)?
-                .commit(&luma.tile, mx * 16, my * 16, 16)?;
-            for (c, tile) in chroma.tiles.iter().enumerate() {
-                planes
-                    .get_mut(c + 1)
-                    .ok_or(Error::Internal)?
-                    .commit(tile, mx * 8, my * 8, 8)?;
-            }
-        }
-        if e.settings.deblocking == Deblocking::Enabled && (e.threads != 1 || row + 1 == mb_height)
-        {
-            let rows = if e.threads == 1 {
-                0..mb_height
-            } else {
-                row..row + 1
-            };
-            for (c, plane) in planes.iter_mut().enumerate() {
-                let qp = if c == 0 {
-                    slice.qp
-                } else {
-                    t::chroma_qp(slice.qp)
-                };
-                deblock::rows(
-                    &mut plane.data,
-                    plane.width,
-                    qp,
-                    c != 0,
-                    rows.clone(),
-                    |mx, my| {
-                        let n = &candidates
-                            .get(my * mb_width + mx)
-                            .and_then(std::sync::OnceLock::get)
-                            .ok_or(Error::Internal)?
-                            .state;
-                        let mut nonzero = 0;
-                        for (p, &count) in
-                            n.counts.first().ok_or(Error::Internal)?.iter().enumerate()
-                        {
-                            if count != 0 {
-                                nonzero |= 1 << p;
-                            }
-                        }
-                        Ok(deblock::Record {
-                            motion: n.motion,
-                            nonzero,
-                        })
-                    },
-                )?;
+            macroblock(&mut self.writer, luma, chroma, inter.as_ref(), context)?;
+            self.previous_mv_count = inter.as_ref().map_or(0, |i| i.len as u8);
+            if let Some(planes) = planes.as_deref_mut() {
+                for (component, plane) in planes.iter_mut().enumerate() {
+                    plane.commit_candidate(candidate, component, mx, my)?;
+                }
             }
         }
         Ok(())
-    })?;
-    if pending_skip != 0 {
-        writer.ue(pending_skip)?;
+    }
+}
+
+struct PlaneRows {
+    plane: FramePlane,
+    next_row: usize,
+}
+
+impl PlaneRows {
+    fn advance(
+        &mut self,
+        e: &Encoder,
+        slice: syntax::Slice,
+        candidates: &[OnceLock<Candidate>],
+        component: usize,
+    ) -> Result<()> {
+        let width = e.coded_width / 16;
+        while self.next_row < e.coded_height / 16 {
+            let row = self.next_row;
+            if candidates
+                .get((row + 1) * width - 1)
+                .and_then(OnceLock::get)
+                .is_none()
+            {
+                break;
+            }
+            for mx in 0..width {
+                let candidate = candidates
+                    .get(row * width + mx)
+                    .and_then(OnceLock::get)
+                    .ok_or(Error::Internal)?;
+                self.plane.commit_candidate(candidate, component, mx, row)?;
+            }
+            if e.settings.deblocking == Deblocking::Enabled {
+                self.plane
+                    .filter_rows(slice.qp, component, row..row + 1, width, candidates)?;
+            }
+            self.next_row += 1;
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn picture(
+    e: &Encoder,
+    input: Picture<'_>,
+    slice: syntax::Slice,
+) -> Result<EncodedPicture> {
+    let planes = [
+        FramePlane::new(e.coded_width, e.coded_height)?,
+        FramePlane::new(e.coded_width / 2, e.coded_height / 2)?,
+        FramePlane::new(e.coded_width / 2, e.coded_height / 2)?,
+    ];
+    let mb_width = e.coded_width / 16;
+    let mb_height = e.coded_height / 16;
+    let mut writer = Bits::new(e.limits.access_unit_bytes);
+    syntax::slice(&mut writer, e, slice)?;
+    let mut output = PictureSyntax {
+        writer,
+        pending_skip: 0,
+        previous_mv_count: e.previous_mv_count,
+    };
+    let planes = if e.threads == 1 {
+        let mut planes = planes;
+        rows::decide(
+            e,
+            input,
+            slice,
+            |row, candidates| {
+                output.row(row, candidates, mb_width, slice, Some(&mut planes))?;
+                if row + 1 == mb_height && e.settings.deblocking == Deblocking::Enabled {
+                    for (component, plane) in planes.iter_mut().enumerate() {
+                        plane.filter_rows(
+                            slice.qp,
+                            component,
+                            0..mb_height,
+                            mb_width,
+                            candidates,
+                        )?;
+                    }
+                }
+                Ok(())
+            },
+            |_| Ok(()),
+        )?;
+        planes
+    } else {
+        let planes = planes.map(|plane| Mutex::new(PlaneRows { plane, next_row: 0 }));
+        let candidates = rows::decide(
+            e,
+            input,
+            slice,
+            |row, candidates| output.row(row, candidates, mb_width, slice, None),
+            |candidates| {
+                for (component, plane) in planes.iter().enumerate() {
+                    match plane.try_lock() {
+                        Ok(mut plane) => plane.advance(e, slice, candidates, component)?,
+                        Err(TryLockError::WouldBlock) => {}
+                        Err(TryLockError::Poisoned(_)) => return Err(Error::Internal),
+                    }
+                }
+                Ok(())
+            },
+        )?;
+        let [y, cb, cr] = planes.map(|plane| plane.into_inner().map_err(|_| Error::Internal));
+        let mut planes = [y?, cb?, cr?];
+        for (component, plane) in planes.iter_mut().enumerate() {
+            plane.advance(e, slice, &candidates, component)?;
+            if plane.next_row != mb_height {
+                return Err(Error::Internal);
+            }
+        }
+        planes.map(|plane| plane.plane)
+    };
+    if output.pending_skip != 0 {
+        output.writer.ue(output.pending_skip)?;
     }
     let visible = e.settings.width * e.settings.height * 3 / 2;
     let mut reconstruction = zeros(visible)?;
@@ -1165,10 +1289,10 @@ pub(crate) fn picture(
         }
     }
     Ok(EncodedPicture {
-        nal: writer.nal(if slice.idr { 0x65 } else { 0x61 })?,
+        nal: output.writer.nal(if slice.idr { 0x65 } else { 0x61 })?,
         reconstruction,
         planes,
-        previous_mv_count,
+        previous_mv_count: output.previous_mv_count,
     })
 }
 
@@ -1179,6 +1303,76 @@ mod tests {
 
     std::thread_local! {
         pub(super) static INTRA_PAIRS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    #[test]
+    fn plane_completion_waits_for_a_row_and_does_not_filter_it_twice() {
+        for deblocking in [Deblocking::Disabled, Deblocking::Enabled] {
+            let settings = crate::Settings {
+                width: 64,
+                height: 48,
+                frame_rate: Default::default(),
+                sample_aspect_ratio: Default::default(),
+                rate_mode: crate::RateMode::FixedQp(28),
+                deblocking,
+                gop: crate::Gop::AllIntra,
+                colour: crate::Colour {
+                    full_range: false,
+                    primaries: 1,
+                    transfer: 1,
+                    matrix: 1,
+                    chroma_location: 0,
+                },
+            };
+            let encoder = Encoder::with_threads(settings, crate::Limits::default(), 1).unwrap();
+            let y: Vec<_> = (0..64 * 48)
+                .map(|p| 100 + ((p % 64 / 4 * 2 + p / 64 / 4 * 3) % 16) as u8)
+                .collect();
+            let chroma: Vec<_> = (0..32 * 24)
+                .map(|p| 110 + ((p % 32 / 4 * 3 + p / 32 / 4 * 2) % 16) as u8)
+                .collect();
+            let input = Picture {
+                y: Plane::new(&y, 64, 64, 48).unwrap(),
+                cb: Plane::new(&chroma, 32, 32, 24).unwrap(),
+                cr: Plane::new(&chroma, 32, 32, 24).unwrap(),
+            };
+            let slice = syntax::Slice {
+                idr: true,
+                id: 0,
+                frame_num: 0,
+                qp: 28,
+            };
+            let expected = picture(&encoder, input, slice).unwrap();
+            let mut candidates =
+                rows::decide(&encoder, input, slice, |_, _| Ok(()), |_| Ok(())).unwrap();
+            let delayed = candidates[7].take().unwrap();
+            for (component, reference) in expected.planes.iter().enumerate() {
+                let mut output = PlaneRows {
+                    plane: FramePlane::new(reference.width, reference.height).unwrap(),
+                    next_row: 0,
+                };
+                output
+                    .advance(&encoder, slice, &candidates, component)
+                    .unwrap();
+                assert_eq!(output.next_row, 1);
+                assert!(
+                    output.plane.data[(reference.height / 3) * reference.width..]
+                        .iter()
+                        .all(|&sample| sample == 0)
+                );
+                assert!(candidates[7].set(delayed.clone()).is_ok());
+                output
+                    .advance(&encoder, slice, &candidates, component)
+                    .unwrap();
+                assert_eq!(output.next_row, 3);
+                assert_eq!(output.plane.data, reference.data);
+                output
+                    .advance(&encoder, slice, &candidates, component)
+                    .unwrap();
+                assert_eq!(output.plane.data, reference.data);
+                assert!(candidates[7].take().is_some());
+            }
+        }
     }
 
     #[test]

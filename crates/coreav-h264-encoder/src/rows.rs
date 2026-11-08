@@ -38,6 +38,7 @@ impl<'a> Neighbours<'a> {
         })
     }
 
+    #[inline(always)]
     fn tiles(
         &self,
         source: Plane<'_>,
@@ -123,6 +124,7 @@ pub(super) fn decide(
     input: Picture<'_>,
     slice: syntax::Slice,
     consume: impl FnMut(usize, &[OnceLock<Candidate>]) -> Result<()>,
+    prepare: impl Fn(&[OnceLock<Candidate>]) -> Result<()> + Sync,
 ) -> Result<Vec<OnceLock<Candidate>>> {
     let width = e.coded_width / 16;
     crate::wavefront::fill(
@@ -200,6 +202,7 @@ pub(super) fn decide(
                 .map_err(|_| Error::Internal)
         },
         consume,
+        prepare,
     )
 }
 
@@ -244,6 +247,7 @@ mod tests {
                 qp: 28,
             },
             |_, _| Ok(()),
+            |_| Ok(()),
         )
         .unwrap();
         let address = 5;
