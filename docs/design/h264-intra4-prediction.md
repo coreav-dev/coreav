@@ -1,0 +1,9 @@
+# Fixed-size H.264 intra prediction
+
+The encoder repeatedly calls the shared safe `pred4x4` kernel. Its generic directional path builds neighbours sized for larger blocks and computes every pair and three-tap average before selecting sixteen samples. The exact function's exclusive instruction count on native x86 Actions clears the useful-work ceiling. This change keeps the prediction policy and admitted views unchanged.
+
+Read eight top samples, four left samples and the top-left sample before writing the block. Preserve the checked view's zero values for missing neighbours and replication of the last available top sample. Evaluate only the averages each of the six directional modes uses, with unsigned 16-bit intermediates. Their maximum rounded numerator is 1,022, so no intermediate can overflow. Arrange the sixteen results directly according to H.264 clauses 8.3.1.2.4 through 8.3.1.2.9. Vertical, horizontal and DC modes keep their existing arithmetic. Modes above eight still select DC, and another block size stays untouched.
+
+This remains safe scalar Rust shared by the decoder and encoder. The frozen test oracle stays unchanged. The 8x8, 16x16, chroma and vector predictors, encoder mode decisions, search, coefficient refinement and buffer ownership are outside the change. No new unsafe code, dispatch policy, public setting or default dependency is needed.
+
+Run the existing independent prediction comparisons, both encoder build modes, kernel and encoder Clippy, complete-stream identity and affected conformance CI. Compare main and candidate at explicit source commits on the existing prepared inputs at QP22 and QP28. Require identical streams and reconstructions at one, two, three and eight workers in normal and scalar builds. Native x86 Actions timing uses one and four workers, alternating arms with warmups and retained observations. Ship only a gain above run-to-run variation. A counted function share alone is not a speed result.
