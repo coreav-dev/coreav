@@ -30,6 +30,7 @@ pub(crate) struct Sad {
 }
 
 impl Sad {
+    #[inline]
     pub(crate) fn new(width: usize) -> Result<Self> {
         if width > 16 {
             return Err(Error::Internal);
@@ -41,6 +42,7 @@ impl Sad {
         })
     }
 
+    #[inline]
     pub(crate) fn row(self, a: &[u8], b: &[u8]) -> Result<u64> {
         let a = a.get(..self.width).ok_or(Error::Internal)?;
         let b = b.get(..self.width).ok_or(Error::Internal)?;
