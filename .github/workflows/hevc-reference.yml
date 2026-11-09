@@ -15,12 +15,27 @@ on:
         required: true
         type: string
       baseline:
-        description: Optional full baseline SHA for a comparison
+        description: Optional full baseline SHA, or native for same-head row evidence
         required: false
         default: ''
         type: string
       sanitizer_only:
         description: Run only the threading sanitizer stress check
+        required: false
+        default: false
+        type: boolean
+      thread_diagnostics_only:
+        description: Run only untimed 4T picture-job diagnostics on all 30 inputs
+        required: false
+        default: false
+        type: boolean
+      thread_dependencies_only:
+        description: Replay only header reference dependencies on all 30 inputs
+        required: false
+        default: false
+        type: boolean
+      thread_rows_only:
+        description: Decode only CTU-row reference reads on the 24 non-WPP inputs
         required: false
         default: false
         type: boolean
@@ -54,7 +69,7 @@ jobs:
     secrets: inherit
 
   reference:
-    if: ${{ !inputs.inverse && inputs.baseline == '' && !inputs.sanitizer_only }}
+    if: ${{ !inputs.inverse && inputs.baseline == '' && !inputs.sanitizer_only && !inputs.thread_diagnostics_only && !inputs.thread_dependencies_only && !inputs.thread_rows_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
@@ -128,12 +143,25 @@ jobs:
           retention-days: 30
 
   threading:
-    if: ${{ !inputs.inverse && (inputs.baseline != '' || inputs.sanitizer_only) }}
+    if: ${{ !inputs.inverse && inputs.baseline != 'native' && (inputs.baseline != '' || inputs.sanitizer_only || inputs.thread_diagnostics_only || inputs.thread_dependencies_only || inputs.thread_rows_only) }}
     uses: ./.github/workflows/hevc-threading.yml
     with:
       candidate: ${{ inputs.candidate }}
       baseline: ${{ inputs.baseline }}
       sanitizer_only: ${{ inputs.sanitizer_only }}
+      thread_diagnostics_only: ${{ inputs.thread_diagnostics_only }}
+      thread_dependencies_only: ${{ inputs.thread_dependencies_only }}
+      thread_rows_only: ${{ inputs.thread_rows_only }}
+      only: ${{ inputs.only }}
+      frames: ${{ fromJSON(inputs.frames) }}
+    secrets: inherit
+
+  native-rows:
+    if: ${{ !inputs.inverse && inputs.baseline == 'native' }}
+    uses: ./.github/workflows/hevc-native-rows.yml
+    with:
+      candidate: ${{ inputs.candidate }}
+      mode: ${{ inputs.only != '' && 'reference' || inputs.diagnose_only && 'checks' || 'all' }}
       only: ${{ inputs.only }}
       frames: ${{ fromJSON(inputs.frames) }}
     secrets: inherit

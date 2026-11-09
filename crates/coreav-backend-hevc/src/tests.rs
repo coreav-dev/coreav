@@ -14,6 +14,8 @@ fn reconstruction_panics_are_backend_failures_not_media_limits() {
 
 #[path = "../../coreav-hevc/test-support/pcm.rs"]
 mod pcm;
+#[path = "../../coreav-hevc/test-support/raster.rs"]
+mod raster;
 #[path = "../../coreav-hevc/test-support/writer.rs"]
 mod writer;
 
@@ -162,23 +164,67 @@ fn stored_terminal_zero_padding_follows_the_annex_b_rule_in_configuration_and_pa
 }
 
 #[test]
-fn malformed_or_multi_picture_access_units_close_and_discard_queued_output() -> Result<()> {
+fn malformed_or_multi_picture_access_units_close_after_valid_output() -> Result<()> {
     let fixture = pcm::pcm_fixture(8, 8, false)?;
-    for bad in [
-        access_unit([&fixture.nal, &fixture.nal], false),
-        access_unit([fixture.nal.as_slice(), &[0, 0, 0x80]], false),
+    for (bad, outputs) in [
+        (access_unit([&fixture.nal, &fixture.nal], false), 1),
+        (
+            access_unit([fixture.nal.as_slice(), &[0, 0, 0x80]], false),
+            0,
+        ),
     ] {
         let mut decoder =
             NativeHevc::new().open(&StreamConfig::new(Codec::Hevc), &Limits::default())?;
         decoder.send_packet(&packet(&access_unit(&fixture.sets, false), None, false))?;
         assert!(decoder.send_packet(&packet(&bad, Some(7), false)).is_err());
+        for _ in 0..outputs {
+            assert_eq!(
+                decoder.receive_frame()?.ok_or("lost prior frame")?.pts,
+                Some(7)
+            );
+        }
         terminal(&mut *decoder);
     }
     Ok(())
 }
 
 #[test]
-fn a_packet_after_eof_fails_and_drops_unreceived_frames() -> Result<()> {
+fn polling_keeps_deferred_entropy_errors_ahead_of_later_packet_framing_errors() -> Result<()> {
+    let mut fixture = pcm::pcm_fixture(8, 8, false)?;
+    fixture.nal.pop();
+    for length in [false, true] {
+        let mut stream = StreamConfig::new(Codec::Hevc);
+        if length {
+            stream.config = Some(configuration(&fixture.sets, 8));
+        }
+        let data = if length {
+            access_unit([&fixture.nal], true)
+        } else {
+            access_unit(fixture.sets.iter().chain([&fixture.nal]), false)
+        };
+        let mut serial = NativeHevc::with_options(NativeOptions { threads: Some(1) })
+            .open(&stream, &Limits::default())?;
+        let expected = serial.send_packet(&packet(&data, None, false)).unwrap_err();
+        let mut scheduled = NativeHevc::with_options(NativeOptions { threads: Some(2) })
+            .open(&stream, &Limits::default())?;
+        let actual = match scheduled.send_packet(&packet(&data, None, false)) {
+            Err(error) => error,
+            Ok(()) => {
+                assert!(scheduled.receive_frame()?.is_none());
+                scheduled
+                    .send_packet(&packet(&[0, 0, 0, 10, 2], None, false))
+                    .unwrap_err()
+            }
+        };
+        assert_eq!(actual.kind, expected.kind);
+        assert_eq!(actual.to_string(), expected.to_string());
+        terminal(&mut *scheduled);
+    }
+    Ok(())
+}
+
+#[test]
+fn a_packet_after_eof_fails_and_keeps_validated_frames() -> Result<()> {
     let fixture = pcm::pcm_fixture(8, 8, false)?;
     let data = access_unit(fixture.sets.iter().chain([&fixture.nal]), false);
     let mut decoder =
@@ -190,7 +236,509 @@ fn a_packet_after_eof_fails_and_drops_unreceived_frames() -> Result<()> {
             .send_packet(&packet(&data, Some(18), false))
             .is_err()
     );
+    assert_eq!(
+        decoder.receive_frame()?.ok_or("lost EOF frame")?.pts,
+        Some(17)
+    );
     terminal(&mut *decoder);
+    Ok(())
+}
+
+#[test]
+fn checked_packet_refusal_settles_earlier_entropy_failure() -> Result<()> {
+    let mut fixture = pcm::pcm_fixture(8, 8, false)?;
+    fixture.nal.pop();
+    let mut deferred = 0;
+    for length in [false, true] {
+        let mut stream = StreamConfig::new(Codec::Hevc);
+        if length {
+            stream.config = Some(configuration(&fixture.sets, 8));
+        }
+        let data = if length {
+            access_unit([&fixture.nal], true)
+        } else {
+            access_unit(fixture.sets.iter().chain([&fixture.nal]), false)
+        };
+        let limits = Limits {
+            max_packet_bytes: data.len() as u64 + 8,
+            ..Limits::default()
+        };
+        let serial = NativeHevc::with_options(NativeOptions { threads: Some(1) });
+        let mut serial = coreav_decode::open(&stream, &Policy::default(), &limits, &[&serial])?;
+        let expected = serial
+            .decoder
+            .send_packet(&packet(&data, None, false))
+            .unwrap_err();
+        assert_eq!(expected.kind, ErrorKind::InvalidData);
+        let oversized = vec![0; limits.max_packet_bytes as usize + 1];
+        for threads in [1, 2, 4, 8] {
+            let native = NativeHevc::with_options(NativeOptions {
+                threads: Some(threads),
+            });
+            let mut opened = coreav_decode::open(&stream, &Policy::default(), &limits, &[&native])?;
+            let actual = match opened.decoder.send_packet(&packet(&data, None, false)) {
+                Err(error) => error,
+                Ok(()) => {
+                    deferred += 1;
+                    assert!(opened.decoder.receive_frame()?.is_none());
+                    opened
+                        .decoder
+                        .send_packet(&packet(&oversized, None, false))
+                        .unwrap_err()
+                }
+            };
+            assert_eq!(actual.kind, expected.kind);
+            assert_eq!(actual.to_string(), expected.to_string());
+            terminal(&mut *opened.decoder);
+        }
+    }
+    if std::thread::available_parallelism().is_ok_and(|workers| workers.get() > 1) {
+        assert!(deferred > 0);
+    }
+    Ok(())
+}
+
+#[test]
+fn terminal_failures_preserve_validated_frames_through_public_open() -> Result<()> {
+    let mut serial_errors = std::collections::BTreeMap::new();
+    for (depth, length, receive_early) in [
+        (8, false, false),
+        (8, false, true),
+        (8, true, false),
+        (8, true, true),
+        (10, false, false),
+        (10, false, true),
+        (10, true, false),
+        (10, true, true),
+    ] {
+        let fixture = pcm::pcm_fixture(depth, depth, false)?;
+        let sample_bytes = if depth == 8 { 1 } else { 2 };
+        let mut stream = StreamConfig::new(Codec::Hevc);
+        if length {
+            stream.config = Some(configuration(&fixture.sets, depth));
+        }
+        let first = if length {
+            access_unit([&fixture.nal], true)
+        } else {
+            access_unit(fixture.sets.iter().chain([&fixture.nal]), false)
+        };
+        let next = access_unit([&fixture.nal], length);
+        for threads in [1, 2, 4, 8] {
+            for checked in [false, true] {
+                for fault in 0..5 {
+                    let limits = Limits {
+                        max_packet_bytes: first.len() as u64 + 8,
+                        max_decoded_bytes: if fault == 2 {
+                            96 * sample_bytes as u64
+                        } else {
+                            4 << 30
+                        },
+                        ..Limits::default()
+                    };
+                    let native = NativeHevc::with_options(NativeOptions {
+                        threads: Some(threads),
+                    });
+                    let mut decoder = if checked {
+                        coreav_decode::open(&stream, &Policy::default(), &limits, &[&native])?
+                            .decoder
+                    } else {
+                        native.open(&stream, &limits)?
+                    };
+                    decoder.send_packet(&packet(&first, Some(11), false))?;
+                    decoder.send_packet(&packet(&next, Some(22), false))?;
+                    let mut frames = Vec::new();
+                    if receive_early {
+                        let early = decoder.receive_frame()?;
+                        if threads == 1 {
+                            assert!(early.is_some(), "missing serial early frame");
+                        }
+                        if let Some(frame) = early {
+                            frames.push(frame);
+                        }
+                    }
+                    if fault == 3 {
+                        decoder.send_eof()?;
+                    }
+                    let bad = match fault {
+                        0 => access_unit([[0, 0, 0x80]], length),
+                        1 => vec![0; limits.max_packet_bytes as usize + 1],
+                        4 => access_unit([&fixture.nal[..fixture.nal.len() - 1]], length),
+                        _ => next.clone(),
+                    };
+                    let error = match decoder.send_packet(&packet(&bad, Some(33), false)) {
+                        Err(error) => error,
+                        Ok(()) if fault == 4 => decoder.send_eof().unwrap_err(),
+                        Ok(()) => return Err("terminal fixture did not fail".into()),
+                    };
+                    assert_eq!(
+                        error.kind,
+                        if matches!(fault, 1 | 2) {
+                            ErrorKind::Limit
+                        } else {
+                            ErrorKind::InvalidData
+                        }
+                    );
+                    assert_eq!(
+                        serial_errors
+                            .entry((depth, length, fault))
+                            .or_insert_with(|| error.clone()),
+                        &error
+                    );
+                    let count = if matches!(fault, 3 | 4) { 2 } else { 1 };
+                    while frames.len() < count {
+                        frames.push(decoder.receive_frame()?.ok_or("lost terminal frame")?);
+                    }
+                    for (frame, pts) in frames.into_iter().zip([11, 22]) {
+                        assert_eq!(frame.pts, Some(pts));
+                        assert_eq!((frame.width(), frame.height()), (8, 8));
+                        for (plane, samples) in frame.to_cpu()?.planes().iter().zip(&fixture.planes)
+                        {
+                            let expected: Vec<u8> = samples
+                                .iter()
+                                .flat_map(|value| {
+                                    value.to_le_bytes().into_iter().take(sample_bytes)
+                                })
+                                .collect();
+                            assert_eq!(plane.data(), expected);
+                        }
+                    }
+                    assert_eq!(decoder.receive_frame().unwrap_err(), error);
+                    assert_eq!(decoder.send_eof().unwrap_err(), error);
+                    assert_eq!(
+                        decoder
+                            .send_packet(&packet(&next, None, false))
+                            .unwrap_err(),
+                        error
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn native_with_limits_for_test(limits: &Limits, threads: usize) -> Result<NativeDecoder> {
+    let name = DECODER_NAME.to_owned();
+    let output = Output::new(
+        limits.clone(),
+        limits.deadline(),
+        Default::default(),
+        name.capacity(),
+    )?;
+    let mut core = PictureDecoder::new(DecodeLimits {
+        max_memory_bytes: limits.max_memory_bytes as usize,
+        ..DecodeLimits::default()
+    })
+    .with_threads(threads);
+    core.set_external_memory(output.retained_bytes()?)?;
+    Ok(NativeDecoder {
+        decoder: Some(core),
+        info: DecoderInfo {
+            backend: BackendKind::Native,
+            isolation: Isolation::InProcess,
+            decoder: name,
+        },
+        framing: Framing::AnnexB,
+        output,
+        state: State::Active,
+        next_origin: 0,
+    })
+}
+
+#[test]
+fn native_row_receives_are_bounded_serial_prefixes_for_every_short_cadence() -> Result<()> {
+    let fixture = pcm::pcm_fixture(8, 8, false)?;
+    let first = access_unit(fixture.sets.iter().chain([&fixture.nal]), false);
+    let next = access_unit([&fixture.nal], false);
+    for threads in [1usize, 2, 4, 8] {
+        let effective = threads.min(std::thread::available_parallelism().map_or(1, usize::from));
+        for cadence in 0u32..64 {
+            let limits = Limits {
+                max_packet_bytes: first.len() as u64 + 8,
+                max_pending_bytes: 6 * 96,
+                max_memory_bytes: 128 << 20,
+                ..Limits::default()
+            };
+            let mut decoder = native_with_limits_for_test(&limits, threads)?;
+            let mut returned = 0usize;
+            let mut serial_received = 0usize;
+            let mut ring_capacity = None;
+            for index in 0..6 {
+                decoder.send_packet(&packet(
+                    if index == 0 { &first } else { &next },
+                    Some(index as i64),
+                    false,
+                ))?;
+                assert_eq!(
+                    decoder
+                        .decoder
+                        .as_ref()
+                        .is_some_and(PictureDecoder::has_native_rows),
+                    effective > 1
+                );
+                if effective > 1 {
+                    let capacity = decoder.output.ready.capacity();
+                    assert!(capacity >= 6 + effective);
+                    assert_eq!(*ring_capacity.get_or_insert(capacity), capacity);
+                }
+                if cadence & (1 << index) != 0 {
+                    serial_received += usize::from(serial_received < index);
+                    if let Some(frame) = decoder.receive_frame()? {
+                        assert_eq!(frame.pts, Some(returned as i64));
+                        for (plane, samples) in frame.to_cpu()?.planes().iter().zip(&fixture.planes)
+                        {
+                            assert_eq!(
+                                plane.data(),
+                                samples.iter().map(|n| *n as u8).collect::<Vec<_>>()
+                            );
+                        }
+                        returned += 1;
+                    }
+                    assert!(returned <= serial_received);
+                    assert!(
+                        serial_received - returned < effective,
+                        "threads={threads}, cadence={cadence}, index={index}"
+                    );
+                }
+            }
+            decoder.send_eof()?;
+            while let Some(frame) = decoder.receive_frame()? {
+                assert_eq!(frame.pts, Some(returned as i64));
+                returned += 1;
+            }
+            assert_eq!(returned, 6, "threads={threads}, cadence={cadence}");
+            assert!(decoder.output.ready.is_empty());
+            assert!(decoder.decoder.is_none());
+            assert!(decoder.receive_frame()?.is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn later_geometry_can_reduce_future_lag_to_zero_and_retire_old_debt() -> Result<()> {
+    if std::thread::available_parallelism().map_or(1, usize::from) < 2 {
+        return Ok(());
+    }
+    let tiny = pcm::pcm_fixture(8, 8, false)?;
+    let first = access_unit(tiny.sets.iter().chain([&tiny.nal]), false);
+    let next = access_unit([&tiny.nal], false);
+    let tall = raster::stream(false)?;
+    let grown = access_unit(&tall[..35], false);
+    let grown_next = access_unit(&tall[35..], false);
+    let mut zero_lag = false;
+    for memory in (12u64 << 20..28u64 << 20).step_by(256 << 10) {
+        let limits = Limits {
+            max_packet_bytes: grown.len() as u64,
+            max_pending_bytes: 4 * 16 * 512 * 3 / 2,
+            max_memory_bytes: memory,
+            ..Limits::default()
+        };
+        let mut decoder = native_with_limits_for_test(&limits, 2)?;
+        decoder.send_packet(&packet(&first, Some(0), false))?;
+        decoder.send_packet(&packet(&next, Some(1), false))?;
+        if !decoder
+            .decoder
+            .as_ref()
+            .is_some_and(PictureDecoder::has_native_rows)
+        {
+            continue;
+        }
+        assert!(decoder.receive_frame()?.is_none());
+        assert!(decoder.receive_frame()?.is_none());
+        decoder.send_packet(&packet(&grown, Some(2), false))?;
+        for pts in [0, 1] {
+            let frame = decoder.receive_frame()?.ok_or("lost old-geometry output")?;
+            assert_eq!(
+                (frame.pts, frame.width(), frame.height()),
+                (Some(pts), 8, 8)
+            );
+            for (plane, samples) in frame.to_cpu()?.planes().iter().zip(&tiny.planes) {
+                assert_eq!(
+                    plane.data(),
+                    samples.iter().map(|n| *n as u8).collect::<Vec<_>>()
+                );
+            }
+        }
+        assert!(decoder.receive_frame()?.is_none());
+        decoder.send_packet(&packet(&grown_next, Some(3), false))?;
+        let retired = !decoder
+            .decoder
+            .as_ref()
+            .is_some_and(PictureDecoder::has_native_rows);
+        decoder.send_eof()?;
+        for picture in 0..2 {
+            let frame = decoder.receive_frame()?.ok_or("lost new-geometry output")?;
+            assert_eq!(
+                (frame.pts, frame.width(), frame.height()),
+                (Some(picture + 2), 16, 512)
+            );
+            for (component, plane) in frame.to_cpu()?.planes().iter().enumerate() {
+                let band = if component == 0 { 256 } else { 64 };
+                for (row, bytes) in plane.data().chunks_exact(band).enumerate() {
+                    assert!(
+                        bytes
+                            .iter()
+                            .all(|byte| *byte == 37 + picture as u8 * 5 + row as u8)
+                    );
+                }
+            }
+        }
+        assert!(decoder.receive_frame()?.is_none());
+        if retired {
+            zero_lag = true;
+            break;
+        }
+    }
+    assert!(zero_lag, "no active continuation reduced lag to zero");
+    Ok(())
+}
+
+#[test]
+fn later_envelope_refusal_keeps_old_outputs_and_never_emits_the_refused_picture() -> Result<()> {
+    if std::thread::available_parallelism().map_or(1, usize::from) < 2 {
+        return Ok(());
+    }
+    let tiny = pcm::pcm_fixture(8, 8, false)?;
+    let first = access_unit(tiny.sets.iter().chain([&tiny.nal]), false);
+    let next = access_unit([&tiny.nal], false);
+    let tall = raster::stream_geometry(false, 512, 16)?;
+    let grown = access_unit(&tall[..515], false);
+    let bytes = 16 * 8192 * 3 / 2;
+    let mut refused = false;
+    for memory in (12u64 << 20..32u64 << 20).step_by(64 << 10) {
+        let limits = Limits {
+            max_packet_bytes: grown.len() as u64,
+            max_pending_bytes: bytes + 192,
+            max_memory_bytes: memory,
+            ..Limits::default()
+        };
+        let mut decoder = native_with_limits_for_test(&limits, 2)?;
+        decoder.send_packet(&packet(&first, Some(0), false))?;
+        decoder.send_packet(&packet(&next, Some(1), false))?;
+        if !decoder
+            .decoder
+            .as_ref()
+            .is_some_and(PictureDecoder::has_native_rows)
+        {
+            continue;
+        }
+        assert!(decoder.receive_frame()?.is_none());
+        decoder.send_packet(&packet(&access_unit([&tall[1]], false), None, false))?;
+        decoder.send_packet(&packet(&access_unit([&tiny.sets[1]], false), None, false))?;
+        let Err(error) = decoder.send_packet(&packet(&grown, Some(2), false)) else {
+            continue;
+        };
+        assert_eq!(error.kind, ErrorKind::Limit);
+        assert!(error.message.contains("row_admission"), "{error}");
+        for pts in [0, 1] {
+            let frame = decoder
+                .receive_frame()?
+                .ok_or("lost pre-admission output")?;
+            assert_eq!(
+                (frame.pts, frame.width(), frame.height()),
+                (Some(pts), 8, 8)
+            );
+            for (plane, samples) in frame.to_cpu()?.planes().iter().zip(&tiny.planes) {
+                assert_eq!(
+                    plane.data(),
+                    samples.iter().map(|n| *n as u8).collect::<Vec<_>>()
+                );
+            }
+        }
+        assert_eq!(decoder.receive_frame().unwrap_err(), error);
+        assert_eq!(decoder.send_eof().unwrap_err(), error);
+        let mut serial = native_with_limits_for_test(&limits, 1)?;
+        serial.send_packet(&packet(&first, Some(0), false))?;
+        serial.send_packet(&packet(&next, Some(1), false))?;
+        serial.send_packet(&packet(&grown, Some(2), false))?;
+        serial.send_eof()?;
+        for pts in 0..3 {
+            assert_eq!(
+                serial
+                    .receive_frame()?
+                    .ok_or("missing serial continuation")?
+                    .pts,
+                Some(pts)
+            );
+        }
+        assert!(serial.receive_frame()?.is_none());
+        let mut without_debt = native_with_limits_for_test(&limits, 2)?;
+        without_debt.send_packet(&packet(&first, Some(0), false))?;
+        without_debt.send_packet(&packet(&next, Some(1), false))?;
+        without_debt.send_packet(&packet(&grown, Some(2), false))?;
+        without_debt.send_eof()?;
+        for pts in 0..3 {
+            assert_eq!(
+                without_debt
+                    .receive_frame()?
+                    .ok_or("missing zero-debt continuation")?
+                    .pts,
+                Some(pts)
+            );
+        }
+        assert!(without_debt.receive_frame()?.is_none());
+        refused = true;
+        break;
+    }
+    assert!(
+        refused,
+        "no later continuation exceeded the admitted envelope"
+    );
+    Ok(())
+}
+
+#[test]
+fn terminal_handoff_moves_only_packed_frames_after_decoder_teardown() -> Result<()> {
+    let fixture = pcm::pcm_fixture(10, 10, false)?;
+    let data = access_unit(fixture.sets.iter().chain([&fixture.nal]), false);
+    let mut source = NativeHevc::new().open(&StreamConfig::new(Codec::Hevc), &Limits::default())?;
+    source.send_packet(&packet(&data, Some(51), false))?;
+    source.send_eof()?;
+    let frame = source.receive_frame()?.ok_or("missing packed frame")?;
+    let pixels = frame.to_cpu()?;
+    let memory = pixels.planes().iter().map(|plane| plane.data().len()).sum();
+    let first_sample = pixels.planes()[0].data().as_ptr();
+    let mut output = Output::new(
+        Limits::default(),
+        Limits::default().deadline(),
+        frame.color,
+        0,
+    )?;
+    output
+        .ready
+        .push_back(coreav_decode::native_hevc_private::OutputFrame {
+            frame,
+            bytes: 192,
+            memory,
+        });
+    let entries = output.ready.as_slices().0.as_ptr();
+    let mut decoder = NativeDecoder {
+        decoder: Some(PictureDecoder::new(DecodeLimits::default())),
+        info: source.info().clone(),
+        framing: Framing::AnnexB,
+        output,
+        state: State::Active,
+        next_origin: 0,
+    };
+    let error = Error::new(ErrorKind::Timeout, "terminal timeout");
+    assert_eq!(
+        decoder.terminal_result::<()>(Err(error.clone())),
+        Err(error.clone())
+    );
+    assert!(decoder.decoder.is_none());
+    let mut terminal = decoder
+        .take_native_hevc_terminal_output()
+        .ok_or("no handoff")?;
+    assert_eq!(terminal.frames.as_slices().0.as_ptr(), entries);
+    assert!(decoder.output.is_empty());
+    drop(decoder);
+    assert_eq!(terminal.frames[0].bytes, 192);
+    assert_eq!(terminal.frames[0].memory, memory);
+    let frame = terminal.receive_frame()?.ok_or("lost packed frame")?;
+    assert_eq!(frame.to_cpu()?.planes()[0].data().as_ptr(), first_sample);
+    assert_eq!(frame.pts, Some(51));
+    assert_eq!(terminal.receive_frame().unwrap_err(), error);
     Ok(())
 }
 

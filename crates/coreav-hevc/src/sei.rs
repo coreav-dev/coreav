@@ -55,6 +55,15 @@ pub(crate) fn parse(mut bytes: &[u8], suffix: bool) -> Result<SeiInfo> {
     let mut hash_seen = false;
     while bytes != [0x80] {
         let kind = extended_byte(&mut bytes)?;
+        #[cfg(hevc_thread_diagnostics)]
+        match kind {
+            0 => crate::thread_diagnostic!(event SeiType0),
+            1 => crate::thread_diagnostic!(event SeiType1),
+            5 => crate::thread_diagnostic!(event SeiType5),
+            129 => crate::thread_diagnostic!(event SeiType129),
+            132 => crate::thread_diagnostic!(event SeiType132),
+            _ => crate::thread_diagnostic!(event SeiTypeOther),
+        }
         let size = extended_byte(&mut bytes)? as usize;
         let payload = bytes
             .get(..size)

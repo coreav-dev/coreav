@@ -164,6 +164,8 @@ impl SliceSyntax {
 /// stream rather than continuing with partially accepted sequence state.
 pub struct HeaderParser {
     core: StreamCore,
+    #[cfg(hevc_thread_diagnostics)]
+    output_trace: Option<crate::thread_diagnostics::DependencyOutputs>,
 }
 
 impl HeaderParser {
@@ -171,6 +173,8 @@ impl HeaderParser {
     pub fn new(limits: Limits) -> Self {
         Self {
             core: StreamCore::new(limits),
+            #[cfg(hevc_thread_diagnostics)]
+            output_trace: None,
         }
     }
 
@@ -180,12 +184,88 @@ impl HeaderParser {
         bytes: &[u8],
         emit: impl FnMut(OutputEvent) -> Result<()>,
     ) -> Result<NalInfo> {
+        #[cfg(hevc_thread_diagnostics)]
+        if let Some(outputs) = &mut self.output_trace {
+            return crate::thread_diagnostics::capture_outputs(outputs, || {
+                self.core.read_nal(bytes, emit)
+            });
+        }
         self.core.read_nal(bytes, emit)
     }
 
     /// Complete a stream inspection. Empty or failed streams cannot pass a gate.
     pub fn finish(&mut self, emit: impl FnMut(OutputEvent) -> Result<()>) -> Result<Summary> {
+        #[cfg(hevc_thread_diagnostics)]
+        if let Some(outputs) = &mut self.output_trace {
+            return crate::thread_diagnostics::capture_outputs(outputs, || self.core.finish(emit));
+        }
         self.core.finish(emit)
+    }
+
+    #[cfg(hevc_thread_diagnostics)]
+    #[doc(hidden)]
+    pub fn diagnostic_trace_outputs(&mut self) -> Result<()> {
+        if self.core.summary.nals != 0 {
+            return Err(Error::InvalidData("dependency_output_trace_started"));
+        }
+        self.output_trace = Some(Default::default());
+        Ok(())
+    }
+
+    #[cfg(hevc_thread_diagnostics)]
+    #[doc(hidden)]
+    pub fn diagnostic_outputs(
+        &self,
+    ) -> Result<[Option<crate::thread_diagnostics::DependencyOutput>; 32]> {
+        self.output_trace
+            .as_ref()
+            .map(|outputs| outputs.events)
+            .ok_or(Error::InvalidData("dependency_output_trace_missing"))
+    }
+
+    #[cfg(hevc_thread_diagnostics)]
+    #[doc(hidden)]
+    pub fn diagnostic_dependencies(&self) -> Result<crate::thread_diagnostics::DependencySnapshot> {
+        let syntax = self
+            .core
+            .picture
+            .as_ref()
+            .ok_or(Error::InvalidData("dependency_picture"))?
+            .independent;
+        let references = self.core.dpb.current_references();
+        let active = crate::reconstruction::diagnostic_active_references(
+            references,
+            syntax.kind,
+            syntax.inter,
+        )?;
+        let convert = |entries: [Option<crate::dpb::ReferenceIdentity>; 16]| {
+            entries.map(|entry| entry.map(|value| (value.index, value.poc, value.long_term)))
+        };
+        Ok(crate::thread_diagnostics::DependencySnapshot {
+            rps: convert(references.entries),
+            active: convert(active),
+        })
+    }
+
+    #[cfg(hevc_thread_diagnostics)]
+    #[doc(hidden)]
+    pub fn diagnostic_sps_envelope(&self) -> Result<(u32, u32)> {
+        let picture = self
+            .core
+            .picture
+            .as_ref()
+            .ok_or(Error::InvalidData("dependency_picture"))?;
+        let sps = self
+            .core
+            .sps
+            .get(picture.sps_id as usize)
+            .and_then(Option::as_ref)
+            .ok_or(Error::Internal("dependency_sps"))?;
+        let capacity = *sps
+            .max_dpb
+            .get(sps.sub_layers as usize)
+            .ok_or(Error::Internal("dependency_sps_layers"))?;
+        Ok((capacity, sps.sub_layers))
     }
 }
 
@@ -223,11 +303,17 @@ pub(crate) struct SliceInput<'a> {
 }
 
 pub(crate) trait PictureObserver {
-    fn reserve_scratch(&mut self, _scratch_bytes: usize, _dpb: &Dpb) -> Result<()> {
+    fn reserve_scratch(&mut self, scratch_bytes: usize, dpb: &mut Dpb) -> Result<()>;
+    fn boundary(&mut self, dpb: &mut Dpb, scratch_bytes: usize) -> Result<()>;
+    fn slice(&mut self, input: SliceInput<'_>, dpb: &mut Dpb) -> Result<()>;
+    fn reconcile(&mut self) -> Result<()> {
         Ok(())
     }
-    fn boundary(&mut self, dpb: &mut Dpb, scratch_bytes: usize) -> Result<()>;
-    fn slice(&mut self, input: SliceInput<'_>, dpb: &Dpb) -> Result<()>;
+    fn before_picture(&mut self, _dpb: &mut Dpb, _nal: NalHeader, _sps: &Sps) -> Result<()> {
+        Ok(())
+    }
+    #[cfg(feature = "native-hevc-rows-private")]
+    fn activated_sps(&mut self, _identity: (u32, [u8; 32])) {}
     fn sei(&mut self, info: SeiInfo, dpb: &Dpb, scratch_bytes: usize) -> Result<()>;
     fn output(&mut self, emission: Emission<'_>, scratch_bytes: usize) -> Result<()>;
 }
@@ -302,6 +388,14 @@ impl StreamCore {
         self.dpb.heap_bytes()
     }
 
+    pub(crate) fn unshare(&mut self) {
+        self.dpb.unshare();
+    }
+
+    pub(crate) fn dpb(&self) -> &Dpb {
+        &self.dpb
+    }
+
     pub(crate) fn fail(&mut self) {
         self.failed = true;
         self.dpb.fail();
@@ -325,10 +419,12 @@ impl StreamCore {
             None,
             memory_limit,
             |_| Ok(()),
-            Some(observer),
+            Some(&mut *observer),
         );
         if result.is_err() {
+            let earlier = observer.reconcile();
             self.fail();
+            earlier?;
         }
         result
     }
@@ -391,6 +487,10 @@ impl StreamCore {
                 &mut self.summary,
                 0,
             )?;
+            if let Some(observer) = observer.as_mut() {
+                observer.reconcile()?;
+            }
+            self.dpb.unshare();
             let result = self
                 .dpb
                 .finish(|event| output(event, &mut observer, &mut emit, &mut self.summary, 0));
@@ -424,15 +524,19 @@ impl StreamCore {
             return Err(Error::Limit("max_nal_bytes"));
         }
         let nal = NalHeader::parse(bytes)?;
+        #[cfg(hevc_thread_diagnostics)]
+        if (32..=34).contains(&nal.unit_type) {
+            crate::thread_diagnostic!(event ParameterSet);
+        }
         if bytes.len().saturating_sub(2) > memory_limit {
             return Err(Error::Limit("reconstruction_memory"));
         }
         if let Some(observer) = observer.as_mut() {
-            observer.reserve_scratch(bytes.len().saturating_sub(2), &self.dpb)?;
+            observer.reserve_scratch(bytes.len().saturating_sub(2), &mut self.dpb)?;
         }
         let rbsp = nal::rbsp(bytes, &self.limits)?;
         if let Some(observer) = observer.as_mut() {
-            observer.reserve_scratch(rbsp.capacity(), &self.dpb)?;
+            observer.reserve_scratch(rbsp.capacity(), &mut self.dpb)?;
         }
         let mut bits = Bits::new(&rbsp);
         let info = match nal.unit_type {
@@ -530,7 +634,7 @@ impl StreamCore {
                             rbsp.capacity()
                                 .checked_add(bytes)
                                 .ok_or(Error::Limit("reconstruction_memory"))?,
-                            &self.dpb,
+                            &mut self.dpb,
                         )?;
                     }
                     Ok(())
@@ -641,6 +745,9 @@ impl StreamCore {
                             )
                             .ok_or(Error::Limit("reconstruction_memory"))?,
                     )?;
+                    if let Some(observer) = observer.as_mut() {
+                        observer.before_picture(&mut self.dpb, nal, s)?;
+                    }
                     let hash = *self
                         .vps_hash
                         .get(s.vps_id as usize)
@@ -668,6 +775,8 @@ impl StreamCore {
                             .ok_or(Error::InvalidData("sps_id"))?,
                     );
                     let starts_cvs = self.dpb.starts_cvs(nal);
+                    #[cfg(feature = "native-hevc-rows-private")]
+                    let activates_sps = self.active_sps != Some(sps_identity);
                     if !starts_cvs
                         && self
                             .active_sps
@@ -686,6 +795,10 @@ impl StreamCore {
                     })?;
                     if starts_cvs {
                         self.active_sps = Some(sps_identity);
+                    }
+                    #[cfg(feature = "native-hevc-rows-private")]
+                    if let Some(observer) = observer.as_mut().filter(|_| activates_sps) {
+                        observer.activated_sps(sps_identity);
                     }
                     Some(order)
                 } else {
@@ -720,7 +833,7 @@ impl StreamCore {
                             .ok_or(Error::Limit("reconstruction_memory"))?,
                     };
                     if let Some(observer) = observer.as_mut() {
-                        observer.slice(input, &self.dpb)?;
+                        observer.slice(input, &mut self.dpb)?;
                     } else {
                         observe(input)?;
                     }
@@ -747,6 +860,7 @@ impl StreamCore {
                 NalInfo::AccessUnitDelimiter
             }
             36 | 37 => {
+                crate::thread_diagnostic!(event SequenceEnd);
                 if !rbsp.is_empty() {
                     return Err(Error::InvalidData("end_nal_payload"));
                 }
@@ -762,6 +876,10 @@ impl StreamCore {
                     self.ended = true;
                     NalInfo::EndOfBitstream
                 } else {
+                    if let Some(observer) = observer.as_mut() {
+                        observer.reconcile()?;
+                    }
+                    self.dpb.unshare();
                     self.dpb.end_sequence();
                     NalInfo::EndOfSequence
                 }
@@ -776,6 +894,14 @@ impl StreamCore {
             }
             39 | 40 => {
                 let info = sei::parse(&rbsp, nal.unit_type == 40)?;
+                #[cfg(hevc_thread_diagnostics)]
+                match nal.unit_type {
+                    39 => crate::thread_diagnostic!(event PrefixSei),
+                    _ if info.picture_hash.is_some() || info.reserved_hashes != 0 => {
+                        crate::thread_diagnostic!(event SuffixSeiHash);
+                    }
+                    _ => crate::thread_diagnostic!(event SuffixSeiInformational),
+                }
                 if nal.unit_type == 40 && self.picture.is_none() {
                     return Err(Error::InvalidData("suffix_sei_without_picture"));
                 }

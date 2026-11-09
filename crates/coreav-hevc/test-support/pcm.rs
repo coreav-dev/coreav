@@ -24,7 +24,7 @@ pub(super) struct PcmFixture {
     pub(super) planes: [Vec<u16>; 3],
 }
 
-fn fixture_profile(writer: &mut Writer, depth: u32) {
+pub(super) fn fixture_profile(writer: &mut Writer, depth: u32) {
     writer.u(2, 0);
     writer.flag(false);
     writer.u(5, if depth == 10 { 2 } else { 1 });

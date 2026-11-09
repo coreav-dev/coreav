@@ -10,6 +10,10 @@ use pcm::{escaped, padded, pcm_fixture};
 mod intra_parameters;
 
 fn synthetic_parameter_nals() -> [Vec<u8>; 3] {
+    synthetic_parameter_nals_with_wpp(false)
+}
+
+pub(super) fn synthetic_parameter_nals_with_wpp(wpp: bool) -> [Vec<u8>; 3] {
     let mut w = params::tests::Writer::default();
     w.ue(0);
     w.ue(0);
@@ -26,8 +30,8 @@ fn synthetic_parameter_nals() -> [Vec<u8>; 3] {
     }
     w.se(0);
     w.se(0);
-    for _ in 0..7 {
-        w.flag(false);
+    for flag in [false, false, false, false, false, wpp, false] {
+        w.flag(flag);
     }
     w.flag(true);
     w.flag(true);
@@ -38,9 +42,13 @@ fn synthetic_parameter_nals() -> [Vec<u8>; 3] {
     w.flag(false);
     w.flag(false);
     let pps = padded(w);
+    let mut sps = params::tests::sequence(8, false, false, false);
+    if wpp {
+        sps = replaced_ue(&sps, 8 + 96 + 1 + 3 + 13, 128);
+    }
     [
         escaped(32, &params::tests::video(false)),
-        escaped(33, &params::tests::sequence(8, false, false, false)),
+        escaped(33, &sps),
         escaped(34, &pps),
     ]
 }
@@ -880,7 +888,7 @@ fn reconstruction_scratch_reservations_cover_rbsp_allocation_and_actual_capacity
         refuse: Option<usize>,
     }
     impl parser::PictureObserver for Probe {
-        fn reserve_scratch(&mut self, bytes: usize, _: &dpb::Dpb) -> Result<()> {
+        fn reserve_scratch(&mut self, bytes: usize, _: &mut dpb::Dpb) -> Result<()> {
             self.calls.push(bytes);
             if self.refuse == Some(self.calls.len()) {
                 return Err(Error::Limit("fixture_scratch"));
@@ -890,7 +898,7 @@ fn reconstruction_scratch_reservations_cover_rbsp_allocation_and_actual_capacity
         fn boundary(&mut self, _: &mut dpb::Dpb, _: usize) -> Result<()> {
             Ok(())
         }
-        fn slice(&mut self, _: parser::SliceInput<'_>, _: &dpb::Dpb) -> Result<()> {
+        fn slice(&mut self, _: parser::SliceInput<'_>, _: &mut dpb::Dpb) -> Result<()> {
             Ok(())
         }
         fn sei(&mut self, _: SeiInfo, _: &dpb::Dpb, _: usize) -> Result<()> {
@@ -1009,6 +1017,10 @@ fn idr_segment(first: bool) -> Vec<u8> {
 }
 
 fn intra_first(kind: u8) -> Vec<u8> {
+    intra_first_with_wpp(kind, 1, None)
+}
+
+pub(super) fn intra_first_with_wpp(kind: u8, poc: u32, entries: Option<u32>) -> Vec<u8> {
     let mut w = params::tests::Writer::default();
     w.flag(true);
     if (16..=21).contains(&kind) {
@@ -1017,7 +1029,7 @@ fn intra_first(kind: u8) -> Vec<u8> {
     w.ue(0);
     w.ue(2);
     w.flag(true);
-    w.u(4, 1);
+    w.u(4, poc);
     w.flag(false);
     w.flag(false);
     for _ in 0..4 {
@@ -1028,6 +1040,15 @@ fn intra_first(kind: u8) -> Vec<u8> {
     w.flag(false);
     w.se(0);
     w.flag(false);
+    if let Some(entries) = entries {
+        w.ue(entries);
+        if entries != 0 {
+            w.ue(0);
+            for _ in 0..entries {
+                w.u(1, 0);
+            }
+        }
+    }
     let mut rbsp = padded(w);
     rbsp.push(0x80);
     escaped(kind, &rbsp)

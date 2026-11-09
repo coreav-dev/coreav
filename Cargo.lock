@@ -269,6 +269,7 @@ dependencies = [
 name = "coreav-backend-hevc"
 version = "0.0.1"
 dependencies = [
+ "coreav-counting-alloc",
  "coreav-decode",
  "coreav-frame",
  "coreav-hevc",

@@ -56,6 +56,9 @@ pub use filter::{
 #[doc(hidden)]
 pub use filter::{deblock_chroma_scalar, deblock_luma_scalar};
 #[cfg(feature = "native-hevc")]
+#[doc(hidden)]
+pub use inter::InterSupport;
+#[cfg(feature = "native-hevc")]
 pub use inter::{
     InterPrediction, MotionVector, PredictionWeight, RefPlane, interpolate_inter,
     interpolate_inter_with_rows, predict_bi, predict_uni, weight_bi, weight_uni,

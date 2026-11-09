@@ -1,11 +1,121 @@
 use crate::{
     Error, Limits, NalHeader, Result, SliceHeader, params::Sps, reconstruction::RetainedPicture,
 };
+use std::sync::{Arc, OnceLock};
+
+pub(crate) trait ReferenceProvider: Sync {
+    fn reference(&self, identity: ReferenceIdentity) -> Result<&RetainedPicture>;
+    fn reference_info(&self, identity: ReferenceIdentity) -> Result<crate::PictureInfo> {
+        self.reference(identity).map(RetainedPicture::info)
+    }
+    fn read_reference(
+        &self,
+        identity: ReferenceIdentity,
+        support: crate::reconstruction::ReadSupport,
+    ) -> Result<crate::reconstruction::ReferenceRead<'_>> {
+        self.reference(identity)
+            .map(|picture| crate::reconstruction::ReferenceRead::new(picture, support))
+    }
+    fn dpb(&self) -> Option<&Dpb> {
+        None
+    }
+}
+
+pub(crate) struct Publication {
+    pub(crate) samples: OnceLock<RetainedPicture>,
+    pub(crate) rows: Option<Arc<crate::reconstruction::RowStore>>,
+}
+
+impl Publication {
+    pub(crate) const fn record_bytes() -> usize {
+        core::mem::size_of::<Self>() + 2 * core::mem::size_of::<usize>()
+    }
+    pub(crate) fn picture(&self) -> Option<&RetainedPicture> {
+        self.rows
+            .as_ref()
+            .map_or_else(|| self.samples.get(), |rows| rows.picture())
+    }
+
+    fn take_picture(&mut self) -> Option<RetainedPicture> {
+        match &mut self.rows {
+            Some(rows) => Arc::get_mut(rows)?.take_picture(),
+            None => self.samples.take(),
+        }
+    }
+
+    pub(crate) fn reference_info(&self, identity: ReferenceIdentity) -> Result<crate::PictureInfo> {
+        match &self.rows {
+            Some(rows) => rows.info(identity, rows.generation()),
+            None => self
+                .samples
+                .get()
+                .map(RetainedPicture::info)
+                .ok_or(Error::InvalidData("unavailable reference samples")),
+        }
+    }
+
+    pub(crate) fn read_reference(
+        &self,
+        identity: ReferenceIdentity,
+        support: crate::reconstruction::ReadSupport,
+    ) -> Result<crate::reconstruction::ReferenceRead<'_>> {
+        match &self.rows {
+            Some(rows) => rows.read(identity, rows.generation(), support),
+            None => self
+                .samples
+                .get()
+                .map(|picture| crate::reconstruction::ReferenceRead::new(picture, support))
+                .ok_or(Error::InvalidData("unavailable reference samples")),
+        }
+    }
+
+    pub(crate) fn bytes(&self) -> Result<usize> {
+        let samples = match &self.rows {
+            Some(rows) => rows.bytes()?,
+            None => self
+                .samples
+                .get()
+                .map_or(Ok(0), RetainedPicture::heap_bytes)?,
+        };
+        Self::record_bytes()
+            .checked_add(samples)
+            .ok_or(Error::Limit("reconstruction_memory"))
+    }
+}
+
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Inline legacy storage preserves the cold decoder allocation envelope"
+)]
+enum Samples {
+    None,
+    Owned(RetainedPicture),
+    Shared(Arc<Publication>),
+}
+
+impl Samples {
+    fn as_ref(&self) -> Option<&RetainedPicture> {
+        match self {
+            Self::None => None,
+            Self::Owned(samples) => Some(samples),
+            Self::Shared(publication) => publication.picture(),
+        }
+    }
+
+    fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    fn is_some(&self) -> bool {
+        !self.is_none()
+    }
+}
 
 pub(crate) struct Emission<'a> {
     pub(crate) event: OutputEvent,
     pub(crate) picture: Option<&'a RetainedPicture>,
-    pub(crate) retained_bytes: usize,
+    pub(crate) publication: Option<&'a Arc<Publication>>,
+    pub(crate) dpb: &'a Dpb,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -66,7 +176,16 @@ struct Picture {
     temporal_id: u8,
     unit_type: u8,
     generated: bool,
-    samples: Option<RetainedPicture>,
+    samples: Samples,
+}
+
+impl Picture {
+    fn matches_reference(&self, identity: ReferenceIdentity) -> bool {
+        !self.generated
+            && self.reference != Reference::Unused
+            && self.event.picture_index == identity.index
+            && self.event.poc == identity.poc
+    }
 }
 
 struct Pending {
@@ -195,22 +314,18 @@ impl Dpb {
         self.pictures
             .iter()
             .flatten()
-            .find(|p| {
-                !p.generated
-                    && p.reference != Reference::Unused
-                    && p.event.picture_index == identity.index
-                    && p.event.poc == identity.poc
-            })
+            .find(|picture| picture.matches_reference(identity))
             .and_then(|p| p.samples.as_ref())
             .ok_or(Error::InvalidData("unavailable reference samples"))
     }
 
     pub(crate) fn heap_bytes(&self) -> Result<usize> {
         self.pictures.iter().flatten().try_fold(0usize, |total, p| {
-            let bytes = p
-                .samples
-                .as_ref()
-                .map_or(Ok(0), RetainedPicture::heap_bytes)?;
+            let bytes = match &p.samples {
+                Samples::None => 0,
+                Samples::Owned(samples) => samples.heap_bytes()?,
+                Samples::Shared(publication) => publication.bytes()?,
+            };
             total
                 .checked_add(bytes)
                 .ok_or(Error::Limit("reconstruction_memory"))
@@ -250,7 +365,160 @@ impl Dpb {
         {
             return Err(Error::InvalidData("DPB picture attachment"));
         }
-        picture.samples = Some(samples);
+        picture.samples = Samples::Owned(samples);
+        Ok(())
+    }
+
+    pub(crate) fn publication(&self, index: u64) -> Option<&Arc<Publication>> {
+        self.pictures.iter().flatten().find_map(|picture| {
+            if picture.event.picture_index != index {
+                return None;
+            }
+            match &picture.samples {
+                Samples::Shared(publication) => Some(publication),
+                _ => None,
+            }
+        })
+    }
+
+    pub(crate) fn sharing_bytes(&self) -> usize {
+        self.current_references
+            .entries
+            .iter()
+            .flatten()
+            .filter(|identity| self.publication(identity.index).is_none())
+            .count()
+            * (core::mem::size_of::<Publication>() + 2 * core::mem::size_of::<usize>())
+    }
+
+    pub(crate) fn unshare(&mut self) {
+        for picture in self.pictures.iter_mut().flatten() {
+            let owned = match &mut picture.samples {
+                Samples::Shared(publication) => {
+                    Arc::get_mut(publication).and_then(Publication::take_picture)
+                }
+                _ => None,
+            };
+            if let Some(owned) = owned {
+                picture.samples = Samples::Owned(owned);
+            }
+        }
+    }
+
+    pub(crate) fn resume_outputs(&self) -> bool {
+        self.resume_output_constraints()
+            .into_iter()
+            .any(|cause| cause)
+    }
+
+    pub(crate) fn resume_output_constraints(&self) -> [bool; 2] {
+        self.pending.as_ref().map_or([false; 2], |pending| {
+            self.bump_constraints(pending.reorder, pending.latency)
+        })
+    }
+
+    pub(crate) fn picture_outputs(&self, nal: NalHeader, sps: &Sps) -> bool {
+        self.picture_output_constraints(nal, sps)
+            .into_iter()
+            .any(|cause| cause)
+    }
+
+    pub(crate) fn picture_output_constraints(&self, nal: NalHeader, sps: &Sps) -> [bool; 4] {
+        let tid = self.highest_tid.unwrap_or(sps.sub_layers) as usize;
+        [
+            (16..=21).contains(&nal.unit_type),
+            self.fullness() >= sps.max_dpb.get(tid).copied().unwrap_or(0) as usize,
+            self.pictures
+                .iter()
+                .flatten()
+                .filter(|picture| picture.output)
+                .count()
+                + 1
+                > sps.max_reorder.get(tid).copied().unwrap_or(0) as usize,
+            sps.max_latency
+                .get(tid)
+                .copied()
+                .is_some_and(|latency| latency != 0),
+        ]
+    }
+
+    #[cfg(feature = "native-hevc-rows-private")]
+    pub(crate) fn share_rows(
+        &mut self,
+        identity: ReferenceIdentity,
+        consumer: u64,
+    ) -> Result<Arc<Publication>> {
+        if identity.index >= consumer {
+            return Err(Error::Internal("reference_row_order"));
+        }
+        if let Some(picture) = self
+            .pictures
+            .iter()
+            .flatten()
+            .find(|picture| picture.matches_reference(identity))
+        {
+            if let Samples::Shared(publication) = &picture.samples {
+                if publication.rows.is_some() {
+                    publication.reference_info(identity)?;
+                    return Ok(Arc::clone(publication));
+                }
+            }
+        }
+        self.share(identity)
+    }
+
+    pub(crate) fn share(&mut self, identity: ReferenceIdentity) -> Result<Arc<Publication>> {
+        self.reference(identity)?;
+        let picture = self
+            .pictures
+            .iter_mut()
+            .flatten()
+            .find(|picture| picture.matches_reference(identity))
+            .ok_or(Error::InvalidData("unavailable reference samples"))?;
+        if let Samples::Owned(_) = &picture.samples {
+            let Samples::Owned(samples) = core::mem::replace(&mut picture.samples, Samples::None)
+            else {
+                return Err(Error::Internal("reference_publication"));
+            };
+            picture.samples = Samples::Shared(Arc::new(Publication {
+                samples: OnceLock::from(samples),
+                rows: None,
+            }));
+        }
+        match &picture.samples {
+            Samples::Shared(publication) => Ok(Arc::clone(publication)),
+            _ => Err(Error::Internal("reference_publication")),
+        }
+    }
+
+    pub(crate) fn seal(
+        &mut self,
+        index: u64,
+        info: crate::PictureInfo,
+        publication: Arc<Publication>,
+    ) -> Result<()> {
+        let pending = self
+            .pending
+            .as_ref()
+            .ok_or(Error::InvalidData("no pending DPB picture"))?;
+        let picture = self
+            .pictures
+            .iter_mut()
+            .flatten()
+            .find(|picture| picture.event.picture_index == index && !picture.generated)
+            .ok_or(Error::InvalidData("pending DPB picture"))?;
+        if pending.index != index
+            || pending.coded_size != [info.width, info.height]
+            || pending.conformance_window != info.conformance_window
+            || picture.event.width != info.visible_width
+            || picture.event.height != info.visible_height
+            || picture.event.bit_depth != info.bit_depth
+            || picture.samples.is_some()
+            || publication.picture().is_some()
+        {
+            return Err(Error::InvalidData("DPB picture attachment"));
+        }
+        picture.samples = Samples::Shared(publication);
         Ok(())
     }
 
@@ -355,6 +623,8 @@ impl Dpb {
         if self.state != State::Reading {
             return Err(Error::InvalidData("DPB session ended"));
         }
+        #[cfg(hevc_thread_diagnostics)]
+        crate::thread_diagnostics::output_finish();
         let result = self.drain(&mut emit);
         if result.is_ok() {
             self.state = State::Finished;
@@ -539,7 +809,7 @@ impl Dpb {
                     temporal_id: nal.temporal_id,
                     unit_type: nal.unit_type,
                     generated: true,
-                    samples: None,
+                    samples: Samples::None,
                 })?;
             }
         }
@@ -579,7 +849,7 @@ impl Dpb {
             temporal_id: nal.temporal_id,
             unit_type: nal.unit_type,
             generated: false,
-            samples: None,
+            samples: Samples::None,
         })?;
         if self.reconstruction {
             self.pending = Some(Pending {
@@ -590,7 +860,11 @@ impl Dpb {
                 latency,
             });
         }
+        #[cfg(hevc_thread_diagnostics)]
+        crate::thread_diagnostics::output_picture(Some(index));
         self.additional_bumps(reorder, latency, emit)?;
+        #[cfg(hevc_thread_diagnostics)]
+        crate::thread_diagnostics::output_picture(None);
         if irap {
             self.irap = Some(Irap {
                 poc,
@@ -932,13 +1206,21 @@ impl Dpb {
     }
 
     fn must_bump(&self, reorder: usize, latency: Option<u64>) -> bool {
-        self.pictures.iter().flatten().filter(|p| p.output).count() > reorder
-            || latency.is_some_and(|limit| {
+        self.bump_constraints(reorder, latency)
+            .into_iter()
+            .any(|cause| cause)
+    }
+
+    fn bump_constraints(&self, reorder: usize, latency: Option<u64>) -> [bool; 2] {
+        [
+            self.pictures.iter().flatten().filter(|p| p.output).count() > reorder,
+            latency.is_some_and(|limit| {
                 self.pictures
                     .iter()
                     .flatten()
                     .any(|p| p.output && p.latency >= limit)
-            })
+            }),
+        ]
     }
 
     fn remove_unused(&mut self) {
@@ -997,11 +1279,10 @@ impl Dpb {
 
     fn bump(&mut self, emit: &mut impl FnMut(Emission<'_>) -> Result<()>) -> Result<()> {
         let index = self.next_output()?;
-        let retained_bytes = self.heap_bytes()?;
         let picture = self
             .pictures
-            .get_mut(index)
-            .and_then(Option::as_mut)
+            .get(index)
+            .and_then(Option::as_ref)
             .ok_or(Error::InvalidData("DPB output picture"))?;
         if self
             .pending
@@ -1017,10 +1298,26 @@ impl Dpb {
         emit(Emission {
             event: picture.event,
             picture: picture.samples.as_ref(),
-            retained_bytes,
+            dpb: self,
+            publication: match &picture.samples {
+                Samples::Shared(publication) => Some(publication),
+                _ => None,
+            },
         })?;
+        #[cfg(hevc_thread_diagnostics)]
+        crate::thread_diagnostics::output_event(
+            picture.event,
+            self.count,
+            self.pictures.iter().flatten().any(|candidate| {
+                !candidate.generated && candidate.event.picture_index + 1 == self.count
+            }),
+        )?;
         self.last_output = Some(picture.event.poc);
-        picture.output = false;
+        self.pictures
+            .get_mut(index)
+            .and_then(Option::as_mut)
+            .ok_or(Error::Internal("DPB output picture"))?
+            .output = false;
         self.remove_unused();
         Ok(())
     }
@@ -1055,10 +1352,103 @@ impl Dpb {
     }
 }
 
+impl ReferenceProvider for Dpb {
+    fn reference(&self, identity: ReferenceIdentity) -> Result<&RetainedPicture> {
+        self.reference(identity)
+    }
+
+    fn dpb(&self) -> Option<&Dpb> {
+        Some(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{LongTermRef, rps::Rps, vui::Vui};
+
+    #[test]
+    fn scheduled_publications_preserve_the_original_inline_dpb_storage_layout() {
+        assert_eq!(
+            core::mem::size_of::<Samples>(),
+            core::mem::size_of::<Option<RetainedPicture>>()
+        );
+        assert_eq!(
+            core::mem::align_of::<Samples>(),
+            core::mem::align_of::<Option<RetainedPicture>>()
+        );
+    }
+
+    #[test]
+    fn sharing_real_cra_samples_skips_generated_same_index_references() -> Result<()> {
+        let s = sps();
+        let mut dpb = Dpb::new_reconstruction();
+        push(&mut dpb, 21, &header(8, &[(-3, false)]), &s)?;
+        complete(&mut dpb, 0, &s)?;
+        push(&mut dpb, 7, &header(7, &[(-2, false), (1, true)]), &s)?;
+        let identity = dpb.current_identity(0)?;
+        assert_eq!(identity.poc, 8);
+        let pointer = dpb.reference(identity)?.view().planes[0].samples.as_ptr();
+        for (index, poc) in [(0, 5), (1, 8)] {
+            assert!(
+                dpb.share(ReferenceIdentity {
+                    index,
+                    poc,
+                    long_term: false,
+                })
+                .is_err()
+            );
+        }
+        let publication = dpb.share(identity)?;
+        let samples = publication
+            .samples
+            .get()
+            .ok_or(Error::Internal("test_publication"))?;
+        assert_eq!(samples.index(), 0);
+        assert_eq!(samples.view().planes[0].samples.as_ptr(), pointer);
+        assert!(Arc::ptr_eq(&publication, &dpb.share(identity)?));
+        assert!(dpb.pictures.iter().flatten().any(|picture| {
+            picture.generated
+                && picture.event.picture_index == 0
+                && picture.event.poc == 5
+                && picture.samples.is_none()
+        }));
+        dpb.fail();
+        assert_eq!(samples.view().planes[0].samples.as_ptr(), pointer);
+        Ok(())
+    }
+
+    #[test]
+    fn immutable_publications_pin_samples_after_normative_removal_and_poc_reuse() -> Result<()> {
+        let mut s = sps();
+        s.max_reorder = [0; 7];
+        let mut dpb = Dpb::new_reconstruction();
+        push(&mut dpb, 19, &header(0, &[]), &s)?;
+        complete(&mut dpb, 0, &s)?;
+        let identity = dpb.current_identity(0)?;
+        let retained = dpb.share(identity)?;
+        let weak = Arc::downgrade(&retained);
+        let original = retained
+            .samples
+            .get()
+            .ok_or(Error::Internal("test_publication"))?;
+        let pointer = original.view().planes[0].samples.as_ptr();
+        let mut next = header(0, &[]);
+        next.no_output_of_prior_pics = true;
+        push(&mut dpb, 19, &next, &s)?;
+        assert!(dpb.reference(identity).is_err());
+        complete(&mut dpb, 1, &s)?;
+        assert_eq!(original.index(), 0);
+        assert_eq!(original.view().planes[0].samples.as_ptr(), pointer);
+        let current = dpb.reference(dpb.current_identity(1)?)?;
+        assert_eq!(current.index(), 1);
+        assert_ne!(current.view().planes[0].samples.as_ptr(), pointer);
+        dpb.fail();
+        assert!(weak.upgrade().is_some());
+        drop(retained);
+        assert!(weak.upgrade().is_none());
+        Ok(())
+    }
 
     fn sps() -> Sps {
         Sps {
@@ -1338,6 +1728,92 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    #[cfg(hevc_thread_diagnostics)]
+    #[test]
+    fn header_output_trace_matches_latency_bursts_and_eof_after_a_skipped_picture() -> Result<()> {
+        std::thread::Builder::new()
+            .stack_size(16 << 20)
+            .spawn(|| {
+                use crate::thread_diagnostics::{DependencyOutputs, capture_outputs};
+                for latency in [0, 1] {
+                    for skipped in [false, true] {
+                        let mut s = sps();
+                        s.sub_layers = 1;
+                        s.max_latency = [latency; 7];
+                        let mut headers = Dpb::new();
+                        let mut decoded = Dpb::new_reconstruction();
+                        headers.highest_tid = Some(0);
+                        decoded.highest_tid = Some(0);
+                        let mut trace = DependencyOutputs::default();
+                        let mut serial = Vec::new();
+                        for (index, (kind, poc)) in
+                            [(19, 0), (1, 5), (1, 3), (1, 1)].into_iter().enumerate()
+                        {
+                            if index != 0 {
+                                serial.extend(
+                                    complete(&mut decoded, index as u64 - 1, &s)?
+                                        .into_iter()
+                                        .map(|event| {
+                                            (event.picture_index, event.poc, index as u64)
+                                        }),
+                                );
+                            }
+                            let h = header(poc, &[]);
+                            serial.extend(
+                                push(&mut decoded, kind, &h, &s)?
+                                    .into_iter()
+                                    .map(|event| (event.picture_index, event.poc, index as u64)),
+                            );
+                            capture_outputs(&mut trace, || push(&mut headers, kind, &h, &s))?;
+                        }
+                        serial.extend(
+                            complete(&mut decoded, 3, &s)?
+                                .into_iter()
+                                .map(|event| (event.picture_index, event.poc, 4)),
+                        );
+                        if skipped {
+                            let mut n = nal(1);
+                            n.temporal_id = 1;
+                            let h = header(2, &[]);
+                            let read = |dpb: &mut Dpb| {
+                                dpb.picture(n, &h, &s, &Limits::default(), |_| Ok(()))
+                            };
+                            assert!(!read(&mut decoded)?.reconstruction_required);
+                            assert!(
+                                !capture_outputs(&mut trace, || read(&mut headers))?
+                                    .reconstruction_required
+                            );
+                        }
+                        let count = 4 + u64::from(skipped);
+                        serial.extend(
+                            finish(&mut decoded)?
+                                .into_iter()
+                                .map(|event| (event.picture_index, event.poc, count)),
+                        );
+                        capture_outputs(&mut trace, || finish(&mut headers))?;
+                        let observed: Vec<_> = trace
+                            .events
+                            .into_iter()
+                            .flatten()
+                            .map(|output| {
+                                (
+                                    output.event.picture_index,
+                                    output.event.poc,
+                                    output.before_picture,
+                                )
+                            })
+                            .collect();
+                        assert_eq!(observed, serial, "latency={latency}, skipped={skipped}");
+                        assert_eq!(observed.len(), 4);
+                    }
+                }
+                Ok(())
+            })
+            .expect("test thread starts")
+            .join()
+            .expect("test thread completes")
     }
 
     #[test]

@@ -22,6 +22,11 @@ pub(crate) struct Cache {
 
 impl Cache {
     #[cfg(test)]
+    pub(crate) fn frames_for_test(&mut self) -> &mut Vec<Frame> {
+        &mut self.frames
+    }
+
+    #[cfg(test)]
     pub(crate) fn hits(&self) -> usize {
         self.hits
     }
@@ -254,6 +259,31 @@ fn reserve<T>(values: &mut Vec<T>, count: usize, memory: &mut Memory) -> Result<
     )
 }
 
+#[cfg(feature = "native-hevc-rows-private")]
+pub(super) fn qualify_capacities(
+    info: crate::PictureInfo,
+    probe: &mut crate::native_rows::CapacityProbe,
+) -> bool {
+    let Some(ctb) = 1usize.checked_shl(info.ctb_log2) else {
+        return false;
+    };
+    let width = info.width as usize;
+    let height = info.height as usize;
+    let columns = width.div_ceil(ctb);
+    let rows = height.div_ceil(ctb);
+    [ctb.min(height), height % ctb].into_iter().all(|lines| {
+        let Some(area) = width.checked_mul(lines) else {
+            return false;
+        };
+        [area, area / 4]
+            .into_iter()
+            .all(|count| probe.check::<u16>(count))
+            && probe.check::<Cell>(area / 16)
+    }) && probe.check::<Ctu>(columns)
+        && (1..=rows).all(|count| probe.check::<Row>(count))
+        && (1..16).all(|count| probe.check::<Frame>(count))
+}
+
 fn copy_rows<T: Copy>(
     source: &[T],
     destination: &mut [T],
@@ -416,9 +446,9 @@ impl Frame {
             index,
             info,
             depth,
-            planes,
-            cells,
-            filter_ctus,
+            planes: _,
+            cells: _,
+            filter_ctus: _,
             filtered,
             next_ctu,
             segment_closed,
@@ -440,11 +470,6 @@ impl Frame {
         *index = source.index;
         *info = source.info;
         *depth = source.depth;
-        for (target, source) in planes.iter_mut().zip(&source.planes) {
-            target.copy_from_slice(source);
-        }
-        cells.copy_from_slice(&source.cells);
-        filter_ctus.copy_from_slice(&source.filter_ctus);
         *filtered = source.filtered;
         *next_ctu = source.next_ctu;
         *segment_closed = source.segment_closed;
@@ -475,6 +500,38 @@ impl Frame {
             target.copy_from_slice(source);
         }
         inter_output.copy_from_slice(&source.scratch.inter_output);
+    }
+
+    fn reset_row(&mut self, index: usize) -> Result<()> {
+        let ctb = 1usize << self.info.ctb_log2;
+        let width = self.info.width as usize;
+        let height = self.info.height as usize;
+        let start = index.saturating_sub(1) * ctb;
+        let end = ((index + 2) * ctb).min(height);
+        self.cells
+            .get_mut(start / 4 * (width / 4)..end / 4 * (width / 4))
+            .ok_or(Error::InvalidData("wpp_row_storage"))?
+            .fill(Cell {
+                mode: None,
+                motion: None,
+                skipped: false,
+                luma_residual: false,
+                depth: 0,
+                reconstructed: 0,
+                qp: 0,
+                slice: 0,
+                edges: 0,
+                transform_edges: 0,
+                protected: false,
+            });
+        let columns = width.div_ceil(ctb);
+        self.filter_ctus
+            .get_mut(
+                index.saturating_sub(1) * columns..(index + 2).min(height.div_ceil(ctb)) * columns,
+            )
+            .ok_or(Error::InvalidData("wpp_row_storage"))?
+            .fill(Ctu::default());
+        Ok(())
     }
 
     #[expect(
@@ -651,16 +708,19 @@ fn work(
         frame.inter_stats = InterStats::default();
         frame.wpp = None;
         let mut budget = allowance;
-        let result = caught(|| decode_row(frame, input, dpb, ranges, rows, index, &mut budget))
-            .map(|()| Continuation {
-                next_ctu: frame.next_ctu,
-                closed: frame.segment_closed,
-                contexts: frame.contexts,
-                checkpoint: frame.wpp,
-                qp: frame.qp,
-                stats: frame.stats,
-                inter: frame.inter_stats,
-            });
+        let result = caught(|| {
+            frame.reset_row(index)?;
+            decode_row(frame, input, dpb, ranges, rows, index, &mut budget)
+        })
+        .map(|()| Continuation {
+            next_ctu: frame.next_ctu,
+            closed: frame.segment_closed,
+            contexts: frame.contexts,
+            checkpoint: frame.wpp,
+            qp: frame.qp,
+            stats: frame.stats,
+            inter: frame.inter_stats,
+        });
         row.lock().outcome = Some(Outcome {
             result,
             consumed: allowance - budget,
@@ -767,6 +827,78 @@ fn decode_row(
 #[cfg(test)]
 mod cache_tests {
     use super::*;
+
+    #[test]
+    fn reused_metadata_is_invalidated_only_in_the_assigned_row_and_neighbour_halos() -> Result<()> {
+        let mut core = crate::parser::StreamCore::new(crate::Limits::default());
+        for set in crate::tests::synthetic_parameter_nals_with_wpp(true) {
+            core.read_nal(&set, |_| Ok(()))?;
+        }
+        let nal = crate::tests::intra_first_with_wpp(21, 1, Some(0));
+        core.read_selected(
+            &nal,
+            |_| Ok(()),
+            Some(0),
+            usize::MAX,
+            |input| {
+                for height in [504, 512] {
+                    let mut sps = *input.sps;
+                    sps.height = height;
+                    sps.visible_height = height;
+                    sps.ctu_count = 8;
+                    let input = SliceInput {
+                        sps: &sps,
+                        picture: crate::PictureInfo {
+                            height,
+                            visible_height: height,
+                            ..input.picture
+                        },
+                        ..input
+                    };
+                    let source = Frame::new(&input, 0, usize::MAX)?;
+                    let mut frame = Frame::new(&input, 0, usize::MAX)?;
+                    for index in [0usize, 4, 7] {
+                        for plane in &mut frame.planes {
+                            plane.fill(255);
+                        }
+                        for cell in &mut frame.cells {
+                            cell.slice = 1;
+                            cell.reconstructed = 7;
+                            cell.mode = Some(coreav_kernels_hevc::IntraMode::new(34)?);
+                        }
+                        for ctu in &mut frame.filter_ctus {
+                            ctu.seen = true;
+                        }
+                        frame.filtered = true;
+                        frame.hash_seen = true;
+                        frame.next_ctu = 99;
+                        frame.segment_closed = true;
+                        frame.reset_private(&source);
+                        assert!(!frame.filtered && !frame.hash_seen && !frame.segment_closed);
+                        assert_eq!(frame.next_ctu, 0);
+                        assert!(frame.cells.iter().all(|cell| cell.slice == 1));
+                        assert!(frame.filter_ctus.iter().all(|ctu| ctu.seen));
+                        frame.reset_row(index)?;
+                        let start = index.saturating_sub(1);
+                        let end = (index + 2).min(8);
+                        for (at, cell) in frame.cells.iter().enumerate() {
+                            let row = at / (64 * 64 / 16);
+                            let reset = (start..end).contains(&row);
+                            assert_eq!(cell.slice == 0, reset);
+                            assert_eq!(cell.reconstructed == 0, reset);
+                            assert_eq!(cell.mode.is_none(), reset);
+                        }
+                        for (row, ctu) in frame.filter_ctus.iter().enumerate() {
+                            assert_eq!(!ctu.seen, (start..end).contains(&row));
+                        }
+                        assert!(frame.planes.iter().flatten().all(|sample| *sample == 255));
+                    }
+                }
+                Ok(())
+            },
+        )?;
+        Ok(())
+    }
 
     #[test]
     fn empty_allocated_worker_slots_are_charged_and_revocable() -> Result<()> {

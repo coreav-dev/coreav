@@ -10,6 +10,25 @@
 #![forbid(unsafe_code)]
 #![cfg(feature = "native-hevc")]
 
+macro_rules! thread_diagnostic {
+    (picture $index:expr) => {{
+        #[cfg(hevc_thread_diagnostics)]
+        $crate::thread_diagnostics::picture($index);
+    }};
+    (barrier $reason:ident) => {{
+        #[cfg(hevc_thread_diagnostics)]
+        $crate::thread_diagnostics::barrier($crate::thread_diagnostics::Barrier::$reason);
+    }};
+    (event $reason:ident) => {{
+        #[cfg(hevc_thread_diagnostics)]
+        $crate::thread_diagnostics::event($crate::thread_diagnostics::Event::$reason);
+    }};
+}
+pub(crate) use thread_diagnostic;
+
+#[cfg(hevc_thread_diagnostics)]
+pub mod thread_diagnostics;
+
 mod bits;
 mod cabac;
 mod ctu;
@@ -17,6 +36,9 @@ mod decoder;
 mod dpb;
 mod intra;
 mod nal;
+#[cfg(feature = "native-hevc-rows-private")]
+#[doc(hidden)]
+pub mod native_rows;
 mod params;
 mod parser;
 mod picture_hash;

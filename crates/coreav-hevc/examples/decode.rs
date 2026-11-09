@@ -18,12 +18,26 @@ use decoded::Output;
 #[cfg(test)]
 use decoded::{inter_stats, picture};
 
+#[cfg(test)]
+#[path = "../test-support/pcm.rs"]
+mod pcm;
+#[cfg(test)]
+#[path = "../test-support/writer.rs"]
+mod writer;
+
 fn decode(source: impl Read, writer: &mut impl Write, limits: DecodeLimits) -> Result<()> {
     let mut decoder = PictureDecoder::new(limits);
     let mut output = Output::new(writer);
     let receipt = common::read_nals(source, limits.headers.max_nal_bytes, |_, bytes| {
-        decoder.read_nal(bytes, None, |picture| output.picture(picture))
-    })?;
+        decoder.read_nal_scheduled(bytes, None, None, |picture, _| output.picture(picture))
+    });
+    let receipt = match receipt {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            decoder.synchronize_pending()?;
+            return Err(error);
+        }
+    };
     let summary = decoder.finish(|picture| output.picture(picture))?;
     output.finish(summary, receipt, limits)
 }
@@ -86,6 +100,70 @@ fn main() -> std::process::ExitCode {
 mod tests {
     use super::*;
     use coreav_hevc::{IntraPlane, IntraStats, PictureInfo, Summary, Vui};
+
+    #[test]
+    fn scheduled_input_read_errors_preserve_earlier_reconstruction_failures() -> Result<()> {
+        struct ReadFailure(std::io::Cursor<Vec<u8>>);
+        impl Read for ReadFailure {
+            fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
+                match self.0.read(bytes)? {
+                    0 => Err(std::io::Error::other("generated_read_failure")),
+                    count => Ok(count),
+                }
+            }
+        }
+        let mut fixture = pcm::pcm_fixture(8, 8, false)?;
+        let mut complete = Vec::new();
+        for nal in fixture.sets.iter().chain([&fixture.nal]) {
+            complete.extend([0, 0, 1]);
+            complete.extend(nal);
+        }
+        let mut output = Vec::new();
+        decode(
+            complete.as_slice(),
+            &mut output,
+            DecodeLimits {
+                threads: 2,
+                ..DecodeLimits::default()
+            },
+        )?;
+        let mut expected = Md5::new();
+        for sample in fixture.planes.iter().flatten() {
+            expected.update([*sample as u8]);
+        }
+        assert_eq!(
+            lines(&output)?.last().and_then(|row| row.get("output_md5")),
+            Some(&json!(format!("{:x}", expected.finalize())))
+        );
+        fixture.nal.pop();
+        let mut damaged = Vec::new();
+        for nal in fixture.sets.iter().chain([&fixture.nal]) {
+            damaged.extend([0, 0, 1]);
+            damaged.extend(nal);
+        }
+        damaged.extend([0, 0, 1]);
+        let mut expected = None;
+        for threads in [1, 2, 4, 8] {
+            let mut output = Vec::new();
+            let actual = decode(
+                ReadFailure(std::io::Cursor::new(damaged.clone())),
+                &mut output,
+                DecodeLimits {
+                    threads,
+                    ..DecodeLimits::default()
+                },
+            );
+            assert!(actual.is_err());
+            assert_ne!(actual, Err(Error::InvalidData("input_read")));
+            assert!(output.is_empty());
+            if let Some(expected) = &expected {
+                assert_eq!(&actual, expected);
+            } else {
+                expected = Some(actual);
+            }
+        }
+        Ok(())
+    }
 
     struct Fixture {
         info: PictureInfo,
@@ -408,6 +486,7 @@ mod tests {
     fn summary(count: u64) -> DecodeSummary {
         DecodeSummary {
             parallel_pictures: 0,
+            frame_parallel_pictures: 0,
             max_workers: 1,
             headers: Summary {
                 warnings: coreav_hevc::Warnings {
@@ -499,6 +578,9 @@ mod tests {
         );
         for (key, value) in [
             ("decoded_pictures", 3),
+            ("parallel_pictures", 0),
+            ("frame_parallel_pictures", 0),
+            ("max_workers", 1),
             ("skipped_pictures", 0),
             ("memory_bytes", 4096),
             ("input_bytes", 1234),

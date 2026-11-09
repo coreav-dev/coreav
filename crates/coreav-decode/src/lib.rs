@@ -27,6 +27,10 @@ mod buffer;
 mod error;
 mod stream;
 
+#[cfg(feature = "native-hevc-private")]
+#[doc(hidden)]
+pub mod native_hevc_private;
+
 use std::time::{Duration, Instant};
 
 pub use buffer::{
@@ -53,6 +57,18 @@ pub trait Decoder: Send {
 
     /// Which backend this is.
     fn info(&self) -> &DecoderInfo;
+
+    #[cfg(feature = "native-hevc-private")]
+    #[doc(hidden)]
+    fn settle_native_hevc_refusal(&mut self, refusal: Error) -> Error {
+        refusal
+    }
+
+    #[cfg(feature = "native-hevc-private")]
+    #[doc(hidden)]
+    fn take_native_hevc_terminal_output(&mut self) -> Option<native_hevc_private::TerminalOutput> {
+        None
+    }
 }
 
 /// A kind of backend, in the default order of preference.
@@ -378,6 +394,8 @@ pub fn open(
                             info: decoder.info().clone(),
                             decoder: Some(decoder),
                             limits: limits.clone(),
+                            #[cfg(feature = "native-hevc-private")]
+                            terminal: None,
                         });
                         return Ok(Opened { decoder, skipped });
                     }
@@ -430,6 +448,8 @@ struct Checked {
     decoder: Option<Box<dyn Decoder>>,
     info: DecoderInfo,
     limits: Limits,
+    #[cfg(feature = "native-hevc-private")]
+    terminal: Option<native_hevc_private::TerminalOutput>,
 }
 
 impl Checked {
@@ -437,11 +457,30 @@ impl Checked {
         &mut self,
         operation: impl FnOnce(&mut dyn Decoder, &Limits) -> Result<T, Error>,
     ) -> Result<T, Error> {
+        #[cfg(feature = "native-hevc-private")]
+        if let Some(terminal) = &self.terminal {
+            return Err(terminal.error.clone());
+        }
         let decoder = self
             .decoder
             .as_mut()
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "the decode request failed"))?;
         let result = operation(decoder.as_mut(), &self.limits);
+        #[cfg(feature = "native-hevc-private")]
+        let result = result.map_err(|error| {
+            if error.kind == ErrorKind::Limit {
+                decoder.settle_native_hevc_refusal(error)
+            } else {
+                error
+            }
+        });
+        #[cfg(feature = "native-hevc-private")]
+        if result.is_err() {
+            self.terminal = decoder.take_native_hevc_terminal_output();
+            if self.terminal.is_some() {
+                self.decoder = None;
+            }
+        }
         if result
             .as_ref()
             .is_err_and(|error| error.kind == ErrorKind::Limit)
@@ -465,13 +504,29 @@ impl Decoder for Checked {
     }
 
     fn receive_frame(&mut self) -> Result<Option<Frame>, Error> {
-        self.call(|decoder, limits| {
+        #[cfg(feature = "native-hevc-private")]
+        if let Some(terminal) = &mut self.terminal {
+            return terminal.receive_frame();
+        }
+        #[cfg(feature = "native-hevc-private")]
+        let mut frame_refused = false;
+        let result = self.call(|decoder, limits| {
             let frame = decoder.receive_frame()?;
             if let Some(frame) = &frame {
-                limits.check_frame(frame.width(), frame.height(), packed_bytes(frame))?;
+                let result = limits.check_frame(frame.width(), frame.height(), packed_bytes(frame));
+                #[cfg(feature = "native-hevc-private")]
+                let result = result.inspect_err(|_| frame_refused = true);
+                result?;
             }
             Ok(frame)
-        })
+        });
+        #[cfg(feature = "native-hevc-private")]
+        if frame_refused {
+            if let Some(terminal) = &mut self.terminal {
+                terminal.frames = Default::default();
+            }
+        }
+        result
     }
 
     fn info(&self) -> &DecoderInfo {

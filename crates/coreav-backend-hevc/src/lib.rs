@@ -5,6 +5,9 @@
 
 mod configuration;
 mod output;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod test_support;
 
 use std::time::Instant;
 
@@ -154,12 +157,12 @@ fn scope(stream: &StreamConfig, traits: &StreamTraits) -> Result<(), Error> {
     Ok(())
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 enum State {
     Active,
     Draining,
     Ended,
-    Failed,
+    Failed(Error),
 }
 
 struct NativeDecoder {
@@ -171,11 +174,110 @@ struct NativeDecoder {
     next_origin: u64,
 }
 
+struct RowOutput<'a> {
+    output: &'a mut Output,
+    error: Option<(usize, Error)>,
+}
+
+impl RowOutput<'_> {
+    fn capture<T>(&mut self, result: Result<T, Error>, offset: usize) -> coreav_hevc::Result<T> {
+        result.map_err(|error| {
+            if self
+                .error
+                .as_ref()
+                .is_none_or(|(earlier, _)| *earlier >= offset)
+            {
+                self.error = Some((offset, error));
+            }
+            coreav_hevc::Error::Limit("boundary_output")
+        })
+    }
+
+    fn finish(self, error: coreav_hevc::Error) -> Error {
+        if error == coreav_hevc::Error::Limit("boundary_output") {
+            self.error
+                .map_or_else(|| codec_error(error), |(_, error)| error)
+        } else {
+            codec_error(error)
+        }
+    }
+}
+
+impl coreav_hevc::native_rows::RowSink for RowOutput<'_> {
+    fn prepare(
+        &mut self,
+        header: coreav_hevc::native_rows::OutputHeader,
+        memory: &mut coreav_hevc::OutputMemory<'_>,
+        bounded: bool,
+    ) -> coreav_hevc::Result<bool> {
+        let offset = self.output.ready.len();
+        let result = self.output.prepare(header, memory, bounded);
+        self.capture(result, offset)
+    }
+
+    fn reserve_queue(
+        &mut self,
+        records: usize,
+        memory: &mut coreav_hevc::OutputMemory<'_>,
+        admit: &mut dyn FnMut(usize) -> coreav_hevc::Result<bool>,
+    ) -> coreav_hevc::Result<bool> {
+        self.output.reserve_queue(records, memory, admit)
+    }
+
+    fn qualify(
+        &self,
+        info: coreav_hevc::PictureInfo,
+        probe: &mut coreav_hevc::native_rows::CapacityProbe,
+    ) -> bool {
+        self.output.qualify(info, probe)
+    }
+
+    fn fill(
+        &mut self,
+        offset: usize,
+        picture: coreav_hevc::DecodedPicture<'_>,
+    ) -> coreav_hevc::Result<()> {
+        let result = self.output.fill(offset, picture);
+        self.capture(result, offset)
+    }
+
+    fn truncate(&mut self, keep: usize) {
+        self.output.truncate(keep);
+    }
+
+    fn cost(
+        &self,
+        debt: usize,
+        frame_bytes: usize,
+    ) -> coreav_hevc::Result<coreav_hevc::native_rows::SinkCost> {
+        self.output.cost(debt, frame_bytes)
+    }
+}
+
 impl NativeDecoder {
-    fn fail(&mut self) {
-        self.state = State::Failed;
+    fn terminal_result<T>(&mut self, result: Result<T, Error>) -> Result<T, Error> {
+        let Err(error) = result else {
+            return result;
+        };
+        if let State::Failed(error) = &self.state {
+            return Err(error.clone());
+        }
+        let pending = match &mut self.decoder {
+            Some(decoder) => {
+                let mut sink = RowOutput {
+                    output: &mut self.output,
+                    error: None,
+                };
+                decoder
+                    .settle_rows(&mut sink)
+                    .map_err(|error| sink.finish(error))
+            }
+            None => Ok(()),
+        };
+        let error = pending.err().unwrap_or(error);
         self.decoder = None;
-        self.output.clear();
+        self.state = State::Failed(error.clone());
+        Err(error)
     }
 
     fn send(&mut self, packet: &Packet<'_>) -> Result<(), Error> {
@@ -212,15 +314,13 @@ impl NativeDecoder {
             )
             .map_err(codec_error)?
             .0;
-            let mut output_error = None;
-            let result =
-                decoder.read_nal_with_origin(nal, packet.pts, origin, |picture, memory| {
-                    self.output.push(picture, memory).map_err(|error| {
-                        output_error = Some(error);
-                        coreav_hevc::Error::Limit("boundary_output")
-                    })
-                });
-            result.map_err(|error| output_error.unwrap_or_else(|| codec_error(error)))
+            let mut sink = RowOutput {
+                output: &mut self.output,
+                error: None,
+            };
+            decoder
+                .read_nal_rows(nal, packet.pts, Some(origin), &mut sink)
+                .map_err(|error| sink.finish(error))
         };
         match self.framing {
             Framing::AnnexB => {
@@ -237,12 +337,14 @@ impl NativeDecoder {
         if count == 0 {
             return Err(invalid("empty HEVC access unit"));
         }
+        #[cfg(feature = "test-support")]
+        test_support::admitted(decoder);
         self.output.check()
     }
 
     fn eof(&mut self) -> Result<(), Error> {
         match self.state {
-            State::Failed => return Err(invalid("the HEVC decode request failed")),
+            State::Failed(ref error) => return Err(error.clone()),
             State::Ended => return Ok(()),
             State::Draining => return self.output.check(),
             State::Active => {}
@@ -252,17 +354,19 @@ impl NativeDecoder {
             .decoder
             .as_mut()
             .ok_or(invalid("the HEVC decoder is closed"))?;
-        let mut output_error = None;
-        decoder
-            .finish_with_output(|picture, memory| {
-                self.output.push(picture, memory).map_err(|error| {
-                    output_error = Some(error);
-                    coreav_hevc::Error::Limit("boundary_output")
-                })
-            })
-            .map_err(|error| output_error.unwrap_or_else(|| codec_error(error)))?;
+        let mut sink = RowOutput {
+            output: &mut self.output,
+            error: None,
+        };
+        let _summary = decoder
+            .finish_rows(&mut sink)
+            .map_err(|error| sink.finish(error))?;
+        #[cfg(feature = "test-support")]
+        test_support::completed(_summary);
         self.output.check()?;
-        self.decoder = None;
+        if !decoder.has_native_rows() {
+            self.decoder = None;
+        }
         self.state = if self.output.is_empty() {
             State::Ended
         } else {
@@ -273,18 +377,52 @@ impl NativeDecoder {
 
     fn receive(&mut self) -> Result<Option<Frame>, Error> {
         match self.state {
-            State::Failed => return Err(invalid("the HEVC decode request failed")),
+            State::Failed(ref error) => {
+                return self.output.pop().map(Some).ok_or_else(|| error.clone());
+            }
             State::Ended => return Ok(None),
             State::Active | State::Draining => {}
         }
         self.output.check()?;
-        let frame = self.output.pop();
-        if let Some(decoder) = &mut self.decoder {
-            decoder
-                .set_external_memory(self.output.retained_bytes()?)
-                .map_err(codec_error)?;
-        }
+        let decision = self
+            .decoder
+            .as_mut()
+            .map(PictureDecoder::receive_rows)
+            .transpose()
+            .map_err(codec_error)?
+            .flatten();
+        let frame = match decision {
+            Some(decision) => {
+                if let Some(offset) = decision.consume {
+                    self.output.consume(offset)?;
+                }
+                if decision.pop {
+                    let frame = self
+                        .output
+                        .pop_rows()
+                        .ok_or(invalid("missing validated HEVC output"))?;
+                    self.decoder
+                        .as_mut()
+                        .ok_or(invalid("the HEVC decoder is closed"))?
+                        .release_rows_memory(self.output.retained_bytes()?)
+                        .map_err(codec_error)?;
+                    Some(frame)
+                } else {
+                    None
+                }
+            }
+            None => {
+                let frame = self.output.pop();
+                if let Some(decoder) = &mut self.decoder {
+                    decoder
+                        .set_external_memory(self.output.retained_bytes()?)
+                        .map_err(codec_error)?;
+                }
+                frame
+            }
+        };
         if self.state == State::Draining && self.output.is_empty() {
+            self.decoder = None;
             self.state = State::Ended;
         }
         Ok(frame)
@@ -294,30 +432,43 @@ impl NativeDecoder {
 impl Decoder for NativeDecoder {
     fn send_packet(&mut self, packet: &Packet<'_>) -> Result<(), Error> {
         let result = self.send(packet);
-        if result.is_err() {
-            self.fail();
-        }
-        result
+        self.terminal_result(result)
     }
 
     fn send_eof(&mut self) -> Result<(), Error> {
         let result = self.eof();
-        if result.is_err() {
-            self.fail();
-        }
-        result
+        self.terminal_result(result)
     }
 
     fn receive_frame(&mut self) -> Result<Option<Frame>, Error> {
         let result = self.receive();
-        if result.is_err() {
-            self.fail();
-        }
-        result
+        self.terminal_result(result)
     }
 
     fn info(&self) -> &DecoderInfo {
         &self.info
+    }
+
+    fn settle_native_hevc_refusal(&mut self, refusal: Error) -> Error {
+        match self.terminal_result::<core::convert::Infallible>(Err(refusal)) {
+            Err(error) => error,
+            Ok(never) => match never {},
+        }
+    }
+
+    fn take_native_hevc_terminal_output(
+        &mut self,
+    ) -> Option<coreav_decode::native_hevc_private::TerminalOutput> {
+        if !matches!(self.state, State::Failed(_)) {
+            return None;
+        }
+        let State::Failed(error) = std::mem::replace(&mut self.state, State::Ended) else {
+            return None;
+        };
+        Some(coreav_decode::native_hevc_private::TerminalOutput {
+            frames: std::mem::take(&mut self.output.ready),
+            error,
+        })
     }
 }
 

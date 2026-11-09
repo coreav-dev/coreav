@@ -265,20 +265,27 @@ def controls(args, stream, directory, expected):
 
 def threading_coverage(entries, threads):
     parallel_pictures = 0
+    frame_parallel_pictures = 0
     max_workers = 0
     for entry in entries:
         if not entry['complete']:
             continue
         summary = entry['summary']
         pictures, workers = summary.get('parallel_pictures'), summary.get('max_workers')
+        frames = summary.get('frame_parallel_pictures', 0)
         require(harness.integer(pictures) and pictures <= summary['decoded_pictures']
                 and harness.integer(workers) and workers <= min(threads, 16), 'native_thread_counters')
-        require(pictures == 0 or workers > 1 and summary['stats']['wpp_restarts'] > 0,
+        require(harness.integer(frames) and frames <= pictures and frames != 1,
+                'native_frame_thread_counters')
+        require(pictures == 0 or workers > 1, 'native_thread_counters')
+        require(pictures == frames or summary['stats']['wpp_restarts'] > 0,
                 'native_parallel_wpp_work')
         parallel_pictures += pictures
+        frame_parallel_pictures += frames
         max_workers = max(max_workers, workers)
     require(threads == 1 or parallel_pictures > 0, 'native_parallel_coverage_missing')
-    return dict(parallel_pictures=parallel_pictures, max_workers=max_workers)
+    return dict(parallel_pictures=parallel_pictures, frame_parallel_pictures=frame_parallel_pictures,
+                max_workers=max_workers)
 
 
 def run(args):

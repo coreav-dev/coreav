@@ -1,4 +1,6 @@
-use super::{Motion, MotionReference, ReferenceState, RetainedPicture, syntax};
+#[cfg(test)]
+use super::RetainedPicture;
+use super::{Motion, MotionReference, ReferenceState, syntax};
 use crate::{
     Error, Result,
     dpb::{ReferenceIdentity, References},
@@ -155,6 +157,30 @@ fn identity(references: References, entry: u8) -> Result<ReferenceIdentity> {
         .copied()
         .flatten()
         .ok_or(Error::InvalidData("inter_reference_catalog"))
+}
+
+#[cfg(hevc_thread_diagnostics)]
+pub(crate) fn diagnostic_active_references(
+    references: References,
+    kind: u32,
+    inter: Option<InterSlice>,
+) -> Result<[Option<ReferenceIdentity>; 16]> {
+    if kind == 2 {
+        return Ok([None; 16]);
+    }
+    let lists = Lists::new(
+        references,
+        inter.ok_or(Error::InvalidData("dependency_inter_slice"))?,
+        kind,
+    )?;
+    let mut selected = [None; 16];
+    for entry in lists.entries.iter().flatten().flatten() {
+        *selected
+            .get_mut(usize::from(*entry))
+            .ok_or(Error::InvalidData("inter_reference_catalog"))? =
+            Some(identity(references, *entry)?);
+    }
+    Ok(selected)
 }
 
 impl Lists {
@@ -356,7 +382,7 @@ fn scale(vector: MotionVector, from: i64, to: i64) -> Result<MotionVector> {
 }
 
 fn collocated_vector(
-    picture: &RetainedPicture,
+    picture: &super::rows::ReferenceRead<'_>,
     position: (usize, usize),
     list: usize,
     no_backward: bool,
@@ -365,14 +391,10 @@ fn collocated_vector(
     current_poc: i32,
 ) -> Result<Option<MotionVector>> {
     let (x, y) = position;
-    if x >= picture.info.width as usize || y >= picture.info.height as usize {
-        return Err(Error::InvalidData("inter_collocated_position"));
-    }
-    let cell = picture
-        .cells
-        .get((y / 4) * (picture.info.width as usize / 4) + x / 4)
-        .ok_or(Error::InvalidData("inter_collocated_cell"))?;
-    let Some(motion) = cell.motion else {
+    let probe = picture.motion(x, y)?;
+    #[cfg(hevc_thread_diagnostics)]
+    crate::thread_diagnostics::motion_read(y);
+    let Some(motion) = probe.motion else {
         return Ok(None);
     };
     let selected = match motion {
@@ -385,7 +407,7 @@ fn collocated_vector(
             })
             .ok_or(Error::InvalidData("inter_collocated_list"))?,
     };
-    let catalog = picture
+    let catalog = probe
         .reference
         .ok_or(Error::InvalidData("inter_collocated_catalog"))?;
     let source = identity(catalog.references, selected.reference)?;
@@ -416,7 +438,17 @@ fn temporal(
         collocated.index,
         ZERO,
     )?;
-    let picture = dpb.reference(identity(current.references, selected.reference)?)?;
+    let reference_id = identity(current.references, selected.reference)?;
+    let _picture = dpb.reference_info(reference_id)?;
+    #[cfg(hevc_thread_diagnostics)]
+    let _row_read =
+        crate::thread_diagnostics::ReadGuard::new(crate::thread_diagnostics::ReadContext {
+            picture: walker.frame.index,
+            row: pu.y >> walker.frame.info.ctb_log2,
+            reference: identity(current.references, selected.reference)?,
+            reference_ctb_log2: _picture.ctb_log2,
+            scale: 1,
+        });
     let target = identity(current.references, lists.get(list, index, ZERO)?.reference)?;
     let mut no_backward = true;
     for entries in lists.entries {
@@ -428,31 +460,28 @@ fn temporal(
     }
     let x = pu.x + pu.width;
     let y = pu.y + pu.height;
-    if pu.y >> walker.input.sps.ctb_log2 == y >> walker.input.sps.ctb_log2
-        && x < walker.frame.info.width as usize
-        && y < walker.frame.info.height as usize
-    {
-        if let Some(vector) = collocated_vector(
-            picture,
-            (x & !15, y & !15),
+    let probe = |position: (usize, usize)| {
+        let picture =
+            dpb.read_reference(reference_id, super::ReadSupport::Motion { row: position.1 })?;
+        collocated_vector(
+            &picture,
+            position,
             list,
             no_backward,
             collocated.from_l0,
             target,
             current.poc,
-        )? {
+        )
+    };
+    if pu.y >> walker.input.sps.ctb_log2 == y >> walker.input.sps.ctb_log2
+        && x < walker.frame.info.width as usize
+        && y < walker.frame.info.height as usize
+    {
+        if let Some(vector) = probe((x & !15, y & !15))? {
             return Ok(Some(vector));
         }
     }
-    collocated_vector(
-        picture,
-        ((pu.x + pu.width / 2) & !15, (pu.y + pu.height / 2) & !15),
-        list,
-        no_backward,
-        collocated.from_l0,
-        target,
-        current.poc,
-    )
+    probe(((pu.x + pu.width / 2) & !15, (pu.y + pu.height / 2) & !15))
 }
 
 fn motion(first: Option<MotionReference>, second: Option<MotionReference>) -> Result<Motion> {
@@ -895,7 +924,7 @@ pub(super) fn predict(
         value
             .map(|value| {
                 identity(current.references, value.reference)
-                    .and_then(|reference| dpb.reference(reference))
+                    .and_then(|reference| dpb.reference_info(reference))
             })
             .transpose()
     });
@@ -916,16 +945,16 @@ pub(super) fn predict(
         }
     }
     for picture in pictures.into_iter().flatten() {
-        if picture.info.width != walker.frame.info.width
-            || picture.info.height != walker.frame.info.height
-            || picture.info.bit_depth != walker.frame.info.bit_depth
+        if picture.width != walker.frame.info.width
+            || picture.height != walker.frame.info.height
+            || picture.bit_depth != walker.frame.info.bit_depth
         {
             return Err(Error::InvalidData("inter_reference_format"));
         }
     }
     for y in (pu.y..pu.y + pu.height).step_by(4) {
         for x in (pu.x..pu.x + pu.width).step_by(4) {
-            let cell = walker.frame.cell(x, y)?;
+            let cell = walker.cell(x, y)?;
             if cell.slice != walker.slice
                 || cell.motion.is_some()
                 || cell.mode.is_some()
@@ -950,28 +979,45 @@ pub(super) fn predict(
             let Some(value) = value else {
                 continue;
             };
-            let picture = pictures
+            let _picture = pictures
                 .get(list)
                 .copied()
                 .flatten()
                 .ok_or(Error::InvalidData("inter_reference_samples"))?;
-            let plane = picture
-                .planes
-                .get(component)
-                .ok_or(Error::InvalidData("inter_reference_plane"))?;
-            kernels::interpolate_inter_with_rows(
-                kernels::InterPrediction {
-                    depth: walker.frame.depth,
-                    component: if component == 0 {
-                        kernels::Component::Luma
-                    } else {
-                        kernels::Component::Chroma
-                    },
-                    x,
-                    y,
-                    motion: value.vector,
+            let config = kernels::InterPrediction {
+                depth: walker.frame.depth,
+                component: if component == 0 {
+                    kernels::Component::Luma
+                } else {
+                    kernels::Component::Chroma
                 },
-                kernels::RefPlane::new(plane, plane_width, plane_width, plane_height)?,
+                x,
+                y,
+                motion: value.vector,
+            };
+            let support = config.support(plane_width, plane_height, width, height)?;
+            let guard = dpb.read_reference(
+                identity(current.references, value.reference)?,
+                super::ReadSupport::Samples {
+                    component,
+                    last_row: *support.rows().end(),
+                },
+            )?;
+            let reference = guard.plane()?;
+            #[cfg(hevc_thread_diagnostics)]
+            let _row_read =
+                crate::thread_diagnostics::ReadGuard::new(crate::thread_diagnostics::ReadContext {
+                    picture: walker.frame.index,
+                    row: pu.y >> walker.frame.info.ctb_log2,
+                    reference: identity(current.references, value.reference)?,
+                    reference_ctb_log2: _picture.ctb_log2,
+                    scale: divisor,
+                });
+            #[cfg(hevc_thread_diagnostics)]
+            let reference = reference.diagnostic_reads(crate::thread_diagnostics::sample_read);
+            kernels::interpolate_inter_with_rows(
+                config,
+                reference,
                 kernels::RectMut::new(
                     walker
                         .frame
@@ -1032,6 +1078,9 @@ pub(super) fn predict(
             }
         }
         let offset = y * plane_width + x;
+        let offset = offset
+            .checked_sub(walker.rows.offset(component, plane_width)?)
+            .ok_or(Error::InvalidData("inter_destination"))?;
         let plane = frame
             .planes
             .get_mut(component)
@@ -1089,7 +1138,7 @@ pub(super) fn predict(
     }
     for y in (pu.y..pu.y + pu.height).step_by(4) {
         for x in (pu.x..pu.x + pu.width).step_by(4) {
-            let index = walker.frame.cell_index(x, y)?;
+            let index = walker.cell_index(x, y)?;
             let cell = walker
                 .frame
                 .cells
@@ -1362,6 +1411,43 @@ mod tests {
 
     fn vector(x: i16, y: i16) -> MotionVector {
         MotionVector { x, y }
+    }
+
+    #[cfg(hevc_thread_diagnostics)]
+    #[test]
+    fn header_dependencies_use_active_lists_and_long_term_modifications() -> Result<()> {
+        let references = catalog();
+        let p = diagnostic_active_references(references, 1, Some(controls([1, 0])))?;
+        assert_eq!(
+            p.iter()
+                .flatten()
+                .map(|value| value.index)
+                .collect::<Vec<_>>(),
+            [0]
+        );
+        let b = diagnostic_active_references(references, 0, Some(controls([1, 1])))?;
+        assert_eq!(
+            b.iter()
+                .flatten()
+                .map(|value| value.index)
+                .collect::<Vec<_>>(),
+            [0, 2]
+        );
+        let mut modified = controls([1, 0]);
+        modified.modifications[0] = Some([3; 15]);
+        let long = diagnostic_active_references(references, 1, Some(modified))?;
+        assert_eq!(
+            long.iter()
+                .flatten()
+                .map(|value| (value.index, value.long_term))
+                .collect::<Vec<_>>(),
+            [(3, true)]
+        );
+        assert_eq!(
+            diagnostic_active_references(references, 2, None)?,
+            [None; 16]
+        );
+        Ok(())
     }
 
     #[test]
@@ -1731,28 +1817,86 @@ mod tests {
             long_term: false,
         };
         assert_eq!(
-            collocated_vector(&picture, (16, 16), 0, true, true, target, 20)?,
+            collocated_vector(
+                &super::super::rows::ReferenceRead::new(
+                    &picture,
+                    super::super::ReadSupport::Motion { row: usize::MAX }
+                ),
+                (16, 16),
+                0,
+                true,
+                true,
+                target,
+                20
+            )?,
             Some(vector(160, 80))
         );
         assert_eq!(
-            collocated_vector(&picture, (16, 16), 1, true, false, target, 20)?,
+            collocated_vector(
+                &super::super::rows::ReferenceRead::new(
+                    &picture,
+                    super::super::ReadSupport::Motion { row: usize::MAX }
+                ),
+                (16, 16),
+                1,
+                true,
+                false,
+                target,
+                20
+            )?,
             Some(vector(20, 12))
         );
         assert_eq!(
-            collocated_vector(&picture, (16, 16), 0, false, true, target, 20)?,
+            collocated_vector(
+                &super::super::rows::ReferenceRead::new(
+                    &picture,
+                    super::super::ReadSupport::Motion { row: usize::MAX }
+                ),
+                (16, 16),
+                0,
+                false,
+                true,
+                target,
+                20
+            )?,
             Some(vector(20, 12))
         );
         assert_eq!(
-            collocated_vector(&picture, (16, 16), 1, false, false, target, 20)?,
+            collocated_vector(
+                &super::super::rows::ReferenceRead::new(
+                    &picture,
+                    super::super::ReadSupport::Motion { row: usize::MAX }
+                ),
+                (16, 16),
+                1,
+                false,
+                false,
+                target,
+                20
+            )?,
             Some(vector(160, 80))
         );
         assert_eq!(
-            collocated_vector(&picture, (0, 0), 0, true, true, target, 20)?,
+            collocated_vector(
+                &super::super::rows::ReferenceRead::new(
+                    &picture,
+                    super::super::ReadSupport::Motion { row: usize::MAX }
+                ),
+                (0, 0),
+                0,
+                true,
+                true,
+                target,
+                20
+            )?,
             None
         );
         assert_eq!(
             collocated_vector(
-                &picture,
+                &super::super::rows::ReferenceRead::new(
+                    &picture,
+                    super::super::ReadSupport::Motion { row: usize::MAX }
+                ),
                 (16, 16),
                 0,
                 true,
@@ -1768,7 +1912,10 @@ mod tests {
         picture.cells[36].motion = Some(Motion::L0(lists.get(0, 3, vector(-17, 23))?));
         assert_eq!(
             collocated_vector(
-                &picture,
+                &super::super::rows::ReferenceRead::new(
+                    &picture,
+                    super::super::ReadSupport::Motion { row: usize::MAX }
+                ),
                 (16, 16),
                 0,
                 true,
@@ -1782,8 +1929,169 @@ mod tests {
             Some(vector(-17, 23))
         );
         picture.reference = None;
-        assert!(collocated_vector(&picture, (16, 16), 0, true, true, target, 20).is_err());
-        assert!(collocated_vector(&picture, (32, 16), 0, true, true, target, 20).is_err());
+        assert!(
+            collocated_vector(
+                &super::super::rows::ReferenceRead::new(
+                    &picture,
+                    super::super::ReadSupport::Motion { row: usize::MAX }
+                ),
+                (16, 16),
+                0,
+                true,
+                true,
+                target,
+                20
+            )
+            .is_err()
+        );
+        assert!(
+            collocated_vector(
+                &super::super::rows::ReferenceRead::new(
+                    &picture,
+                    super::super::ReadSupport::Motion { row: usize::MAX }
+                ),
+                (32, 16),
+                0,
+                true,
+                true,
+                target,
+                20
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[cfg(hevc_thread_diagnostics)]
+    #[test]
+    fn row_dependency_trace_observes_temporal_probes_and_chroma_coordinates() -> Result<()> {
+        use crate::thread_diagnostics::{
+            ReadContext, ReadGuard, begin_rows, row_picture, take_rows,
+        };
+        let fixture = Fixture::new(8, 1)?;
+        begin_rows()?;
+        row_picture(1, 9, fixture.info)?;
+        let reference = ReferenceIdentity {
+            index: 0,
+            poc: 7,
+            long_term: false,
+        };
+        {
+            let _guard = ReadGuard::new(ReadContext {
+                picture: 1,
+                row: 0,
+                reference,
+                reference_ctb_log2: 4,
+                scale: 1,
+            });
+            let picture = RetainedPicture::for_test(0, fixture.info, None);
+            assert_eq!(
+                collocated_vector(
+                    &super::super::rows::ReferenceRead::new(
+                        &picture,
+                        super::super::ReadSupport::Motion { row: usize::MAX }
+                    ),
+                    (32, 32),
+                    0,
+                    true,
+                    true,
+                    reference,
+                    9
+                )?,
+                None
+            );
+        }
+        {
+            let _guard = ReadGuard::new(ReadContext {
+                picture: 1,
+                row: 0,
+                reference,
+                reference_ctb_log2: 4,
+                scale: 2,
+            });
+            let source = [42u16; 32 * 32];
+            let mut output = [0i32; 4 * 4];
+            kernels::interpolate_inter(
+                kernels::InterPrediction {
+                    depth: kernels::BitDepth::new(8)?,
+                    component: kernels::Component::Chroma,
+                    x: 0,
+                    y: 4,
+                    motion: MotionVector { x: 0, y: 1 },
+                },
+                kernels::RefPlane::new(&source, 32, 32, 32)?
+                    .diagnostic_reads(crate::thread_diagnostics::sample_read),
+                kernels::RectMut::new(&mut output, 4, 4, 4)?,
+            )?;
+        }
+        let pictures = take_rows(1)?;
+        let row = pictures
+            .first()
+            .and_then(|picture| picture.rows.first())
+            .ok_or(Error::Internal("row_test"))?;
+        assert_eq!((row.sample_calls, row.motion_calls), (1, 1));
+        let read = row
+            .references
+            .first()
+            .and_then(Option::as_ref)
+            .ok_or(Error::Internal("row_test_reference"))?;
+        assert_eq!(
+            (read.index, read.poc, read.sample_row, read.motion_row),
+            (0, 7, Some(1), Some(2))
+        );
+        Ok(())
+    }
+
+    #[cfg(hevc_thread_diagnostics)]
+    #[test]
+    fn row_dependency_trace_includes_chroma_reach_beyond_luma() -> Result<()> {
+        let fixture = Fixture::new(8, 1)?;
+        let dpb = fixture.dpb()?;
+        let inter = controls([1, 0]);
+        let input = fixture.input(1, inter);
+        let mut frame =
+            super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000, None)?;
+        for cell in &mut frame.cells {
+            cell.slice = 1;
+        }
+        crate::thread_diagnostics::begin_rows()?;
+        crate::thread_diagnostics::row_picture(1, 2, fixture.info)?;
+        let value = Lists::new(dpb.current_references(), inter, 1)?.get(0, 0, vector(0, 12))?;
+        let mut walker = syntax::Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
+            frame: &mut frame,
+            input: &input,
+            location: fixture.layout.at_raster(0)?,
+            slice: 1,
+            dpb: Some(&dpb),
+        };
+        predict(
+            &mut walker,
+            Pu {
+                x: 0,
+                y: 8,
+                width: 4,
+                height: 4,
+            },
+            Motion::L0(value),
+            false,
+            false,
+        )?;
+        let pictures = crate::thread_diagnostics::take_rows(1)?;
+        let row = pictures
+            .first()
+            .and_then(|picture| picture.rows.first())
+            .ok_or(Error::Internal("row_test"))?;
+        assert_eq!(row.sample_calls, 3);
+        let read = row
+            .references
+            .first()
+            .and_then(Option::as_ref)
+            .ok_or(Error::Internal("row_test_reference"))?;
+        assert_eq!(
+            (read.index, read.sample_row, read.motion_row),
+            (0, Some(1), None)
+        );
         Ok(())
     }
 
@@ -1864,6 +2172,7 @@ mod tests {
                         location: fixture.layout.at_raster(0)?,
                         slice: 1,
                         dpb: Some(&dpb),
+                        rows: crate::reconstruction::rows::SampleRows::full(),
                     };
                     let lists = state(&walker)?.2;
                     let motion = match direction {
@@ -1892,6 +2201,117 @@ mod tests {
                         );
                     }
                 }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn private_row_inter_prediction_uses_local_planes_and_motion_cells() -> Result<()> {
+        for bits in [8, 10] {
+            for weighted in [false, true] {
+                let fixture = Fixture::new(bits, 1)?;
+                let dpb = fixture.dpb()?;
+                let mut inter = controls([1, 0]);
+                if weighted {
+                    inter.weights = Some(crate::slice::Weights {
+                        denominators: [0; 2],
+                        lists: [[[crate::slice::Weight {
+                            weight: 2,
+                            offset: -1,
+                        }; 3]; 15]; 2],
+                    });
+                }
+                let input = fixture.input(1, inter);
+                let mut serial = super::super::Frame::new_full(
+                    &input,
+                    2,
+                    dpb.current_references(),
+                    0,
+                    usize::MAX,
+                    None,
+                )?;
+                let mut private = super::super::Frame::new_full(
+                    &input,
+                    2,
+                    dpb.current_references(),
+                    0,
+                    usize::MAX,
+                    None,
+                )?;
+                for frame in [&mut serial, &mut private] {
+                    for cell in &mut frame.cells {
+                        cell.slice = 1;
+                    }
+                }
+                for (component, plane) in private.planes.iter_mut().enumerate() {
+                    let scale = if component == 0 { 1 } else { 2 };
+                    *plane = plane[16 / scale * (64 / scale)..48 / scale * (64 / scale)].to_vec();
+                }
+                private.cells = private.cells[4 * 16..12 * 16].to_vec();
+                let pu = Pu {
+                    x: 16,
+                    y: 32,
+                    width: 8,
+                    height: 8,
+                };
+                let motion = Motion::L0(MotionReference {
+                    reference: 0,
+                    index: 0,
+                    vector: vector(-13, 7),
+                });
+                predict(
+                    &mut syntax::Walker {
+                        frame: &mut serial,
+                        input: &input,
+                        location: fixture.layout.at_raster(9)?,
+                        slice: 1,
+                        dpb: Some(&dpb),
+                        rows: crate::reconstruction::rows::SampleRows::full(),
+                    },
+                    pu,
+                    motion,
+                    false,
+                    false,
+                )?;
+                predict(
+                    &mut syntax::Walker {
+                        frame: &mut private,
+                        input: &input,
+                        location: fixture.layout.at_raster(9)?,
+                        slice: 1,
+                        dpb: Some(&dpb),
+                        rows: crate::reconstruction::rows::SampleRows {
+                            origin: 16,
+                            above: None,
+                            above_y: 0,
+                        },
+                    },
+                    pu,
+                    motion,
+                    false,
+                    false,
+                )?;
+                assert_eq!(private.inter_stats, serial.inter_stats);
+                for (component, plane) in private.planes.iter().enumerate() {
+                    let scale = if component == 0 { 1 } else { 2 };
+                    assert_eq!(
+                        plane,
+                        &serial.planes[component]
+                            [16 / scale * (64 / scale)..48 / scale * (64 / scale)]
+                    );
+                }
+                assert_eq!(
+                    private
+                        .cells
+                        .iter()
+                        .map(|c| (c.motion, c.edges))
+                        .collect::<Vec<_>>(),
+                    serial.cells[4 * 16..12 * 16]
+                        .iter()
+                        .map(|c| (c.motion, c.edges))
+                        .collect::<Vec<_>>()
+                );
             }
         }
         Ok(())
@@ -1933,6 +2353,7 @@ mod tests {
                 cell.slice = 1;
             }
             let mut walker = syntax::Walker {
+                rows: crate::reconstruction::rows::SampleRows::full(),
                 frame: &mut frame,
                 input: &input,
                 location: fixture.layout.at_raster(0)?,
@@ -2045,6 +2466,7 @@ mod tests {
                 cell.slice = 1;
             }
             let mut walker = syntax::Walker {
+                rows: crate::reconstruction::rows::SampleRows::full(),
                 frame: &mut frame,
                 input: &input,
                 location: fixture.layout.at_raster(0)?,
@@ -2108,6 +2530,7 @@ mod tests {
             let index = frame.cell_index(neighbour.0, neighbour.1)?;
             frame.cells[index].motion = Some(Motion::L0(reference));
             let walker = syntax::Walker {
+                rows: crate::reconstruction::rows::SampleRows::full(),
                 frame: &mut frame,
                 input: &input,
                 location: fixture.layout.at_raster(0)?,
@@ -2140,6 +2563,7 @@ mod tests {
         frame.cells[16].motion = Some(Motion::L0(reference));
         frame.cells[32].motion = Some(Motion::L0(reference));
         let walker = syntax::Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location: fixture.layout.at_raster(0)?,
@@ -2172,6 +2596,7 @@ mod tests {
         }
         frame.cells[49].motion = Some(Motion::L0(reference));
         let walker = syntax::Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location: fixture.layout.at_raster(0)?,
@@ -2204,6 +2629,7 @@ mod tests {
         }
         frame.cells[55].motion = Some(Motion::L0(reference));
         let walker = syntax::Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location: fixture.layout.at_raster(2)?,
@@ -2258,6 +2684,7 @@ mod tests {
                 cell.slice = 1;
             }
             let walker = syntax::Walker {
+                rows: crate::reconstruction::rows::SampleRows::full(),
                 frame: &mut frame,
                 input: &input,
                 location: fixture.layout.at_raster(0)?,
@@ -2305,6 +2732,7 @@ mod tests {
         let mut frame =
             super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000, None)?;
         let walker = syntax::Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location: fixture.layout.at_raster(0)?,
@@ -2340,6 +2768,7 @@ mod tests {
             cell.slice = 1;
         }
         let mut walker = syntax::Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location: fixture.layout.at_raster(0)?,
@@ -2386,6 +2815,7 @@ mod tests {
         let mut frame =
             super::super::Frame::new_full(&input, 2, dpb.current_references(), 0, 1_000_000, None)?;
         let walker = syntax::Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location: fixture.layout.at_raster(0)?,

@@ -6,9 +6,15 @@ use coreav_kernels_hevc::{self as kernels, BitDepth, IntraMode, MotionVector};
 mod filter;
 mod inter;
 mod parallel;
+pub(crate) mod raster;
+mod rows;
 mod syntax;
 
 pub(crate) use parallel::Cache;
+pub(crate) use rows::{ReadSupport, ReferenceRead, RowPublisher, RowStore};
+
+#[cfg(hevc_thread_diagnostics)]
+pub(crate) use inter::diagnostic_active_references;
 
 pub(crate) fn caught<T>(work: impl FnOnce() -> Result<T>) -> Result<T> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
@@ -173,6 +179,24 @@ struct Cell {
     protected: bool,
 }
 
+impl Cell {
+    const fn empty() -> Self {
+        Self {
+            mode: None,
+            motion: None,
+            skipped: false,
+            luma_residual: false,
+            depth: 0,
+            reconstructed: 0,
+            qp: 0,
+            slice: 0,
+            edges: 0,
+            transform_edges: 0,
+            protected: false,
+        }
+    }
+}
+
 struct Scratch {
     coefficients: Vec<i16>,
     residual: Vec<i32>,
@@ -182,6 +206,102 @@ struct Scratch {
     references: Vec<Option<u16>>,
     predictors: [Vec<i32>; 2],
     inter_output: Vec<u16>,
+}
+
+#[cfg(feature = "native-hevc-rows-private")]
+pub(crate) struct ContinuationCapacity {
+    pub(crate) retained: usize,
+    pub(crate) base: usize,
+    pub(crate) row_extra: usize,
+}
+
+#[cfg(feature = "native-hevc-rows-private")]
+pub(crate) fn qualify_capacities(
+    info: PictureInfo,
+    ctus: usize,
+    probe: &mut crate::native_rows::CapacityProbe,
+) -> bool {
+    let width = info.width as usize;
+    let height = info.height as usize;
+    let Some(area) = width.checked_mul(height) else {
+        return false;
+    };
+    let Some(ctb) = 1usize.checked_shl(info.ctb_log2) else {
+        return false;
+    };
+    let Some(band) = ctb.checked_mul(2).and_then(|n| n.checked_add(4)) else {
+        return false;
+    };
+    let Some(band_area) = width.checked_mul(band.min(height)) else {
+        return false;
+    };
+    [
+        area,
+        area / 4,
+        band_area,
+        band_area / 4,
+        width,
+        width / 2,
+        1024,
+        4096,
+    ]
+    .into_iter()
+    .all(|count| probe.check::<u16>(count))
+        && [area / 16, band_area / 16]
+            .into_iter()
+            .all(|count| probe.check::<Cell>(count))
+        && probe.check::<filter::Ctu>(ctus)
+        && probe.check::<i16>(1024)
+        && [1024, 4096]
+            .into_iter()
+            .all(|count| probe.check::<i32>(count))
+        && probe.check::<u8>(1024)
+        && probe.check::<Option<u16>>(129)
+        && parallel::qualify_capacities(info, probe)
+}
+
+#[cfg(feature = "native-hevc-rows-private")]
+pub(crate) fn continuation_capacity(
+    info: PictureInfo,
+    ctus: usize,
+) -> Result<ContinuationCapacity> {
+    let overflow = || Error::Limit("reconstruction_memory");
+    let width = info.width as usize;
+    let height = info.height as usize;
+    let area = width.checked_mul(height).ok_or_else(overflow)?;
+    let retained = area
+        .checked_mul(3)
+        .and_then(|n| n.checked_add((area / 16).checked_mul(core::mem::size_of::<Cell>())?))
+        .ok_or_else(overflow)?;
+    let scratch = 1024
+        * (core::mem::size_of::<i16>()
+            + core::mem::size_of::<i32>()
+            + 2 * core::mem::size_of::<u16>()
+            + core::mem::size_of::<u8>())
+        + 129 * core::mem::size_of::<Option<u16>>()
+        + 2 * 4096 * core::mem::size_of::<i32>()
+        + 4096 * core::mem::size_of::<u16>();
+    let base = ctus
+        .checked_mul(core::mem::size_of::<filter::Ctu>())
+        .and_then(|n| n.checked_add(scratch))
+        .ok_or_else(overflow)?;
+    let band = 1usize
+        .checked_shl(info.ctb_log2)
+        .and_then(|n| n.checked_mul(2))
+        .and_then(|n| n.checked_add(4))
+        .ok_or_else(overflow)?
+        .min(height);
+    let band_area = width.checked_mul(band).ok_or_else(overflow)?;
+    let row_extra = band_area
+        .checked_mul(5)
+        .and_then(|n| n.checked_add((band_area / 16).checked_mul(core::mem::size_of::<Cell>())?))
+        .and_then(|n| n.checked_add(width.checked_mul(8)?))
+        .ok_or_else(overflow)?;
+    Ok(ContinuationCapacity {
+        retained,
+        base,
+        row_extra,
+    })
 }
 
 impl Scratch {
@@ -334,6 +454,14 @@ fn sample_bytes(planes: &[Vec<u16>; 3], cells: usize) -> Result<usize> {
 }
 
 impl Frame {
+    pub(crate) fn index(&self) -> u64 {
+        self.index
+    }
+
+    pub(crate) fn info(&self) -> PictureInfo {
+        self.info
+    }
+
     pub(crate) fn new(input: &SliceInput<'_>, fixed: usize, limit: usize) -> Result<Self> {
         Self::admit(input)?;
         Self::allocate(input, None, fixed, limit, None)
@@ -392,22 +520,7 @@ impl Frame {
                 memory.allocate(chroma, 0)?,
                 memory.allocate(chroma, 0)?,
             ],
-            cells: memory.allocate(
-                cells,
-                Cell {
-                    mode: None,
-                    motion: None,
-                    skipped: false,
-                    luma_residual: false,
-                    depth: 0,
-                    reconstructed: 0,
-                    qp: 0,
-                    slice: 0,
-                    edges: 0,
-                    transform_edges: 0,
-                    protected: false,
-                },
-            )?,
+            cells: memory.allocate(cells, Cell::empty())?,
             filter_ctus: memory.allocate(input.sps.ctu_count as usize, filter::Ctu::default())?,
             filtered: false,
             next_ctu: 0,

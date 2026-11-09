@@ -17,6 +17,7 @@ use coreav_kernels_hevc::{
 };
 
 #[derive(Clone, Copy)]
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 pub(super) struct Contexts {
     split_cu: [Context; 3],
     bypass: Context,
@@ -34,6 +35,7 @@ pub(super) struct Contexts {
 }
 
 #[derive(Clone, Copy)]
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 struct InterContexts {
     skip: [Context; 3],
     pred_mode: Context,
@@ -114,6 +116,7 @@ pub(super) struct Checkpoint {
 }
 
 #[derive(Clone, Copy)]
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 pub(super) struct Qp {
     current: i32,
     predictor: i32,
@@ -572,7 +575,7 @@ impl Frame {
     pub(crate) fn decode_full(
         &mut self,
         input: SliceInput<'_>,
-        dpb: &crate::dpb::Dpb,
+        dpb: &dyn crate::dpb::ReferenceProvider,
         remaining: &mut u64,
         fixed: usize,
         limit: usize,
@@ -595,13 +598,47 @@ impl Frame {
     fn decode_common(
         &mut self,
         input: SliceInput<'_>,
-        dpb: Option<&crate::dpb::Dpb>,
+        dpb: Option<&dyn crate::dpb::ReferenceProvider>,
         remaining: &mut u64,
         fixed: usize,
         limit: usize,
         threads: usize,
         mut cache: Option<&mut super::Cache>,
     ) -> Result<usize> {
+        let (ranges, fixed, prior_peak) = self.prepare_slice(
+            &input,
+            fixed,
+            limit,
+            match &mut cache {
+                Some(cache) => Some(&mut **cache),
+                None => None,
+            },
+        )?;
+        if let Some(peak) = self.decode_wpp(
+            &input,
+            dpb.and_then(|provider| provider.dpb()),
+            remaining,
+            &ranges,
+            fixed,
+            limit,
+            threads,
+            cache,
+        )? {
+            return Ok(peak.max(prior_peak));
+        }
+        self.traverse_slice(&input, &ranges, remaining, |frame, slice, cabac| {
+            frame.decode_ctu_references(&input, dpb, slice, cabac)
+        })?;
+        Ok(prior_peak)
+    }
+
+    pub(super) fn prepare_slice(
+        &self,
+        input: &SliceInput<'_>,
+        fixed: usize,
+        limit: usize,
+        reclaim: Option<&mut dyn super::ReclaimMemory>,
+    ) -> Result<(Vec<Range<usize>>, usize, usize)> {
         if self.index != input.index
             || self.info != input.picture
             || self.hash_seen
@@ -623,15 +660,8 @@ impl Frame {
         if count > (total_ctus - self.next_ctu) as usize {
             return Err(Error::InvalidData("intra_substream_count"));
         }
-        let (ranges, fixed, prior_peak) = {
-            let mut memory = Memory::with_reclaim(
-                fixed,
-                limit,
-                match &mut cache {
-                    Some(cache) => Some(&mut **cache),
-                    None => None,
-                },
-            )?;
+        let result = {
+            let mut memory = Memory::with_reclaim(fixed, limit, reclaim)?;
             memory.charge(self.heap_bytes()?)?;
             memory.charge(input.scratch_bytes)?;
             memory.charge(
@@ -652,11 +682,17 @@ impl Frame {
             )?;
             (ranges, memory.used, memory.peak())
         };
-        if let Some(peak) = self.decode_wpp(
-            &input, dpb, remaining, &ranges, fixed, limit, threads, cache,
-        )? {
-            return Ok(peak.max(prior_peak));
-        }
+        Ok(result)
+    }
+
+    pub(super) fn traverse_slice(
+        &mut self,
+        input: &SliceInput<'_>,
+        ranges: &[Range<usize>],
+        remaining: &mut u64,
+        mut decode: impl FnMut(&mut Self, u32, &mut Cabac<'_, '_>) -> Result<Location>,
+    ) -> Result<()> {
+        let total_ctus = input.layout.width * input.layout.height;
         if !input.header.dependent {
             self.contexts = Contexts::new(input.syntax.qp_y, input.syntax.initialization);
             self.qp = Qp::new(input.syntax.qp_y);
@@ -677,14 +713,14 @@ impl Frame {
                 .ok_or(Error::InvalidData("intra_substream_range"))?;
             let mut cabac = Cabac::new(bytes, remaining)?;
             loop {
-                let location = self.decode_ctu(&input, dpb, slice, &mut cabac)?;
+                let location = decode(self, slice, &mut cabac)?;
                 if cabac.terminate()? {
                     if range_index + 1 != ranges.len() {
                         return Err(Error::InvalidData("intra_unconsumed_substreams"));
                     }
                     end_range(&mut cabac, bytes.len(), true)?;
                     self.segment_closed = true;
-                    return Ok(prior_peak);
+                    return Ok(());
                 }
                 if self.next_ctu == total_ctus {
                     return Err(Error::InvalidData("intra_picture_termination"));
@@ -716,15 +752,42 @@ impl Frame {
         slice: u32,
         cabac: &mut Cabac<'_, '_>,
     ) -> Result<Location> {
+        self.decode_ctu_references(
+            input,
+            dpb.map(|dpb| dpb as &dyn crate::dpb::ReferenceProvider),
+            slice,
+            cabac,
+        )
+    }
+
+    fn decode_ctu_references(
+        &mut self,
+        input: &SliceInput<'_>,
+        dpb: Option<&dyn crate::dpb::ReferenceProvider>,
+        slice: u32,
+        cabac: &mut Cabac<'_, '_>,
+    ) -> Result<Location> {
+        self.decode_ctu_rows(input, dpb, slice, cabac, super::rows::SampleRows::full())
+    }
+
+    pub(super) fn decode_ctu_rows(
+        &mut self,
+        input: &SliceInput<'_>,
+        dpb: Option<&dyn crate::dpb::ReferenceProvider>,
+        slice: u32,
+        cabac: &mut Cabac<'_, '_>,
+        rows: super::rows::SampleRows<'_>,
+    ) -> Result<Location> {
         self.check_deadline()?;
         let location = input.layout.at_tile_scan(self.next_ctu)?;
         #[cfg(test)]
         if let Some(hook) = &self.test_hook {
             hook.compute(location.y, location.x)?;
         }
-        self.start_ctu(input, location, slice)?;
+        self.start_ctu(input, location, slice, rows)?;
         self.read_sao(input, location, slice, cabac)?;
         Walker {
+            rows,
             frame: self,
             input,
             location,
@@ -753,13 +816,20 @@ impl Frame {
         Ok((y / 4) * (self.info.width as usize / 4) + x / 4)
     }
 
+    #[cfg(test)]
     pub(super) fn cell(&self, x: usize, y: usize) -> Result<&Cell> {
         self.cells
             .get(self.cell_index(x, y)?)
             .ok_or(Error::InvalidData("intra_cell_address"))
     }
 
-    fn start_ctu(&mut self, input: &SliceInput<'_>, location: Location, slice: u32) -> Result<()> {
+    fn start_ctu(
+        &mut self,
+        input: &SliceInput<'_>,
+        location: Location,
+        slice: u32,
+        rows: super::rows::SampleRows<'_>,
+    ) -> Result<()> {
         let [tile_x, tile_y] = location.tile_origin;
         if location.x == tile_x && location.y == tile_y {
             self.contexts = Contexts::new(input.syntax.qp_y, input.syntax.initialization);
@@ -773,8 +843,9 @@ impl Frame {
                         .tile_size
                         .first()
                         .ok_or(Error::InvalidData("tile_grid"))?
-                && self
+                && rows
                     .cell(
+                        self,
                         ((location.x + 1) << input.sps.ctb_log2) as usize,
                         ((location.y - 1) << input.sps.ctb_log2) as usize,
                     )?
@@ -816,14 +887,23 @@ pub(super) struct Walker<'f, 'i, 'data> {
     pub(super) input: &'i SliceInput<'data>,
     pub(super) location: Location,
     pub(super) slice: u32,
-    pub(super) dpb: Option<&'i crate::dpb::Dpb>,
+    pub(super) dpb: Option<&'i dyn crate::dpb::ReferenceProvider>,
+    pub(super) rows: super::rows::SampleRows<'i>,
 }
 
 impl Walker<'_, '_, '_> {
+    pub(super) fn cell_index(&self, x: usize, y: usize) -> Result<usize> {
+        self.rows.cell_index(self.frame, x, y)
+    }
+
+    pub(super) fn cell(&self, x: usize, y: usize) -> Result<&Cell> {
+        self.rows.cell(self.frame, x, y)
+    }
+
     fn protect(&mut self, area: Area) -> Result<()> {
         for y in (area.y..area.y + area.side()).step_by(4) {
             for x in (area.x..area.x + area.side()).step_by(4) {
-                let index = self.frame.cell_index(x, y)?;
+                let index = self.cell_index(x, y)?;
                 self.frame
                     .cells
                     .get_mut(index)
@@ -841,7 +921,11 @@ impl Walker<'_, '_, '_> {
         if x >= self.frame.info.width as usize || y >= self.frame.info.height as usize {
             return Ok(None);
         }
-        let cell = *self.frame.cell(x, y)?;
+        let cell = match self.frame.cells.get(self.cell_index(x, y)?) {
+            Some(cell) => *cell,
+            None if y >> self.input.sps.ctb_log2 > self.location.y as usize => return Ok(None),
+            None => return Err(Error::InvalidData("intra_cell_address")),
+        };
         if cell.slice != self.slice
             || cell.mode.is_none() && cell.motion.is_none() && cell.reconstructed == 0
         {
@@ -930,7 +1014,7 @@ impl Walker<'_, '_, '_> {
     fn initialize_cells(&mut self, area: Area, depth: u8) -> Result<()> {
         for y in (area.y..area.y + area.side()).step_by(4) {
             for x in (area.x..area.x + area.side()).step_by(4) {
-                let index = self.frame.cell_index(x, y)?;
+                let index = self.cell_index(x, y)?;
                 let cell = self
                     .frame
                     .cells
@@ -960,7 +1044,7 @@ impl Walker<'_, '_, '_> {
     fn set_mode(&mut self, area: Area, mode: IntraMode) -> Result<()> {
         for y in (area.y..area.y + area.side()).step_by(4) {
             for x in (area.x..area.x + area.side()).step_by(4) {
-                let index = self.frame.cell_index(x, y)?;
+                let index = self.cell_index(x, y)?;
                 self.frame
                     .cells
                     .get_mut(index)
@@ -1072,7 +1156,6 @@ impl Walker<'_, '_, '_> {
             4
         };
         let luma = self
-            .frame
             .cell(area.x, area.y)?
             .mode
             .ok_or(Error::InvalidData("intra_luma_mode"))?
@@ -1118,7 +1201,7 @@ impl Walker<'_, '_, '_> {
         if skipped {
             for y in (area.y..area.y + area.side()).step_by(4) {
                 for x in (area.x..area.x + area.side()).step_by(4) {
-                    let index = self.frame.cell_index(x, y)?;
+                    let index = self.cell_index(x, y)?;
                     self.frame
                         .cells
                         .get_mut(index)
@@ -1188,7 +1271,7 @@ impl Walker<'_, '_, '_> {
             .syntax
             .inter
             .ok_or(Error::InvalidData("inter_slice"))?;
-        let cell = *self.frame.cell(cu.x, cu.y)?;
+        let cell = *self.cell(cu.x, cu.y)?;
         let contexts = self
             .frame
             .contexts
@@ -1269,6 +1352,7 @@ impl Walker<'_, '_, '_> {
                 .ok_or(Error::InvalidData("intra_pcm_depth"))?;
             let side = area.side() / scale;
             let width = self.frame.info.width as usize / scale;
+            let origin = self.rows.offset(component, width)?;
             let plane = self
                 .frame
                 .planes
@@ -1278,7 +1362,11 @@ impl Walker<'_, '_, '_> {
                 for x in 0..side {
                     let sample = (cabac.raw_bits(depth)? << shift) as u16;
                     *plane
-                        .get_mut((area.y / scale + y) * width + area.x / scale + x)
+                        .get_mut(
+                            ((area.y / scale + y) * width + area.x / scale + x)
+                                .checked_sub(origin)
+                                .ok_or(Error::InvalidData("intra_sample_address"))?,
+                        )
                         .ok_or(Error::InvalidData("intra_sample_address"))? = sample;
                 }
             }
@@ -1336,7 +1424,7 @@ impl Walker<'_, '_, '_> {
         self.frame.stats.nonzero_qp_deltas += u64::from(delta != 0);
         for y in (area.y..area.y + area.side()).step_by(4) {
             for x in (area.x..area.x + area.side()).step_by(4) {
-                let index = self.frame.cell_index(x, y)?;
+                let index = self.cell_index(x, y)?;
                 let cell = self
                     .frame
                     .cells
@@ -1410,7 +1498,7 @@ impl Walker<'_, '_, '_> {
         if luma || chroma.into_iter().any(|value| value) {
             self.delta_qp(cabac, cu.area)?;
         }
-        let mode = self.frame.cell(area.x, area.y)?.mode;
+        let mode = self.cell(area.x, area.y)?.mode;
         if intra && mode.is_none() {
             return Err(Error::InvalidData("intra_luma_mode"));
         }
@@ -1485,14 +1573,13 @@ impl Walker<'_, '_, '_> {
                         }
                     };
                     if available {
-                        Some(
-                            *self
-                                .frame
-                                .planes
-                                .get(block.component)
-                                .and_then(|plane| plane.get(ny * width + nx))
-                                .ok_or(Error::InvalidData("intra_reference_sample"))?,
-                        )
+                        Some(self.rows.sample(
+                            &self.frame.planes,
+                            block.component,
+                            width,
+                            nx,
+                            ny,
+                        )?)
                     } else {
                         None
                     }
@@ -1512,7 +1599,7 @@ impl Walker<'_, '_, '_> {
     fn mark(&mut self, luma_area: Area, mask: u8) -> Result<()> {
         for y in (luma_area.y..luma_area.y + luma_area.side()).step_by(4) {
             for x in (luma_area.x..luma_area.x + luma_area.side()).step_by(4) {
-                let index = self.frame.cell_index(x, y)?;
+                let index = self.cell_index(x, y)?;
                 let cell = self
                     .frame
                     .cells
@@ -1609,13 +1696,16 @@ impl Walker<'_, '_, '_> {
         } else {
             let scale = if block.component == 0 { 1 } else { 2 };
             let width = self.frame.info.width as usize / scale;
+            let origin = self.rows.offset(block.component, width)?;
             let plane = self
                 .frame
                 .planes
                 .get(block.component)
                 .ok_or(Error::InvalidData("inter_plane"))?;
             for y in 0..side {
-                let source = (block.area.y + y) * width + block.area.x;
+                let source = ((block.area.y + y) * width + block.area.x)
+                    .checked_sub(origin)
+                    .ok_or(Error::InvalidData("inter_sample_address"))?;
                 self.frame
                     .scratch
                     .prediction
@@ -1684,13 +1774,16 @@ impl Walker<'_, '_, '_> {
         )?;
         let scale = if block.component == 0 { 1 } else { 2 };
         let width = self.frame.info.width as usize / scale;
+        let origin = self.rows.offset(block.component, width)?;
         let plane = self
             .frame
             .planes
             .get_mut(block.component)
             .ok_or(Error::InvalidData("intra_plane"))?;
         for y in 0..side {
-            let dest = (block.area.y + y) * width + block.area.x;
+            let dest = ((block.area.y + y) * width + block.area.x)
+                .checked_sub(origin)
+                .ok_or(Error::InvalidData("intra_sample_address"))?;
             plane
                 .get_mut(dest..dest + side)
                 .ok_or(Error::InvalidData("intra_sample_address"))?
@@ -1713,7 +1806,7 @@ impl Walker<'_, '_, '_> {
         if block.component == 0 && block.coded {
             for y in (block.area.y..block.area.y + side).step_by(4) {
                 for x in (block.area.x..block.area.x + side).step_by(4) {
-                    let index = self.frame.cell_index(x, y)?;
+                    let index = self.cell_index(x, y)?;
                     self.frame
                         .cells
                         .get_mut(index)
@@ -2117,6 +2210,7 @@ mod tests {
         picture: PictureInfo,
     }
 
+    #[derive(Clone, Copy)]
     struct Segment<'a> {
         rbsp: &'a [u8],
         original: &'a [u8],
@@ -2303,6 +2397,582 @@ mod tests {
             .cells
             .get_mut(index)
             .ok_or(Error::InvalidData("test_cell"))
+    }
+
+    fn raster_matches_serial(inputs: &[SliceInput<'_>], budget: u64) -> Result<()> {
+        use super::super::raster::tests::{assert_entropy, producer as make_producer};
+        let input = inputs.first().ok_or(Error::Internal("test_raster_input"))?;
+        let dpb = crate::dpb::Dpb::new_reconstruction();
+        let mut serial = Frame::new_full(input, 0, Default::default(), 0, usize::MAX, None)?;
+        let (mut producer, mut sink) = make_producer(input, 0, Default::default())?;
+        let bytes = producer.heap_bytes()?;
+        let mut expected_budget = budget;
+        let mut actual_budget = budget;
+        let reserved = crate::SeiInfo {
+            reserved_hashes: 1,
+            ..Default::default()
+        };
+        assert_eq!(
+            producer.hash(reserved, [&[], &[], &[]]),
+            serial.hash(reserved, 0, usize::MAX).map(|_| ())
+        );
+        for input in inputs {
+            let expected =
+                serial.decode_full(*input, &dpb, &mut expected_budget, 0, usize::MAX, 1, None);
+            let actual =
+                producer.decode(*input, &dpb, &mut actual_budget, 0, usize::MAX, &mut sink);
+            assert_eq!(actual.map(|_| ()), expected.map(|_| ()));
+            assert_eq!(actual_budget, expected_budget);
+            assert_entropy(&producer, &serial);
+            assert_eq!(producer.heap_bytes()?, bytes);
+            assert_eq!(
+                sink.motion,
+                ((serial.next_ctu / input.layout.width) as usize * (1 << input.sps.ctb_log2))
+                    .min(input.picture.height as usize)
+            );
+            if expected.is_err() {
+                assert!(producer.finish().is_err());
+                return Ok(());
+            }
+        }
+        assert!(serial.complete());
+        serial.finalize(0, usize::MAX)?;
+        let planes = sink.picture.planes.each_ref().map(|plane| plane.as_slice());
+        use md5::{Digest, Md5};
+        let hashes = planes.map(|plane| {
+            let mut hash = Md5::new();
+            for sample in plane {
+                let bytes = sample.to_le_bytes();
+                hash.update(&bytes[..if input.picture.bit_depth == 8 { 1 } else { 2 }]);
+            }
+            hash.finalize().into()
+        });
+        let hash = crate::SeiInfo {
+            picture_hash: Some(crate::PictureHash::Md5(hashes)),
+            reserved_hashes: 1,
+            ..Default::default()
+        };
+        producer.hash(hash, planes)?;
+        serial.hash(hash, 0, usize::MAX)?;
+        assert_eq!(
+            producer.hash(reserved, planes),
+            serial.hash(reserved, 0, usize::MAX).map(|_| ())
+        );
+        let addresses = sink.picture.planes.each_ref().map(|plane| plane.as_ptr());
+        let actual = sink.retain(producer.finish()?)?;
+        assert_eq!(
+            actual.planes.each_ref().map(|plane| plane.as_ptr()),
+            addresses
+        );
+        assert_eq!(actual.planes, serial.planes);
+        assert_eq!(actual.stats, serial.stats);
+        assert_eq!(actual.inter_stats, serial.inter_stats);
+        assert_eq!(
+            actual
+                .cells
+                .iter()
+                .map(|c| (c.mode, c.motion, c.qp, c.slice, c.reconstructed))
+                .collect::<Vec<_>>(),
+            serial
+                .cells
+                .iter()
+                .map(|c| (c.mode, c.motion, c.qp, c.slice, c.reconstructed))
+                .collect::<Vec<_>>()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn raster_full_frame_conversion_preserves_backing_and_cold_fallback() -> Result<()> {
+        let fixture = fixture(16, 64, 8, false, 1)?;
+        let mut rbsp = vec![0x80];
+        rbsp.extend(pcm_body(
+            &[[0x86, 0x80], [0x8b, 0x80], [0x91, 0x80], [0x96, 0x80]],
+            [0xfe, 0x80],
+            &[34, 51, 68, 85],
+        )?);
+        let original = escaped(&rbsp);
+        super::super::raster::tests::conversion(fixture.input(segment(&rbsp, &original, &[])))
+    }
+
+    #[test]
+    fn raster_intra_top_border_precedes_vertical_deblocking() -> Result<()> {
+        for depth in [8, 10] {
+            let fixture = fixture(16, 32, depth, false, 1)?;
+            let rbsp = [0x80, 0x88, 0x58, 0x13, 0xfe];
+            let original = escaped(&rbsp);
+            let mut tail = segment(&rbsp, &original, &[]);
+            tail.address = 1;
+            let mut input = fixture.input(tail);
+            input.syntax.deblock_disabled = false;
+            super::super::raster::tests::intra_border(input)?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn raster_resumes_one_entropy_cursor_across_rows_and_split_segments() -> Result<()> {
+        for ctb in [16u32, 32, 64] {
+            for depth in [8, 10] {
+                let mut fixture = fixture(ctb, ctb * 4, depth, false, 1)?;
+                fixture.sps.ctb_log2 = ctb.trailing_zeros();
+                fixture.sps.min_cb_log2 = ctb.trailing_zeros();
+                fixture.sps.ctu_count = 4;
+                fixture.sps.pcm = Some(Pcm {
+                    luma_depth: depth,
+                    chroma_depth: depth,
+                    min_log2: ctb.trailing_zeros(),
+                    max_log2: ctb.trailing_zeros(),
+                    loop_filter_disabled: false,
+                });
+                fixture.picture.ctb_log2 = ctb.trailing_zeros();
+                fixture.layout = Layout::new(&fixture.sps, &fixture.pps)?;
+                let mut rbsp = vec![0x80];
+                for (start, value) in [0x86, 0x8b, 0x91, 0x96].into_iter().zip([34, 51, 68, 85]) {
+                    rbsp.extend([start, 0x80]);
+                    let mut raw = params::tests::Writer::default();
+                    for _ in 0..ctb * ctb * 3 / 2 {
+                        raw.u(depth, value << (depth - 8));
+                    }
+                    rbsp.extend(raw.bytes());
+                }
+                rbsp.extend([0xfe, 0x80]);
+                let original = escaped(&rbsp);
+                let input = fixture.input(segment(&rbsp, &original, &[]));
+                raster_matches_serial(&[input], 1_000_000)?;
+                for budget in [0, 2, 3, 5, 8, 11] {
+                    raster_matches_serial(&[input], budget)?;
+                }
+                let mut truncated = rbsp.clone();
+                truncated.truncate(truncated.len() - 100);
+                let truncated_nal = escaped(&truncated);
+                raster_matches_serial(
+                    &[fixture.input(segment(&truncated, &truncated_nal, &[]))],
+                    1_000_000,
+                )?;
+            }
+        }
+        for dependent in [false, true] {
+            let fixture = fixture(32, 32, 8, false, 1)?;
+            let mut first = vec![0x80];
+            first.extend(pcm_body(&[[0x86, 0x80]], [0xfe, 0x80], &[34])?);
+            let first_nal = escaped(&first);
+            let mut second = vec![0x80];
+            second.extend(pcm_body(
+                &[
+                    [if dependent { 0x8c } else { 0x86 }, 0x80],
+                    [if dependent { 0x91 } else { 0x8b }, 0x80],
+                    [if dependent { 0x96 } else { 0x91 }, 0x80],
+                ],
+                [0xfe, 0x80],
+                &[51, 68, 85],
+            )?);
+            let second_nal = escaped(&second);
+            let mut tail = segment(&second, &second_nal, &[]);
+            tail.address = 1;
+            tail.dependent = dependent;
+            tail.independent = if dependent { 0 } else { 1 };
+            if dependent {
+                super::super::raster::tests::qp_continuation(
+                    fixture.input(segment(&first, &first_nal, &[])),
+                    fixture.input(tail),
+                )?;
+            }
+            raster_matches_serial(
+                &[
+                    fixture.input(segment(&first, &first_nal, &[])),
+                    fixture.input(tail),
+                ],
+                1_000_000,
+            )?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn raster_later_segment_validation_precedes_layout_eligibility() -> Result<()> {
+        use super::super::raster::tests::producer as make_producer;
+        let fixture = fixture(32, 32, 8, false, 1)?;
+        let changed = self::fixture(32, 32, 8, true, 1)?;
+        let mut rbsp = vec![0x80];
+        rbsp.extend(pcm_body(&[[0x86, 0x80]], [0xfe, 0x80], &[34])?);
+        let original = escaped(&rbsp);
+        let first = fixture.input(segment(&rbsp, &original, &[]));
+        let dpb = crate::dpb::Dpb::new_reconstruction();
+        for invalid_inter in [false, true] {
+            let mut serial = Frame::new_full(&first, 0, Default::default(), 0, usize::MAX, None)?;
+            let (mut producer, mut sink) = make_producer(&first, 0, Default::default())?;
+            let mut expected_budget = 1000;
+            let mut actual_budget = 1000;
+            serial.decode_full(first, &dpb, &mut expected_budget, 0, usize::MAX, 1, None)?;
+            producer.decode(first, &dpb, &mut actual_budget, 0, usize::MAX, &mut sink)?;
+            let mut later = segment(&rbsp, &original, &[]);
+            later.address = 1;
+            later.dependent = true;
+            let mut input = changed.input(later);
+            if invalid_inter {
+                input.syntax.kind = 3;
+            }
+            let expected = serial
+                .decode_full(input, &dpb, &mut expected_budget, 0, usize::MAX, 1, None)
+                .map(|_| ());
+            assert_eq!(
+                expected,
+                Err(Error::InvalidData(if invalid_inter {
+                    "inter_segment_state"
+                } else {
+                    "selected_segment_state"
+                }))
+            );
+            assert_eq!(
+                producer
+                    .decode(input, &dpb, &mut actual_budget, 0, usize::MAX, &mut sink)
+                    .map(|_| ()),
+                expected
+            );
+            assert_eq!(actual_budget, expected_budget);
+            assert_eq!((sink.motion, sink.filtered), (0, 0));
+            assert!(producer.finish().is_err());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn raster_deadline_and_commit_failures_are_terminal_without_a_final_flush() -> Result<()> {
+        use super::super::raster::{
+            MotionBand, SampleBand, Sink, tests::producer as make_producer,
+        };
+        let fixture = fixture(16, 32, 8, false, 1)?;
+        let mut rbsp = vec![0x80];
+        rbsp.extend(pcm_body(
+            &[[0x86, 0x80], [0x8b, 0x80]],
+            [0xfe, 0x80],
+            &[34, 51],
+        )?);
+        let original = escaped(&rbsp);
+        let input = fixture.input(segment(&rbsp, &original, &[]));
+        let dpb = crate::dpb::Dpb::new_reconstruction();
+        let (mut producer, mut sink) = make_producer(&input, 0, Default::default())?;
+        let mut serial = Frame::new_full(&input, 0, Default::default(), 0, usize::MAX, None)?;
+        let deadline = Some(std::time::Instant::now());
+        super::super::raster::tests::set_deadline(&mut producer, deadline);
+        serial.deadline = deadline;
+        let mut expected_budget = 1000;
+        let mut actual_budget = 1000;
+        assert_eq!(
+            producer
+                .decode(input, &dpb, &mut actual_budget, 0, usize::MAX, &mut sink)
+                .map(|_| ()),
+            serial
+                .decode_full(input, &dpb, &mut expected_budget, 0, usize::MAX, 1, None)
+                .map(|_| ())
+        );
+        assert_eq!(actual_budget, expected_budget);
+        assert_eq!((sink.motion, sink.filtered), (0, 0));
+        assert!(producer.finish().is_err());
+        struct Refuse {
+            motion: usize,
+            samples: usize,
+            fail_motion: bool,
+        }
+        impl Sink for Refuse {
+            fn motion(&mut self, _: MotionBand<'_>) -> Result<()> {
+                self.motion += 1;
+                if self.fail_motion {
+                    Err(Error::Internal("test_commit"))
+                } else {
+                    Ok(())
+                }
+            }
+            fn samples(&mut self, _: SampleBand<'_>) -> Result<()> {
+                self.samples += 1;
+                Err(Error::Internal("test_commit"))
+            }
+        }
+        for fail_motion in [false, true] {
+            let (mut producer, _backing) = make_producer(&input, 0, Default::default())?;
+            let mut sink = Refuse {
+                motion: 0,
+                samples: 0,
+                fail_motion,
+            };
+            assert_eq!(
+                producer.decode(input, &dpb, &mut 1000, 0, usize::MAX, &mut sink),
+                Err(Error::Internal("test_commit"))
+            );
+            assert_eq!(
+                (sink.motion, sink.samples),
+                if fail_motion { (1, 0) } else { (2, 1) }
+            );
+            assert_eq!(
+                producer.decode(input, &dpb, &mut 1000, 0, usize::MAX, &mut sink),
+                Err(Error::InvalidData("selected_segment_state"))
+            );
+            assert!(producer.finish().is_err());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn raster_uses_real_intra_inter_and_hash_failure_paths() -> Result<()> {
+        use super::super::raster::tests::producer as make_producer;
+        for depth in [8, 10] {
+            for (initialization, body) in [
+                (Initialization::P, [0xfe, 0xe0]),
+                (Initialization::B, [0x3c, 0x07]),
+            ] {
+                let mut fixture = fixture(8, 8, depth, false, 1)?;
+                fixture.sps.min_cb_log2 = 3;
+                fixture.sps.pcm = None;
+                fixture.sps.conformance_window = [0; 4];
+                fixture.pps.qp_delta_enabled = true;
+                let rbsp = [0x80, body[0], body[1]];
+                let original = escaped(&rbsp);
+                let input = inter_input(&fixture, &rbsp, &original, initialization);
+                let dpb = reference_dpb(&input)?;
+                let mut serial =
+                    Frame::new_full(&input, 1, dpb.current_references(), 0, usize::MAX, None)?;
+                let (mut producer, mut sink) = make_producer(&input, 1, dpb.current_references())?;
+                serial.decode_full(input, &dpb, &mut 1000, 0, usize::MAX, 1, None)?;
+                serial.finalize(0, usize::MAX)?;
+                producer.decode(input, &dpb, &mut 1000, 0, usize::MAX, &mut sink)?;
+                let hash = crate::SeiInfo {
+                    picture_hash: Some(crate::PictureHash::Checksum([[0; 4]; 3])),
+                    ..Default::default()
+                };
+                assert_eq!(
+                    producer.hash(
+                        hash,
+                        sink.picture.planes.each_ref().map(|plane| plane.as_slice())
+                    ),
+                    serial.hash(hash, 0, usize::MAX).map(|_| ())
+                );
+                let actual = sink.retain(producer.finish()?)?;
+                assert_eq!(actual.planes, serial.planes);
+                assert_eq!(actual.inter_stats, serial.inter_stats);
+            }
+            let mut fixture = fixture(8, 8, depth, false, 1)?;
+            fixture.sps.min_cb_log2 = 3;
+            fixture.sps.pcm = None;
+            let rbsp = [0x80, 0x88, 0x58, 0x13, 0xfe];
+            let original = escaped(&rbsp);
+            raster_matches_serial(&[fixture.input(segment(&rbsp, &original, &[]))], 1000)?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn private_row_windows_keep_pcm_cursor_samples_and_failure_prefix() -> Result<()> {
+        for depth in [8, 10] {
+            for truncated in [false, true] {
+                let fixture = fixture(16, 64, depth, false, 1)?;
+                let mut raw = params::tests::Writer::default();
+                for _ in 0..384 {
+                    raw.u(depth, (1 << depth) - 7);
+                }
+                let mut body = vec![0x86, 0x80];
+                body.extend(raw.bytes());
+                body.extend([0xfe, 0x80]);
+                if truncated {
+                    body.truncate(body.len() / 2);
+                }
+                let input = fixture.input(segment(&body, &body, &[]));
+                let mut serial = Frame::new(&input, 0, usize::MAX)?;
+                let mut private = Frame::new(&input, 0, usize::MAX)?;
+                for (component, plane) in private.planes.iter_mut().enumerate() {
+                    let scale = if component == 0 { 1 } else { 2 };
+                    *plane = plane[16 / scale * (16 / scale)..48 / scale * (16 / scale)].to_vec();
+                }
+                private.cells = private.cells[4 * 4..12 * 4].to_vec();
+                serial.next_ctu = 2;
+                private.next_ctu = 2;
+                let mut serial_budget = 1000;
+                let mut private_budget = 1000;
+                let mut serial_bins = Cabac::new(&body, &mut serial_budget)?;
+                let mut private_bins = Cabac::new(&body, &mut private_budget)?;
+                let expected = serial.decode_ctu_references(&input, None, 1, &mut serial_bins);
+                let actual = private.decode_ctu_rows(
+                    &input,
+                    None,
+                    1,
+                    &mut private_bins,
+                    super::super::rows::SampleRows {
+                        origin: 16,
+                        above: None,
+                        above_y: 0,
+                    },
+                );
+                assert_eq!(actual, expected);
+                assert_eq!(actual.is_err(), truncated);
+                assert_eq!(serial_bins.position(), private_bins.position());
+                assert_eq!(serial_budget, private_budget);
+                assert_eq!(serial.next_ctu, private.next_ctu);
+                assert_eq!(serial.stats, private.stats);
+                for (component, plane) in private.planes.iter().enumerate() {
+                    let scale = if component == 0 { 1 } else { 2 };
+                    assert_eq!(
+                        plane,
+                        &serial.planes[component]
+                            [16 / scale * (16 / scale)..48 / scale * (16 / scale)]
+                    );
+                }
+                assert_eq!(
+                    private
+                        .cells
+                        .iter()
+                        .map(|c| (c.mode, c.reconstructed, c.slice))
+                        .collect::<Vec<_>>(),
+                    serial.cells[4 * 4..12 * 4]
+                        .iter()
+                        .map(|c| (c.mode, c.reconstructed, c.slice))
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn private_row_intra_reads_use_unfiltered_top_border_and_local_cells() -> Result<()> {
+        let fixture = fixture(32, 64, 8, false, 1)?;
+        let input = fixture.input(segment(&[], &[], &[]));
+        let mut serial = Frame::new(&input, 0, usize::MAX)?;
+        let mut private = Frame::new(&input, 0, usize::MAX)?;
+        for (component, plane) in serial.planes.iter_mut().enumerate() {
+            let width = if component == 0 { 32 } else { 16 };
+            for (index, sample) in plane.iter_mut().enumerate() {
+                *sample = (index % width + 23 + component * 11) as u16;
+            }
+        }
+        for cell in serial.cells.iter_mut().take(12 * 8) {
+            cell.mode = Some(IntraMode::new(1)?);
+            cell.reconstructed = 7;
+            cell.slice = 1;
+        }
+        for (component, plane) in private.planes.iter_mut().enumerate() {
+            let scale = if component == 0 { 1 } else { 2 };
+            *plane = serial.planes[component][16 / scale * (32 / scale)..48 / scale * (32 / scale)]
+                .to_vec();
+            plane[(31 / scale - 16 / scale) * (32 / scale)
+                ..(32 / scale - 16 / scale) * (32 / scale)]
+                .fill(255);
+        }
+        private.cells = serial.cells[4 * 8..12 * 8].to_vec();
+        let above = core::array::from_fn(|component| {
+            let width = if component == 0 { 32 } else { 16 };
+            (0..width)
+                .map(|x| (x + 23 + component * 11) as u16)
+                .collect::<Vec<_>>()
+        });
+        let mode = IntraMode::new(1)?;
+        for component in 0..3 {
+            let scale = if component == 0 { 1 } else { 2 };
+            let block = || ReconstructionBlock {
+                area: Area {
+                    x: 16 / scale,
+                    y: 32 / scale,
+                    log2: 4 - u32::from(component != 0),
+                },
+                component,
+                mode: Some(mode),
+                coded: false,
+                bypass: false,
+            };
+            Walker {
+                frame: &mut serial,
+                input: &input,
+                location: fixture.layout.at_raster(5)?,
+                slice: 1,
+                dpb: None,
+                rows: super::super::rows::SampleRows::full(),
+            }
+            .references(&block())?;
+            let mut walker = Walker {
+                frame: &mut private,
+                input: &input,
+                location: fixture.layout.at_raster(5)?,
+                slice: 1,
+                dpb: None,
+                rows: super::super::rows::SampleRows {
+                    origin: 16,
+                    above: Some(&above),
+                    above_y: 32,
+                },
+            };
+            walker.references(&block())?;
+            assert_eq!(walker.frame.scratch.references, serial.scratch.references);
+            assert_eq!(walker.cell(16, 32)?.slice, 1);
+            walker.protect(Area {
+                x: 16,
+                y: 32,
+                log2: 4,
+            })?;
+            assert!(walker.cell(16, 32)?.protected);
+            if component == 2 {
+                walker.frame.cells.clear();
+                assert!(walker.neighbour(Some(16), Some(48))?.is_none());
+                assert!(matches!(
+                    walker.neighbour(Some(16), Some(32)),
+                    Err(Error::InvalidData("intra_cell_address"))
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn private_row_wpp_above_right_uses_the_window_with_and_without_a_checkpoint() -> Result<()> {
+        let fixture = fixture(32, 64, 8, true, 1)?;
+        let mut body = vec![0x86, 0x80];
+        body.extend(core::iter::repeat_n(42, 384));
+        body.extend([0xfe, 0x80]);
+        let input = fixture.input(segment(&body, &body, &[]));
+        for saved in [false, true] {
+            let mut serial = Frame::new(&input, 0, usize::MAX)?;
+            let mut private = Frame::new(&input, 0, usize::MAX)?;
+            cell_mut(&mut serial, 16, 16)?.slice = 1;
+            private.cells = serial.cells[4 * 8..12 * 8].to_vec();
+            for (component, plane) in private.planes.iter_mut().enumerate() {
+                let scale = if component == 0 { 1 } else { 2 };
+                *plane = plane[16 / scale * (32 / scale)..48 / scale * (32 / scale)].to_vec();
+            }
+            for frame in [&mut serial, &mut private] {
+                frame.next_ctu = 4;
+                frame.wpp = saved.then_some(Checkpoint {
+                    contexts: Contexts::new(26, Initialization::I),
+                    tile: 0,
+                    row: 1,
+                    slice: 1,
+                });
+            }
+            let mut serial_budget = 1000;
+            let mut private_budget = 1000;
+            let mut serial_bins = Cabac::new(&body, &mut serial_budget)?;
+            let mut private_bins = Cabac::new(&body, &mut private_budget)?;
+            let expected = serial.decode_ctu_references(&input, None, 1, &mut serial_bins);
+            let actual = private.decode_ctu_rows(
+                &input,
+                None,
+                1,
+                &mut private_bins,
+                super::super::rows::SampleRows {
+                    origin: 16,
+                    above: None,
+                    above_y: 0,
+                },
+            );
+            assert_eq!(actual, expected);
+            if saved {
+                assert!(actual.is_ok());
+            } else {
+                assert_eq!(actual, Err(Error::InvalidData("intra_wpp_checkpoint")));
+            }
+            assert_eq!(private.stats, serial.stats);
+            assert_eq!(private.contexts.split_cu, serial.contexts.split_cu);
+            assert_eq!(private_bins.position(), serial_bins.position());
+            assert_eq!(private_budget, serial_budget);
+        }
+        Ok(())
     }
 
     fn inter_input<'a>(
@@ -2510,6 +3180,7 @@ mod tests {
                 plane.fill(value);
             }
             let mut walker = Walker {
+                rows: crate::reconstruction::rows::SampleRows::full(),
                 frame: &mut frame,
                 input: &input,
                 location: fixture.layout.at_raster(0)?,
@@ -2568,6 +3239,7 @@ mod tests {
             plane.fill(42);
         }
         let mut walker = Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location: fixture.layout.at_raster(0)?,
@@ -2705,6 +3377,7 @@ mod tests {
                     location: fixture.layout.at_raster(0)?,
                     slice: 1,
                     dpb: None,
+                    rows: super::super::rows::SampleRows::full(),
                 };
                 walker.references(&ReconstructionBlock {
                     area: Area {
@@ -2762,6 +3435,7 @@ mod tests {
                         location: fixture.layout.at_raster(0)?,
                         slice: 1,
                         dpb: None,
+                        rows: super::super::rows::SampleRows::full(),
                     };
                     for component in 0..3 {
                         let scale = if component == 0 { 1 } else { 2 };
@@ -2839,6 +3513,7 @@ mod tests {
                     plane.fill(42);
                 }
                 let mut walker = Walker {
+                    rows: crate::reconstruction::rows::SampleRows::full(),
                     frame: &mut frame,
                     input: &input,
                     location: fixture.layout.at_raster(0)?,
@@ -2912,6 +3587,7 @@ mod tests {
                 plane.fill(42);
             }
             let mut walker = Walker {
+                rows: crate::reconstruction::rows::SampleRows::full(),
                 frame: &mut frame,
                 input: &input,
                 location: fixture.layout.at_raster(0)?,
@@ -2984,6 +3660,7 @@ mod tests {
         let input = fixture.input(segment(&[], &[], &[]));
         let mut frame = Frame::new(&input, 0, usize::MAX)?;
         let mut walker = Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location: fixture.layout.at_raster(0)?,
@@ -3295,6 +3972,7 @@ mod tests {
             protected: false,
         };
         let mut walker = Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location: fixture.layout.at_raster(1)?,
@@ -3345,6 +4023,7 @@ mod tests {
         *cell_mut(&mut frame, 8, 4)? = value;
         let location = fixture.layout.at_raster(0)?;
         let mut walker = Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location,
@@ -3384,6 +4063,7 @@ mod tests {
         let mut budget = 5;
         let mut cabac = Cabac::new(&[0x17, 0], &mut budget)?;
         let mut walker = Walker {
+            rows: crate::reconstruction::rows::SampleRows::full(),
             frame: &mut frame,
             input: &input,
             location: fixture.layout.at_raster(0)?,
@@ -3706,6 +4386,64 @@ mod tests {
             rbsp.extend(body);
         }
         Ok((fixture, rbsp, lengths))
+    }
+
+    #[test]
+    fn wavefront_poisoned_worker_reuse_never_exposes_stale_prediction_samples() -> Result<()> {
+        use super::super::Cache;
+        for threads in [2, 4, 8] {
+            let (fixture, rbsp, lengths) = cached_wavefront(93, 8, 8)?;
+            let original = escaped(&rbsp);
+            let input = fixture.input(segment(&rbsp, &original, &lengths));
+            let mut serial = Frame::new(&input, 0, usize::MAX)?;
+            let mut expected_budget = 10_000_000;
+            serial.decode(input, &mut expected_budget, 0, usize::MAX)?;
+            let mut cache = Cache::default();
+            for reuse in [false, true] {
+                if reuse {
+                    assert_eq!(cache.frames_for_test().len(), threads - 1);
+                    for frame in cache.frames_for_test() {
+                        for plane in &mut frame.planes {
+                            plane.fill(255);
+                        }
+                        for cell in &mut frame.cells {
+                            cell.slice = 1;
+                            cell.reconstructed = 7;
+                            cell.mode = Some(IntraMode::new(34)?);
+                            cell.depth = 3;
+                            cell.qp = 51;
+                            cell.edges = 3;
+                            cell.transform_edges = 3;
+                            cell.protected = true;
+                        }
+                        for ctu in &mut frame.filter_ctus {
+                            ctu.seen = true;
+                            ctu.slice = 1;
+                            ctu.sao[0].kind = 1;
+                        }
+                    }
+                }
+                let mut frame = Frame::new(&input, 0, usize::MAX)?;
+                let mut budget = 10_000_000;
+                frame.decode_common(
+                    input,
+                    None,
+                    &mut budget,
+                    0,
+                    usize::MAX,
+                    threads,
+                    Some(&mut cache),
+                )?;
+                assert_eq!(frame.workers, threads);
+                assert!(frame.complete());
+                assert_eq!(frame.planes, serial.planes);
+                assert_eq!(frame.stats, serial.stats);
+                assert_eq!(frame.inter_stats, serial.inter_stats);
+                assert_eq!(budget, expected_budget);
+            }
+            assert_eq!(cache.hits(), 1);
+        }
+        Ok(())
     }
 
     #[test]
@@ -4071,6 +4809,97 @@ mod tests {
                     assert_eq!(frame.planes, serial.planes);
                     assert_eq!(frame.stats, serial.stats);
                     assert!(frame.complete());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn wavefront_poisoned_reuse_preserves_partial_slice_tails_at_both_depths() -> Result<()> {
+        use super::super::Cache;
+        for depth in [8, 10] {
+            let (fixture, seed, seed_lengths) = cached_wavefront(110, depth, 2)?;
+            let seed_original = escaped(&seed);
+            let seed_input = fixture.input(segment(&seed, &seed_original, &seed_lengths));
+            let top = pcm_body(
+                &[[0x86, 0x80], [0x8b, 0x80], [0x91, 0x80]],
+                [0xfd, 0x80],
+                &[34; 3],
+            )?;
+            let lengths = [top.len() as u64];
+            let mut rbsp = vec![0x80];
+            rbsp.extend(top);
+            rbsp.extend(pcm_body(&[[0x92, 0x80]], [0xfe, 0x80], &[51])?);
+            let original = escaped(&rbsp);
+            let input = fixture.input(segment(&rbsp, &original, &lengths));
+            let mut tail = vec![0x80];
+            tail.extend(pcm_body(
+                &[[0x97, 0x80], [0x9b, 0x80]],
+                [0xfe, 0x80],
+                &[68; 2],
+            )?);
+            let tail_original = escaped(&tail);
+            let mut tail_segment = segment(&tail, &tail_original, &[]);
+            tail_segment.address = 4;
+            tail_segment.dependent = true;
+            let tail_input = fixture.input(tail_segment);
+            let mut expected = None;
+            for threads in [1, 2, 4, 8] {
+                let mut cache = Cache::default();
+                if threads > 1 {
+                    let mut seed_frame = Frame::new(&seed_input, 0, usize::MAX)?;
+                    seed_frame.decode_common(
+                        seed_input,
+                        None,
+                        &mut 10_000_000,
+                        0,
+                        usize::MAX,
+                        threads,
+                        Some(&mut cache),
+                    )?;
+                    assert_eq!(cache.frames_for_test().len(), 1);
+                    for frame in cache.frames_for_test() {
+                        for plane in &mut frame.planes {
+                            plane.fill(u16::MAX);
+                        }
+                        for cell in &mut frame.cells {
+                            cell.slice = 1;
+                            cell.reconstructed = 7;
+                            cell.mode = Some(IntraMode::new(34)?);
+                            cell.protected = true;
+                        }
+                    }
+                }
+                let mut frame = Frame::new(&input, 0, usize::MAX)?;
+                let mut budget = 10_000_000;
+                frame.decode_common(
+                    input,
+                    None,
+                    &mut budget,
+                    0,
+                    usize::MAX,
+                    threads,
+                    Some(&mut cache),
+                )?;
+                assert_eq!(frame.next_ctu, 4);
+                assert!(!frame.complete());
+                assert_eq!(cache.hits(), usize::from(threads > 1));
+                frame.decode_common(
+                    tail_input,
+                    None,
+                    &mut budget,
+                    0,
+                    usize::MAX,
+                    threads,
+                    Some(&mut cache),
+                )?;
+                assert!(frame.complete());
+                let actual = (frame.planes, frame.stats, frame.inter_stats, budget);
+                if let Some(expected) = &expected {
+                    assert_eq!(&actual, expected);
+                } else {
+                    expected = Some(actual);
                 }
             }
         }

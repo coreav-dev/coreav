@@ -28,6 +28,21 @@ def counter(value, maximum=None):
     return harness.integer(value) and (maximum is None or value <= maximum)
 
 
+def valid_frame(value):
+    if not isinstance(value, dict) or value.get('type') != 'picture':
+        return False
+    clock = value.get('timestamp')
+    return ((clock is None or type(clock) is int and -(1 << 63) <= clock < 1 << 63)
+            and all(harness.integer(value.get(key), 1) for key in ('width', 'height', 'bit_depth', 'output_bytes'))
+            and value['width'] % 2 == value['height'] % 2 == 0 and value['bit_depth'] in (8, 10)
+            and value.get('packing') == ('yuv420p' if value['bit_depth'] == 8 else 'yuv420p10le')
+            and value['output_bytes'] == value['width'] * value['height'] * 3 // 2
+            * (2 if value['bit_depth'] == 10 else 1)
+            and isinstance(value.get('output_md5'), str) and len(value['output_md5']) == 32
+            and all(byte in '0123456789abcdef' for byte in value['output_md5'])
+            and valid_color(value.get('color')))
+
+
 def annex_b_c5(value):
     require(isinstance(value, dict) and value.get('complete') is True and isinstance(value.get('results'), list)
             and counter(value.get('starts')) and value['starts'] == len(value['results']) >= 1
@@ -66,7 +81,7 @@ def thumbnail_c5(value):
                                         'duplicate_pts_checked', 'dishonest_sync_checked')}
 
 
-def compare(path, pictures, summary, *, coded_clock=False):
+def compare_frames(path, pictures, summary, *, coded_clock=False):
     require(0 < path.stat().st_size < harness.CAPTURE_CAP, 'boundary_capture_size')
     rows = [json.loads(line, object_pairs_hook=harness.unique_object)
             for line in path.read_text().splitlines()]
@@ -86,10 +101,9 @@ def compare(path, pictures, summary, *, coded_clock=False):
     require(valid_color(inherited), 'boundary_container_colour')
     for actual, expected in zip(frames, pictures):
         timestamp = expected['picture_index'] if coded_clock else expected['timestamp']
-        clock = actual.get('timestamp')
-        require(clock is None or type(clock) is int and -(1 << 63) <= clock < 1 << 63, 'boundary_clock_type')
-        require(all(harness.integer(actual.get(key), 1) for key in ('width', 'height', 'bit_depth', 'output_bytes'))
-                and actual.get('timestamp') == timestamp
+        require(actual.get('timestamp') is None or type(actual.get('timestamp')) is int
+                and -(1 << 63) <= actual['timestamp'] < 1 << 63, 'boundary_clock_type')
+        require(valid_frame(actual) and actual.get('timestamp') == timestamp
                 and all(actual.get(key) == expected[key] for key in FRAME_FIELDS), 'boundary_frame_mismatch')
         declared = expected.get('color_declarations')
         require(valid_color(declared), 'boundary_colour_declarations')
@@ -98,6 +112,11 @@ def compare(path, pictures, summary, *, coded_clock=False):
     require(result.get('output_bytes') == sum(row['output_bytes'] for row in frames)
             == summary.get('output_bytes') and result.get('output_md5') == summary.get('output_md5'),
             'boundary_whole_output_mismatch')
+    return frames, result
+
+
+def compare(path, pictures, summary, *, coded_clock=False):
+    frames, result = compare_frames(path, pictures, summary, coded_clock=coded_clock)
     c5 = annex_b_c5(result.get('c5')) if coded_clock else thumbnail_c5(result.get('c5'))
     return dict(complete=True, outputs=len(frames), output_bytes=result['output_bytes'],
                 input_bytes=result['input_bytes'], sent_packets=result['sent_packets'],

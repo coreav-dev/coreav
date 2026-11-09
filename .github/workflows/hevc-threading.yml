@@ -14,6 +14,18 @@ on:
         required: false
         default: false
         type: boolean
+      thread_diagnostics_only:
+        required: false
+        default: false
+        type: boolean
+      thread_dependencies_only:
+        required: false
+        default: false
+        type: boolean
+      thread_rows_only:
+        required: false
+        default: false
+        type: boolean
       only:
         required: false
         default: ''
@@ -33,8 +45,106 @@ env:
   FRAMES: ${{ inputs.frames }}
 
 jobs:
+  diagnostics:
+    if: inputs.thread_diagnostics_only || inputs.thread_dependencies_only || inputs.thread_rows_only
+    name: hevc-threading-diagnostics
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.candidate }}
+          fetch-depth: 0
+          path: candidate
+      - name: Admit the exact diagnostic candidate before building or using credentials
+        working-directory: candidate
+        env:
+          DEPENDENCIES_ONLY: ${{ inputs.thread_dependencies_only }}
+          ROWS_ONLY: ${{ inputs.thread_rows_only }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$CANDIDATE"
+          test -n "$(git branch -r --contains "$CANDIDATE")"
+          test -z "$ONLY"
+          test "$FRAMES" = 32
+          test "$DEPENDENCIES_ONLY" != true || test "$ROWS_ONLY" != true
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Check diagnostic validation and workflow selection
+        run: |
+          python3 -m unittest discover -s candidate/scripts/tests -p test_hevc_threading.py
+          python3 -m unittest discover -s candidate/scripts/tests -p test_hevc_dependency.py
+          python3 -m unittest discover -s candidate/scripts/tests -p test_hevc_row_dependency.py
+      - name: Check cfg-only dependency extraction and scheduling tests
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          RUSTFLAGS='--cfg hevc_thread_diagnostics' cargo test --locked -p coreav-hevc --features native-hevc --lib | tee "$RUNNER_TEMP/diagnostic-tests.log"
+          grep -Eq '^test result: ok\. [1-9][0-9]* passed; 0 failed;' "$RUNNER_TEMP/diagnostic-tests.log"
+          grep -Fx 'test decoder::scheduler::tests::header_only_dependency_replay_distinguishes_chains_and_siblings ... ok' "$RUNNER_TEMP/diagnostic-tests.log"
+          grep -Fx 'test decoder::scheduler::tests::row_dependency_trace_observes_generated_predictions ... ok' "$RUNNER_TEMP/diagnostic-tests.log"
+          RUSTFLAGS='--cfg hevc_thread_diagnostics' cargo test --locked -p coreav-kernels-hevc --features native-hevc --lib | tee "$RUNNER_TEMP/kernel-diagnostic-tests.log"
+          grep -Eq '^test result: ok\. [1-9][0-9]* passed; 0 failed;' "$RUNNER_TEMP/kernel-diagnostic-tests.log"
+          grep -Fx 'test inter::tests::diagnostic_read_bounds_match_interpolation_support ... ok' "$RUNNER_TEMP/kernel-diagnostic-tests.log"
+      - name: Build only the candidate diagnostic executable
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          cp bench/hevc-reference/decode.rs crates/coreav-hevc/examples/reference.rs
+          RUSTFLAGS='--cfg hevc_thread_diagnostics --check-cfg=cfg(hevc_thread_diagnostics) --check-cfg=cfg(hevc_synchronous_baseline)' cargo build --locked --release -p coreav-hevc --features native-hevc --example reference
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          rustc -Vv > "$RUNNER_TEMP/private/compiler.txt"
+      - name: Install the pinned binary oracle
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: candidate/scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Inspect each prepared input once
+        env:
+          DEPENDENCIES_ONLY: ${{ inputs.thread_dependencies_only }}
+          ROWS_ONLY: ${{ inputs.thread_rows_only }}
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          umask 077
+          EXTRA=()
+          if [ "$DEPENDENCIES_ONLY" = true ]; then EXTRA+=(--dependencies-only); fi
+          if [ "$ROWS_ONLY" = true ]; then EXTRA+=(--rows-only); fi
+          python3 -I candidate/scripts/hevc_threading.py diagnostics \
+            --native "$PWD/candidate/target/release/examples/reference" \
+            --oracle-bin "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/private" \
+            --candidate "$CANDIDATE" "${EXTRA[@]}" > "$RUNNER_TEMP/private/diagnostics.log" 2>&1
+      - name: Seal diagnostic metadata
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          [ -d private ] || exit 0
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/candidate/bench/hevc-conformance/evidence-public.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hevc-threading-diagnostics-${{ inputs.candidate }}
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: error
+          retention-days: 7
+
   reference:
-    if: '!inputs.sanitizer_only'
+    if: ${{ inputs.baseline != '' && !inputs.sanitizer_only && !inputs.thread_diagnostics_only && !inputs.thread_dependencies_only && !inputs.thread_rows_only }}
     name: hevc-threading-reference (${{ matrix.shard }})
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -61,17 +171,18 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.baseline }}
+          fetch-depth: 0
           path: baseline
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-      - name: Build distinct candidate and serial-main executables
+      - name: Build distinct candidate and current-main executables
         run: |
           set -euo pipefail
           cp candidate/bench/hevc-reference/decode.rs candidate/crates/coreav-hevc/examples/reference.rs
           cp candidate/bench/hevc-reference/decode.rs baseline/crates/coreav-hevc/examples/reference.rs
-          (cd candidate && RUSTFLAGS='--check-cfg=cfg(hevc_serial_baseline)' cargo build --locked --release -p coreav-hevc --features native-hevc --example reference --example headers)
-          (cd baseline && test "$(git rev-parse HEAD)" = "$BASELINE" && RUSTFLAGS='--cfg hevc_serial_baseline --check-cfg=cfg(hevc_serial_baseline)' cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
+          (cd candidate && RUSTFLAGS='--check-cfg=cfg(hevc_synchronous_baseline) --check-cfg=cfg(hevc_thread_diagnostics)' cargo build --locked --release -p coreav-hevc --features native-hevc --example reference --example headers)
+          (cd baseline && test "$(git rev-parse HEAD)" = "$BASELINE" && RUSTFLAGS='--cfg hevc_synchronous_baseline --check-cfg=cfg(hevc_synchronous_baseline) --check-cfg=cfg(hevc_thread_diagnostics)' cargo build --locked --release -p coreav-hevc --features native-hevc --example reference)
       - name: Install the pinned binary oracle
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
@@ -115,7 +226,7 @@ jobs:
           retention-days: 7
 
   conformance:
-    if: ${{ !inputs.sanitizer_only && inputs.only == '' }}
+    if: ${{ !inputs.thread_diagnostics_only && !inputs.thread_dependencies_only && !inputs.thread_rows_only && !inputs.sanitizer_only && inputs.only == '' }}
     name: hevc-threading-conformance
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -135,6 +246,7 @@ jobs:
         with:
           toolchain: stable
       - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example decode
+      - run: cargo build --locked --release -p coreav-backend-hevc --features native-hevc,test-support --example reference
       - run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Prepare complete conformance references
         run: |
@@ -145,12 +257,25 @@ jobs:
           python3 -I scripts/hevc_conformance.py acquire --dest "$RUNNER_TEMP/data" > "$RUNNER_TEMP/private/acquire.log" 2>&1
           python3 -I scripts/hevc_conformance.py manifest --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/archives.json" > "$RUNNER_TEMP/private/manifest.log" 2>&1
           python3 -I scripts/hevc_conformance.py run --registration "$RUNNER_TEMP/private/archives.json" --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/census" --parser "$PWD/target/release/examples/headers" --oracle-bin "$RUNNER_TEMP/oracle" --synthetic-data "$RUNNER_TEMP/synthetic" > "$RUNNER_TEMP/private/census.log" 2>&1
-      - name: Compare complete outputs at one two four and eight threads
+      - name: Prepare qualified complete outputs for the selected native boundary
         run: |
           set -euo pipefail
-          for threads in 1 2 4 8; do
+          counts='1 2 4 8'
+          if [ -z "$BASELINE" ]; then counts=1; fi
+          for threads in $counts; do
             python3 -I scripts/hevc_decode.py --registration "$RUNNER_TEMP/private/archives.json" --census "$RUNNER_TEMP/private/census/census.json" --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/threads-$threads" --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/decode" --oracle-bin "$RUNNER_TEMP/oracle" --threads "$threads" > "$RUNNER_TEMP/private/threads-$threads.log" 2>&1
           done
+          if [ -n "$BASELINE" ]; then
+            python3 -I scripts/hevc_threading.py compare-conformance --root "$RUNNER_TEMP/private" --out "$RUNNER_TEMP/private/thread-comparison.json"
+          fi
+      - name: Compare real native row output at every worker boundary
+        run: |
+          set -euo pipefail
+          python3 -I scripts/hevc_threading.py native-conformance \
+            --registration "$RUNNER_TEMP/private/archives.json" --census "$RUNNER_TEMP/private/census/census.json" \
+            --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/private/native-rows" \
+            --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/reference" \
+            --scalar-result "$RUNNER_TEMP/private/threads-1/result.json" > "$RUNNER_TEMP/private/native-rows.log" 2>&1
       - name: Seal conformance records
         if: always()
         run: |
@@ -172,7 +297,7 @@ jobs:
           retention-days: 7
 
   thread-sanitizer:
-    if: ${{ inputs.sanitizer_only || inputs.only == '' }}
+    if: ${{ !inputs.thread_diagnostics_only && !inputs.thread_dependencies_only && !inputs.thread_rows_only && (inputs.sanitizer_only || inputs.only == '') }}
     name: hevc-threading-sanitizer
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -185,7 +310,7 @@ jobs:
         with:
           toolchain: nightly
           components: rust-src
-      - name: Stress wavefront completion and failure under ThreadSanitizer
+      - name: Stress wavefront and picture jobs under ThreadSanitizer
         env:
           RUSTFLAGS: -Zsanitizer=thread
           RUSTDOCFLAGS: -Zsanitizer=thread
@@ -193,5 +318,12 @@ jobs:
           set -euo pipefail
           sudo sysctl vm.mmap_rnd_bits=28
           for repeat in $(seq 1 20); do
-            cargo +nightly test --locked -Zbuild-std --target x86_64-unknown-linux-gnu -p coreav-hevc --features native-hevc --lib wavefront
+            for group in wavefront decoder::scheduler::tests; do
+              cargo +nightly test --locked -Zbuild-std --target x86_64-unknown-linux-gnu -p coreav-hevc --features native-hevc-rows-private --lib "$group" | tee "$RUNNER_TEMP/threading-tests.log"
+              grep -Eq '^test result: ok\. [1-9][0-9]* passed;' "$RUNNER_TEMP/threading-tests.log"
+              if [ "$group" = decoder::scheduler::tests ]; then
+                grep -F 'test decoder::scheduler::tests::dependent_raster_job_reads_a_building_predecessor_before_its_first_publication ... ok' "$RUNNER_TEMP/threading-tests.log"
+                grep -F 'test decoder::scheduler::tests::capacity_probe_mismatch_preserves_legacy_frames_and_summary ... ok' "$RUNNER_TEMP/threading-tests.log"
+              fi
+            done
           done

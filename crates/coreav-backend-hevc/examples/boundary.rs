@@ -10,6 +10,8 @@ use md5::{Digest, Md5};
 use serde_json::{Value, json};
 use std::io::Write;
 
+#[path = "common/access_units.rs"]
+mod access_units;
 #[allow(dead_code)]
 #[path = "../../coreav-hevc/examples/common/mod.rs"]
 mod common;
@@ -157,10 +159,11 @@ fn annex_b(path: std::ffi::OsString, maximum: u64, writer: &mut impl Write) -> R
         c5: None,
         full_records: Some(Vec::new()),
     };
-    let (bytes, packets) =
-        random_access::units(&path, limits.max_packet_bytes, |data, pts, _, _| {
-            send(data, pts, &mut *opened.decoder, &mut output)
-        })?;
+    let (bytes, packets) = random_access::units(
+        std::fs::File::open(&path)?,
+        limits.max_packet_bytes,
+        |data, pts, _, _| send(data, pts, &mut *opened.decoder, &mut output),
+    )?;
     opened.decoder.send_eof()?;
     output.drain(&mut *opened.decoder)?;
     let full = output
