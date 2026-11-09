@@ -1213,13 +1213,24 @@ pub(crate) fn picture(
     ];
     let mb_width = e.coded_width / 16;
     let mb_height = e.coded_height / 16;
+    let macroblocks = mb_width * mb_height;
+    #[cfg(test)]
+    let macroblocks = if crate::tests::MOTION_RESERVE_REFUSED.get() {
+        usize::MAX
+    } else {
+        macroblocks
+    };
+    let mut motion = Vec::new();
+    motion
+        .try_reserve_exact(macroblocks)
+        .map_err(|_| Error::Allocation)?;
     let mut writer = Bits::new(e.limits.access_unit_bytes);
     syntax::slice(&mut writer, e, slice)?;
     let mut output = PictureSyntax {
         writer,
         pending_skip: 0,
         previous_mv_count: e.previous_mv_count,
-        motion: Vec::new(),
+        motion,
     };
     let planes = if e.threads == 1 {
         let mut planes = planes;

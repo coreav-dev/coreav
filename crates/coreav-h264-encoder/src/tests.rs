@@ -4,6 +4,10 @@
 use super::*;
 use bits::Bits;
 
+std::thread_local! {
+    pub(crate) static MOTION_RESERVE_REFUSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 fn settings(width: usize, height: usize, qp: u8) -> Settings {
     Settings {
         frame_rate: FrameRate::default(),
@@ -799,6 +803,37 @@ fn p_failure_retains_reference_identity_frame_number_and_carried_count() {
         reference.encode(picture).unwrap().nals
     );
     assert!(api::zeros::<u8>(usize::MAX).is_err());
+}
+
+#[test]
+fn refused_motion_field_reservation_fails_without_advancing_sequence_state() {
+    let mut s = settings(16, 16, 34);
+    s.gop = Gop::Fixed { idr_interval: 3 };
+    let y = [104; 256];
+    let cb = [92; 64];
+    let cr = [156; 64];
+    let picture = Picture {
+        y: Plane::new(&y, 16, 16, 16).unwrap(),
+        cb: Plane::new(&cb, 8, 8, 8).unwrap(),
+        cr: Plane::new(&cr, 8, 8, 8).unwrap(),
+    };
+    let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+    let mut reference = Encoder::new(s, Limits::default()).unwrap();
+    for _ in 0..4 {
+        let motion = encoder.previous_motion.clone();
+        let count = encoder.previous_mv_count;
+        MOTION_RESERVE_REFUSED.set(true);
+        let refused = encoder.encode(picture);
+        MOTION_RESERVE_REFUSED.set(false);
+        assert_eq!(refused.unwrap_err(), Error::Allocation);
+        assert_eq!(encoder.previous_motion, motion);
+        assert_eq!(encoder.previous_mv_count, count);
+        let retried = encoder.encode(picture).unwrap();
+        let fresh = reference.encode(picture).unwrap();
+        assert_eq!(retried.nals, fresh.nals);
+        assert_eq!(retried.reconstruction, fresh.reconstruction);
+        assert_eq!(encoder.previous_motion, reference.previous_motion);
+    }
 }
 
 #[test]
