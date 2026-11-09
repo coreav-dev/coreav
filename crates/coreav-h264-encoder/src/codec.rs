@@ -55,8 +55,8 @@ impl Tile {
             .map_err(|_| Error::Internal)?;
         match n {
             4 => Scalar.intra4x4(view, mode),
-            8 => Scalar.intra_chroma(view, mode),
-            16 => Scalar.intra16x16(view, mode),
+            8 => crate::kernels::pixels().intra_chroma(view, mode),
+            16 => crate::kernels::pixels().intra16x16(view, mode),
             _ => return Err(Error::Internal),
         }
         Ok(())
