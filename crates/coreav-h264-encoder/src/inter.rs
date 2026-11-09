@@ -5,7 +5,7 @@ use crate::motion::{Layout, Part};
 use coreav_kernels_h264::Block;
 
 const SPLIT_SATD: u64 = 64;
-const SETTLED_SPLIT_SATD: u64 = 2 * SPLIT_SATD;
+const SETTLED_SPLIT_SATD: u64 = 4 * SPLIT_SATD;
 const HEXAGON_ROUNDS: usize = 16;
 const NEAR_DIVISOR: u64 = 8;
 
