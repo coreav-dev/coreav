@@ -63,6 +63,26 @@ The wavefront removes the consecutive motion-vector count from costs, not from a
 
 The [row-wavefront implementation](h264-encoder-wavefront.md) separates immutable macroblock decisions from serial entropy coding and deblocking. Its explicit worker-count constructor and automatic available-core selection produce the same stream. Padding and half-sample planes are not prerequisites: workers share the existing immutable reference picture and retain the existing per-call interpolation.
 
+**Intra 4x4 neighbours once per block (identical output).** The Intra_4x4 ranking predicts up to nine modes of each 4x4 block from the same neighbours, and each prediction used to build a checked view, read those neighbours again and copy its rows through a call per row. `Intra4x4Neighbours` in the shared kernel crate now reads them once per block, and each mode's prediction is a 16-byte array that the encoder stores with fixed four-byte row copies. The ranking, the shortlist trials and the cheap path all predict from that one read; the neighbours lie outside the block, so the trials that overwrite the block cannot change them. The decoder's reference `pred4x4` predicts through the same type, and its aarch64 code is unchanged in size and calls; the x86-64 decoder uses its own vector intra kernels and does not reach it.
+
+One GitHub Actions x86-64 job (AMD EPYC 9V74, two physical cores and four logical CPUs) compares main at `68cbc80372fb15e9876e6c062f187b1677bb398a` with the change on the five existing lossy inputs at QP22 and QP28, sixty pictures, GOP32 and enabled deblocking. Callgrind counts the encode calls only; timing alternates the builds and keeps five calls per arm and cell after one warm-up.
+
+| Input and QP | Instructions removed | 1T time saved | 4T time saved |
+|---|---:|---:|---:|
+| A-22 | 3.86% | 4.45% | 4.14% |
+| A-28 | 3.95% | 4.26% | 3.41% |
+| B-22 | 2.68% | 6.04% | 1.82% |
+| B-28 | 3.12% | 4.27% | 2.12% |
+| C-22 | 1.00% | 0.50% | 1.32% |
+| C-28 | 1.45% | 0.51% | 1.05% |
+| D-22 | 1.89% | 1.73% | 2.29% |
+| D-28 | 2.68% | 2.78% | 2.78% |
+| E-22 | 1.27% | 0.83% | 1.56% |
+| E-28 | 1.86% | 2.22% | 1.72% |
+| Mean | 2.37% | 2.76% | 2.22% |
+
+Callgrind on C-22 shows `pred4x4` falling from 346,430 to 74,346 calls, now reached only outside the ranking, and about 0.8 million fewer `memcpy` calls. Every stream and reconstruction of this build is byte-identical to main in all 130 checks, and the pinned FFmpeg 9.0.2 decoder reproduces the reconstruction in all 20 decodes. These are shared-runner reference figures, not a fixed-host speed verdict.
+
 ### Compression efficiency
 
 | Rank | Item | Output | Depends on | Expected gain | Start |
