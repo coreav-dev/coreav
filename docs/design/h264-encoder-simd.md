@@ -70,3 +70,25 @@ The paired median changes against the baseline are +18.17%, +15.29%, and +26.62%
 All sixty retained final timing calls preserve the prior main stream and reconstruction hashes. The separately repeated pinned FFmpeg 9.0.2 decode matches all sixty pictures on A, B and C. Their bitrate, PSNR and SSIM are consequently unchanged from the [efficiency reference](h264-encoder-efficiency-reference.json), not new quality estimates. Both comparison series, executable hashes, compiler identities from each executable's ELF notes, input hashes, and complete wall/CPU observations are in the raw record. The compiler is Rust 1.99.1 and the release profile retains debug information; no native target-CPU override is used.
 
 Local verification passes 51 encoder tests in each build mode, 21 existing pixel-kernel equivalence tests, 31 Python harness tests, and 48 generated complete-stream identity cases containing 192 pictures. The private SAD differential target passes 10,000 coverage-guided AddressSanitizer inputs. Encoder Clippy in both modes, formatting, unsafe-site inventory and workflow checks pass. The existing three-decoder workflow now also runs the generated scalar/dispatched identity comparison; public CI and the final-head similarity result belong to the pull request evidence.
+
+## Deblocking dispatch
+
+Deblocking now filters each edge through the same pixel dispatcher as interpolation, with the AVX-512 tier disabled and the `scalar` feature forcing the reference, as policy record 0044 point 2 permits for existing checked kernels. The edge strengths, thresholds and edge order are unchanged; only the filter call moves from the reference to the dispatcher. No new unsafe site is added, and the decoder's own equivalence tests and fuzz targets keep covering the vector filter.
+
+The reference measurement compares main at `68cbc80372fb15e9876e6c062f187b1677bb398a` with the change in one GitHub Actions x86-64 job (AMD EPYC 9V74, two physical cores and four logical CPUs), on the five existing lossy inputs at QP22 and QP28, sixty pictures, GOP32 and enabled deblocking. Callgrind counts the encode calls only. Timing alternates the builds, keeps five calls per arm and cell after one warm-up, and pins one-worker calls to one CPU.
+
+| Input and QP | Instructions removed | 1T time saved | 4T time saved |
+|---|---:|---:|---:|
+| A-22 | 3.29% | 2.04% | 1.53% |
+| A-28 | 3.36% | 1.97% | 1.05% |
+| B-22 | 1.95% | 4.33% | -0.31% |
+| B-28 | 2.36% | 1.07% | 0.36% |
+| C-22 | 2.42% | 1.19% | 1.63% |
+| C-28 | 2.49% | 0.97% | 1.14% |
+| D-22 | 2.92% | 1.83% | 2.40% |
+| D-28 | 2.82% | 1.84% | 2.25% |
+| E-22 | 3.54% | 2.93% | 3.29% |
+| E-28 | 3.83% | 2.41% | 3.13% |
+| Mean | 2.90% | 2.06% | 1.65% |
+
+Callgrind shows the reference `filter_edge` gone and the AVX2 luma and chroma edge kernels in its place, at about 160 to 280 instructions per edge instead of about 1,470. Every stream and reconstruction of this build is byte-identical to main in all 130 checks, and the pinned FFmpeg 9.0.2 decoder reproduces the reconstruction in all 20 decodes. These are shared-runner reference figures, not a fixed-host speed verdict.
