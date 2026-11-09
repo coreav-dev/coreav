@@ -1,6 +1,28 @@
 use crate::{DecodedPicture, OutputMemory, PictureInfo, Result};
 
 #[cfg(feature = "test-support")]
+thread_local! {
+    static ROW_OVERLAP: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(feature = "test-support")]
+pub fn begin_evidence() {
+    ROW_OVERLAP.set(Some(0));
+}
+
+#[cfg(feature = "test-support")]
+pub fn take_row_overlap() -> Option<u64> {
+    ROW_OVERLAP.replace(None)
+}
+
+#[cfg(feature = "test-support")]
+pub(crate) fn record_row_overlap() {
+    if let Some(count) = ROW_OVERLAP.get() {
+        ROW_OVERLAP.set(count.checked_add(1));
+    }
+}
+
+#[cfg(feature = "test-support")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Admission {
     pub sps_id: u32,

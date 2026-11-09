@@ -221,6 +221,7 @@ fn reference(
             "thread_limit":threads.min(host), "max_workers":summary.max_workers,"max_memory_bytes":limits.max_memory_bytes,
             "memory_bytes":summary.memory_bytes,
             "parallel_pictures":summary.parallel_pictures, "frame_parallel_pictures":summary.frame_parallel_pictures,
+            "row_parallel_pictures":report.row_parallel_pictures,
             "admissions":admissions
         }),
     )?;

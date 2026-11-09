@@ -27,6 +27,7 @@ class NativeRows(unittest.TestCase):
                        pictures=1, output_pictures=1, decoded_pictures=2, bins=7, requested_threads=threads,
                        host_threads=8, thread_limit=threads or 8, max_workers=1 if threads == 1 else 2,
                        parallel_pictures=0 if threads == 1 else 2, frame_parallel_pictures=0 if threads == 1 else 2,
+                       row_parallel_pictures=0 if threads == 1 else 2,
                        max_memory_bytes=1 << 30, memory_bytes=1 << 20, input_bytes=128, sent_packets=2,
                        inherited_color=color, output_bytes=96 if check else None,
                        output_md5='a' * 32 if check else None, admissions=[] if threads == 1 else [admission])
@@ -55,6 +56,8 @@ class NativeRows(unittest.TestCase):
                      lambda row: row['admissions'][0].update(reserved_bytes=1 << 30),
                      lambda row: row['admissions'][0].update(sps_sha256=[0]),
                      lambda row: row.update(pictures=2)]
+        mutations += [lambda row: row.update(row_parallel_pictures=3),
+                      lambda row: row['admissions'][0].update(lag=0)]
         for mutate in mutations:
             records = self.receipt()
             mutate(records[-1])
@@ -73,7 +76,7 @@ class NativeRows(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'frame_receipt'):
             threading.native_receipt(self.encoded(records), 4, check=True)
 
-    def conformance(self, directory, mutation=None):
+    def conformance(self, directory, mutation=None, split_coverage=False):
         source = directory / 'input'
         source.write_bytes(b'fixture')
         expected = self.receipt()
@@ -84,6 +87,9 @@ class NativeRows(unittest.TestCase):
                    results=[dict(complete=True, test='fixture', sha256='b' * 64,
                                  pictures=expected[:-1], summary={**expected[-1], **expected[-1]['semantic']})],
                    budgets=dict(max_memory_bytes=1 << 30))
+        if split_coverage:
+            raw['denominator'].append(dict(test='legacy', sha256='b' * 64))
+            raw['results'].append({**copy.deepcopy(raw['results'][0]), 'test': 'legacy'})
         scalar = directory / 'scalar.json'
         scalar.write_text(json.dumps(raw))
         census = directory / 'census.json'
@@ -94,6 +100,10 @@ class NativeRows(unittest.TestCase):
             threads = int(command[3])
             records = self.receipt(threads)
             records[-1]['input_bytes'] = source.stat().st_size
+            if split_coverage:
+                records[-1]['row_parallel_pictures'] = 0
+                if out.name == '1':
+                    records[-1]['admissions'] = []
             if mutation:
                 mutation(records, threads)
             out.mkdir(parents=True, exist_ok=True)
@@ -104,6 +114,8 @@ class NativeRows(unittest.TestCase):
                 '--data', str(directory), '--out', str(directory / 'out'), '--parser', '/headers',
                 '--native', '/native', '--scalar-result', str(scalar)]
         selected = [dict(case=dict(test='fixture'), member=dict(sha256='b' * 64), source=source)]
+        if split_coverage:
+            selected.append(dict(case=dict(test='legacy'), member=dict(sha256='b' * 64), source=source))
         with patch.object(threading.sys, 'platform', 'linux'), \
                 patch.object(threading.hevc_decode, 'streams', return_value=selected), \
                 patch.object(threading.conformance, 'digest', return_value='b' * 64), \
@@ -122,7 +134,8 @@ class NativeRows(unittest.TestCase):
             self.assertEqual(result['coverage']['0']['admitted_streams'], 1)
         mutations = [lambda records, count: records[-1]['semantic']['stats'].update(ctus=3) if count == 4 else None,
                      lambda records, count: records[0].update(timestamp=1) if count == 4 else None,
-                     lambda records, count: records[-1].update(admissions=[])]
+                     lambda records, count: records[-1].update(admissions=[]),
+                     lambda records, count: records[-1].update(row_parallel_pictures=0)]
         for mutate in mutations:
             with self.subTest(mutate=mutate), tempfile.TemporaryDirectory() as temp, self.assertRaises(ValueError):
                 self.conformance(pathlib.Path(temp), mutate)
@@ -133,11 +146,14 @@ class NativeRows(unittest.TestCase):
             source.write_bytes(b'fixture')
             commands = []
             changed_work = [False]
+            no_row_overlap = [False]
             def child(command, **kwargs):
                 commands.append(command)
                 if command[0] == '/native':
                     records = self.receipt(int(command[3]), check=command[2] == 'check')
                     records[-1]['input_bytes'] = source.stat().st_size
+                    if no_row_overlap[0]:
+                        records[-1]['row_parallel_pictures'] = 0
                     if changed_work[0] and command[2] == 'decode':
                         records[-1]['semantic']['stats']['ctus'] += 1
                     return self.encoded(records), dict(wall=1.0, user=0.9, system=0.1)
@@ -152,12 +168,25 @@ class NativeRows(unittest.TestCase):
             self.assertEqual([call[3] for call in commands[:5]], [1, 2, 4, 8, 0])
             self.assertEqual(len(row['warmups']), 5)
             self.assertEqual(len(row['calls']), 15)
+            self.assertTrue(all(call['row_overlap'] == (call['arm'] != 'candidate_1')
+                                for call in row['calls'] if call['arm'].startswith('candidate_')))
             self.assertTrue(all(call[0] in ('/native', oracle.ffmpeg) for call in commands))
             changed_work[0] = True
             with patch.object(threading.reference, 'verify', return_value=verified), \
                     patch.object(threading.reference, 'command', side_effect=child), \
                     self.assertRaisesRegex(ValueError, 'timed_work_mismatch'):
                 threading.measure_native(args, oracle, source, 'd00')
+            changed_work[0] = False
+            no_row_overlap[0] = True
+            with patch.object(threading.reference, 'verify', return_value=verified), \
+                    patch.object(threading.reference, 'command', side_effect=child):
+                control = threading.measure_native(args, oracle, source, 'd00')
+            self.assertTrue(all(call['row_overlap'] is False for call in control['calls']
+                                if call['arm'].startswith('candidate_')))
+
+    def test_separate_admission_and_legacy_overlap_cannot_establish_row_coverage(self):
+        with tempfile.TemporaryDirectory() as temp, self.assertRaisesRegex(ValueError, 'real_coverage_missing'):
+            self.conformance(pathlib.Path(temp), split_coverage=True)
 
     def test_workflows_use_the_real_bridge_and_sanitizer_feature(self):
         root = pathlib.Path(__file__).resolve().parents[2]

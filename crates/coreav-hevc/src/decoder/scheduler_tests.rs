@@ -125,6 +125,8 @@ fn dependent_raster_job_reads_a_building_predecessor_before_its_first_publicatio
     };
     let serial = decode_raster(&nals, false, limits, None);
     let expected = semantic(serial.0?);
+    #[cfg(feature = "test-support")]
+    crate::native_rows::begin_evidence();
     let hook = Arc::new(TestHook {
         dependent_rows: true,
         ..TestHook::default()
@@ -156,6 +158,8 @@ fn dependent_raster_job_reads_a_building_predecessor_before_its_first_publicatio
     assert_eq!(sink.output, serial.1);
     assert_eq!(semantic(summary), expected);
     assert_eq!(summary.frame_parallel_pictures, 2);
+    #[cfg(feature = "test-support")]
+    assert_eq!(crate::native_rows::take_row_overlap(), Some(2));
     assert_eq!(summary.max_workers, 2);
     assert_eq!(hook.completed.load(Ordering::Acquire) & 3, 3);
     assert_eq!(*hook.entered.lock().unwrap() & 2, 2);
@@ -664,6 +668,28 @@ fn shared_anchor_siblings_enter_actual_scalar_prediction_before_either_completes
     );
     assert_eq!(semantic(summary), semantic(serial.0?));
     assert_eq!(summary.inter.skip_units, 2);
+    Ok(())
+}
+
+#[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+#[test]
+fn row_overlap_evidence_excludes_complete_reference_jobs() -> Result<()> {
+    crate::native_rows::begin_evidence();
+    let hook = Arc::new(TestHook {
+        overlap: true,
+        ..TestHook::default()
+    });
+    let result = decode(
+        &stream(false)?,
+        true,
+        DecodeLimits {
+            threads: 2,
+            ..DecodeLimits::default()
+        },
+        Some(hook),
+    );
+    assert_eq!(result.0?.frame_parallel_pictures, 2);
+    assert_eq!(crate::native_rows::take_row_overlap(), Some(0));
     Ok(())
 }
 

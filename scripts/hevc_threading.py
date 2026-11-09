@@ -306,6 +306,7 @@ def native_receipt(stdout, threads, *, check):
     fields = ('pictures', 'decoded_pictures', 'bins', 'requested_threads', 'host_threads', 'thread_limit',
               'max_workers', 'parallel_pictures', 'frame_parallel_pictures', 'max_memory_bytes',
               'memory_bytes', 'input_bytes', 'sent_packets')
+    fields += ('row_parallel_pictures',)
     conformance.require(all(type(record.get(key)) is int and 0 <= record[key] <= (1 << 64) - 1 for key in fields),
                         'native_rows_counts')
     conformance.require(record['requested_threads'] == threads and record['host_threads'] > 0
@@ -315,6 +316,7 @@ def native_receipt(stdout, threads, *, check):
                         and 0 <= record['frame_parallel_pictures'] <= record['parallel_pictures']
                         <= record['decoded_pictures'] and record['frame_parallel_pictures'] != 1
                         and (record['parallel_pictures'] == 0 or record['max_workers'] > 1)
+                        and record['row_parallel_pictures'] <= record['frame_parallel_pictures']
                         and record['max_memory_bytes'] > 0 and record['input_bytes'] > 0
                         and 0 < record['memory_bytes'] <= record['max_memory_bytes']
                         and record['sent_packets'] > 0, 'native_rows_count_identity')
@@ -349,6 +351,8 @@ def native_receipt(stdout, threads, *, check):
                             and isinstance(admission.get('sps_sha256'), list) and len(admission['sps_sha256']) == 32
                             and all(type(byte) is int and 0 <= byte <= 255 for byte in admission['sps_sha256']),
                             'native_rows_admission_bound')
+    conformance.require(record['row_parallel_pictures'] == 0 or any(item['lag'] > 0 for item in admissions),
+                        'native_rows_overlap_without_positive_lag')
     conformance.require((check and len(rows) == record['pictures'] + 1
                          and all(row.get('type') == 'picture' for row in rows[:-1]))
                         or (not check and len(rows) == 1), 'native_rows_output_denominator')
@@ -404,7 +408,8 @@ def native_conformance(argv):
                                     'native_rows_semantic_mismatch')
                 row['threads'][str(threads)] = dict(outputs=len(frames), semantic=summary['semantic'],
                     admissions=summary['admissions'], max_workers=summary['max_workers'],
-                    frame_parallel_pictures=summary['frame_parallel_pictures'], memory_bytes=summary['memory_bytes'],
+                    frame_parallel_pictures=summary['frame_parallel_pictures'], row_parallel_pictures=summary['row_parallel_pictures'],
+                    memory_bytes=summary['memory_bytes'],
                     max_memory_bytes=summary['max_memory_bytes'])
             conformance.require(conformance.digest(source) == expected['sha256'], 'native_rows_source_changed')
             conformance.write_json(args.out / 'result.json', report)
@@ -412,12 +417,16 @@ def native_conformance(argv):
                             and conformance.digest(args.scalar_result) == report['reference_sha256'],
                             'native_rows_run_identity_changed')
         report['coverage'] = {str(threads): dict(
-            admitted_streams=sum(bool(row['threads'][str(threads)]['admissions']) for row in report['results']),
+            admitted_streams=sum(any(item['lag'] > 0 for item in row['threads'][str(threads)]['admissions'])
+                                 for row in report['results']),
             overlap_streams=sum(row['threads'][str(threads)]['frame_parallel_pictures'] > 0 for row in report['results']),
+            row_overlap_streams=sum(row['threads'][str(threads)]['row_parallel_pictures'] > 0
+                                    and any(item['lag'] > 0 for item in row['threads'][str(threads)]['admissions'])
+                                    for row in report['results']),
+            row_parallel_pictures=sum(row['threads'][str(threads)]['row_parallel_pictures'] for row in report['results']),
             frame_parallel_pictures=sum(row['threads'][str(threads)]['frame_parallel_pictures'] for row in report['results']))
             for threads in (1, 2, 4, 8, 0)}
-        conformance.require(all(report['coverage'][str(threads)]['admitted_streams'] > 0
-                                and report['coverage'][str(threads)]['overlap_streams'] > 0 for threads in (2, 4, 8)),
+        conformance.require(all(report['coverage'][str(threads)]['row_overlap_streams'] > 0 for threads in (2, 4, 8)),
                             'native_rows_real_coverage_missing')
         report.update(complete=True, passed=True)
     finally:
@@ -461,7 +470,9 @@ def measure_native(args, oracle, source, identity):
                 conformance.require({key: summary[key] for key in row['work']} == row['work']
                                     and summary['semantic'] == expected['semantic'], 'native_rows_timed_work_mismatch')
                 receipt.update({key: summary[key] for key in ('requested_threads', 'thread_limit', 'host_threads',
-                    'max_memory_bytes', 'memory_bytes', 'max_workers', 'parallel_pictures', 'frame_parallel_pictures', 'admissions')})
+                    'max_memory_bytes', 'memory_bytes', 'max_workers', 'parallel_pictures', 'frame_parallel_pictures',
+                    'row_parallel_pictures', 'admissions')})
+                receipt['row_overlap'] = summary['row_parallel_pictures'] > 0
             calls.append(dict(arm=name, repeat=repeat, **receipt))
     conformance.require(conformance.digest(source) == row['input_sha256'], 'native_rows_input_changed')
     row.update(status='timed', calls=[call for call in calls if call['repeat'] >= 0],

@@ -375,12 +375,16 @@ struct Work {
     finalize: bool,
     execution: Arc<Mutex<Execution>>,
     overlap: Arc<AtomicBool>,
+    #[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+    row_mode: bool,
 }
 
 pub(super) struct Outcome {
     picture: PictureOutcome,
     pub(super) consumed: u64,
     overlap: bool,
+    #[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+    row_overlap: bool,
 }
 
 impl Outcome {
@@ -426,6 +430,8 @@ impl Work {
                     },
                     consumed: 0,
                     overlap: false,
+                    #[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+                    row_overlap: false,
                 };
             };
             *slot = Some(Arc::clone(&self.overlap));
@@ -521,10 +527,16 @@ impl Work {
                 }
             }
         }
+        #[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+        let row_overlap = self.row_mode
+            && matches!(&picture, PictureOutcome::Raster(_))
+            && self.overlap.load(Ordering::Relaxed);
         Outcome {
             picture,
             consumed: self.budget - budget,
             overlap: self.overlap.load(Ordering::Relaxed),
+            #[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+            row_overlap,
         }
     }
 }
@@ -854,6 +866,10 @@ impl Scheduler {
                 .checked_sub(outcome.consumed)
                 .ok_or(Error::Internal("picture_job_budget"))?;
             outcome.result(*remaining)?;
+            #[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+            if outcome.row_overlap {
+                crate::native_rows::record_row_overlap();
+            }
             summary.frame_parallel_pictures += u64::from(outcome.overlap);
             summary.parallel_pictures += u64::from(outcome.overlap);
             if let Some(execution) = &self.execution {
@@ -1115,6 +1131,8 @@ impl Scheduler {
             finalize,
             execution: Arc::clone(execution),
             overlap: Arc::new(AtomicBool::new(false)),
+            #[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+            row_mode: false,
         }
         .run()
     }
@@ -1260,6 +1278,8 @@ impl Scheduler {
                 .ok_or(Error::Internal("picture_job_reservation"))?,
             None => reservation,
         };
+        #[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+        let row_mode = self.rows().is_some_and(|rows| rows.plan.lag > 0);
         let execution = self
             .execution
             .get_or_insert_with(|| Arc::new(Mutex::new(Execution::default())));
@@ -1283,6 +1303,8 @@ impl Scheduler {
             finalize: true,
             execution: Arc::clone(execution),
             overlap: Arc::new(AtomicBool::new(false)),
+            #[cfg(all(feature = "native-hevc-rows-private", feature = "test-support"))]
+            row_mode,
         };
         let budget = self.bound;
         self.reserved_bins += budget;

@@ -5,6 +5,7 @@ use std::cell::RefCell;
 pub struct Report {
     pub admissions: Vec<Admission>,
     pub summary: Option<DecodeSummary>,
+    pub row_parallel_pictures: u64,
     pub overflow: bool,
 }
 
@@ -13,6 +14,7 @@ thread_local! {
 }
 
 pub fn begin() {
+    coreav_hevc::native_rows::begin_evidence();
     REPORT.with(|report| *report.borrow_mut() = Some(Report::default()));
 }
 
@@ -41,9 +43,14 @@ pub(crate) fn admitted(decoder: &PictureDecoder) {
 }
 
 pub(crate) fn completed(summary: DecodeSummary) {
+    let rows = coreav_hevc::native_rows::take_row_overlap();
     REPORT.with(|report| {
         if let Some(report) = report.borrow_mut().as_mut() {
             report.summary = Some(summary);
+            match rows {
+                Some(count) => report.row_parallel_pictures = count,
+                None => report.overflow = true,
+            }
         }
     });
 }

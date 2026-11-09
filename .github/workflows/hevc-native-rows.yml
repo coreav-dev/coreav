@@ -81,6 +81,7 @@ jobs:
       - name: Check the actual native driver before release building
         run: |
           set -euo pipefail
+          cargo test --locked -p coreav-hevc --features native-hevc-rows-private,test-support --lib decoder::scheduler::tests
           cargo test --locked -p coreav-backend-hevc --features native-hevc,test-support --example reference
           cargo build --locked --release -p coreav-backend-hevc --features native-hevc,test-support --example reference
       - name: Install the pinned binary oracle
