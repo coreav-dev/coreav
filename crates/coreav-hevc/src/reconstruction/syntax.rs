@@ -1455,7 +1455,10 @@ impl Walker<'_, '_, '_> {
         let x = block.area.x;
         let y = block.area.y;
         let scale = if block.component == 0 { 1 } else { 2 };
-        let width = self.frame.info.width as usize / scale;
+        let luma_width = self.frame.info.width as usize;
+        let luma_height = self.frame.info.height as usize;
+        let width = luma_width / scale;
+        let mut cached = None;
         for index in 0..4 * side + 1 {
             let (nx, ny) = if index < 2 * side {
                 (x.checked_sub(1), Some(y + 2 * side - 1 - index))
@@ -1464,27 +1467,37 @@ impl Walker<'_, '_, '_> {
             } else {
                 (Some(x + index - 2 * side - 1), y.checked_sub(1))
             };
-            let value = if let (Some(nx), Some(ny)) = (nx, ny) {
-                if self
-                    .neighbour(Some(nx * scale), Some(ny * scale))?
-                    .is_some_and(|cell| {
-                        cell.reconstructed & (1 << block.component) != 0
-                            && (!self.input.pps.constrained_intra || cell.mode.is_some())
-                    })
-                {
-                    Some(
-                        *self
-                            .frame
-                            .planes
-                            .get(block.component)
-                            .and_then(|plane| plane.get(ny * width + nx))
-                            .ok_or(Error::InvalidData("intra_reference_sample"))?,
-                    )
-                } else {
-                    None
+            let value = match (nx, ny) {
+                (Some(nx), Some(ny)) if nx * scale < luma_width && ny * scale < luma_height => {
+                    let key = [nx * scale / 4, ny * scale / 4];
+                    let available = match cached {
+                        Some((previous, value)) if previous == key => value,
+                        _ => {
+                            let value = self
+                                .neighbour(Some(nx * scale), Some(ny * scale))?
+                                .is_some_and(|cell| {
+                                    cell.reconstructed & (1 << block.component) != 0
+                                        && (!self.input.pps.constrained_intra
+                                            || cell.mode.is_some())
+                                });
+                            cached = Some((key, value));
+                            value
+                        }
+                    };
+                    if available {
+                        Some(
+                            *self
+                                .frame
+                                .planes
+                                .get(block.component)
+                                .and_then(|plane| plane.get(ny * width + nx))
+                                .ok_or(Error::InvalidData("intra_reference_sample"))?,
+                        )
+                    } else {
+                        None
+                    }
                 }
-            } else {
-                None
+                _ => None,
             };
             *self
                 .frame
@@ -2641,6 +2654,174 @@ mod tests {
                     && second.vector == first.vector)));
             for (plane, value) in frame.planes.iter().zip([42, 43, 44]) {
                 assert!(plane.iter().all(|sample| *sample == value));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn intra_reference_cells_preserve_each_sample_at_partial_picture_edges() -> Result<()> {
+        for depth in [8, 10] {
+            let fixture = fixture(32, 32, depth, false, 1)?;
+            let input = fixture.input(segment(&[], &[], &[]));
+            for component in 0..3 {
+                let scale = if component == 0 { 1 } else { 2 };
+                let mut frame = Frame::new(&input, 0, usize::MAX)?;
+                frame.info.width = 18;
+                frame.info.height = 18;
+                frame.info.visible_width = 18;
+                frame.info.visible_height = 18;
+                for (index, plane) in frame.planes.iter_mut().enumerate() {
+                    let divisor = if index == 0 { 1 } else { 2 };
+                    plane.resize((18 / divisor) * (18 / divisor), 0);
+                    for (offset, sample) in plane.iter_mut().enumerate() {
+                        *sample = ((offset * 13 + index * 19) & ((1 << depth) - 1)) as u16;
+                    }
+                }
+                for cell in &mut frame.cells {
+                    cell.slice = 1;
+                    cell.reconstructed = 7;
+                    cell.mode = Some(IntraMode::new(1)?);
+                }
+                frame.scratch.references.fill(Some(u16::MAX));
+                let planes = frame.planes.clone();
+                let origin = if component == 0 { 12 } else { 4 };
+                let coordinates = (origin..origin + 8)
+                    .rev()
+                    .map(|y| (origin - 1, y))
+                    .chain(core::iter::once((origin - 1, origin - 1)))
+                    .chain((origin..origin + 8).map(|x| (x, origin - 1)));
+                let mut expected = frame.scratch.references.clone();
+                for (index, (x, y)) in coordinates.enumerate() {
+                    expected[index] = if x * scale < 18 && y * scale < 18 {
+                        Some(planes[component][y * (18 / scale) + x])
+                    } else {
+                        None
+                    };
+                }
+                let mut walker = Walker {
+                    frame: &mut frame,
+                    input: &input,
+                    location: fixture.layout.at_raster(0)?,
+                    slice: 1,
+                    dpb: None,
+                };
+                walker.references(&ReconstructionBlock {
+                    area: Area {
+                        x: origin,
+                        y: origin,
+                        log2: 2,
+                    },
+                    component,
+                    mode: Some(IntraMode::new(1)?),
+                    coded: false,
+                    bypass: false,
+                })?;
+                assert_eq!(walker.frame.scratch.references, expected);
+                assert_eq!(walker.frame.planes, planes);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn intra_reference_cells_match_uncached_neighbour_availability() -> Result<()> {
+        for depth in [8, 10] {
+            for columns in [1, 2] {
+                for constrained in [false, true] {
+                    let mut fixture = fixture(32, 32, depth, true, columns)?;
+                    fixture.pps.constrained_intra = constrained;
+                    let input = fixture.input(segment(&[], &[], &[]));
+                    let mut frame = Frame::new(&input, 0, usize::MAX)?;
+                    for (index, cell) in frame.cells.iter_mut().enumerate() {
+                        let state = index % 7;
+                        cell.slice = if state == 6 { 2 } else { 1 };
+                        cell.reconstructed = [0, 7, 1, 6, 0, 7, 7][state];
+                        cell.mode = if matches!(state, 1 | 2 | 6) {
+                            Some(IntraMode::new(26)?)
+                        } else {
+                            None
+                        };
+                        if matches!(state, 3 | 4) {
+                            cell.motion = Some(Motion::L0(super::super::MotionReference {
+                                reference: 0,
+                                index: 0,
+                                vector: kernels::MotionVector { x: 0, y: 0 },
+                            }));
+                        }
+                    }
+                    for (component, plane) in frame.planes.iter_mut().enumerate() {
+                        for (index, sample) in plane.iter_mut().enumerate() {
+                            *sample = ((index * 11 + component * 23) & ((1 << depth) - 1)) as u16;
+                        }
+                    }
+                    let planes = frame.planes.clone();
+                    let mut walker = Walker {
+                        frame: &mut frame,
+                        input: &input,
+                        location: fixture.layout.at_raster(0)?,
+                        slice: 1,
+                        dpb: None,
+                    };
+                    for component in 0..3 {
+                        let scale = if component == 0 { 1 } else { 2 };
+                        let width: usize = 32 / scale;
+                        for log2 in 2..=4 {
+                            let side = 1 << log2;
+                            for origin in [0, side, width - side] {
+                                if origin + side > width {
+                                    continue;
+                                }
+                                walker.location = fixture.layout.at_raster(
+                                    ((origin * scale / 16) * 2 + origin * scale / 16) as u32,
+                                )?;
+                                walker.frame.scratch.references.fill(Some(u16::MAX));
+                                let mut expected = walker.frame.scratch.references.clone();
+                                let coordinates = (origin..origin + 2 * side)
+                                    .rev()
+                                    .map(|y| (origin.checked_sub(1), Some(y)))
+                                    .chain(core::iter::once((
+                                        origin.checked_sub(1),
+                                        origin.checked_sub(1),
+                                    )))
+                                    .chain(
+                                        (origin..origin + 2 * side)
+                                            .map(|x| (Some(x), origin.checked_sub(1))),
+                                    );
+                                for (index, (x, y)) in coordinates.enumerate() {
+                                    expected[index] = if let (Some(x), Some(y)) = (x, y) {
+                                        if walker
+                                            .neighbour(Some(x * scale), Some(y * scale))?
+                                            .is_some_and(|cell| {
+                                                cell.reconstructed & (1 << component) != 0
+                                                    && (!constrained || cell.mode.is_some())
+                                            })
+                                        {
+                                            Some(planes[component][y * width + x])
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    };
+                                }
+                                walker.references(&ReconstructionBlock {
+                                    area: Area {
+                                        x: origin,
+                                        y: origin,
+                                        log2,
+                                    },
+                                    component,
+                                    mode: Some(IntraMode::new(1)?),
+                                    coded: false,
+                                    bypass: false,
+                                })?;
+                                assert_eq!(walker.frame.scratch.references, expected);
+                                assert_eq!(walker.frame.planes, planes);
+                            }
+                        }
+                    }
+                }
             }
         }
         Ok(())
