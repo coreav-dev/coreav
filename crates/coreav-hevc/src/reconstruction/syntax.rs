@@ -933,7 +933,9 @@ impl Walker<'_, '_, '_> {
         }
         let raster = (y as u32 >> self.input.sps.ctb_log2) * self.input.layout.width
             + (x as u32 >> self.input.sps.ctb_log2);
-        if self.input.layout.at_raster(raster)?.tile != self.location.tile {
+        if (self.input.pps.tile_columns > 1 || self.input.pps.tile_rows > 1)
+            && self.input.layout.at_raster(raster)?.tile != self.location.tile
+        {
             return Ok(None);
         }
         Ok(Some(cell))
