@@ -33,6 +33,7 @@ mod simd;
 mod strengths;
 mod views;
 
+pub use intra::Intra4x4Neighbours;
 pub use predict::{MAX_ORIGIN, MAX_SIZE, Macroblocks, Ops, Part, PlaneOp, Planes, PlanesMut};
 pub use scalar::Scalar;
 pub use simd::Simd;
@@ -268,7 +269,7 @@ pub trait Kernels: Send + Sync + 'static {
     /// Availability includes the block-order restriction on top-right samples.
     fn intra4x4(&self, mut dst: IntraMut<'_>, mode: u8) {
         if dst.n() == 4 {
-            intra::pred4x4(&mut dst, mode);
+            intra::pred4x4_view(&mut dst, mode);
         }
     }
 

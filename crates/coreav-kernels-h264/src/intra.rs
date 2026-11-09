@@ -126,23 +126,23 @@ fn dc(nb: &Neighbours, n: usize) -> i32 {
     }
 }
 
-/// Intra_4x4 prediction of a 4x4 view (clause 8.3.1.2). `mode` is
-/// Intra4x4PredMode; above 8 it predicts DC. A view of another size is
-/// left unchanged.
-pub(crate) fn pred4x4(v: &mut IntraMut<'_>, mode: u8) {
-    if v.n() != 4 {
-        return;
-    }
-    let top = v.top();
-    let last = top.get(3).copied().unwrap_or(0);
-    let top: [u16; 8] = core::array::from_fn(|p| u16::from(top.get(p).copied().unwrap_or(last)));
-    let left: [u16; 4] = core::array::from_fn(|p| u16::from(v.left(p)));
+/// Intra_4x4 prediction (clause 8.3.1.2) from the neighbours of a 4x4
+/// block, row by row. `mode` is Intra4x4PredMode; above 8 it predicts
+/// DC. The neighbours are read once ([`Intra4x4Neighbours::of`]), so each
+/// mode of one block is predicted without reading its view again.
+#[inline]
+pub(crate) fn pred4x4(neighbours: &Intra4x4Neighbours, mode: u8) -> [u8; 16] {
+    let Intra4x4Neighbours {
+        top,
+        left,
+        top_left: x,
+        avail,
+    } = *neighbours;
     let [a, b, c, d, e, f, g, _] = top;
     let [i, j, k, l] = left;
-    let x = u16::from(v.top_left());
     let half = |a: u16, b: u16| ((a + b + 1) >> 1) as u8;
     let quarter = |a: u16, b: u16, c: u16| ((a + 2 * b + c + 2) >> 2) as u8;
-    let block = match mode {
+    match mode {
         0 => [a, b, c, d, a, b, c, d, a, b, c, d, a, b, c, d].map(|v| v as u8),
         1 => [i, i, i, i, j, j, j, j, k, k, k, k, l, l, l, l].map(|v| v as u8),
         3 => directional4::<3>(&top, &left, x),
@@ -177,7 +177,7 @@ pub(crate) fn pred4x4(v: &mut IntraMut<'_>, mode: u8) {
             ]
         }
         _ => {
-            let dc = match (v.avail().top, v.avail().left) {
+            let dc = match (avail.top, avail.left) {
                 (true, true) => (a + b + c + d + i + j + k + l + 4) >> 3,
                 (true, false) => (a + b + c + d + 2) >> 2,
                 (false, true) => (i + j + k + l + 2) >> 2,
@@ -185,8 +185,52 @@ pub(crate) fn pred4x4(v: &mut IntraMut<'_>, mode: u8) {
             };
             [dc as u8; 16]
         }
-    };
-    write_block(v, &block);
+    }
+}
+
+/// Intra_4x4 prediction of a 4x4 view (clause 8.3.1.2), as [`pred4x4`]
+/// predicts it. A view of another size is left unchanged.
+pub(crate) fn pred4x4_view(v: &mut IntraMut<'_>, mode: u8) {
+    if let Some(neighbours) = Intra4x4Neighbours::of(v) {
+        write_block(v, &pred4x4(&neighbours, mode));
+    }
+}
+
+/// The neighbouring samples that Intra_4x4 prediction reads (clause
+/// 8.3.1.2), read once out of a 4x4 view so that each mode can be
+/// predicted from them without reading the view again.
+#[derive(Clone, Copy, Debug)]
+pub struct Intra4x4Neighbours {
+    top: [u16; 8],
+    left: [u16; 4],
+    top_left: u16,
+    avail: IntraAvail,
+}
+
+impl Intra4x4Neighbours {
+    /// The neighbours of `v`, or `None` for a view of another size.
+    /// Without top-right samples, p[3, -1] stands in for them.
+    #[inline]
+    pub fn of(v: &IntraMut<'_>) -> Option<Self> {
+        if v.n() != 4 {
+            return None;
+        }
+        let top = v.top();
+        let last = top.get(3).copied().unwrap_or(0);
+        Some(Self {
+            top: core::array::from_fn(|p| u16::from(top.get(p).copied().unwrap_or(last))),
+            left: core::array::from_fn(|p| u16::from(v.left(p))),
+            top_left: u16::from(v.top_left()),
+            avail: v.avail(),
+        })
+    }
+
+    /// The prediction in Intra4x4PredMode `mode`, row by row; above 8 it
+    /// predicts DC.
+    #[inline]
+    pub fn predict(&self, mode: u8) -> [u8; 16] {
+        pred4x4(self, mode)
+    }
 }
 
 #[inline(always)]
@@ -643,7 +687,7 @@ pub(crate) fn block_avail(
 }
 
 /// [`Kernels::intra4x4_mb`]: the trait's reference semantics, each block
-/// predicted by [`pred4x4`] and its residual added by `k.idct4x4_add`.
+/// predicted by [`pred4x4_view`] and its residual added by `k.idct4x4_add`.
 pub(crate) fn intra4x4_mb<K: Kernels + ?Sized>(
     k: &K,
     mut dst: IntraMut<'_>,
@@ -660,7 +704,7 @@ pub(crate) fn intra4x4_mb<K: Kernels + ?Sized>(
         let Some(mut v) = dst.sub(x, y, 4, block_avail(mb, x, y, 4, blk)) else {
             continue;
         };
-        pred4x4(&mut v, *mode);
+        pred4x4_view(&mut v, *mode);
         if nz & (1 << blk) != 0 {
             if let Some(b) = v.block_mut() {
                 k.idct4x4_add(b, coeffs);
@@ -759,11 +803,11 @@ mod tests {
         let mut p = plane();
         // A 4x4 block at (1, 1) of the plane, so row 0 is above it and
         // column 0 is left of it.
-        pred4x4(&mut view(&mut p, 16, 17, 4, ALL), 0);
+        pred4x4_view(&mut view(&mut p, 16, 17, 4, ALL), 0);
         assert_eq!(p.get(2 * 16 + 1), Some(&11));
         assert_eq!(p.get(16 * 4 + 1), Some(&11));
         let mut p = plane();
-        pred4x4(&mut view(&mut p, 16, 17, 4, ALL), 1);
+        pred4x4_view(&mut view(&mut p, 16, 17, 4, ALL), 1);
         assert_eq!(p.get(17), Some(&21));
         assert_eq!(p.get(16 * 4 + 1), Some(&24));
     }
@@ -771,7 +815,7 @@ mod tests {
     #[test]
     fn dc_without_neighbours_is_the_mid_grey() {
         let mut p = vec![7u8; 16 * 16];
-        pred4x4(&mut view(&mut p, 16, 0, 4, NONE), 2);
+        pred4x4_view(&mut view(&mut p, 16, 0, 4, NONE), 2);
         assert!(p.iter().take(4).all(|&s| s == 128));
         let mut p = vec![7u8; 16 * 16];
         Scalar.intra16x16(view(&mut p, 16, 0, 16, NONE), 2);
@@ -788,7 +832,7 @@ mod tests {
                 let v = view(p, 16, 16 * 16 + 16, n, ALL);
                 let mut v = v;
                 match (n, dc) {
-                    (4, _) => pred4x4(&mut v, mode),
+                    (4, _) => pred4x4_view(&mut v, mode),
                     (8, 2) => pred8x8(&mut v, mode),
                     (16, _) => pred16x16(&mut v, mode),
                     _ => pred_chroma(&mut v, mode),
@@ -807,7 +851,7 @@ mod tests {
     fn a_view_of_another_size_is_left_alone() {
         let mut p = vec![9u8; 32 * 32];
         let before = p.clone();
-        pred4x4(&mut view(&mut p, 32, 33, 8, ALL), 2);
+        pred4x4_view(&mut view(&mut p, 32, 33, 8, ALL), 2);
         pred8x8(&mut view(&mut p, 32, 33, 4, ALL), 2);
         Scalar.intra16x16(view(&mut p, 32, 33, 8, ALL), 2);
         Scalar.intra_chroma(view(&mut p, 32, 33, 16, ALL), 0);
@@ -831,7 +875,7 @@ mod tests {
     #[test]
     fn every_prediction_matches_the_code_it_replaced() {
         let cases: [(&str, New, Old, usize, u8); 4] = [
-            ("4x4", pred4x4, reference::pred4x4, 4, 9),
+            ("4x4", pred4x4_view, reference::pred4x4, 4, 9),
             ("8x8", pred8x8, reference::pred8x8, 8, 9),
             ("16x16", pred16x16, reference::pred16x16, 16, 4),
             ("chroma", pred_chroma, reference::pred_chroma, 8, 4),
