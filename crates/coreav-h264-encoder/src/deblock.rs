@@ -2,7 +2,7 @@
 
 use crate::motion::MotionMb;
 use crate::{Error, Result};
-use coreav_kernels_h264::{EdgeMut, EdgeParams, Kernels, Reach, Scalar};
+use coreav_kernels_h264::{EdgeMut, EdgeParams, Kernels, Reach};
 
 const ALPHA: [u8; 52] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17, 20,
@@ -106,6 +106,7 @@ pub(crate) fn rows(
         tc0,
         bs: [0; 4],
     };
+    let pixels = crate::kernels::pixels();
     let (n, reach) = if chroma {
         (8, Reach::Chroma)
     } else {
@@ -160,7 +161,7 @@ pub(crate) fn rows(
                     };
                     let edge = EdgeMut::new(data, q0, across, along, n, reach)
                         .map_err(|_| Error::Internal)?;
-                    Scalar.filter_edge(edge, &params);
+                    pixels.filter_edge(edge, &params);
                 }
             }
         }
