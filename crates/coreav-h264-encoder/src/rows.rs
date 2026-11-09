@@ -182,6 +182,7 @@ pub(super) fn decide(
                     mx,
                     my,
                     previous,
+                    colocated: e.previous_motion.get(address),
                 }
                 .candidates(&mut best, &mut refusal)?
             };

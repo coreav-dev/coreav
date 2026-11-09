@@ -33,7 +33,7 @@ impl Mv {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct MotionMb {
     pub(crate) intra: bool,
     pub(crate) vectors: [Mv; 16],
@@ -203,6 +203,16 @@ impl Border<'_> {
             x: median(a.mv.x, b.mv.x, c.mv.x),
             y: median(a.mv.y, b.mv.y, c.mv.y),
         })
+    }
+
+    pub(crate) fn neighbour_vectors(
+        self,
+        grid: &[Option<Mv>; 16],
+        part: Part,
+    ) -> Result<[Option<Mv>; 3]> {
+        Ok(self
+            .neighbours(grid, part)?
+            .map(|sample| sample.reference.then_some(sample.mv)))
     }
 
     pub(crate) fn skip(self) -> Result<Mv> {

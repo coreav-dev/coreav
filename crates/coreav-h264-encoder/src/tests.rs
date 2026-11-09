@@ -1043,7 +1043,16 @@ fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
                         assert_eq!(outputs[0].nals, other.nals);
                         assert_eq!(outputs[0].reconstruction, other.reconstruction);
                     }
+                    let motion = &control.previous_motion;
+                    assert_eq!(motion.len(), width.div_ceil(16) * height.div_ceil(16));
+                    if frame % 3 == 0 {
+                        assert!(motion.iter().all(|mb| mb.intra));
+                    }
+                    for encoder in &encoders {
+                        assert_eq!(&encoder.previous_motion, motion);
+                    }
                     for encoder in &mut encoders {
+                        let motion = encoder.previous_motion.clone();
                         let previous = encoder.previous_mv_count;
                         let old = encoder.limits.access_unit_bytes;
                         encoder.limits.access_unit_bytes = 1;
@@ -1054,6 +1063,7 @@ fn thread_counts_preserve_streams_reconstruction_and_sequence_rollback() {
                         encoder.limits.total_bytes = 0;
                         assert!(matches!(encoder.encode(picture), Err(Error::Limit)));
                         assert_eq!(encoder.previous_mv_count, previous);
+                        assert_eq!(encoder.previous_motion, motion);
                         encoder.limits.total_bytes = old;
                     }
                 }
