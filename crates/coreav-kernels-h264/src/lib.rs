@@ -33,6 +33,7 @@ mod simd;
 mod strengths;
 mod views;
 
+pub use intra::Intra4x4Neighbours;
 pub use predict::{MAX_ORIGIN, MAX_SIZE, Macroblocks, Ops, Part, PlaneOp, Planes, PlanesMut};
 pub use scalar::Scalar;
 pub use simd::Simd;

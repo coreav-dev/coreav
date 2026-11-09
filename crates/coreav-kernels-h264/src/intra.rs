@@ -130,63 +130,94 @@ fn dc(nb: &Neighbours, n: usize) -> i32 {
 /// Intra4x4PredMode; above 8 it predicts DC. A view of another size is
 /// left unchanged.
 pub(crate) fn pred4x4(v: &mut IntraMut<'_>, mode: u8) {
-    if v.n() != 4 {
-        return;
+    if let Some(neighbours) = Intra4x4Neighbours::of(v) {
+        write_block(v, &neighbours.predict(mode));
     }
-    let top = v.top();
-    let last = top.get(3).copied().unwrap_or(0);
-    let top: [u16; 8] = core::array::from_fn(|p| u16::from(top.get(p).copied().unwrap_or(last)));
-    let left: [u16; 4] = core::array::from_fn(|p| u16::from(v.left(p)));
-    let [a, b, c, d, e, f, g, _] = top;
-    let [i, j, k, l] = left;
-    let x = u16::from(v.top_left());
-    let half = |a: u16, b: u16| ((a + b + 1) >> 1) as u8;
-    let quarter = |a: u16, b: u16, c: u16| ((a + 2 * b + c + 2) >> 2) as u8;
-    let block = match mode {
-        0 => [a, b, c, d, a, b, c, d, a, b, c, d, a, b, c, d].map(|v| v as u8),
-        1 => [i, i, i, i, j, j, j, j, k, k, k, k, l, l, l, l].map(|v| v as u8),
-        3 => directional4::<3>(&top, &left, x),
-        4 => directional4::<4>(&top, &left, x),
-        5 => directional4::<5>(&top, &left, x),
-        6 => directional4::<6>(&top, &left, x),
-        7 => {
-            let p0 = half(a, b);
-            let p1 = half(b, c);
-            let p2 = half(c, d);
-            let p3 = half(d, e);
-            let p4 = half(e, f);
-            let p5 = quarter(a, b, c);
-            let p6 = quarter(b, c, d);
-            let p7 = quarter(c, d, e);
-            let p8 = quarter(d, e, f);
-            let p9 = quarter(e, f, g);
-            [
-                p0, p1, p2, p3, p5, p6, p7, p8, p1, p2, p3, p4, p6, p7, p8, p9,
-            ]
+}
+
+/// The neighbouring samples that Intra_4x4 prediction reads (clause
+/// 8.3.1.2), read once out of a 4x4 view so that each mode can be
+/// predicted from them without reading the view again.
+#[derive(Clone, Copy, Debug)]
+pub struct Intra4x4Neighbours {
+    top: [u16; 8],
+    left: [u16; 4],
+    top_left: u16,
+    avail: IntraAvail,
+}
+
+impl Intra4x4Neighbours {
+    /// The neighbours of `v`, or `None` for a view of another size.
+    /// Without top-right samples, p[3, -1] stands in for them.
+    #[inline]
+    pub fn of(v: &IntraMut<'_>) -> Option<Self> {
+        if v.n() != 4 {
+            return None;
         }
-        8 => {
-            let p0 = half(i, j);
-            let p1 = quarter(i, j, k);
-            let p2 = half(j, k);
-            let p3 = quarter(j, k, l);
-            let p4 = half(k, l);
-            let p5 = quarter(k, l, l);
-            let p6 = l as u8;
-            [
-                p0, p1, p2, p3, p2, p3, p4, p5, p4, p5, p6, p6, p6, p6, p6, p6,
-            ]
+        let top = v.top();
+        let last = top.get(3).copied().unwrap_or(0);
+        Some(Self {
+            top: core::array::from_fn(|p| u16::from(top.get(p).copied().unwrap_or(last))),
+            left: core::array::from_fn(|p| u16::from(v.left(p))),
+            top_left: u16::from(v.top_left()),
+            avail: v.avail(),
+        })
+    }
+
+    /// The prediction in Intra4x4PredMode `mode`, row by row; above 8 it
+    /// predicts DC.
+    #[inline]
+    pub fn predict(&self, mode: u8) -> [u8; 16] {
+        let (top, left, x) = (self.top, self.left, self.top_left);
+        let [a, b, c, d, e, f, g, _] = top;
+        let [i, j, k, l] = left;
+        let half = |a: u16, b: u16| ((a + b + 1) >> 1) as u8;
+        let quarter = |a: u16, b: u16, c: u16| ((a + 2 * b + c + 2) >> 2) as u8;
+        match mode {
+            0 => [a, b, c, d, a, b, c, d, a, b, c, d, a, b, c, d].map(|v| v as u8),
+            1 => [i, i, i, i, j, j, j, j, k, k, k, k, l, l, l, l].map(|v| v as u8),
+            3 => directional4::<3>(&top, &left, x),
+            4 => directional4::<4>(&top, &left, x),
+            5 => directional4::<5>(&top, &left, x),
+            6 => directional4::<6>(&top, &left, x),
+            7 => {
+                let p0 = half(a, b);
+                let p1 = half(b, c);
+                let p2 = half(c, d);
+                let p3 = half(d, e);
+                let p4 = half(e, f);
+                let p5 = quarter(a, b, c);
+                let p6 = quarter(b, c, d);
+                let p7 = quarter(c, d, e);
+                let p8 = quarter(d, e, f);
+                let p9 = quarter(e, f, g);
+                [
+                    p0, p1, p2, p3, p5, p6, p7, p8, p1, p2, p3, p4, p6, p7, p8, p9,
+                ]
+            }
+            8 => {
+                let p0 = half(i, j);
+                let p1 = quarter(i, j, k);
+                let p2 = half(j, k);
+                let p3 = quarter(j, k, l);
+                let p4 = half(k, l);
+                let p5 = quarter(k, l, l);
+                let p6 = l as u8;
+                [
+                    p0, p1, p2, p3, p2, p3, p4, p5, p4, p5, p6, p6, p6, p6, p6, p6,
+                ]
+            }
+            _ => {
+                let dc = match (self.avail.top, self.avail.left) {
+                    (true, true) => (a + b + c + d + i + j + k + l + 4) >> 3,
+                    (true, false) => (a + b + c + d + 2) >> 2,
+                    (false, true) => (i + j + k + l + 2) >> 2,
+                    (false, false) => 128,
+                };
+                [dc as u8; 16]
+            }
         }
-        _ => {
-            let dc = match (v.avail().top, v.avail().left) {
-                (true, true) => (a + b + c + d + i + j + k + l + 4) >> 3,
-                (true, false) => (a + b + c + d + 2) >> 2,
-                (false, true) => (i + j + k + l + 2) >> 2,
-                (false, false) => 128,
-            };
-            [dc as u8; 16]
-        }
-    };
-    write_block(v, &block);
+    }
 }
 
 #[inline(always)]

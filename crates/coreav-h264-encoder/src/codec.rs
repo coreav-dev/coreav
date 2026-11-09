@@ -9,7 +9,7 @@ use crate::{
     syntax, transform as t,
     vlc::{INTER_CBP, INTRA_CBP},
 };
-use coreav_kernels_h264::{BlockMut, IntraAvail, IntraMut, Kernels, Scalar};
+use coreav_kernels_h264::{BlockMut, Intra4x4Neighbours, IntraAvail, IntraMut, Kernels, Scalar};
 use std::sync::{Mutex, OnceLock, TryLockError};
 
 #[path = "inter.rs"]
@@ -58,6 +58,21 @@ impl Tile {
             8 => Scalar.intra_chroma(view, mode),
             16 => Scalar.intra16x16(view, mode),
             _ => return Err(Error::Internal),
+        }
+        Ok(())
+    }
+    fn neighbours4(&mut self, x: usize, y: usize, avail: IntraAvail) -> Result<Intra4x4Neighbours> {
+        let view = IntraMut::new(&mut self.0, Self::at(x, y), STRIDE, 4, avail)
+            .map_err(|_| Error::Internal)?;
+        Intra4x4Neighbours::of(&view).ok_or(Error::Internal)
+    }
+    fn put4(&mut self, x: usize, y: usize, block: &[u8; 16]) -> Result<()> {
+        for (j, row) in block.chunks_exact(4).enumerate() {
+            let at = Self::at(x, y + j);
+            self.0
+                .get_mut(at..at + 4)
+                .ok_or(Error::Internal)?
+                .copy_from_slice(row);
         }
         Ok(())
     }
@@ -538,11 +553,12 @@ fn intra4(
         let predicted = predicted_mode(&out.modes, top, left, p);
         let mut ranked = [UNRANKED; 9];
         let mut tile = out.tile.clone();
+        let neighbours = tile.neighbours4(x, y, a)?;
         for (slot, mode) in ranked.iter_mut().zip(0..9) {
             if !legal(mode, 4, a) {
                 continue;
             }
-            tile.prediction(x, y, 4, a, mode)?;
+            tile.put4(x, y, &neighbours.predict(mode))?;
             let mut bits = Bits::count();
             mode_bits(&mut bits, mode, predicted)?;
             *slot = (
@@ -557,7 +573,7 @@ fn intra4(
                 .filter(|r| **r != UNRANKED)
                 .ok_or(Error::Internal)?;
             cheap_score += score;
-            out.tile.prediction(x, y, 4, a, mode)?;
+            out.tile.put4(x, y, &neighbours.predict(mode))?;
             let levels = out.tile.code(source, x, y, quant)?;
             let count = cavlc::residual(
                 &mut Bits::count(),
@@ -576,7 +592,7 @@ fn intra4(
                 break;
             }
             let result = (|| {
-                tile.prediction(x, y, 4, a, mode)?;
+                tile.put4(x, y, &neighbours.predict(mode))?;
                 let levels = tile.code(source, x, y, quant)?;
                 let mut bits = Bits::count();
                 mode_bits(&mut bits, mode, predicted)?;
