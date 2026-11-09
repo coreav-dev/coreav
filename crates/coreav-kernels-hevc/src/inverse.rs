@@ -225,17 +225,19 @@ pub fn add_residual(
     if prediction.size != residual.size || prediction.size != output.size {
         return Err(Error::BlockSize);
     }
-    let max = depth.max_sample();
-    match prediction.size.side() {
-        4 => add_rows::<4>(max, prediction, residual, output),
-        8 => add_rows::<8>(max, prediction, residual, output),
-        16 => add_rows::<16>(max, prediction, residual, output),
-        _ => add_rows::<32>(max, prediction, residual, output),
+    match (depth.bits(), prediction.size.side()) {
+        (8, 4) => add_rows::<4, 255>(prediction, residual, output),
+        (8, 8) => add_rows::<8, 255>(prediction, residual, output),
+        (8, 16) => add_rows::<16, 255>(prediction, residual, output),
+        (8, _) => add_rows::<32, 255>(prediction, residual, output),
+        (_, 4) => add_rows::<4, 1023>(prediction, residual, output),
+        (_, 8) => add_rows::<8, 1023>(prediction, residual, output),
+        (_, 16) => add_rows::<16, 1023>(prediction, residual, output),
+        _ => add_rows::<32, 1023>(prediction, residual, output),
     }
 }
 
-fn add_rows<const N: usize>(
-    max: u16,
+fn add_rows<const N: usize, const MAX: u16>(
     prediction: Block<'_, u16>,
     residual: Block<'_, i32>,
     output: BlockMut<'_, u16>,
@@ -246,7 +248,7 @@ fn add_rows<const N: usize>(
             .get(y * prediction.stride..)
             .and_then(<[u16]>::first_chunk::<N>)
             .ok_or(Error::Buffer)?;
-        if row.iter().any(|&sample| sample > max) {
+        if row.iter().any(|&sample| sample > MAX) {
             return Err(Error::Sample);
         }
     }
@@ -269,7 +271,7 @@ fn add_rows<const N: usize>(
         for ((&prediction, &residual), sample) in prediction.iter().zip(residual).zip(output) {
             *sample = residual
                 .saturating_add(i32::from(prediction))
-                .clamp(0, i32::from(max)) as u16;
+                .clamp(0, i32::from(MAX)) as u16;
         }
     }
     Ok(())
