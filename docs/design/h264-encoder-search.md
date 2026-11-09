@@ -20,7 +20,7 @@ Keep the opt-in feature, safe scalar Rust, fixed QP, GOP, colour signalling, fil
 
 Search only P_L0_16x16 and P_8x8 with four 8x8 partitions in normal mode decision. Do not search 16x8, 8x16, or smaller subpartitions. Those tools remain representable and independently tested, but no longer multiply the ordinary search tree.
 
-For each partition, score zero, the normative predictor, and its rounded integer position. Starting at the best integer seed, test four axial neighbours at integer steps of four, two, and one luma samples, with one fixed-centre pass per step. Then test four axial half-sample neighbours and four axial quarter-sample neighbours. Keep the best result after each stage. This is at most 23 probe calls per partition, or 115 across both layouts, including seeds and duplicates. Predictors outside the local range remain legal seeds. Reject, never clip, invalid vectors or differences. Retain deterministic cost, motion-length, and vector ties.
+For each partition, score zero, the normative predictor, and its rounded integer position, then the rounded vectors of the admitted left, top and top-right (or top-left) neighbours, the co-located vector of the previous picture, and, for the 8x8 regions, the whole-block proposal. These are search seeds, not changes to normative vector prediction. The previous picture is complete before the current one starts, so the co-located seed is identical at every worker count. Unless the best integer score is already at most one eighth of the QP's SAD scale per sample, repeat a six-point hexagon of two-sample radius around the best integer vector until its centre wins, for at most 16 rounds, then test four axial one-sample neighbours. Then test four axial half-sample neighbours, and four axial quarter-sample neighbours unless the integer score met the same bound. Keep the best result after each stage. This is at most 116 probe calls per partition, including seeds and duplicates, and at most 71 distinct scored vectors. The section "Seeded hexagon search" records the measured change from the earlier fixed 23-probe plus pattern. Predictors outside the local range remain legal seeds. Reject, never clip, invalid vectors or differences. Retain deterministic cost, motion-length, and vector ties.
 
 Build each layout greedily in syntax order with a private motion map. Rank complete layouts by luma SAD plus the existing SAD-scale penalty times complete inter-prediction syntax length. Count that syntax after deriving all motion differences. Do not double-count motion lengths already present in partition scores. This is a cheap proxy, not full RDO or a lower bound on it.
 
@@ -198,3 +198,34 @@ The final operating points are:
 All inputs are already lossy. A's preparation is unchanged. C is resized from 960x812 to 480x406, padded at the bottom to 480x416, and converted from 1440/49 to 30 pictures per second. Its sixty prepared pictures contain 59 distinct images; mean adjacent luma absolute difference is 0.724 and the maximum is 4.530. The prepared digest and exact conversion dimensions are in the raw record. B remains a low-motion sanity check only: at QP 28, final preserves the bounded encoder's complete stream, 126.776 kbit/s, 44.152652 dB PSNR and 0.992678 SSIM. Its single-call timing is not part of the paired comparison.
 
 Every newly encoded native curve and sanity cell matches pinned FFmpeg reconstruction exactly across all sixty pictures, and the repeated timing outputs match their verified cells. x264 uses the corrected input-before-output colour declaration, with digest-matched raw passthrough. Independent raw squared error confirms every PSNR; both metrics retain sixty per-picture records. The raw record names the implementation commit and executable digests; x264 has no encoder-side reconstruction check, so its `oracle_exact` field is null rather than a failed comparison. No new source study, SIMD, unsafe code, or default-build dependency was introduced.
+
+## Seeded hexagon search
+
+The fixed plus pattern reached at most seven samples from its best seed. Shortening its steps cost one real-motion input over 40% BD-rate, and dropping the quarter-sample stage cost another 35%. Both losses point to seeds that start too far from real motion, not to too few probes. This step adds the neighbour, co-located and whole-block seeds, replaces the plus with the repeated hexagon, and adds the integer early stop described in step 1. It was chosen from eleven measured alternatives. Adding the seeds alone gives most of the compression gain. Stopping the whole sub-sample stage at the same bound saved about 0.5 points more instructions but cost one input +0.43% U; a bound of a quarter of the SAD scale cost that input +3.9% Y.
+
+Reference measurement against main at `ba38f93ee523` on one GitHub-hosted x86-64 runner (Intel Xeon Platinum 8573C, four logical CPUs, two threads per core; rustc 1.99.1). The inputs are the five existing lossy reference inputs A–E, 60 pictures each, GOP 32, with deblocking enabled. BD-rate uses QP 22, 28, 34 and 40, PSNR from squared error, and PCHIP on log rate over the common interval without extrapolation. Timing uses QP 22 and 28, five retained calls per arm and cell after one warm-up, alternating arm order and `taskset` pinning; only `Encoder::encode` is timed. Instruction counts come from Callgrind over the encode call. Every stream and reconstruction matches between one and four worker threads and across timed repeats (450 checks), and every stream decodes with the pinned FFmpeg 9 oracle to the reconstruction (60 decodes). The implementation reproduces the measured prototype byte for byte at all 20 curve points. These are shared-runner reference figures, not a fixed-host result.
+
+| Input | Y | U | V |
+|---|---:|---:|---:|
+| A | −0.41% | −0.40% | −2.02% |
+| B | −0.02% | −0.03% | −0.02% |
+| C | −0.21% | −0.06% | −0.22% |
+| D | −14.16% | −14.68% | −15.09% |
+| E | −7.14% | −7.53% | −6.79% |
+| Mean | −4.39% | −4.54% | −4.83% |
+
+| Cell | Instructions removed | One thread: main s | One thread: change s | Saved | Four threads: main s | Four threads: change s | Saved |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| A-22 | 4.90% | 0.3587 | 0.3476 | 3.09% | 0.2195 | 0.2155 | 1.83% |
+| A-28 | 5.20% | 0.3534 | 0.3528 | 0.15% | 0.2235 | 0.2192 | 1.90% |
+| B-22 | 2.50% | 0.3090 | 0.3052 | 1.23% | 0.1992 | 0.1979 | 0.68% |
+| B-28 | 1.66% | 0.2640 | 0.2623 | 0.65% | 0.1777 | 0.1712 | 3.63% |
+| C-22 | 1.56% | 0.5804 | 0.5718 | 1.48% | 0.2866 | 0.2852 | 0.49% |
+| C-28 | 1.40% | 0.3955 | 0.3894 | 1.55% | 0.2118 | 0.2113 | 0.24% |
+| D-22 | 3.31% | 1.6427 | 1.5981 | 2.72% | 0.7418 | 0.7296 | 1.63% |
+| D-28 | 5.18% | 1.2162 | 1.1700 | 3.79% | 0.5645 | 0.5420 | 3.98% |
+| E-22 | 3.01% | 2.2394 | 2.1798 | 2.66% | 0.9821 | 0.9603 | 2.22% |
+| E-28 | 3.17% | 1.7174 | 1.6891 | 1.65% | 0.7761 | 0.7574 | 2.42% |
+| Mean | 3.19% | | | 1.90% | | | 1.90% |
+
+Times are medians in seconds. On these shared runners an output-identical control measured within about ±1.5% of main, so the instruction counts are the stable figure. A per-picture half-sample plane precomputation was also measured: it kept every byte, but added 9.1% instructions, because quiet skips and early stops leave few sub-sample probes per macroblock to pay for it.

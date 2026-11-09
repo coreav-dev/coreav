@@ -6,6 +6,8 @@ use coreav_kernels_h264::Block;
 
 const SPLIT_SATD: u64 = 64;
 const SETTLED_SPLIT_SATD: u64 = 2 * SPLIT_SATD;
+const HEXAGON_ROUNDS: usize = 16;
+const NEAR_DIVISOR: u64 = 8;
 
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct Inter {
@@ -131,6 +133,7 @@ pub(super) struct Search<'a> {
     pub(super) mx: usize,
     pub(super) my: usize,
     pub(super) previous: u8,
+    pub(super) colocated: Option<&'a MotionMb>,
 }
 
 type Ranked = (u64, usize, Mv);
@@ -649,21 +652,44 @@ impl Search<'_> {
         Ok(result)
     }
 
-    fn compact(&self, part: Part, predictor: Mv) -> Result<Ranked> {
+    fn compact(&self, part: Part, predictor: Mv, seeds: &[Option<Mv>]) -> Result<Ranked> {
         let mut motions = Motions::new();
-        for mv in [
-            Mv::default(),
-            predictor,
-            Mv {
-                x: (predictor.x + 2).div_euclid(4) * 4,
-                y: (predictor.y + 2).div_euclid(4) * 4,
-            },
-        ] {
+        let rounded = |mv: Mv| Mv {
+            x: (mv.x + 2).div_euclid(4) * 4,
+            y: (mv.y + 2).div_euclid(4) * 4,
+        };
+        for mv in [Mv::default(), predictor, rounded(predictor)]
+            .into_iter()
+            .chain(seeds.iter().flatten().map(|&mv| rounded(mv)))
+        {
             self.score(part, mv, predictor, &mut motions)?;
         }
-        for step in [16, 8, 4] {
+        let quantum = (part.width * part.height) as u64 * (1u64 << (self.decision.qp / 6));
+        let near = |motions: &Motions| {
+            motions
+                .integer
+                .is_some_and(|best| best.0 * NEAR_DIVISOR <= quantum)
+        };
+        if !near(&motions) {
+            for _ in 0..HEXAGON_ROUNDS {
+                let origin = motions.integer.ok_or(Error::Internal)?.2;
+                for (dx, dy) in [(8, 0), (-8, 0), (4, 8), (-4, 8), (4, -8), (-4, -8)] {
+                    self.score(
+                        part,
+                        Mv {
+                            x: origin.x + dx,
+                            y: origin.y + dy,
+                        },
+                        predictor,
+                        &mut motions,
+                    )?;
+                }
+                if motions.integer.ok_or(Error::Internal)?.2 == origin {
+                    break;
+                }
+            }
             let origin = motions.integer.ok_or(Error::Internal)?.2;
-            for (dx, dy) in [(step, 0), (-step, 0), (0, step), (0, -step)] {
+            for (dx, dy) in [(4, 0), (-4, 0), (0, 4), (0, -4)] {
                 self.score(
                     part,
                     Mv {
@@ -676,7 +702,8 @@ impl Search<'_> {
             }
         }
         let mut centre = motions.integer.ok_or(Error::Internal)?;
-        for step in [2, 1] {
+        let steps: &[i32] = if near(&motions) { &[2] } else { &[2, 1] };
+        for &step in steps {
             let origin = centre.2;
             for (dx, dy) in [(step, 0), (-step, 0), (0, step), (0, -step)] {
                 if let Some(value) = self.score(
@@ -775,7 +802,12 @@ impl Search<'_> {
         self.decision.cost(0, prefix.len + bits)
     }
 
-    fn propose(&self, layout: Layout, ceiling: Option<u64>) -> Result<Option<(usize, Inter, u64)>> {
+    fn propose(
+        &self,
+        layout: Layout,
+        ceiling: Option<u64>,
+        seed: Option<Mv>,
+    ) -> Result<Option<(usize, Inter, u64)>> {
         let mut inter = Inter::new(layout)?;
         if !motion::admitted(self.previous, inter.len) {
             return Ok(None);
@@ -793,7 +825,12 @@ impl Search<'_> {
         let mut rank = 0;
         for part in inter.parts.iter_mut().take(inter.len) {
             let predictor = self.border.predictor(&grid, *part, layout)?;
-            let (cost, _, mv) = self.compact(*part, predictor)?;
+            let [a, b, c] = self.border.neighbour_vectors(&grid, *part)?;
+            let colocated = self
+                .colocated
+                .filter(|mb| !mb.intra)
+                .and_then(|mb| mb.vectors.get(part.y / 4 * 4 + part.x / 4).copied());
+            let (cost, _, mv) = self.compact(*part, predictor, &[a, b, c, colocated, seed])?;
             rank += cost;
             part.mv = mv;
             motion::commit(&mut grid, *part)?;
@@ -869,7 +906,7 @@ impl Search<'_> {
             }
         }
         let ceiling = best.as_ref().map(|candidate| candidate.key.cost);
-        let whole = self.propose(Layout::Whole, ceiling)?;
+        let whole = self.propose(Layout::Whole, ceiling, None)?;
         let bound = if settled {
             SETTLED_SPLIT_SATD
         } else {
@@ -879,7 +916,14 @@ impl Search<'_> {
             .as_ref()
             .is_none_or(|plan| plan.2 > bound << (self.decision.qp / 6))
         {
-            self.propose(Layout::Sub([0; 4]), ceiling)?
+            self.propose(
+                Layout::Sub([0; 4]),
+                ceiling,
+                whole
+                    .as_ref()
+                    .and_then(|plan| plan.1.parts.first())
+                    .map(|part| part.mv),
+            )?
         } else {
             None
         };
@@ -991,6 +1035,7 @@ mod tests {
             mx: 0,
             my: 0,
             previous: 0,
+            colocated: None,
         };
         let part = Inter::new(Layout::Whole).unwrap().parts[0];
         for predictor in [Mv::default(), Mv { x: 3, y: -7 }, Mv { x: 8191, y: 2047 }] {
@@ -998,10 +1043,10 @@ mod tests {
             for _ in 0..2 {
                 PROBES.with(|count| count.set(0));
                 RESCORES.with(|count| count.set(0));
-                let value = search.compact(part, predictor).unwrap();
+                let value = search.compact(part, predictor, &[]).unwrap();
                 assert!(value.2.valid());
                 assert!(value.2.difference(predictor).is_ok());
-                assert!(PROBES.with(|count| count.get()) <= 23);
+                assert!(PROBES.with(|count| count.get()) <= PART_PROBES);
                 assert!((1..=3).contains(&RESCORES.with(|count| count.get())));
                 if let Some(old) = selected {
                     assert_eq!(value, old);
@@ -1061,6 +1106,7 @@ mod tests {
                     mx: origin,
                     my: origin,
                     previous: 12,
+                    colocated: None,
                 };
                 for (vectors, layout) in [
                     ([a, a, a, a], Layout::Whole),
@@ -1143,8 +1189,9 @@ mod tests {
                 mx: 0,
                 my: 0,
                 previous: 0,
+                colocated: None,
             };
-            let whole = search.propose(Layout::Whole, None).unwrap().unwrap();
+            let whole = search.propose(Layout::Whole, None, None).unwrap().unwrap();
             assert_eq!(whole.2 > SPLIT_SATD << (28 / 6), searches == 2);
             SEARCHES.with(|count| count.set(0));
             search
@@ -1203,8 +1250,9 @@ mod tests {
                     mx: 0,
                     my: 0,
                     previous: 0,
+                    colocated: None,
                 };
-                let whole = search.propose(Layout::Whole, None).unwrap().unwrap();
+                let whole = search.propose(Layout::Whole, None, None).unwrap().unwrap();
                 SEARCHES.with(|count| count.set(0));
                 let scope = search
                     .candidates(&mut None, &mut Error::Coefficient)
@@ -1257,6 +1305,7 @@ mod tests {
                 mx: 0,
                 my: 0,
                 previous: 0,
+                colocated: None,
             };
             EVALUATIONS.with(|count| count.set(0));
             SEARCHES.with(|count| count.set(0));
@@ -1283,13 +1332,13 @@ mod tests {
             let floor = search.syntax_floor(3).unwrap();
             assert!(
                 search
-                    .propose(Layout::Whole, Some(floor - 1))
+                    .propose(Layout::Whole, Some(floor - 1), None)
                     .unwrap()
                     .is_none()
             );
             assert!(
                 search
-                    .propose(Layout::Whole, Some(floor))
+                    .propose(Layout::Whole, Some(floor), None)
                     .unwrap()
                     .is_some()
             );
@@ -1342,6 +1391,7 @@ mod tests {
                     mx: 0,
                     my: 0,
                     previous: 0,
+                    colocated: None,
                 };
                 let mut skip = Inter::new(Layout::Whole).unwrap();
                 skip.skip = true;
@@ -1380,6 +1430,67 @@ mod tests {
         }
     }
 
+    const PART_PROBES: usize = 3 + 5 + 6 * HEXAGON_ROUNDS + 4 + 8;
+
+    #[test]
+    fn colocated_and_whole_block_seeds_reach_motion_beyond_the_pattern() {
+        let (width, height) = (160, 32);
+        let mut reference = [
+            FramePlane::new(width, height).unwrap(),
+            FramePlane::new(width / 2, height / 2).unwrap(),
+            FramePlane::new(width / 2, height / 2).unwrap(),
+        ];
+        let mut seed = 0x2545_f491u32;
+        for sample in &mut reference[0].data {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            *sample = (seed >> 24) as u8;
+        }
+        let far = Mv { x: 4 * 96, y: 0 };
+        let mut source = Tile::empty();
+        for y in 0..16 {
+            for x in 0..16 {
+                source.0[Tile::at(x, y)] = reference[0].data[y * width + 16 + 96 + x];
+            }
+        }
+        let csources = [Tile::empty(), Tile::empty()];
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context: MbContext {
+                top: None,
+                left: None,
+                p_slice: true,
+            },
+            qp: 28,
+            pending_skip: 0,
+        };
+        let moving = MotionMb {
+            intra: false,
+            vectors: [far; 16],
+        };
+        let intra = MotionMb::default();
+        let chosen = |colocated, layout, seed| {
+            let search = Search {
+                reference: &reference,
+                decision: &decision,
+                border: Border::default(),
+                mx: 1,
+                my: 0,
+                previous: 0,
+                colocated,
+            };
+            let (_, inter, _) = search.propose(layout, None, seed).unwrap().unwrap();
+            inter.motion().unwrap().vectors
+        };
+        assert_eq!(chosen(Some(&moving), Layout::Whole, None), [far; 16]);
+        assert_ne!(chosen(None, Layout::Whole, None), [far; 16]);
+        assert_ne!(chosen(Some(&intra), Layout::Whole, None), [far; 16]);
+        assert_eq!(chosen(None, Layout::Sub([0; 4]), Some(far)), [far; 16]);
+        assert_ne!(chosen(None, Layout::Sub([0; 4]), None), [far; 16]);
+    }
+
     #[test]
     fn compact_search_bounds_probes_and_complete_inter_evaluations() {
         let reference = [
@@ -1408,6 +1519,7 @@ mod tests {
                 mx: 0,
                 my: 0,
                 previous,
+                colocated: None,
             };
             PROBES.with(|count| count.set(0));
             EVALUATIONS.with(|count| count.set(0));
@@ -1415,7 +1527,7 @@ mod tests {
             search
                 .candidates(&mut best, &mut Error::Coefficient)
                 .unwrap();
-            assert!(PROBES.with(|count| count.get()) <= 115);
+            assert!(PROBES.with(|count| count.get()) <= 5 * PART_PROBES);
             assert!(EVALUATIONS.with(|count| count.get()) <= 3);
             assert_eq!(best.is_some(), previous < 16);
             if let Some(best) = best {
@@ -1439,6 +1551,7 @@ mod tests {
             mx: 0,
             my: 0,
             previous: 0,
+            colocated: None,
         };
         let part = Inter::new(Layout::Whole).unwrap().parts[0];
         for predictor in [
@@ -1448,10 +1561,10 @@ mod tests {
             Mv { x: 8191, y: 2047 },
         ] {
             PROBES.with(|count| count.set(0));
-            let selected = search.compact(part, predictor).unwrap();
+            let selected = search.compact(part, predictor, &[]).unwrap();
             assert_eq!(selected.2, predictor);
-            assert!(PROBES.with(|count| count.get()) <= 23);
-            assert_eq!(search.compact(part, predictor).unwrap(), selected);
+            assert!(PROBES.with(|count| count.get()) <= PART_PROBES);
+            assert_eq!(search.compact(part, predictor, &[]).unwrap(), selected);
         }
     }
 
@@ -1607,6 +1720,7 @@ mod tests {
                             mx: 0,
                             my: 0,
                             previous: 0,
+                            colocated: None,
                         };
                         let mut skip = Inter::new(Layout::Whole).unwrap();
                         skip.skip = true;
@@ -1706,6 +1820,7 @@ mod tests {
                     mx: 0,
                     my: 0,
                     previous: 0,
+                    colocated: None,
                 };
                 let mut best = None;
                 SEARCHES.with(|count| count.set(0));
@@ -1827,6 +1942,7 @@ mod tests {
                     mx: origin,
                     my: origin,
                     previous: 0,
+                    colocated: None,
                 };
                 for x in [-8192, -64, -4, 0, 4, 64, 8188] {
                     for y in [-2048, -64, -4, 0, 4, 64, 2044] {
@@ -1899,6 +2015,7 @@ mod tests {
                         mx: origin,
                         my: origin,
                         previous: 0,
+                        colocated: None,
                     };
                     for (width, height) in
                         [(16, 16), (16, 8), (8, 16), (8, 8), (8, 4), (4, 8), (4, 4)]
@@ -1984,6 +2101,7 @@ mod tests {
             mx: 0,
             my: 0,
             previous: 0,
+            colocated: None,
         };
         let part = Inter::new(Layout::Whole).unwrap().parts[0];
         let mut motions = Motions::new();
@@ -2187,6 +2305,7 @@ mod tests {
             mx: 0,
             my: 0,
             previous: 0,
+            colocated: None,
         };
         let part = Inter::new(Layout::Whole).unwrap().parts[0];
         for predictor in [
@@ -2260,6 +2379,7 @@ mod tests {
                     mx: corner,
                     my: corner,
                     previous: 0,
+                    colocated: None,
                 };
                 for layout in [
                     Layout::Whole,
@@ -2539,6 +2659,7 @@ mod tests {
                         mx: 0,
                         my: 0,
                         previous: 0,
+                        colocated: None,
                     };
                     let mut inter = Inter::new(layout).unwrap();
                     for (i, p) in inter.parts.iter_mut().take(inter.len).enumerate() {
@@ -2748,6 +2869,7 @@ mod tests {
             mx: 0,
             my: 0,
             previous: 0,
+            colocated: None,
         };
         let a = IntraAvail::default();
         let intra = decision
@@ -2764,6 +2886,7 @@ mod tests {
         assert!(cheap.key < intra.key);
         let forbidden = Search {
             previous: 16,
+            colocated: None,
             ..search
         };
         assert!(matches!(forbidden.evaluate(skip), Err(Error::Syntax)));
@@ -2778,6 +2901,7 @@ mod tests {
         assert!(matches!(
             Search {
                 previous: 1,
+                colocated: None,
                 ..search
             }
             .evaluate(fine),
@@ -2830,6 +2954,7 @@ mod tests {
                 mx: 0,
                 my: 0,
                 previous: 0,
+                colocated: None,
             };
             let base = Inter::new(Layout::Whole).unwrap();
             let best = search

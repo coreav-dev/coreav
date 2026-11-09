@@ -1107,12 +1107,14 @@ pub(crate) struct EncodedPicture {
     pub(crate) reconstruction: Vec<u8>,
     pub(crate) planes: [FramePlane; 3],
     pub(crate) previous_mv_count: u8,
+    pub(crate) motion: Vec<MotionMb>,
 }
 
 struct PictureSyntax {
     writer: Bits,
     pending_skip: u32,
     previous_mv_count: u8,
+    motion: Vec<MotionMb>,
 }
 
 impl PictureSyntax {
@@ -1148,6 +1150,7 @@ impl PictureSyntax {
             }
             macroblock(&mut self.writer, luma, chroma, inter.as_ref(), context)?;
             self.previous_mv_count = inter.as_ref().map_or(0, |i| i.len as u8);
+            self.motion.push(candidate.state.motion);
             if let Some(planes) = planes.as_deref_mut() {
                 for (component, plane) in planes.iter_mut().enumerate() {
                     plane.commit_candidate(candidate, component, mx, my)?;
@@ -1210,12 +1213,24 @@ pub(crate) fn picture(
     ];
     let mb_width = e.coded_width / 16;
     let mb_height = e.coded_height / 16;
+    let macroblocks = mb_width * mb_height;
+    #[cfg(test)]
+    let macroblocks = if crate::tests::MOTION_RESERVE_REFUSED.get() {
+        usize::MAX
+    } else {
+        macroblocks
+    };
+    let mut motion = Vec::new();
+    motion
+        .try_reserve_exact(macroblocks)
+        .map_err(|_| Error::Allocation)?;
     let mut writer = Bits::new(e.limits.access_unit_bytes);
     syntax::slice(&mut writer, e, slice)?;
     let mut output = PictureSyntax {
         writer,
         pending_skip: 0,
         previous_mv_count: e.previous_mv_count,
+        motion,
     };
     let planes = if e.threads == 1 {
         let mut planes = planes;
@@ -1300,6 +1315,7 @@ pub(crate) fn picture(
         reconstruction,
         planes,
         previous_mv_count: output.previous_mv_count,
+        motion: output.motion,
     })
 }
 

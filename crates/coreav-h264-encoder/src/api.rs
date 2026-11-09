@@ -280,6 +280,7 @@ pub struct Encoder {
     pub(crate) coded_height: usize,
     pub(crate) reference: Option<[codec::FramePlane; 3]>,
     pub(crate) previous_mv_count: u8,
+    pub(crate) previous_motion: Vec<crate::motion::MotionMb>,
     pub(crate) threads: usize,
     next_idr_id: u32,
     next_frame_num: u8,
@@ -341,6 +342,7 @@ impl Encoder {
             coded_height,
             reference: None,
             previous_mv_count: 0,
+            previous_motion: Vec::new(),
             threads,
             next_idr_id: 0,
             next_frame_num: 0,
@@ -391,6 +393,7 @@ impl Encoder {
             None
         };
         self.previous_mv_count = encoded.previous_mv_count;
+        self.previous_motion = encoded.motion;
         Ok(AccessUnit {
             nals,
             reconstruction: encoded.reconstruction,
