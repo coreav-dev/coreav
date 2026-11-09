@@ -126,12 +126,73 @@ fn dc(nb: &Neighbours, n: usize) -> i32 {
     }
 }
 
-/// Intra_4x4 prediction of a 4x4 view (clause 8.3.1.2). `mode` is
-/// Intra4x4PredMode; above 8 it predicts DC. A view of another size is
-/// left unchanged.
-pub(crate) fn pred4x4(v: &mut IntraMut<'_>, mode: u8) {
+/// Intra_4x4 prediction (clause 8.3.1.2) from the neighbours of a 4x4
+/// block, row by row. `mode` is Intra4x4PredMode; above 8 it predicts
+/// DC. The neighbours are read once ([`Intra4x4Neighbours::of`]), so each
+/// mode of one block is predicted without reading its view again.
+#[inline]
+pub(crate) fn pred4x4(neighbours: &Intra4x4Neighbours, mode: u8) -> [u8; 16] {
+    let Intra4x4Neighbours {
+        top,
+        left,
+        top_left: x,
+        avail,
+    } = *neighbours;
+    let [a, b, c, d, e, f, g, _] = top;
+    let [i, j, k, l] = left;
+    let half = |a: u16, b: u16| ((a + b + 1) >> 1) as u8;
+    let quarter = |a: u16, b: u16, c: u16| ((a + 2 * b + c + 2) >> 2) as u8;
+    match mode {
+        0 => [a, b, c, d, a, b, c, d, a, b, c, d, a, b, c, d].map(|v| v as u8),
+        1 => [i, i, i, i, j, j, j, j, k, k, k, k, l, l, l, l].map(|v| v as u8),
+        3 => directional4::<3>(&top, &left, x),
+        4 => directional4::<4>(&top, &left, x),
+        5 => directional4::<5>(&top, &left, x),
+        6 => directional4::<6>(&top, &left, x),
+        7 => {
+            let p0 = half(a, b);
+            let p1 = half(b, c);
+            let p2 = half(c, d);
+            let p3 = half(d, e);
+            let p4 = half(e, f);
+            let p5 = quarter(a, b, c);
+            let p6 = quarter(b, c, d);
+            let p7 = quarter(c, d, e);
+            let p8 = quarter(d, e, f);
+            let p9 = quarter(e, f, g);
+            [
+                p0, p1, p2, p3, p5, p6, p7, p8, p1, p2, p3, p4, p6, p7, p8, p9,
+            ]
+        }
+        8 => {
+            let p0 = half(i, j);
+            let p1 = quarter(i, j, k);
+            let p2 = half(j, k);
+            let p3 = quarter(j, k, l);
+            let p4 = half(k, l);
+            let p5 = quarter(k, l, l);
+            let p6 = l as u8;
+            [
+                p0, p1, p2, p3, p2, p3, p4, p5, p4, p5, p6, p6, p6, p6, p6, p6,
+            ]
+        }
+        _ => {
+            let dc = match (avail.top, avail.left) {
+                (true, true) => (a + b + c + d + i + j + k + l + 4) >> 3,
+                (true, false) => (a + b + c + d + 2) >> 2,
+                (false, true) => (i + j + k + l + 2) >> 2,
+                (false, false) => 128,
+            };
+            [dc as u8; 16]
+        }
+    }
+}
+
+/// Intra_4x4 prediction of a 4x4 view (clause 8.3.1.2), as [`pred4x4`]
+/// predicts it. A view of another size is left unchanged.
+pub(crate) fn pred4x4_view(v: &mut IntraMut<'_>, mode: u8) {
     if let Some(neighbours) = Intra4x4Neighbours::of(v) {
-        write_block(v, &neighbours.predict(mode));
+        write_block(v, &pred4x4(&neighbours, mode));
     }
 }
 
@@ -168,55 +229,7 @@ impl Intra4x4Neighbours {
     /// predicts DC.
     #[inline]
     pub fn predict(&self, mode: u8) -> [u8; 16] {
-        let (top, left, x) = (self.top, self.left, self.top_left);
-        let [a, b, c, d, e, f, g, _] = top;
-        let [i, j, k, l] = left;
-        let half = |a: u16, b: u16| ((a + b + 1) >> 1) as u8;
-        let quarter = |a: u16, b: u16, c: u16| ((a + 2 * b + c + 2) >> 2) as u8;
-        match mode {
-            0 => [a, b, c, d, a, b, c, d, a, b, c, d, a, b, c, d].map(|v| v as u8),
-            1 => [i, i, i, i, j, j, j, j, k, k, k, k, l, l, l, l].map(|v| v as u8),
-            3 => directional4::<3>(&top, &left, x),
-            4 => directional4::<4>(&top, &left, x),
-            5 => directional4::<5>(&top, &left, x),
-            6 => directional4::<6>(&top, &left, x),
-            7 => {
-                let p0 = half(a, b);
-                let p1 = half(b, c);
-                let p2 = half(c, d);
-                let p3 = half(d, e);
-                let p4 = half(e, f);
-                let p5 = quarter(a, b, c);
-                let p6 = quarter(b, c, d);
-                let p7 = quarter(c, d, e);
-                let p8 = quarter(d, e, f);
-                let p9 = quarter(e, f, g);
-                [
-                    p0, p1, p2, p3, p5, p6, p7, p8, p1, p2, p3, p4, p6, p7, p8, p9,
-                ]
-            }
-            8 => {
-                let p0 = half(i, j);
-                let p1 = quarter(i, j, k);
-                let p2 = half(j, k);
-                let p3 = quarter(j, k, l);
-                let p4 = half(k, l);
-                let p5 = quarter(k, l, l);
-                let p6 = l as u8;
-                [
-                    p0, p1, p2, p3, p2, p3, p4, p5, p4, p5, p6, p6, p6, p6, p6, p6,
-                ]
-            }
-            _ => {
-                let dc = match (self.avail.top, self.avail.left) {
-                    (true, true) => (a + b + c + d + i + j + k + l + 4) >> 3,
-                    (true, false) => (a + b + c + d + 2) >> 2,
-                    (false, true) => (i + j + k + l + 2) >> 2,
-                    (false, false) => 128,
-                };
-                [dc as u8; 16]
-            }
-        }
+        pred4x4(self, mode)
     }
 }
 
@@ -674,7 +687,7 @@ pub(crate) fn block_avail(
 }
 
 /// [`Kernels::intra4x4_mb`]: the trait's reference semantics, each block
-/// predicted by [`pred4x4`] and its residual added by `k.idct4x4_add`.
+/// predicted by [`pred4x4_view`] and its residual added by `k.idct4x4_add`.
 pub(crate) fn intra4x4_mb<K: Kernels + ?Sized>(
     k: &K,
     mut dst: IntraMut<'_>,
@@ -691,7 +704,7 @@ pub(crate) fn intra4x4_mb<K: Kernels + ?Sized>(
         let Some(mut v) = dst.sub(x, y, 4, block_avail(mb, x, y, 4, blk)) else {
             continue;
         };
-        pred4x4(&mut v, *mode);
+        pred4x4_view(&mut v, *mode);
         if nz & (1 << blk) != 0 {
             if let Some(b) = v.block_mut() {
                 k.idct4x4_add(b, coeffs);
@@ -790,11 +803,11 @@ mod tests {
         let mut p = plane();
         // A 4x4 block at (1, 1) of the plane, so row 0 is above it and
         // column 0 is left of it.
-        pred4x4(&mut view(&mut p, 16, 17, 4, ALL), 0);
+        pred4x4_view(&mut view(&mut p, 16, 17, 4, ALL), 0);
         assert_eq!(p.get(2 * 16 + 1), Some(&11));
         assert_eq!(p.get(16 * 4 + 1), Some(&11));
         let mut p = plane();
-        pred4x4(&mut view(&mut p, 16, 17, 4, ALL), 1);
+        pred4x4_view(&mut view(&mut p, 16, 17, 4, ALL), 1);
         assert_eq!(p.get(17), Some(&21));
         assert_eq!(p.get(16 * 4 + 1), Some(&24));
     }
@@ -802,7 +815,7 @@ mod tests {
     #[test]
     fn dc_without_neighbours_is_the_mid_grey() {
         let mut p = vec![7u8; 16 * 16];
-        pred4x4(&mut view(&mut p, 16, 0, 4, NONE), 2);
+        pred4x4_view(&mut view(&mut p, 16, 0, 4, NONE), 2);
         assert!(p.iter().take(4).all(|&s| s == 128));
         let mut p = vec![7u8; 16 * 16];
         Scalar.intra16x16(view(&mut p, 16, 0, 16, NONE), 2);
@@ -819,7 +832,7 @@ mod tests {
                 let v = view(p, 16, 16 * 16 + 16, n, ALL);
                 let mut v = v;
                 match (n, dc) {
-                    (4, _) => pred4x4(&mut v, mode),
+                    (4, _) => pred4x4_view(&mut v, mode),
                     (8, 2) => pred8x8(&mut v, mode),
                     (16, _) => pred16x16(&mut v, mode),
                     _ => pred_chroma(&mut v, mode),
@@ -838,7 +851,7 @@ mod tests {
     fn a_view_of_another_size_is_left_alone() {
         let mut p = vec![9u8; 32 * 32];
         let before = p.clone();
-        pred4x4(&mut view(&mut p, 32, 33, 8, ALL), 2);
+        pred4x4_view(&mut view(&mut p, 32, 33, 8, ALL), 2);
         pred8x8(&mut view(&mut p, 32, 33, 4, ALL), 2);
         Scalar.intra16x16(view(&mut p, 32, 33, 8, ALL), 2);
         Scalar.intra_chroma(view(&mut p, 32, 33, 16, ALL), 0);
@@ -862,7 +875,7 @@ mod tests {
     #[test]
     fn every_prediction_matches_the_code_it_replaced() {
         let cases: [(&str, New, Old, usize, u8); 4] = [
-            ("4x4", pred4x4, reference::pred4x4, 4, 9),
+            ("4x4", pred4x4_view, reference::pred4x4, 4, 9),
             ("8x8", pred8x8, reference::pred8x8, 8, 9),
             ("16x16", pred16x16, reference::pred16x16, 16, 4),
             ("chroma", pred_chroma, reference::pred_chroma, 8, 4),

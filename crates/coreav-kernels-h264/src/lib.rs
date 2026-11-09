@@ -269,7 +269,7 @@ pub trait Kernels: Send + Sync + 'static {
     /// Availability includes the block-order restriction on top-right samples.
     fn intra4x4(&self, mut dst: IntraMut<'_>, mode: u8) {
         if dst.n() == 4 {
-            intra::pred4x4(&mut dst, mode);
+            intra::pred4x4_view(&mut dst, mode);
         }
     }
 
