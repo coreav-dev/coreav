@@ -1,0 +1,131 @@
+diff --git a/crates/coreav-h264-encoder/src/codec.rs b/crates/coreav-h264-encoder/src/codec.rs
+index 14c7d5f651..84b6f2ee40 100644
+--- a/crates/coreav-h264-encoder/src/codec.rs
++++ b/crates/coreav-h264-encoder/src/codec.rs
+@@ -55,8 +55,8 @@ impl Tile {
+             .map_err(|_| Error::Internal)?;
+         match n {
+             4 => Scalar.intra4x4(view, mode),
+-            8 => Scalar.intra_chroma(view, mode),
+-            16 => Scalar.intra16x16(view, mode),
++            8 => crate::kernels::pixels().intra_chroma(view, mode),
++            16 => crate::kernels::pixels().intra16x16(view, mode),
+             _ => return Err(Error::Internal),
+         }
+         Ok(())
+diff --git a/crates/coreav-h264-encoder/src/simd/transform.rs b/crates/coreav-h264-encoder/src/simd/transform.rs
+index bd8e620945..14e3b3aab1 100644
+--- a/crates/coreav-h264-encoder/src/simd/transform.rs
++++ b/crates/coreav-h264-encoder/src/simd/transform.rs
+@@ -51,6 +51,13 @@ impl Avx2 {
+         }
+         unsafe { inverse4(coefficients) }
+     }
++
++    pub(crate) fn inverse_add(self, coefficients: &[i32; 16], rows: [u32; 4]) -> Option<[u32; 4]> {
++        if !inverse_input_valid(coefficients) {
++            return None;
++        }
++        unsafe { inverse_add4(coefficients, rows) }
++    }
+ }
+ 
+ #[target_feature(enable = "avx2")]
+@@ -211,9 +218,7 @@ fn inverse_line(input: __m256i) -> (__m256i, __m256i) {
+ }
+ 
+ #[target_feature(enable = "avx2")]
+-unsafe fn inverse4(coefficients: &[i32; 16]) -> Option<[i32; 16]> {
+-    let a = unsafe { _mm256_loadu_si256(coefficients.as_ptr().cast()) };
+-    let b = unsafe { _mm256_loadu_si256(coefficients.as_ptr().add(8).cast()) };
++fn inverse_lanes(a: __m256i, b: __m256i) -> Option<(__m256i, __m256i)> {
+     let (a, invalid_a) = inverse_line(a);
+     let (b, invalid_b) = inverse_line(b);
+     let (a, b) = transpose(a, b);
+@@ -230,7 +235,14 @@ unsafe fn inverse4(coefficients: &[i32; 16]) -> Option<[i32; 16]> {
+     if _mm256_movemask_epi8(_mm256_or_si256(invalid, round_limit)) != 0 {
+         return None;
+     }
+-    let (a, b) = transpose(a, b);
++    Some(transpose(a, b))
++}
++
++#[target_feature(enable = "avx2")]
++unsafe fn inverse4(coefficients: &[i32; 16]) -> Option<[i32; 16]> {
++    let a = unsafe { _mm256_loadu_si256(coefficients.as_ptr().cast()) };
++    let b = unsafe { _mm256_loadu_si256(coefficients.as_ptr().add(8).cast()) };
++    let (a, b) = inverse_lanes(a, b)?;
+     let mut out = [0; 16];
+     unsafe {
+         _mm256_storeu_si256(out.as_mut_ptr().cast(), a);
+@@ -238,3 +250,29 @@ unsafe fn inverse4(coefficients: &[i32; 16]) -> Option<[i32; 16]> {
+     }
+     Some(out)
+ }
++
++#[target_feature(enable = "avx2")]
++unsafe fn inverse_add4(coefficients: &[i32; 16], rows: [u32; 4]) -> Option<[u32; 4]> {
++    let a = unsafe { _mm256_loadu_si256(coefficients.as_ptr().cast()) };
++    let b = unsafe { _mm256_loadu_si256(coefficients.as_ptr().add(8).cast()) };
++    let (a, b) = inverse_lanes(a, b)?;
++    let round = _mm256_set1_epi32(32);
++    let residual = _mm256_packs_epi32(
++        _mm256_srai_epi32::<6>(_mm256_add_epi32(a, round)),
++        _mm256_srai_epi32::<6>(_mm256_add_epi32(b, round)),
++    );
++    let [r0, r1, r2, r3] = rows.map(|row| row as i32);
++    let samples = _mm256_cvtepu8_epi16(_mm_set_epi32(r3, r1, r2, r0));
++    let sum = _mm256_packus_epi16(_mm256_adds_epi16(residual, samples), _mm256_setzero_si256());
++    let low = _mm256_castsi256_si128(sum);
++    let high = _mm256_extracti128_si256::<1>(sum);
++    Some(
++        [
++            _mm_cvtsi128_si32(low),
++            _mm_cvtsi128_si32(high),
++            _mm_extract_epi32::<1>(low),
++            _mm_extract_epi32::<1>(high),
++        ]
++        .map(|row| row as u32),
++    )
++}
+diff --git a/crates/coreav-h264-encoder/src/transform.rs b/crates/coreav-h264-encoder/src/transform.rs
+index d70c28d049..430d457f46 100644
+--- a/crates/coreav-h264-encoder/src/transform.rs
++++ b/crates/coreav-h264-encoder/src/transform.rs
+@@ -229,6 +229,36 @@ impl Quant {
+         if coefficients.iter().all(|&c| c == 0) {
+             return Ok(());
+         }
++        #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
++        if let Some(simd) = crate::kernels::arithmetic()
++            && stride >= 4
++        {
++            let Some(block) = samples.get_mut(at..at + 3 * stride + 4) else {
++                simd.inverse(&coefficients).ok_or(Error::Coefficient)?;
++                return Err(Error::Internal);
++            };
++            let mut rows = [0; 4];
++            for (j, row) in rows.iter_mut().enumerate() {
++                let start = j * stride;
++                *row = u32::from_ne_bytes(
++                    *block
++                        .get(start..)
++                        .and_then(<[u8]>::first_chunk::<4>)
++                        .ok_or(Error::Internal)?,
++                );
++            }
++            let rows = simd
++                .inverse_add(&coefficients, rows)
++                .ok_or(Error::Coefficient)?;
++            for (j, row) in rows.iter().enumerate() {
++                let start = j * stride;
++                block
++                    .get_mut(start..start + 4)
++                    .ok_or(Error::Internal)?
++                    .copy_from_slice(&row.to_ne_bytes());
++            }
++            return Ok(());
++        }
+         let residual = inverse(coefficients).ok_or(Error::Coefficient)?;
+         let block = samples
+             .get_mut(at..at + 3 * stride + 4)

@@ -1,0 +1,48 @@
+name: encoder-bundle-round
+on:
+  push:
+    branches: [diagnostic/core737-bundle]
+permissions:
+  contents: read
+jobs:
+  arms:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        arms: ['pr']
+    env:
+      ARMS: ${{ matrix.arms }}
+      BASE: d8aa89a04f56c928f2d9798afe600fb235cf8352
+      PR_SHA: acfe67fd4610b98e3ccf813ba59cab8d1f01bbaa
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - run: sudo apt-get update -qq && sudo apt-get install -y valgrind
+      - run: |
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install boto3==1.35.36 numpy==2.1.3 scipy==1.14.1
+          python3 diagnostic/setup.py
+          scripts/install-oracle-ffmpeg.sh /tmp/prune/bin
+      - name: Prepare existing inputs
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: /tmp/venv/bin/python diagnostic/account_prepare.py /tmp/prune
+      - run: /tmp/venv/bin/python diagnostic/measure.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: pruning-${{ strategy.job-index }}
+          path: |
+            /tmp/prune/results
+            /tmp/prune/requests.json
+          retention-days: 1
