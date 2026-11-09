@@ -229,6 +229,36 @@ impl Quant {
         if coefficients.iter().all(|&c| c == 0) {
             return Ok(());
         }
+        #[cfg(all(target_arch = "x86_64", not(feature = "scalar")))]
+        if let Some(simd) = crate::kernels::arithmetic()
+            && stride >= 4
+        {
+            let Some(block) = samples.get_mut(at..at + 3 * stride + 4) else {
+                simd.inverse(&coefficients).ok_or(Error::Coefficient)?;
+                return Err(Error::Internal);
+            };
+            let mut rows = [0; 4];
+            for (j, row) in rows.iter_mut().enumerate() {
+                let start = j * stride;
+                *row = u32::from_ne_bytes(
+                    *block
+                        .get(start..)
+                        .and_then(<[u8]>::first_chunk::<4>)
+                        .ok_or(Error::Internal)?,
+                );
+            }
+            let rows = simd
+                .inverse_add(&coefficients, rows)
+                .ok_or(Error::Coefficient)?;
+            for (j, row) in rows.iter().enumerate() {
+                let start = j * stride;
+                block
+                    .get_mut(start..start + 4)
+                    .ok_or(Error::Internal)?
+                    .copy_from_slice(&row.to_ne_bytes());
+            }
+            return Ok(());
+        }
         let residual = inverse(coefficients).ok_or(Error::Coefficient)?;
         let block = samples
             .get_mut(at..at + 3 * stride + 4)

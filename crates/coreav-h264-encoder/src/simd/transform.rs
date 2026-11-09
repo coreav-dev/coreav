@@ -51,6 +51,13 @@ impl Avx2 {
         }
         unsafe { inverse4(coefficients) }
     }
+
+    pub(crate) fn inverse_add(self, coefficients: &[i32; 16], rows: [u32; 4]) -> Option<[u32; 4]> {
+        if !inverse_input_valid(coefficients) {
+            return None;
+        }
+        unsafe { inverse_add4(coefficients, rows) }
+    }
 }
 
 #[target_feature(enable = "avx2")]
@@ -211,9 +218,7 @@ fn inverse_line(input: __m256i) -> (__m256i, __m256i) {
 }
 
 #[target_feature(enable = "avx2")]
-unsafe fn inverse4(coefficients: &[i32; 16]) -> Option<[i32; 16]> {
-    let a = unsafe { _mm256_loadu_si256(coefficients.as_ptr().cast()) };
-    let b = unsafe { _mm256_loadu_si256(coefficients.as_ptr().add(8).cast()) };
+fn inverse_lanes(a: __m256i, b: __m256i) -> Option<(__m256i, __m256i)> {
     let (a, invalid_a) = inverse_line(a);
     let (b, invalid_b) = inverse_line(b);
     let (a, b) = transpose(a, b);
@@ -230,11 +235,44 @@ unsafe fn inverse4(coefficients: &[i32; 16]) -> Option<[i32; 16]> {
     if _mm256_movemask_epi8(_mm256_or_si256(invalid, round_limit)) != 0 {
         return None;
     }
-    let (a, b) = transpose(a, b);
+    Some(transpose(a, b))
+}
+
+#[target_feature(enable = "avx2")]
+unsafe fn inverse4(coefficients: &[i32; 16]) -> Option<[i32; 16]> {
+    let a = unsafe { _mm256_loadu_si256(coefficients.as_ptr().cast()) };
+    let b = unsafe { _mm256_loadu_si256(coefficients.as_ptr().add(8).cast()) };
+    let (a, b) = inverse_lanes(a, b)?;
     let mut out = [0; 16];
     unsafe {
         _mm256_storeu_si256(out.as_mut_ptr().cast(), a);
         _mm256_storeu_si256(out.as_mut_ptr().add(8).cast(), b);
     }
     Some(out)
+}
+
+#[target_feature(enable = "avx2")]
+unsafe fn inverse_add4(coefficients: &[i32; 16], rows: [u32; 4]) -> Option<[u32; 4]> {
+    let a = unsafe { _mm256_loadu_si256(coefficients.as_ptr().cast()) };
+    let b = unsafe { _mm256_loadu_si256(coefficients.as_ptr().add(8).cast()) };
+    let (a, b) = inverse_lanes(a, b)?;
+    let round = _mm256_set1_epi32(32);
+    let residual = _mm256_packs_epi32(
+        _mm256_srai_epi32::<6>(_mm256_add_epi32(a, round)),
+        _mm256_srai_epi32::<6>(_mm256_add_epi32(b, round)),
+    );
+    let [r0, r1, r2, r3] = rows.map(|row| row as i32);
+    let samples = _mm256_cvtepu8_epi16(_mm_set_epi32(r3, r1, r2, r0));
+    let sum = _mm256_packus_epi16(_mm256_adds_epi16(residual, samples), _mm256_setzero_si256());
+    let low = _mm256_castsi256_si128(sum);
+    let high = _mm256_extracti128_si256::<1>(sum);
+    Some(
+        [
+            _mm_cvtsi128_si32(low),
+            _mm_cvtsi128_si32(high),
+            _mm_extract_epi32::<1>(low),
+            _mm_extract_epi32::<1>(high),
+        ]
+        .map(|row| row as u32),
+    )
 }
