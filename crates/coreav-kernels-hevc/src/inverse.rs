@@ -220,40 +220,22 @@ pub fn add_residual(
     depth: BitDepth,
     prediction: Block<'_, u16>,
     residual: Block<'_, i32>,
-    mut output: BlockMut<'_, u16>,
+    output: BlockMut<'_, u16>,
 ) -> Result<(), Error> {
     if prediction.size != residual.size || prediction.size != output.size {
         return Err(Error::BlockSize);
     }
-    let n = prediction.size.side();
-    if depth.bits() == 8 {
-        return match n {
-            4 => add_eight::<4>(prediction, residual, output),
-            8 => add_eight::<8>(prediction, residual, output),
-            16 => add_eight::<16>(prediction, residual, output),
-            _ => add_eight::<32>(prediction, residual, output),
-        };
+    let max = depth.max_sample();
+    match prediction.size.side() {
+        4 => add_rows::<4>(max, prediction, residual, output),
+        8 => add_rows::<8>(max, prediction, residual, output),
+        16 => add_rows::<16>(max, prediction, residual, output),
+        _ => add_rows::<32>(max, prediction, residual, output),
     }
-    for y in 0..n {
-        for x in 0..n {
-            if prediction.at(x, y)? > depth.max_sample() {
-                return Err(Error::Sample);
-            }
-        }
-    }
-    for y in 0..n {
-        for x in 0..n {
-            output.put(
-                x,
-                y,
-                depth.clip(i64::from(prediction.at(x, y)?) + i64::from(residual.at(x, y)?)),
-            )?;
-        }
-    }
-    Ok(())
 }
 
-fn add_eight<const N: usize>(
+fn add_rows<const N: usize>(
+    max: u16,
     prediction: Block<'_, u16>,
     residual: Block<'_, i32>,
     output: BlockMut<'_, u16>,
@@ -264,7 +246,7 @@ fn add_eight<const N: usize>(
             .get(y * prediction.stride..)
             .and_then(<[u16]>::first_chunk::<N>)
             .ok_or(Error::Buffer)?;
-        if row.iter().any(|&sample| sample > 255) {
+        if row.iter().any(|&sample| sample > max) {
             return Err(Error::Sample);
         }
     }
@@ -285,7 +267,9 @@ fn add_eight<const N: usize>(
             .and_then(<[u16]>::first_chunk_mut::<N>)
             .ok_or(Error::Buffer)?;
         for ((&prediction, &residual), sample) in prediction.iter().zip(residual).zip(output) {
-            *sample = residual.saturating_add(i32::from(prediction)).clamp(0, 255) as u16;
+            *sample = residual
+                .saturating_add(i32::from(prediction))
+                .clamp(0, i32::from(max)) as u16;
         }
     }
     Ok(())
