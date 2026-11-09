@@ -1015,7 +1015,7 @@ pub(super) fn predict(
                 });
             #[cfg(hevc_thread_diagnostics)]
             let reference = reference.diagnostic_reads(crate::thread_diagnostics::sample_read);
-            kernels::interpolate_inter(
+            kernels::interpolate_inter_with_rows(
                 config,
                 reference,
                 kernels::RectMut::new(
@@ -1029,6 +1029,7 @@ pub(super) fn predict(
                     width,
                     height,
                 )?,
+                &mut walker.frame.scratch.residual,
             )?;
             if let Some(parameters) = inter.weights {
                 let denom = *parameters
