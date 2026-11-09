@@ -151,6 +151,112 @@ fn automatic_and_scalar_match_all_widths_phases_and_tails() {
 }
 
 #[test]
+fn reused_dirty_interpolation_rows_match_equations_across_successive_shapes() {
+    let mut workspace = [i32::MIN; 1025];
+    for bits in [8, 10] {
+        let mut source = vec![u16::MAX; 87 * 28 + 83];
+        for y in 0..29 {
+            for x in 0..83 {
+                source[y * 87 + x] = ((47 * x + 91 * y + 13 * x * y) % (1 << bits)) as u16;
+            }
+        }
+        for component in [Component::Luma, Component::Chroma] {
+            let phases = if component == Component::Luma { 4 } else { 8 };
+            let limit = if component == Component::Luma { 64 } else { 32 };
+            for width in [64, 1, 31, 8, 63, 7, 32, 9] {
+                if width > limit {
+                    continue;
+                }
+                for phase_y in 0..phases {
+                    for phase_x in 0..phases {
+                        for (x, y, motion_x, motion_y) in
+                            [(8, 8, 0, 0), (0, 0, 0, 0), (82, 28, 32000, -32000)]
+                        {
+                            let request = config(
+                                bits,
+                                component,
+                                x,
+                                y,
+                                motion_x + phase_x,
+                                motion_y + phase_y,
+                            )
+                            .unwrap();
+                            let height =
+                                [1, 3, 9][(width + phase_x as usize + phase_y as usize) % 3];
+                            let stride = width + 3;
+                            let mut actual = vec![i32::MAX; 1 + stride * height];
+                            let mut scalar = actual.clone();
+                            let mut expected = actual.clone();
+                            for y in 0..height {
+                                for x in 0..width {
+                                    expected[1 + y * stride + x] =
+                                        equation_sample(request, (&source, 87, 83, 29), (x, y))
+                                            .unwrap();
+                                }
+                            }
+                            interpolate_inter_with_rows(
+                                request,
+                                RefPlane::new(&source, 87, 83, 29).unwrap(),
+                                RectMut::new(&mut actual[1..], stride, width, height).unwrap(),
+                                &mut workspace[1..],
+                            )
+                            .unwrap();
+                            inter::interpolate_inter_scalar(
+                                request,
+                                RefPlane::new(&source, 87, 83, 29).unwrap(),
+                                RectMut::new(&mut scalar[1..], stride, width, height).unwrap(),
+                            )
+                            .unwrap();
+                            assert_eq!(
+                                actual, expected,
+                                "{bits}/{component:?}/{width}/{request:?}"
+                            );
+                            assert_eq!(actual, scalar);
+                            assert_eq!(workspace[0], i32::MIN);
+                            assert!(workspace[513..].iter().all(|&v| v == i32::MIN));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn reused_interpolation_rows_reject_short_storage_and_invalid_support_before_writes() {
+    for bits in [8, 10] {
+        let mut source = [0; 64];
+        let mut workspace = [i32::MIN; 513];
+        let mut output = [777; 4];
+        for length in [0, 1, 511] {
+            assert_eq!(
+                interpolate_inter_with_rows(
+                    config(bits, Component::Luma, 3, 3, 2, 2).unwrap(),
+                    RefPlane::new(&source, 8, 8, 8).unwrap(),
+                    RectMut::new(&mut output, 2, 2, 2).unwrap(),
+                    &mut workspace[..length],
+                ),
+                Err(Error::Buffer)
+            );
+            assert_eq!(output, [777; 4]);
+            assert_eq!(workspace, [i32::MIN; 513]);
+        }
+        source[63] = 1 << bits;
+        assert_eq!(
+            interpolate_inter_with_rows(
+                config(bits, Component::Luma, 3, 3, 2, 2).unwrap(),
+                RefPlane::new(&source, 8, 8, 8).unwrap(),
+                RectMut::new(&mut output, 2, 2, 2).unwrap(),
+                &mut workspace,
+            ),
+            Err(Error::Sample)
+        );
+        assert_eq!(output, [777; 4]);
+        assert_eq!(workspace, [i32::MIN; 513]);
+    }
+}
+
+#[test]
 fn inter_scratch_fits_existing_reconstruction_envelope() {
     assert!(core::mem::size_of::<inter::InterScratch>() <= SCRATCH_BYTES);
     assert_eq!(SCRATCH_BYTES, 9_224);

@@ -124,7 +124,21 @@ pub fn interpolate_inter(
     reference: RefPlane<'_>,
     output: RectMut<'_, i32>,
 ) -> Result<(), Error> {
-    interpolate(config, reference, output, true)
+    interpolate(config, reference, output, true, None)
+}
+
+/// Uses the first 512 caller-owned i32 samples as an eight-row interpolation ring.
+///
+/// The samples may contain arbitrary previous values. Every active temporary is
+/// overwritten before use; workspace beyond 512 samples and output padding stay unchanged.
+pub fn interpolate_inter_with_rows(
+    config: InterPrediction,
+    reference: RefPlane<'_>,
+    output: RectMut<'_, i32>,
+    rows: &mut [i32],
+) -> Result<(), Error> {
+    let rows = rows.get_mut(..512).ok_or(Error::Buffer)?;
+    interpolate(config, reference, output, true, Some(rows))
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -134,7 +148,7 @@ pub fn interpolate_inter_scalar(
     reference: RefPlane<'_>,
     output: RectMut<'_, i32>,
 ) -> Result<(), Error> {
-    interpolate(config, reference, output, false)
+    interpolate(config, reference, output, false, None)
 }
 
 fn interpolate(
@@ -142,6 +156,7 @@ fn interpolate(
     reference: RefPlane<'_>,
     output: RectMut<'_, i32>,
     _automatic: bool,
+    row_storage: Option<&mut [i32]>,
 ) -> Result<(), Error> {
     #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
     let vector = _automatic.then(crate::simd::Avx2::detect).flatten();
@@ -190,15 +205,29 @@ fn interpolate(
     } else {
         coefficients(config.component, phase_y)?
     };
-    let mut scratch = InterScratch {
-        columns: [0; 71],
-        source: [0; 71],
-        rows: [[0; 64]; 8],
+    let mut owned;
+    let mut columns;
+    let mut source;
+    let (columns, source_buffer, intermediate) = if let Some(rows) = row_storage {
+        columns = [0; 71];
+        source = [0; 71];
+        (&mut columns, &mut source, rows)
+    } else {
+        owned = InterScratch {
+            columns: [0; 71],
+            source: [0; 71],
+            rows: [[0; 64]; 8],
+        };
+        (
+            &mut owned.columns,
+            &mut owned.source,
+            owned.rows.as_flattened_mut(),
+        )
     };
     let source_width = output.width + x_filter.len().saturating_sub(1);
     let consecutive = x_start >= 0 && x_start + source_width as i64 <= reference.width as i64;
     if !consecutive {
-        for (x, column) in scratch.columns.iter_mut().take(source_width).enumerate() {
+        for (x, column) in columns.iter_mut().take(source_width).enumerate() {
             *column = (x_start + x as i64).clamp(0, reference.width as i64 - 1) as usize;
         }
     }
@@ -218,17 +247,16 @@ fn interpolate(
                     .get(x_start as usize..x_start as usize + source_width)
                     .ok_or(Error::Buffer)?
             } else {
-                let input = scratch
-                    .source
-                    .get_mut(..source_width)
-                    .ok_or(Error::Buffer)?;
-                for (value, &column) in input.iter_mut().zip(&scratch.columns) {
+                let input = source_buffer.get_mut(..source_width).ok_or(Error::Buffer)?;
+                for (value, &column) in input.iter_mut().zip(columns.iter()) {
                     *value = *source.get(column).ok_or(Error::Buffer)?;
                 }
                 &*input
             };
-            let row = scratch.rows.get_mut(next_row % 8).ok_or(Error::Buffer)?;
-            let row = row.get_mut(..output.width).ok_or(Error::Buffer)?;
+            let row_start = (next_row % 8) * 64;
+            let row = intermediate
+                .get_mut(row_start..row_start + output.width)
+                .ok_or(Error::Buffer)?;
             if x_filter.is_empty() {
                 for (value, &sample) in row.iter_mut().zip(input.iter()) {
                     *value = i32::from(sample) << internal_shift;
@@ -252,16 +280,15 @@ fn interpolate(
             .ok_or(Error::Buffer)?;
         if y_filter.is_empty() {
             destination.copy_from_slice(
-                scratch
-                    .rows
-                    .get(y % 8)
-                    .and_then(|row| row.get(..output.width))
+                intermediate
+                    .get((y % 8) * 64..(y % 8) * 64 + output.width)
                     .ok_or(Error::Buffer)?,
             );
         } else {
             let mut rows: [&[i32]; 8] = [&[]; 8];
             for (j, row) in rows.iter_mut().take(row_count).enumerate() {
-                *row = scratch.rows.get((y + j) % 8).ok_or(Error::Buffer)?;
+                let begin = ((y + j) % 8) * 64;
+                *row = intermediate.get(begin..begin + 64).ok_or(Error::Buffer)?;
             }
             #[cfg(all(not(feature = "scalar"), target_arch = "x86_64"))]
             if let Some(vector) = vector {
